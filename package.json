@@ -1,0 +1,52 @@
+{
+  "name": "mybackend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "lint:eslint": "eslint . --fix",
+    "lint": "run-s lint:*"
+  },
+  "dependencies": {
+    "@applemusic-like-lyrics/core": "^0.2.0-alpha.5",
+    "@applemusic-like-lyrics/vue": "^0.2.0-alpha.5",
+    "@headlessui/vue": "^1.7.23",
+    "@heroicons/vue": "^2.2.0",
+    "@pixi/app": "^7.4.3",
+    "@pixi/core": "^7.4.3",
+    "@pixi/display": "^7.4.3",
+    "@pixi/filter-blur": "^7.4.3",
+    "@pixi/filter-bulge-pinch": "^5.1.1",
+    "@pixi/filter-color-matrix": "^7.4.3",
+    "@pixi/sprite": "^7.4.3",
+    "@tailwindcss/vite": "^4.1.13",
+    "axios": "^1.12.2",
+    "gsap": "^3.13.0",
+    "jss": "^10.10.0",
+    "jss-preset-default": "^10.10.0",
+    "pinia": "^3.0.3",
+    "pixi.js": "^8.13.2",
+    "tailwindcss": "^4.1.13",
+    "vue": "^3.5.18",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "eslint": "^9.31.0",
+    "eslint-plugin-oxlint": "~1.8.0",
+    "eslint-plugin-vue": "~10.3.0",
+    "globals": "^16.3.0",
+    "npm-run-all2": "^8.0.4",
+    "oxlint": "~1.8.0",
+    "vite": "npm:rolldown-vite@latest",
+    "vite-plugin-vue-devtools": "^8.0.0"
+  }
+}
