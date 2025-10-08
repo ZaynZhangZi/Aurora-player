@@ -66,19 +66,21 @@
     </TransitionRoot>
 
     <!-- Hero section -->
-    <div class="relative bg-gray-900">
-      <!-- 背景视频与遮罩 -->
-      <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
-        <video
-          autoplay
-          class="object-cover w-full h-full"
-          loop
-          muted
-          playsinline
-          src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/ad/6b/bf/ad6bbf41-f62f-b4ab-116b-2d3516f3d85b/P854854673_Anull_video_gr598_sdr_3840x2160-.mp4"
-        />
+    <div class="relative bg-gray-900 overflow-hidden">
+      <!-- 背景层（包裹视频与遮罩：用于整体缩放/模糊/暗化） -->
+      <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
+        <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
+          <video
+            autoplay
+            class="object-cover w-full h-full"
+            loop
+            muted
+            playsinline
+            src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/ad/6b/bf/ad6bbf41-f62f-b4ab-116b-2d3516f3d85b/P854854673_Anull_video_gr598_sdr_3840x2160-.mp4"
+          />
+        </div>
+        <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
       </div>
-      <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
 
       <!-- 顶部悬浮导航：圆形→展开 -->
       <header class="relative z-10">
@@ -135,29 +137,31 @@
                     </div>
                   </form>
 
+
                   <div class="flex-1 hidden sm:flex ">
                     <div
-                      class="relative w-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
+                      class="relative w-full h-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
                       <input
                         class="w-full h-full
-             text-sm text-white
-             outline-none ring-0 focus:ring-0 focus:outline-none
-              transition-all duration-300"
+                              text-sm text-white placeholder-white/60
+                               outline-none ring-0 focus:ring-0 focus:outline-none
+                                transition-all duration-300"
                         placeholder="搜索音乐、歌手或专辑"
                         type="text"
                       />
-
                     </div>
                   </div>
 
                   <!-- 右侧 登录 / 创建账户 -->
                   <div class="flex items-center space-x-4">
-                    <a class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
-                       href="#">
+                    <a
+                      class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+                      href="#">
                       {{ copy.auth.signIn }}
                     </a>
-                    <a class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
-                       href="#">
+                    <a
+                      class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+                      href="#">
                       {{ copy.auth.signUp }}
                     </a>
                   </div>
@@ -169,15 +173,20 @@
         </nav>
       </header>
 
-      <!-- Hero 主要内容 -->
+      <!-- Hero 主要内容（整块参与滚动动效：文字放大上浮；背景由 heroBgLayerEl 处理） -->
       <div
+        ref="heroSectionEl"
         class="relative mx-auto flex max-w-3xl flex-col items-center justify-center px-6 text-center lg:px-0 min-h-[70vh] sm:min-h-[90vh]"
         @click="goartistDetail"
       >
-        <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
-        <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
-          {{ copy.hero.title }}
-        </h1>
+        <!-- 用一个容器包裹标题文字，便于整体放大/上浮 -->
+        <div ref="heroTextEl"
+             class="flex flex-col items-center justify-center will-change-transform">
+          <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
+          <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
+            {{ copy.hero.title }}
+          </h1>
+        </div>
       </div>
     </div>
 
@@ -246,7 +255,7 @@
         <div class="relative bg-gray-900/75 px-6 py-32 sm:px-12 sm:py-40 lg:px-16 rounded-b-lg">
           <div class="relative mx-auto flex max-w-3xl flex-col items-center text-center">
             <h2 id="social-impact-heading"
-                class="text-3级 font-bold tracking-tight text-white sm:text-4xl">
+                class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               <span class="block sm:inline">{{ copy.feature1.titleLine1 }}</span>
               <span class="block sm:inline">{{ copy.feature1.titleLine2 }}</span>
             </h2>
@@ -297,12 +306,13 @@
         </div>
         <div class="relative bg-gray-900/75 px-6 py-32 sm:px-12 sm:py-40 lg:px-16 rounded-b-lg">
           <div class="relative mx-auto flex max-w-3xl flex-col items-center text-center">
-            <h2 id="comfort-heading" class="text-3xl font-bold tracking-tight text白 sm:text-4xl">
+            <h2 id="comfort-heading"
+                class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               {{ copy.feature2.title }}
             </h2>
             <p class="mt-3 text-xl text-white">{{ copy.feature2.desc }}</p>
             <a
-              class="mt-8 block w-full rounded-md border border-transparent bg白 px-8 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 sm:w-auto"
+              class="mt-8 block w-full rounded-md border border-transparent bg-white px-8 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 sm:w-auto"
               href="#"
             >
               {{ copy.feature2.cta }}
@@ -330,7 +340,7 @@
                 <h3 class="text-sm font-medium text-white">{{ copy.footer.headings.company }}</h3>
                 <ul class="mt-6 space-y-6" role="list">
                   <li v-for="item in footerNavigation.company" :key="item.name" class="text-sm">
-                    <a :href="item.href" class="text-gray-300 hover:text白">{{ item.name }}</a>
+                    <a :href="item.href" class="text-gray-300 hover:text-white">{{ item.name }}</a>
                   </li>
                 </ul>
               </div>
@@ -439,71 +449,6 @@ const copy = {
   },
 }
 
-const colorSchemes = [
-  {
-    name: '日落橙粉',
-    description: '温暖浪漫',
-    tags: ['音乐', '艺术', '时尚'],
-    colors: ['#FF6B6A', '#FFA07A', '#FFD93D', '#FF6AC1', '#C44569']
-  },
-  {
-    name: '清新薄荷',
-    description: '清爽舒适',
-    tags: ['健康', '医疗', '清新'],
-    colors: ['#6DD5FA', '#2980B9', '#A8E6CF', '#56CCF2', '#00D9FF']
-  },
-  {
-    name: '梦幻紫蓝',
-    description: '科技神秘',
-    tags: ['科技', 'AI', '创新'],
-    colors: ['#667EEA', '#764BA2', '#A770EF', '#4E65FF', '#8E54E9']
-  },
-  {
-    name: '活力彩虹',
-    description: '年轻活泼',
-    tags: ['社交', '娱乐', '游戏'],
-    colors: ['#FF6B9D', '#C06CFF', '#6B8EFF', '#4ECDC4', '#FFA07A']
-  },
-  {
-    name: '渐变青柠',
-    description: '自然清新',
-    tags: ['环保', '自然', '生活'],
-    colors: ['#56AB2F', '#A8E063', '#74EBD5', '#9FACE6', '#30E8BF']
-  },
-  {
-    name: '玫瑰金粉',
-    description: '优雅浪漫',
-    tags: ['美妆', '时尚', '女性'],
-    colors: ['#F857A6', '#FF5858', '#FFC371', '#FF6EC7', '#FEA5B4']
-  },
-  {
-    name: '深空蓝紫',
-    description: '深邃高级',
-    tags: ['金融', '商务', '专业'],
-    colors: ['#1E3A8A', '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B']
-  },
-  {
-    name: '糖果色',
-    description: '可爱甜美',
-    tags: ['儿童', '甜品', '可爱'],
-    colors: ['#FFB6C1', '#FFE4E1', '#E0BBE4', '#FFDFD3', '#FEC8D8']
-  },
-  {
-    name: '火焰渐变',
-    description: '热情张扬',
-    tags: ['运动', '激情', '能量'],
-    colors: ['#FF0844', '#FFB199', '#FF6B6B', '#FF9A3C', '#FFC107']
-  },
-  {
-    name: '极光绿蓝',
-    description: '未来感',
-    tags: ['科技', '创新', '未来'],
-    colors: ['#00F5A0', '#00D9F5', '#A8EDEA', '#FED6E3', '#A6C1EE']
-  },
-]
-
-const currencies = ['CAD', 'USD', 'AUD', 'EUR', 'GBP']
-
 const categories = [
   {
     name: 'New Arrivals',
@@ -586,24 +531,21 @@ const mobileMenuOpen = ref(false)
 const navShell = ref(null)
 const navContent = ref(null)
 const fabBtn = ref(null)
-const expanded = ref(false) // 当前是否展开
-const hovering = ref(false) // hover时不立即收回（可选）
+const expanded = ref(false)
+const hovering = ref(false)
 let resizing = false
-let autoExpandByScroll = false // 是否被滚动触发的展开
+let autoExpandByScroll = false
 let navTl = null
 
 function measureExpandedSize() {
   const shell = navShell.value
   const content = navContent.value
   if (!shell || !content) return {w: 0, h: 48}
-  const prev = {
-    width: shell.style.width,
-    // 高度固定 48，不改动
-  }
+  const prev = {width: shell.style.width}
   shell.style.width = 'auto'
   const rect = shell.getBoundingClientRect()
   shell.style.width = prev.width
-  return {w: rect.width, h: 48} // 顶部高度固定为 h-12 (48px)
+  return {w: rect.width, h: 48}
 }
 
 function animateExpand(toExpand) {
@@ -624,13 +566,12 @@ function animateExpand(toExpand) {
         if (toExpand) expanded.value = true
       },
       onComplete: () => {
-        if (!toExpand) expanded.value = false
+        if (!toExpand) expanded.value = false;
         navTl = null
       },
     },
     0,
   )
-  // 内容透明度/位移动画
   if (toExpand) {
     navTl.fromTo(navContent.value, {opacity: 0, y: -6}, {opacity: 1, y: 0, duration: 0.35}, 0.1)
   } else {
@@ -643,7 +584,6 @@ function toggleExpand(force) {
   animateExpand(to)
 }
 
-/** 滚动：下滑阈值自动展开，上滑回到顶部收起 */
 function onScroll() {
   const y = window.scrollY || document.documentElement.scrollTop
   const threshold = 24
@@ -678,6 +618,42 @@ function splitTextToSpans(el) {
   return spans
 }
 
+/** ===== 滚动触发：整块 Hero 背景缩放+模糊 + 文字放大上浮 ===== */
+const heroBgLayerEl = ref(null)   // 背景（视频+遮罩）的容器
+const heroSectionEl = ref(null)   // Hero 文本所在的块（用于定位）
+const heroTextEl = ref(null)      // 文字整体容器
+
+function onHeroParallaxScroll() {
+  const bg = heroBgLayerEl.value
+  const text = heroTextEl.value
+  if (!bg || !text) return
+
+  const scrollY = window.scrollY || document.documentElement.scrollTop
+  const maxScroll = window.innerHeight * 0.8 // 动效完成的滚动距离
+
+  const progress = Math.min(Math.max(scrollY / maxScroll, 0), 1)
+
+  // 背景：缩放、暗化、模糊
+  gsap.to(bg, {
+    scale: 1 + progress * 1,        // 最多缩小 8%
+    opacity: 1 - progress * 0.25,      // 暗化 25%
+    filter: `blur(${progress * 6}px)`, // 最多 6px 模糊
+    transformOrigin: 'center center',
+    duration: 0.25,
+    ease: 'power2.out',
+  })
+
+  // 文字：放大、上浮、轻微淡出
+  gsap.to(text, {
+    scale: 1 + progress * 0.25,        // 最多放大 1.25x
+    y: -progress * 40,                 // 上浮 40px
+    opacity: 1 - progress * 0.2,       // 轻微淡出
+    transformOrigin: 'center center',
+    duration: 0.25,
+    ease: 'power2.out',
+  })
+}
+
 onMounted(async () => {
   await nextTick()
 
@@ -688,7 +664,7 @@ onMounted(async () => {
   }
   window.addEventListener('scroll', onScroll, {passive: true})
 
-  // Hero 动画（可选）
+  // Hero 入场（逐字）
   const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
   if (!prefersReduced) {
     gsap.set(subtitleEl.value, {opacity: 0, y: 12, filter: 'blur(6px)'})
@@ -710,12 +686,26 @@ onMounted(async () => {
       )
       .fromTo(titleEl.value, {scale: 0.98}, {scale: 1, duration: 0.6, ease: 'power2.out'}, '>-0.3')
   }
+
+  // 初始状态：背景与文字的 transform
+  if (heroBgLayerEl.value) {
+    gsap.set(heroBgLayerEl.value, {scale: 1, opacity: 1, filter: 'blur(0px)'})
+  }
+  if (heroTextEl.value) {
+    gsap.set(heroTextEl.value, {scale: 1, y: 0, opacity: 1})
+  }
+
+  // 注册滚动视差动效
+  window.addEventListener('scroll', onHeroParallaxScroll, {passive: true})
+  // 首次计算
+  onHeroParallaxScroll()
 })
 
 onUnmounted(() => {
   tl && tl.kill()
   navTl && navTl.kill()
   window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('scroll', onHeroParallaxScroll)
 })
 
 let goartistDetail = () => {
