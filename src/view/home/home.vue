@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white">
     <!-- Mobile menu -->
-    <TransitionRoot as="template" :show="mobileMenuOpen">
+    <TransitionRoot :show="mobileMenuOpen" as="template">
       <Dialog class="relative z-40 lg:hidden" @close="mobileMenuOpen = false">
         <TransitionChild
           as="template"
@@ -25,16 +25,17 @@
             leave-to="-translate-x-full"
           >
             <DialogPanel
-              class="relative flex w-full max-w-xs flex-col overflow-y-auto bg-white pb-12 shadow-xl">
+              class="relative flex w-full max-w-xs flex-col overflow-y-auto bg-white pb-12 shadow-xl"
+            >
               <div class="flex px-4 pt-5 pb-2">
                 <button
-                  type="button"
                   class="relative -m-2 inline-flex items-center justify-center rounded-md p-2 text-gray-400"
+                  type="button"
                   @click="mobileMenuOpen = false"
                 >
                   <span class="absolute -inset-0.5"/>
                   <span class="sr-only">{{ copy.a11y.closeMenu }}</span>
-                  <XMarkIcon class="size-6" aria-hidden="true"/>
+                  <XMarkIcon aria-hidden="true" class="size-6"/>
                 </button>
               </div>
 
@@ -43,22 +44,19 @@
 
               <div class="space-y-6 border-t border-gray-200 px-4 py-6">
                 <div class="flow-root">
-                  <a href="#" class="-m-2 block p-2 font-medium text-gray-900">{{
-                      copy.auth.signUp
-                    }}</a>
+                  <a class="-m-2 block p-2 font-medium text-gray-900" href="#"
+                  >{{ copy.auth.signUp }}</a>
                 </div>
                 <div class="flow-root">
-                  <a href="#" class="-m-2 block p-2 font-medium text-gray-900">{{
-                      copy.auth.signIn
-                    }}</a>
+                  <a class="-m-2 block p-2 font-medium text-gray-900" href="#"
+                  >{{ copy.auth.signIn }}</a>
                 </div>
               </div>
 
               <div class="space-y-6 border-t border-gray-200 px-4 py-6">
                 <!-- Currency selector -->
                 <form>
-                  <div class="-ml-2 inline-grid grid-cols-1">
-                  </div>
+                  <div class="-ml-2 inline-grid grid-cols-1"></div>
                 </form>
               </div>
             </DialogPanel>
@@ -71,9 +69,14 @@
     <div class="relative bg-gray-900">
       <!-- 背景视频与遮罩 -->
       <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
-        <video class="object-cover w-full h-full"
-               src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/ad/6b/bf/ad6bbf41-f62f-b4ab-116b-2d3516f3d85b/P854854673_Anull_video_gr598_sdr_3840x2160-.mp4"
-               loop muted autoplay playsinline/>
+        <video
+          autoplay
+          class="object-cover w-full h-full"
+          loop
+          muted
+          playsinline
+          src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/ad/6b/bf/ad6bbf41-f62f-b4ab-116b-2d3516f3d85b/P854854673_Anull_video_gr598_sdr_3840x2160-.mp4"
+        />
       </div>
       <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
 
@@ -82,33 +85,48 @@
         <nav :aria-label="copy.a11y.topNav">
           <div class="fixed inset-x-0 top-0 z-50">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <!-- 外壳：用ref做宽高动画 -->
+              <!-- 外壳：grid 两列，左 48px 固定按钮，右侧自适应内容 -->
               <div
                 ref="navShell"
-                class=" mt-3 flex items-center justify-between overflow-hidden
-                       border border-white/10 shadow-lg ring-1 ring-white/10
-                       bg-white/10 backdrop-blur-md backdrop-saturate-150"
-                :class="expanded ? 'rounded-full px-4 sm:px-6 h-12' : 'h-12 w-12 rounded-full'"
+                :class="expanded ? 'rounded-full pl-0 pr-4 sm:pr-6 h-12' : 'h-12 w-12 rounded-full'"
+                class="mt-3 grid items-center overflow-hidden border border-white/10 shadow-lg ring-1 ring-white/10 bg-white/10 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr]"
                 @mouseenter="hovering = true"
                 @mouseleave="hovering = false"
               >
-                <!-- 折叠态：圆形按钮 -->
-                <button
-                  v-if="!expanded"
-                  ref="fabBtn"
-                  class="size-12 flex items-center justify-center text-white/90 hover:text-white"
-                  :aria-label="copy.a11y.openMenu"
-                  @click="toggleExpand(true)"
-                >
-                  <!-- 用Heroicons的 Bars3 当作“菜单/展开”图标 -->
-                  <Bars3Icon class="size-6" aria-hidden="true" />
-                </button>
+                <!-- 固定占位容器：按钮不会被右侧内容挤动 -->
+                <div class="col-[1/2] grid place-items-center size-12 shrink-0">
+                  <button
+                    ref="fabBtn"
+                    :aria-label="expanded ? copy.a11y.closeMenu : copy.a11y.openMenu"
+                    :aria-pressed="expanded"
+                    :class="expanded ? 'scale-95' : 'scale-100'"
+                    class="grid place-items-center size-12 text-white/90 hover:text-white transition-transform duration-300 will-change-transform"
+                    style="transform-origin:center center; translate: 0;"
+                    @click="toggleExpand()"
+                  >
+                    <span
+                      class="relative inline-flex items-center justify-center size-6 pointer-events-none">
+                      <!-- Bars3：收起态 -->
+                      <Bars3Icon
+                        :class="expanded ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'"
+                        aria-hidden="true"
+                        class="absolute size-6 transition-all duration-300 ease-out"
+                      />
+                      <!-- X：展开态 -->
+                      <XMarkIcon
+                        :class="expanded ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'"
+                        aria-hidden="true"
+                        class="absolute size-6 transition-all duration-300 ease-out"
+                      />
+                    </span>
+                  </button>
+                </div>
 
-                <!-- 展开态内容（测量宽度用） -->
+                <!-- 展开态内容：锁定第二列 -->
                 <div
-                  ref="navContent"
-                  class="w-full flex items-center justify-between gap-4"
                   v-show="expanded"
+                  ref="navContent"
+                  class="col-[2/3] min-w-0 w-full flex items-center justify-between gap-4"
                 >
                   <!-- 左侧（示例：货币选择器占位） -->
                   <form class="hidden sm:block">
@@ -117,26 +135,31 @@
                     </div>
                   </form>
 
+                  <div class="flex-1 hidden sm:flex ">
+                    <div
+                      class="relative w-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
+                      <input
+                        class="w-full h-full
+             text-sm text-white
+             outline-none ring-0 focus:ring-0 focus:outline-none
+              transition-all duration-300"
+                        placeholder="搜索音乐、歌手或专辑"
+                        type="text"
+                      />
+
+                    </div>
+                  </div>
+
                   <!-- 右侧 登录 / 创建账户 -->
                   <div class="flex items-center space-x-4">
-                    <a
-                      href="#"
-                      class="text-sm font-medium text-white/90 hover:text-white transition-colors"
-                    >{{ copy.auth.signIn }}</a>
-                    <a
-                      href="#"
-                      class="text-sm font-medium text-white/90 hover:text-white transition-colors"
-                    >{{ copy.auth.signUp }}</a>
-
-                    <!-- 收起按钮（可选） -->
-                    <button
-                      class="ml-2 hidden md:flex size-8 items-center justify-center rounded-full
-                             text-white/70 hover:text-white/95 hover:bg-white/10 transition"
-                      :aria-label="copy.a11y.closeMenu"
-                      @click="toggleExpand(false)"
-                    >
-                      <XMarkIcon class="size-5" aria-hidden="true"/>
-                    </button>
+                    <a class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+                       href="#">
+                      {{ copy.auth.signIn }}
+                    </a>
+                    <a class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+                       href="#">
+                      {{ copy.auth.signUp }}
+                    </a>
                   </div>
                 </div>
               </div>
@@ -148,15 +171,10 @@
 
       <!-- Hero 主要内容 -->
       <div
+        class="relative mx-auto flex max-w-3xl flex-col items-center justify-center px-6 text-center lg:px-0 min-h-[70vh] sm:min-h-[90vh]"
         @click="goartistDetail"
-        class="relative mx-auto flex max-w-3xl flex-col items-center
-         justify-center px-6 text-center lg:px-0
-         min-h-[70vh] sm:min-h-[90vh]">
-
-        <p ref="subtitleEl" class="text-xl text-white">
-          {{ copy.hero.subtitle }}
-        </p>
-
+      >
+        <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
         <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
           {{ copy.hero.title }}
         </h1>
@@ -169,11 +187,12 @@
                class="pt-24 sm:pt-32 xl:mx-auto xl:max-w-7xl xl:px-8">
         <div class="px-4 sm:flex sm:items-center sm:justify-between sm:px-6 lg:px-8 xl:px-0">
           <h2 id="category-heading" class="text-2xl font-bold tracking-tight text-gray-900">
-            {{ copy.category.heading }}</h2>
-          <a href="#"
-             class="hidden text-sm font-semibold text-indigo-600 hover:text-indigo-500 sm:block">
+            {{ copy.category.heading }}
+          </h2>
+          <a class="hidden text-sm font-semibold text-indigo-600 hover:text-indigo-500 sm:block"
+             href="#">
             {{ copy.category.browseAll }}
-            <span aria-hidden="true"> &rarr;</span>
+            <span aria-hidden="true"> →</span>
           </a>
         </div>
 
@@ -188,16 +207,16 @@
                 >
                   <span aria-hidden="true" class="absolute inset-0">
                     <playlistCover
+                      :colors="['#00F5A0', '#00D9F5', '#A8EDEA', '#FED6E3', '#A6C1EE']"
                       :seed="Math.random() * 1234.56"
-                      :colors="['#FFB6C1', '#FFE4E1', '#E0BBE4', '#FFDFD3', '#FEC8D8']"
                       class="size-full object-cover"
                     />
                   </span>
                   <span aria-hidden="true"
                         class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-gray-800 opacity-50"/>
-                  <span class="relative mt-auto text-center text-xl font-bold text-white">
-                    {{ category.name }}
-                  </span>
+                  <span class="relative mt-auto text-center text-xl font-bold text-white">{{
+                      category.name
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -205,9 +224,9 @@
         </div>
 
         <div class="mt-6 px-4 sm:hidden">
-          <a href="#" class="block text-sm font-semibold text-indigo-600 hover:text-indigo-500">
+          <a class="block text-sm font-semibold text-indigo-600 hover:text-indigo-500" href="#">
             {{ copy.category.browseAll }}
-            <span aria-hidden="true"> &rarr;</span>
+            <span aria-hidden="true"> →</span>
           </a>
         </div>
       </section>
@@ -218,23 +237,23 @@
         <div class="relative overflow-hidden rounded-lg">
           <div class="absolute inset-0">
             <img
-              src="https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-feature-section-01.jpg"
               alt=""
               class="size-full object-cover"
+              src="https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-feature-section-01.jpg"
             />
           </div>
         </div>
         <div class="relative bg-gray-900/75 px-6 py-32 sm:px-12 sm:py-40 lg:px-16 rounded-b-lg">
           <div class="relative mx-auto flex max-w-3xl flex-col items-center text-center">
             <h2 id="social-impact-heading"
-                class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                class="text-3级 font-bold tracking-tight text-white sm:text-4xl">
               <span class="block sm:inline">{{ copy.feature1.titleLine1 }}</span>
               <span class="block sm:inline">{{ copy.feature1.titleLine2 }}</span>
             </h2>
             <p class="mt-3 text-xl text-white">{{ copy.feature1.desc }}</p>
             <a
-              href="#"
               class="mt-8 block w-full rounded-md border border-transparent bg-white px-8 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 sm:w-auto"
+              href="#"
             >
               {{ copy.feature1.cta }}
             </a>
@@ -246,15 +265,16 @@
       <section aria-labelledby="collection-heading"
                class="mx-auto max-w-xl px-4 pt-24 sm:px-6 sm:pt-32 lg:max-w-7xl lg:px-8">
         <h2 id="collection-heading" class="text-2xl font-bold tracking-tight text-gray-900">
-          {{ copy.collection.heading }}</h2>
+          {{ copy.collection.heading }}
+        </h2>
         <p class="mt-4 text-base text-gray-500">{{ copy.collection.subheading }}</p>
 
         <div class="mt-10 space-y-12 lg:grid lg:grid-cols-3 lg:space-y-0 lg:gap-x-8">
           <a v-for="collection in collections" :key="collection.name" :href="collection.href"
              class="group block">
             <img
-              :src="collection.imageSrc"
               :alt="collection.imageAlt"
+              :src="collection.imageSrc"
               class="aspect-3/2 w-full rounded-lg object-cover group-hover:opacity-75 lg:aspect-5/6"
             />
             <h3 class="mt-4 text-base font-semibold text-gray-900">{{ collection.name }}</h3>
@@ -269,24 +289,21 @@
         <div class="relative overflow-hidden rounded-lg">
           <div class="absolute inset-0">
             <img
-              src="https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-feature-section-02.jpg"
               alt=""
               class="size-full object-cover"
+              src="https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-feature-section-02.jpg"
             />
           </div>
         </div>
         <div class="relative bg-gray-900/75 px-6 py-32 sm:px-12 sm:py-40 lg:px-16 rounded-b-lg">
           <div class="relative mx-auto flex max-w-3xl flex-col items-center text-center">
-            <h2 id="comfort-heading"
-                class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h2 id="comfort-heading" class="text-3xl font-bold tracking-tight text白 sm:text-4xl">
               {{ copy.feature2.title }}
             </h2>
-            <p class="mt-3 text-xl text-white">
-              {{ copy.feature2.desc }}
-            </p>
+            <p class="mt-3 text-xl text-white">{{ copy.feature2.desc }}</p>
             <a
+              class="mt-8 block w-full rounded-md border border-transparent bg白 px-8 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 sm:w-auto"
               href="#"
-              class="mt-8 block w-full rounded-md border border-transparent bg-white px-8 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 sm:w-auto"
             >
               {{ copy.feature2.cta }}
             </a>
@@ -303,7 +320,7 @@
             <div class="space-y-12 md:grid md:grid-cols-2 md:gap-8 md:space-y-0">
               <div>
                 <h3 class="text-sm font-medium text-white">{{ copy.footer.headings.shop }}</h3>
-                <ul role="list" class="mt-6 space-y-6">
+                <ul class="mt-6 space-y-6" role="list">
                   <li v-for="item in footerNavigation.shop" :key="item.name" class="text-sm">
                     <a :href="item.href" class="text-gray-300 hover:text-white">{{ item.name }}</a>
                   </li>
@@ -311,9 +328,9 @@
               </div>
               <div>
                 <h3 class="text-sm font-medium text-white">{{ copy.footer.headings.company }}</h3>
-                <ul role="list" class="mt-6 space-y-6">
+                <ul class="mt-6 space-y-6" role="list">
                   <li v-for="item in footerNavigation.company" :key="item.name" class="text-sm">
-                    <a :href="item.href" class="text-gray-300 hover:text-white">{{ item.name }}</a>
+                    <a :href="item.href" class="text-gray-300 hover:text白">{{ item.name }}</a>
                   </li>
                 </ul>
               </div>
@@ -321,7 +338,7 @@
             <div class="space-y-12 md:grid md:grid-cols-2 md:gap-8 md:space-y-0">
               <div>
                 <h3 class="text-sm font-medium text-white">{{ copy.footer.headings.account }}</h3>
-                <ul role="list" class="mt-6 space-y-6">
+                <ul class="mt-6 space-y-6" role="list">
                   <li v-for="item in footerNavigation.account" :key="item.name" class="text-sm">
                     <a :href="item.href" class="text-gray-300 hover:text-white">{{ item.name }}</a>
                   </li>
@@ -329,7 +346,7 @@
               </div>
               <div>
                 <h3 class="text-sm font-medium text-white">{{ copy.footer.headings.connect }}</h3>
-                <ul role="list" class="mt-6 space-y-6">
+                <ul class="mt-6 space-y-6" role="list">
                   <li v-for="item in footerNavigation.connect" :key="item.name" class="text-sm">
                     <a :href="item.href" class="text-gray-300 hover:text-white">{{ item.name }}</a>
                   </li>
@@ -343,17 +360,17 @@
             <form class="mt-2 flex sm:max-w-md">
               <input
                 id="email-address"
-                type="text"
-                autocomplete="email"
-                required
                 :aria-label="copy.a11y.email"
                 :placeholder="copy.footer.newsletter.placeholder"
+                autocomplete="email"
                 class="block w-full rounded-md bg-white px-4 py-2 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-offset-2 focus:outline-white"
+                required
+                type="text"
               />
               <div class="ml-4 shrink-0">
                 <button
-                  type="submit"
                   class="flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-xs hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 focus:outline-hidden"
+                  type="submit"
                 >
                   {{ copy.footer.newsletter.cta }}
                 </button>
@@ -373,15 +390,15 @@
 <script setup>
 import {ref, onMounted, nextTick, onUnmounted} from 'vue'
 import {Dialog, DialogPanel, TransitionChild, TransitionRoot} from '@headlessui/vue'
-import { XMarkIcon, Bars3Icon } from '@heroicons/vue/24/outline'
+import {XMarkIcon, Bars3Icon} from '@heroicons/vue/24/outline'
 import gsap from 'gsap'
-import PlaylistCover from "@/components/playlistCover/playlistCover.vue";
-import router from "@/router/index.js";
+import PlaylistCover from '@/components/playlistCover/playlistCover.vue'
+import router from '@/router/index.js'
 
 const copy = {
   brand: {name: '你的品牌'},
   common: {shopNow: '立即选购', search: '搜索', help: '帮助'},
-  auth: {signIn: '登录', signUp: '创建账户'},
+  auth: {signIn: '登录', signUp: null},
   hero: {title: 'ILLIT', subtitle: '今日推荐'},
   category: {heading: '今日推荐歌单', browseAll: '查看更多'},
   feature1: {
@@ -423,25 +440,91 @@ const copy = {
 }
 
 const colorSchemes = [
-  { name: '日落橙粉', description: '温暖浪漫', tags: ['音乐','艺术','时尚'], colors: ['#FF6B6A','#FFA07A','#FFD93D','#FF6AC1','#C44569'] },
-  { name: '清新薄荷', description: '清爽舒适', tags: ['健康','医疗','清新'], colors: ['#6DD5FA','#2980B9','#A8E6CF','#56CCF2','#00D9FF'] },
-  { name: '梦幻紫蓝', description: '科技神秘', tags: ['科技','AI','创新'], colors: ['#667EEA','#764BA2','#A770EF','#4E65FF','#8E54E9'] },
-  { name: '活力彩虹', description: '年轻活泼', tags: ['社交','娱乐','游戏'], colors: ['#FF6B9D','#C06CFF','#6B8EFF','#4ECDC4','#FFA07A'] },
-  { name: '渐变青柠', description: '自然清新', tags: ['环保','自然','生活'], colors: ['#56AB2F','#A8E063','#74EBD5','#9FACE6','#30E8BF'] },
-  { name: '玫瑰金粉', description: '优雅浪漫', tags: ['美妆','时尚','女性'], colors: ['#F857A6','#FF5858','#FFC371','#FF6EC7','#FEA5B4'] },
-  { name: '深空蓝紫', description: '深邃高级', tags: ['金融','商务','专业'], colors: ['#1E3A8A','#6366F1','#8B5CF6','#EC4899','#F59E0B'] },
-  { name: '糖果色', description: '可爱甜美', tags: ['儿童','甜品','可爱'], colors: ['#FFB6C1','#FFE4E1','#E0BBE4','#FFDFD3','#FEC8D8'] },
-  { name: '火焰渐变', description: '热情张扬', tags: ['运动','激情','能量'], colors: ['#FF0844','#FFB199','#FF6B6B','#FF9A3C','#FFC107'] },
-  { name: '极光绿蓝', description: '未来感', tags: ['科技','创新','未来'], colors: ['#00F5A0','#00D9F5','#A8EDEA','#FED6E3','#A6C1EE'] },
+  {
+    name: '日落橙粉',
+    description: '温暖浪漫',
+    tags: ['音乐', '艺术', '时尚'],
+    colors: ['#FF6B6A', '#FFA07A', '#FFD93D', '#FF6AC1', '#C44569']
+  },
+  {
+    name: '清新薄荷',
+    description: '清爽舒适',
+    tags: ['健康', '医疗', '清新'],
+    colors: ['#6DD5FA', '#2980B9', '#A8E6CF', '#56CCF2', '#00D9FF']
+  },
+  {
+    name: '梦幻紫蓝',
+    description: '科技神秘',
+    tags: ['科技', 'AI', '创新'],
+    colors: ['#667EEA', '#764BA2', '#A770EF', '#4E65FF', '#8E54E9']
+  },
+  {
+    name: '活力彩虹',
+    description: '年轻活泼',
+    tags: ['社交', '娱乐', '游戏'],
+    colors: ['#FF6B9D', '#C06CFF', '#6B8EFF', '#4ECDC4', '#FFA07A']
+  },
+  {
+    name: '渐变青柠',
+    description: '自然清新',
+    tags: ['环保', '自然', '生活'],
+    colors: ['#56AB2F', '#A8E063', '#74EBD5', '#9FACE6', '#30E8BF']
+  },
+  {
+    name: '玫瑰金粉',
+    description: '优雅浪漫',
+    tags: ['美妆', '时尚', '女性'],
+    colors: ['#F857A6', '#FF5858', '#FFC371', '#FF6EC7', '#FEA5B4']
+  },
+  {
+    name: '深空蓝紫',
+    description: '深邃高级',
+    tags: ['金融', '商务', '专业'],
+    colors: ['#1E3A8A', '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B']
+  },
+  {
+    name: '糖果色',
+    description: '可爱甜美',
+    tags: ['儿童', '甜品', '可爱'],
+    colors: ['#FFB6C1', '#FFE4E1', '#E0BBE4', '#FFDFD3', '#FEC8D8']
+  },
+  {
+    name: '火焰渐变',
+    description: '热情张扬',
+    tags: ['运动', '激情', '能量'],
+    colors: ['#FF0844', '#FFB199', '#FF6B6B', '#FF9A3C', '#FFC107']
+  },
+  {
+    name: '极光绿蓝',
+    description: '未来感',
+    tags: ['科技', '创新', '未来'],
+    colors: ['#00F5A0', '#00D9F5', '#A8EDEA', '#FED6E3', '#A6C1EE']
+  },
 ]
 
 const currencies = ['CAD', 'USD', 'AUD', 'EUR', 'GBP']
 
 const categories = [
-  { name: 'New Arrivals', href: '#', imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-01.jpg' },
-  { name: 'Productivity', href: '#', imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-02.jpg' },
-  { name: 'Workspace', href: '#', imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-04.jpg' },
-  { name: 'Accessories', href: '#', imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-05.jpg' },
+  {
+    name: 'New Arrivals',
+    href: '#',
+    imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-01.jpg'
+  },
+  {
+    name: 'Productivity',
+    href: '#',
+    imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-02.jpg'
+  },
+  {
+    name: 'Workspace',
+    href: '#',
+    imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-04.jpg'
+  },
+  {
+    name: 'Accessories',
+    href: '#',
+    imageSrc: 'https://tailwindcss.com/plus-assets/img/ecommerce-images/home-page-01-category-05.jpg'
+  },
 ]
 
 const collections = [
@@ -503,29 +586,24 @@ const mobileMenuOpen = ref(false)
 const navShell = ref(null)
 const navContent = ref(null)
 const fabBtn = ref(null)
-const expanded = ref(false)        // 当前是否展开
-const hovering = ref(false)        // hover时不立即收回（可选）
+const expanded = ref(false) // 当前是否展开
+const hovering = ref(false) // hover时不立即收回（可选）
 let resizing = false
-let autoExpandByScroll = false     // 是否被滚动触发的展开
+let autoExpandByScroll = false // 是否被滚动触发的展开
 let navTl = null
 
-function measureExpandedSize () {
-  // 先让内容显示（不闪烁：display用v-show + visibility隐藏）
+function measureExpandedSize() {
   const shell = navShell.value
   const content = navContent.value
-  if (!shell || !content) return { w: 0, h: 48 }
+  if (!shell || !content) return {w: 0, h: 48}
   const prev = {
     width: shell.style.width,
-    height: shell.style.height
+    // 高度固定 48，不改动
   }
-  // 暂时释放宽度测量自然宽
   shell.style.width = 'auto'
-  shell.style.height = 'auto'
   const rect = shell.getBoundingClientRect()
-  // 还原
   shell.style.width = prev.width
-  shell.style.height = prev.height
-  return { w: rect.width, h: 48 } // 你顶部高度固定为 h-12 (48px)
+  return {w: rect.width, h: 48} // 顶部高度固定为 h-12 (48px)
 }
 
 function animateExpand(toExpand) {
@@ -534,26 +612,29 @@ function animateExpand(toExpand) {
   if (!shell) return
   if (navTl) navTl.kill()
 
-  const fromW = shell.getBoundingClientRect().width
   const toSize = toExpand ? measureExpandedSize().w : 48
 
-  navTl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 0.5 } })
-  navTl.to(shell, {
-    width: toSize,
-    borderRadius: toExpand ? 9999 : 9999, // 都是圆角，只是宽度变化
-    onStart: () => {
-      if (toExpand) expanded.value = true
+  navTl = gsap.timeline({defaults: {ease: 'power3.out', duration: 0.5}})
+  navTl.to(
+    shell,
+    {
+      width: toSize,
+      borderRadius: 9999,
+      onStart: () => {
+        if (toExpand) expanded.value = true
+      },
+      onComplete: () => {
+        if (!toExpand) expanded.value = false
+        navTl = null
+      },
     },
-    onComplete: () => {
-      if (!toExpand) expanded.value = false
-      navTl = null
-    }
-  }, 0)
+    0,
+  )
   // 内容透明度/位移动画
   if (toExpand) {
-    navTl.fromTo(navContent.value, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.35 }, 0.1)
+    navTl.fromTo(navContent.value, {opacity: 0, y: -6}, {opacity: 1, y: 0, duration: 0.35}, 0.1)
   } else {
-    navTl.to(navContent.value, { opacity: 0, y: -6, duration: 0.2 }, 0)
+    navTl.to(navContent.value, {opacity: 0, y: -6, duration: 0.2}, 0)
   }
 }
 
@@ -571,7 +652,6 @@ function onScroll() {
     autoExpandByScroll = true
     animateExpand(true)
   } else if (nearTop && expanded.value && autoExpandByScroll && !hovering.value) {
-    // 只有滚动触发展开的情况下，回到顶部自动收回；如果用户手动点开，则不强制收
     animateExpand(false)
     autoExpandByScroll = false
   }
@@ -604,10 +684,9 @@ onMounted(async () => {
   // 顶部导航：初始化为圆形（48px）
   const shell = navShell.value
   if (shell) {
-    const rect = shell.getBoundingClientRect()
-    gsap.set(shell, { width: 48, height: 48, borderRadius: 9999 })
+    gsap.set(shell, {width: 48, height: 48, borderRadius: 9999})
   }
-  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('scroll', onScroll, {passive: true})
 
   // Hero 动画（可选）
   const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
@@ -616,10 +695,19 @@ onMounted(async () => {
     const letterSpans = splitTextToSpans(titleEl.value)
     gsap.set(letterSpans, {opacity: 0, yPercent: 120, rotateX: -35})
     tl = gsap.timeline({defaults: {ease: 'power3.out'}})
-    tl.to(subtitleEl.value, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.8 }, 0)
-      .to(letterSpans, {
-        opacity: 1, yPercent: 0, rotateX: 0, duration: 0.9, stagger: 0.06, ease: 'back.out(1.6)'
-      }, 0.15)
+    tl.to(subtitleEl.value, {opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.8}, 0)
+      .to(
+        letterSpans,
+        {
+          opacity: 1,
+          yPercent: 0,
+          rotateX: 0,
+          duration: 0.9,
+          stagger: 0.06,
+          ease: 'back.out(1.6)',
+        },
+        0.15,
+      )
       .fromTo(titleEl.value, {scale: 0.98}, {scale: 1, duration: 0.6, ease: 'power2.out'}, '>-0.3')
   }
 })
@@ -631,13 +719,20 @@ onUnmounted(() => {
 })
 
 let goartistDetail = () => {
-  router.push({ path: '/artistDetail' })
+  router.push({path: '/artistDetail'})
 }
 </script>
 
 <style scoped>
-/* 让逐字动画更柔和一点的光晕质感 */
+/* 逐字动画柔和的光晕质感 */
 h1 span {
   text-shadow: 0 1px 8px rgba(255, 255, 255, 0.15);
+}
+
+/* 抗抖动：在部分浏览器上减少亚像素抖动 */
+button, svg {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
 </style>

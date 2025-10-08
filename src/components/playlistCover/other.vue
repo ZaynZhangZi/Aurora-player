@@ -16,30 +16,32 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 
 /**
- * Apple Classical 风格 · WebGL 动态封面（自动取色版）
- * - 传 imageSrc 自动抽取 5 色，映射到 shader（带平滑过渡）
- * - 无第三方依赖（内置简易 K-means）
+ * Apple Classical 风格 · WebGL 动态封面
+ * - 实时片元着色器：层叠线性/径向渐变 + 大面积弧形遮罩 + 高光蜡面 + 暗角
+ * - 轻量域扭曲与屏内缓动：不卡、自然
+ * - 通过 palette/params 可高度定制
  */
 const props = defineProps({
-  // 可手动指定 2~4 色；如果提供了 imageSrc 且取色成功，会被覆盖（并平滑过渡）
+  // 2~4 色调色板（建议暖×冷×紫/粉组合）
   palette: {
     type: Array,
     default: () => ['#F6CC6C', '#E95A90', '#7A5CFF', '#86DDFB']
   },
-  // 自动取色：输入图片地址
-  imageSrc: { type: String, default: '' },
-  // 跨域策略（如果是公网图，建议 anonymous；同源可设为空）
-  crossOrigin: { type: String, default: 'anonymous' },
-
-  // 动画/风格参数
-  speed: { type: Number, default: 1.0 },        // 0.6~1.6
-  sheen: { type: Number, default: 1.0 },        // 0~2
-  vignette: { type: Number, default: 0.18 },    // 0~1
-  bulge: { type: Number, default: 1.0 },        // 0.6~1.4
-  warp: { type: Number, default: 0.10 },        // 0~0.25
-
+  // 动画速度（0.6~1.6）
+  speed: { type: Number, default: 1.0 },
+  // 高光强度（0~2）
+  sheen: { type: Number, default: 1.0 },
+  // 暗角强度（0~1）
+  vignette: { type: Number, default: 0.18 },
+  // 弧形遮罩的“鼓起”程度（0.6~1.4）
+  bulge: { type: Number, default: 1.0 },
+  // 形变强度（0~0.25）
+  warp: { type: Number, default: 0.10 },
+  // 是否暂停
   paused: { type: Boolean, default: false },
-  resolutionScale: { type: Number, default: 1.0 }, // 0.6~1
+  // 降采样以省性能（0.6~1）
+  resolutionScale: { type: Number, default: 1.0 },
+  // 同色多卡的随机微差
   seed: { type: Number, default: 0.0 },
 })
 
@@ -53,8 +55,6 @@ const hexToRgb01 = (hex) => {
   const to = (x) => parseInt(x,16)/255
   return m ? [to(m[1]), to(m[2]), to(m[3])] : [0,0,0]
 }
-const clamp01 = (x)=>Math.max(0,Math.min(1,x))
-const lerp = (a,b,t)=>a+(b-a)*t
 
 /* ===== Shaders ===== */
 const VERT = `
@@ -64,6 +64,15 @@ void main(){
 }
 `
 
+/*
+  FRAG 说明（核心）：
+  - 背景底色：多段线性渐变（palette[0..2]）
+  - 两个大型径向“色团” + 一个连接过渡团（屏幕混合）
+  - 大弧面遮罩（右上切入，soft-light）
+  - 右上蜡面高光（radial + animated sweep）
+  - 边缘暗角（vignette）
+  - 轻度域扭曲（sin/cos + 小量 fbm）
+*/
 const FRAG = `
 precision mediump float;
 
@@ -82,6 +91,7 @@ uniform vec3  u_c3;
 
 #define TAU 6.2831853
 
+/* --- helpers --- */
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){
   vec2 i=floor(p), f=fract(p);
@@ -104,7 +114,9 @@ mat2 rot(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
 
 vec3 mix3(vec3 a, vec3 b, float t){ return a*(1.0-t)+b*t; }
 
+/* 线性渐变基底：三色 */
 vec3 baseGradient(vec2 uv){
+  // 竖直 + 斜向叠加，制造深浅层次
   float v = uv.y;
   vec3 g = mix3(u_c0, u_c1, smoothstep(0.0, 1.0, v));
   float d = dot(uv - vec2(0.0,0.0), normalize(vec2(1.0,1.0)));
@@ -112,31 +124,41 @@ vec3 baseGradient(vec2 uv){
   return g;
 }
 
+/* 柔和核（Apple 式“糯”） */
 float kernel(vec2 p, float r){
   float d = dot(p,p);
   float k = 1.05 / r;
   return exp(-k*k * d);
 }
 
+/* 大面积弧形遮罩（右上切入），soft-light 混合时作为亮面 */
 float maskShape(vec2 uv){
-  float t = u_bulge;
+  // uv: 0~1
+  // 控制点大致拟合 Apple 的那种“台面”曲线
+  float t = u_bulge; // 鼓起程度
+  // 基于二次曲线的阈值，越靠右上越亮
   float cx = smoothstep(0.2, 1.05, uv.x);
   float cy = smoothstep(0.05, 0.95, 1.0-uv.y);
   float curve = pow(cx, 0.75) * pow(cy, 0.45) * (0.8 + 0.2*t);
   return clamp(curve, 0.0, 1.0);
 }
 
+/* 蜡面高光（右上），带一条轻微扫光动画 */
 float sheen(vec2 uv, float time){
   vec2 c = vec2(0.70, 0.18);
   float r = 0.38;
   float d = distance(uv, c) / r;
-  float radial = smoothstep(1.0, 0.0, d);
+  float radial = smoothstep(1.0, 0.0, d);  // 圆形高光
+
+  // 扫光：一条柔和的带状
   float sweep = dot(uv - vec2(0.6, 0.0), normalize(vec2(1.0, 1.3)));
   sweep += 0.45 * sin(time*0.8 + u_seed*3.1415);
   float band = smoothstep(0.15, -0.05, sweep);
+
   return clamp(radial*0.85 + band*0.35, 0.0, 1.0);
 }
 
+/* 屏幕混合（近似） */
 vec3 screenBlend(vec3 a, vec3 b){
   return 1.0 - (1.0 - a) * (1.0 - b);
 }
@@ -144,14 +166,17 @@ vec3 screenBlend(vec3 a, vec3 b){
 void main(){
   vec2 R = u_res;
   vec2 uv = gl_FragCoord.xy / R;
+  // 画布比例校正到 -1~1
   vec2 p = uv*2.0 - 1.0;
   p.x *= R.x/R.y;
 
   float t = u_time * u_speed;
 
+  /* 全局轻缓呼吸与旋转 */
   p *= rot(0.02 * sin(t*0.20 + u_seed));
   p /= (1.0 + 0.02 * sin(t*0.25 + 2.0*u_seed));
 
+  /* 轻量域扭曲（natural） */
   float W = u_warp;
   vec2 wp = p;
   vec2 w1 = W * vec2(
@@ -165,8 +190,11 @@ void main(){
   float wfbm = fbm(wp*1.1 + t*0.12);
   p += mix(w1, w2, 0.5) * (0.85 + 0.15*wfbm);
 
+  /* 背景渐变 */
   vec3 col = baseGradient(uv);
 
+  /* 三个大型柔和色团（Apple 风味：两大一中，略有交叠） */
+  // 中心点（随时间慢速漂移）
   float RING = 0.92;
   vec2 c0 = RING * vec2(cos(t*0.22+0.00+0.2*u_seed), sin(t*0.22+0.00));
   vec2 c1 = RING * vec2(cos(t*0.17+1.70+0.4*u_seed), sin(t*0.17+1.70));
@@ -178,43 +206,52 @@ void main(){
   float k1 = kernel(p - c1, r1);
   float k2 = kernel(p - c2, r2);
 
-  vec3 b0 = mix3(u_c2, u_c3, 0.5);
-  vec3 b1 = mix3(u_c1, u_c2, 0.5);
-  vec3 b2 = mix3(u_c0, u_c1, 0.5);
+  // 颜色分配：u_c3 为可选第四色；其余用前 3 色
+  vec3 b0 = mix3(u_c2, u_c3, 0.5); // 偏紫蓝
+  vec3 b1 = mix3(u_c1, u_c2, 0.5); // 偏玫红紫
+  vec3 b2 = mix3(u_c0, u_c1, 0.5); // 偏金橙粉
 
   vec3 layer0 = k0 * b0;
   vec3 layer1 = k1 * b1;
   vec3 layer2 = k2 * b2;
 
+  // 层层“屏幕混合”入底色
   col = screenBlend(col, layer0);
   col = screenBlend(col, layer1);
   col = screenBlend(col, layer2);
 
+  /* 中部连接过渡团（让两侧自然相融） */
   float km = kernel(p - vec2(0.15*sin(t*0.12), 0.12*cos(t*0.10+u_seed)), 0.64);
   vec3 midCol = mix3(u_c1, u_c2, 0.5);
   col = screenBlend(col, km * midCol);
 
+  /* 大面积弧形遮罩（soft-light 效果近似） */
   float m = maskShape(uv);
-  vec3 maskTint = mix3(u_c0, u_c1, 0.35);
+  vec3 maskTint = mix3(u_c0, u_c1, 0.35); // 偏暖的“台面”色
+  // soft-light 近似：根据亮度调和
   col = mix3(col, screenBlend(col, maskTint), 0.35*m);
 
+  /* 右上蜡面高光（带扫光） */
   float s = sheen(uv, t) * u_sheen;
   col = screenBlend(col, vec3(1.0) * (0.35 * s));
 
+  /* 边缘暗角（vignette） */
   float dv = distance(uv, vec2(0.5));
-  float vg = smoothstep(0.85, 0.45, dv);
+  float vg = smoothstep(0.85, 0.45, dv); // 中心更亮
   col *= (1.0 - u_vign * (1.0 - vg));
 
+  /* 微动态亮度 & 微噪点（避免“死图”） */
   col *= (1.01 + 0.012 * sin(t*0.7 + u_seed));
   col += (hash(gl_FragCoord.xy + t) - 0.5) * 0.008;
 
+  // 轻微 gamma
   col = pow(col, vec3(0.95));
 
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `
 
-/* ===== GL init ===== */
+/* ===== Init GL ===== */
 function createGL() {
   const canvas = canvasRef.value
   const scale = Math.min(Math.max(props.resolutionScale, 0.6), 1.0)
@@ -243,6 +280,7 @@ function createGL() {
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program))
   gl.useProgram(program)
 
+  // Fullscreen quad
   buffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW)
@@ -253,143 +291,12 @@ function createGL() {
   gl.viewport(0, 0, W, H)
 }
 
-/* ===== Palette state & auto-extract ===== */
-const cur = { // 当前用于 shader 的颜色（会逐帧缓动到 target）
-  c0: hexToRgb01(props.palette[0]),
-  c1: hexToRgb01(props.palette[1] || props.palette[0]),
-  c2: hexToRgb01(props.palette[2] || props.palette[1] || props.palette[0]),
-  c3: hexToRgb01(props.palette[3] || props.palette[2] || props.palette[1] || props.palette[0]),
-}
-let target = JSON.parse(JSON.stringify(cur))
-const lerpSpeed = 0.08 // 颜色过渡速度（每帧）
-
-function setTargetFromPalette(arr) {
-  const c0 = hexToRgb01(arr[0])
-  const c1 = hexToRgb01(arr[1] || arr[0])
-  const c2 = hexToRgb01(arr[2] || arr[1] || arr[0])
-  const c3 = hexToRgb01(arr[3] || arr[2] || arr[1] || arr[0])
-  target = { c0, c1, c2, c3 }
-}
-
-setTargetFromPalette(props.palette)
-
-/* 简易 K-means 获取 5 色（抽样） */
-async function extractPaletteFromImage(src, crossOrigin='anonymous') {
-  const img = new Image()
-  if (crossOrigin) img.crossOrigin = crossOrigin
-  img.src = src
-  await img.decode()
-
-  // 下采样到 200px 宽，减少计算
-  const maxW = 200
-  const ratio = img.width ? Math.min(1, maxW / img.width) : 1
-  const w = Math.max(1, Math.floor((img.width || maxW) * ratio))
-  const h = Math.max(1, Math.floor((img.height || maxW) * ratio))
-
-  const off = document.createElement('canvas')
-  off.width = w; off.height = h
-  const ctx = off.getContext('2d', { willReadFrequently: true })
-  ctx.drawImage(img, 0, 0, w, h)
-  const { data } = ctx.getImageData(0, 0, w, h)
-
-  // 采样步长（可再大一些提速）
-  const step = 4 * 4 // 每 4px 取一个
-  const samples = []
-  for (let i = 0; i < data.length; i += 4*step) {
-    const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3]
-    // 忽略过透明/过暗/过亮像素（减少噪声）
-    if (a < 200) continue
-    const l = 0.299*r + 0.587*g + 0.114*b
-    if (l < 10 || l > 246) continue
-    samples.push([r, g, b])
-  }
-  if (samples.length < 16) throw new Error('too few pixels')
-
-  // K-means
-  const K = 5, iters = 10
-  // init: 取均匀间隔的样本作为初始质心
-  const centroids = Array.from({length:K}, (_,k)=> samples[Math.floor((k+1)*samples.length/(K+1))].slice())
-  const belong = new Array(samples.length).fill(0)
-
-  for (let iter=0; iter<iters; iter++){
-    // assign
-    for (let i=0;i<samples.length;i++){
-      let best=0, bd=1e9
-      const [r,g,b]=samples[i]
-      for (let k=0;k<K;k++){
-        const c=centroids[k]; const dr=r-c[0], dg=g-c[1], db=b-c[2]
-        const d=dr*dr+dg*dg+db*db
-        if(d<bd){bd=d; best=k}
-      }
-      belong[i]=best
-    }
-    // update
-    const sum = Array.from({length:K},()=>[0,0,0,0]) // r,g,b,count
-    for (let i=0;i<samples.length;i++){
-      const k=belong[i]; const s=samples[i]
-      sum[k][0]+=s[0]; sum[k][1]+=s[1]; sum[k][2]+=s[2]; sum[k][3]+=1
-    }
-    for (let k=0;k<K;k++){
-      const c=sum[k]
-      if(c[3]===0) continue
-      centroids[k][0]=c[0]/c[3]
-      centroids[k][1]=c[1]/c[3]
-      centroids[k][2]=c[2]/c[3]
-    }
-  }
-
-  // 统计每个簇规模
-  const count = Array(K).fill(0)
-  for (let i=0;i<samples.length;i++) count[belong[i]]++
-
-  // 按“簇大小优先 + 明度分层”排序
-  const withMeta = centroids.map((c,idx)=>{
-    const l = 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]
-    return { rgb:c, n:count[idx], l }
-  }).sort((a,b)=> b.n - a.n)
-
-  // 拿 5 色 -> 映射成 4 角色：底/中/顶/高光
-  // 规则：取主色为中等亮度的最大簇；最暗做底色；最亮当高光；其余做过渡
-  const sortedByLight = [...withMeta].sort((a,b)=> a.l - b.l)
-  const darkest = sortedByLight[0]?.rgb || withMeta[0].rgb
-  const brightest = sortedByLight[sortedByLight.length-1]?.rgb || withMeta[1].rgb
-
-  // 主色：在居中亮度范围里挑规模最大的
-  const mid = withMeta.slice().sort((a,b)=> Math.abs(a.l-140)-Math.abs(b.l-140))[0].rgb
-  // 次色：拿剩余里规模第二大的
-  const secondary = withMeta.find(x => x.rgb !== mid)?.rgb || withMeta[1].rgb
-
-  // 映射：c0(底) c1(次) c2(主) c3(高光)
-  const toHex = (c)=>`#${[0,1,2].map(i=>Math.round(c[i]).toString(16).padStart(2,'0')).join('')}`
-  return [toHex(darkest), toHex(secondary), toHex(mid), toHex(brightest)]
-}
-
-async function applyAutoPalette() {
-  if (!props.imageSrc) return
-  try {
-    const pal = await extractPaletteFromImage(props.imageSrc, props.crossOrigin)
-    setTargetFromPalette(pal)
-  } catch (err) {
-    // 失败就使用传入 palette
-    setTargetFromPalette(props.palette)
-    // 控制台给个提示即可
-    console.warn('[AutoPalette] 提色失败，改用 props.palette：', err)
-  }
-}
-
 /* ===== Render Loop ===== */
 function render(now) {
   if (!gl || !program) return
   if (props.paused) { raf = requestAnimationFrame(render); return }
 
   const t = (now - start) / 1000
-
-    // 颜色向 target 缓动
-  ;['c0','c1','c2','c3'].forEach(key=>{
-    for(let i=0;i<3;i++){
-      cur[key][i] = lerp(cur[key][i], target[key][i], lerpSpeed)
-    }
-  })
 
   // Uniforms
   const set1f = (n,v)=> gl.uniform1f(gl.getUniformLocation(program,n), v)
@@ -405,12 +312,16 @@ function render(now) {
   set1f('u_warp', props.warp)
   set1f('u_seed', props.seed)
 
-  set3f('u_c0', cur.c0[0], cur.c0[1], cur.c0[2])
-  set3f('u_c1', cur.c1[0], cur.c1[1], cur.c1[2])
-  set3f('u_c2', cur.c2[0], cur.c2[1], cur.c2[2])
-  set3f('u_c3', cur.c3[0], cur.c3[1], cur.c3[2])
+  const [r0,g0,b0] = hexToRgb01(props.palette[0])
+  const [r1,g1,b1] = hexToRgb01(props.palette[1] || props.palette[0])
+  const [r2,g2,b2] = hexToRgb01(props.palette[2] || props.palette[1] || props.palette[0])
+  const [r3,g3,b3] = hexToRgb01(props.palette[3] || props.palette[2] || props.palette[1] || props.palette[0])
+  set3f('u_c0', r0,g0,b0)
+  set3f('u_c1', r1,g1,b1)
+  set3f('u_c2', r2,g2,b2)
+  set3f('u_c3', r3,g3,b3)
 
-  gl.clearColor(cur.c0[0], cur.c0[1], cur.c0[2], 1)
+  gl.clearColor(r0, g0, b0, 1) // 背景兜底接近主色
   gl.clear(gl.COLOR_BUFFER_BIT)
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
@@ -431,9 +342,8 @@ function resize() {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   createGL()
-  await applyAutoPalette() // 有图就自动取色
   window.addEventListener('resize', resize, { passive: true })
   raf = requestAnimationFrame(render)
 })
@@ -447,12 +357,13 @@ onUnmounted(() => {
   }
 })
 
-/* props 变化响应 */
-watch(() => props.palette, (p)=> setTargetFromPalette(p), { deep: true })
-watch(() => props.imageSrc, async () => { await applyAutoPalette() })
+/* 参数变化时，无需重建，下一帧自动生效 */
+watch(() => [props.palette, props.speed, props.sheen, props.vignette, props.bulge, props.warp, props.seed], () => {}, { deep: true })
 watch(() => props.resolutionScale, () => { resize() })
+watch(() => props.paused, () => {})
 </script>
 
 <style scoped>
+/* 圆角已由容器控制；Canvas 填满容器 */
 canvas { display: block; width: 100%; height: 100%; }
 </style>
