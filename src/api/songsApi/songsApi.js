@@ -1,0 +1,40 @@
+/**
+ * author: zijun
+ * @description: 歌曲接口
+ */
+import apiClient from "@/axios/apiClient.js";
+import {useCounterStore} from "@/stores/userStores.js";
+import {Message} from "@arco-design/web-vue";
+
+
+
+
+export const songsApi={
+    //获取动态封面
+    getDynamicCover(id){
+        return apiClient.get(`/song/dynamic/cover?id=${id}`);
+    },
+
+
+    //搜索歌曲
+    searchSongs(keywords, limit, offset){
+        return apiClient.get(`/cloudsearch?keywords=${keywords}&limit=${limit}&offset=${offset}`);
+    },
+
+
+    //喜欢音乐列表
+    getLikeSongs(){
+        const store=useCounterStore();
+        if (store.getUserMassage.userId){
+            return apiClient.get(`/likelist?uid=${store.userId}`);
+        }
+    },
+
+    //喜欢音乐
+    likeSongs(id, like){
+        const store=useCounterStore();
+        if (store.getUserMassage.userId){
+            return apiClient.get(`/like?id=${id}&like=${like}`);
+        }
+    },
+}

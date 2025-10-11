@@ -210,22 +210,23 @@
             <div class="relative py-2">
               <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
                 <div
-                  v-for="category in categories"
+                  v-for="category in getRecommendPlayListdata"
                   :key="category.name"
                   class="relative flex h-80 flex-col overflow-hidden rounded-lg p-6"
                 >
                   <span aria-hidden="true" class="absolute inset-0">
-                    <playlistCover
-                      :colors="['#00F5A0', '#00D9F5', '#A8EDEA', '#FED6E3', '#A6C1EE']"
-                      :seed="Math.random() * 1234.56"
-                      class="size-full object-cover"
-                    />
+<!--                    <img :src="category.picUrl"-->
+<!--                         class="size-full object-cover"-->
+<!--                    />-->
+                    <othersss :src="category.picUrl"/>
                   </span>
                   <span aria-hidden="true"
                         class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-gray-800 opacity-50"/>
-                  <span class="relative mt-auto text-center text-xl font-bold text-white">{{
-                      category.name
-                    }}</span>
+                  <span
+                    class="relative mt-auto text-center text-xl font-bold text-white inline-block max-w-full whitespace-nowrap overflow-hidden text-ellipsis"
+                  >
+                    {{ category.name }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -404,6 +405,8 @@ import {XMarkIcon, Bars3Icon} from '@heroicons/vue/24/outline'
 import gsap from 'gsap'
 import PlaylistCover from '@/components/playlistCover/playlistCover.vue'
 import router from '@/router/index.js'
+import {playListsApi} from "@/api/playListsApi/playListsApi.js";
+import Othersss from "@/components/playlistCover/othersss.vue";
 
 const copy = {
   brand: {name: '你的品牌'},
@@ -711,6 +714,15 @@ onUnmounted(() => {
 let goartistDetail = () => {
   router.push({path: '/artistDetail'})
 }
+
+let getRecommendPlayListdata = ref();
+let getRecommendPlayList = () => {
+  playListsApi.getRecommendPlayList().then(res => {
+    console.log(res.data.result);
+    getRecommendPlayListdata.value = res.data.result
+  })
+}
+getRecommendPlayList();
 </script>
 
 <style scoped>
