@@ -11,12 +11,20 @@ const router = createRouter({
       path: '/home',
       name: 'home',
       component: () => import('@/view/home/home.vue'),
+      children:[
+        {
+          path:'/home/playList',
+          name:'playList',
+          component:()=>import('@/view/playList/playList.vue')
+        }
+      ]
     },
     {
       path:'/artistDetail',
       name:'artistDetail',
       component:()=>import('@/view/artistDetail/artistDetail.vue')
-    }
+    },
+
   ],
 })
 
