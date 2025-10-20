@@ -366,6 +366,7 @@ import { XMarkIcon, Bars3Icon } from '@heroicons/vue/24/outline'
 import gsap from 'gsap'
 import PlaylistCover from '@/components/playlistCover/playlistCover.vue'
 import router from '@/router/index.js'
+import {useCounterStore} from "@/stores/userStores.js";
 
 const copy = {
   brand: { name: '你的品牌' },
@@ -627,6 +628,9 @@ onUnmounted(() => {
 let goartistDetail = () => {
   router.push({ path: '/artistDetail' })
 }
+
+
+
 </script>
 
 <style scoped>

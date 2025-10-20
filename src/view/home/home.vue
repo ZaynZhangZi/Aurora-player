@@ -1,9 +1,6 @@
 <template>
   <div class="bg-white">
-    <!-- Mobile menu -->
 
-
-    <!-- Hero section -->
     <div class="relative bg-gray-900 overflow-hidden">
       <!-- 背景层（包裹视频与遮罩：用于整体缩放/模糊/暗化） -->
       <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
@@ -20,95 +17,6 @@
         <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
       </div>
 
-      <!-- 顶部悬浮导航：圆形→展开 -->
-<!--      <header class="relative z-10">-->
-<!--        <nav>-->
-<!--          <div class="fixed inset-x-0 top-0 z-50">-->
-<!--            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">-->
-<!--              &lt;!&ndash; 外壳：grid 两列，左 48px 固定按钮，右侧自适应内容 &ndash;&gt;-->
-<!--              <div-->
-<!--                ref="navShell"-->
-<!--                :class="expanded ? 'rounded-full pl-0 pr-4 sm:pr-6 h-12' : 'h-12 w-12 rounded-full'"-->
-<!--                class="mt-3 grid items-center overflow-hidden border border-white/10 shadow-lg ring-1 ring-white/10 bg-white/10 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr]"-->
-<!--                @mouseenter="hovering = true"-->
-<!--                @mouseleave="hovering = false"-->
-<!--              >-->
-<!--                &lt;!&ndash; 固定占位容器：按钮不会被右侧内容挤动 &ndash;&gt;-->
-<!--                <div class="col-[1/2] grid place-items-center size-12 shrink-0">-->
-<!--                  <button-->
-<!--                    ref="fabBtn"-->
-<!--                    :aria-pressed="expanded"-->
-<!--                    :class="expanded ? 'scale-95' : 'scale-100'"-->
-<!--                    class="grid place-items-center size-12 text-white/90 hover:text-white transition-transform duration-300 will-change-transform"-->
-<!--                    style="transform-origin:center center; translate: 0;"-->
-<!--                    @click="toggleExpand()"-->
-<!--                  >-->
-<!--                    <span-->
-<!--                      class="relative inline-flex items-center justify-center size-6 pointer-events-none">-->
-<!--                      &lt;!&ndash; Bars3：收起态 &ndash;&gt;-->
-<!--                      <Bars3Icon-->
-<!--                        :class="expanded ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'"-->
-<!--                        aria-hidden="true"-->
-<!--                        class="absolute size-6 transition-all duration-300 ease-out"-->
-<!--                      />-->
-<!--                      &lt;!&ndash; X：展开态 &ndash;&gt;-->
-<!--                      <XMarkIcon-->
-<!--                        :class="expanded ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'"-->
-<!--                        aria-hidden="true"-->
-<!--                        class="absolute size-6 transition-all duration-300 ease-out"-->
-<!--                      />-->
-<!--                    </span>-->
-<!--                  </button>-->
-<!--                </div>-->
-
-<!--                &lt;!&ndash; 展开态内容：锁定第二列 &ndash;&gt;-->
-<!--                <div-->
-<!--                  v-show="expanded"-->
-<!--                  ref="navContent"-->
-<!--                  class="col-[2/3] min-w-0 w-full flex items-center justify-between gap-4"-->
-<!--                >-->
-<!--                  &lt;!&ndash; 左侧（示例：货币选择器占位） &ndash;&gt;-->
-<!--                  <form class="hidden sm:block">-->
-<!--                    <div class="-ml-1 inline-grid grid-cols-1">-->
-<!--                      &lt;!&ndash; 可放下拉等 &ndash;&gt;-->
-<!--                    </div>-->
-<!--                  </form>-->
-
-
-<!--                  <div class="flex-1 hidden sm:flex ">-->
-<!--                    <div-->
-<!--                      class="relative w-full h-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">-->
-<!--                      <input-->
-<!--                        class="w-full h-full-->
-<!--                              text-sm text-white placeholder-white/60-->
-<!--                               outline-none ring-0 focus:ring-0 focus:outline-none-->
-<!--                                transition-all duration-300"-->
-<!--                        placeholder="搜索音乐、歌手或专辑"-->
-<!--                        type="text"-->
-<!--                      />-->
-<!--                    </div>-->
-<!--                  </div>-->
-
-<!--                  &lt;!&ndash; 右侧 登录 / 创建账户 &ndash;&gt;-->
-<!--                  <div class="flex items-center space-x-4">-->
-<!--                    <a-->
-<!--                      class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"-->
-<!--                      href="#">-->
-<!--                      {{ copy.auth.signIn }}-->
-<!--                    </a>-->
-<!--                    <a-->
-<!--                      class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"-->
-<!--                      href="#">-->
-<!--                      {{ copy.auth.signUp }}-->
-<!--                    </a>-->
-<!--                  </div>-->
-<!--                </div>-->
-<!--              </div>-->
-<!--            </div>-->
-<!--          </div>-->
-<!--          &lt;!&ndash; Secondary navigation（预留） &ndash;&gt;-->
-<!--        </nav>-->
-<!--      </header>-->
 
       <div
         ref="heroSectionEl"
@@ -128,8 +36,9 @@
 
 
   <main>
-    <homeCategorySection/>
-  </main> d
+    <kpop/>
+    <homeCategorySection :title="'精品歌单'"/>
+  </main>
 </template>
 
 <script setup>
@@ -139,6 +48,9 @@ import gsap from 'gsap'
 import router from '@/router/index.js'
 import {playListsApi} from "@/api/playListsApi/playListsApi.js";
 import HomeCategorySection from "@/components/homeCategorySection/homeCategorySection.vue";
+import Kpop from "@/components/kpop/kpop.vue";
+import {aiAPi} from "@/api/aiApi/aiAPi.js";
+import {useCounterStore} from "@/stores/userStores.js";
 
 const copy = {
   brand: {name: '你的品牌'},
@@ -280,7 +192,7 @@ function onHeroParallaxScroll() {
 
 onMounted(async () => {
   await nextTick()
-
+  aiAPi.deepseekAPi()
   // 顶部导航：初始化为圆形（48px）
   const shell = navShell.value
   if (shell) {
@@ -344,6 +256,9 @@ let getRecommendPlayList = () => {
   })
 }
 getRecommendPlayList();
+
+
+
 </script>
 
 <style scoped>

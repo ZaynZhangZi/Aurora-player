@@ -20,7 +20,8 @@
             type="button"
             @click="toggle()"
           >
-            <span class="relative inline-flex items-center justify-center size-6 pointer-events-none">
+            <span
+              class="relative inline-flex items-center justify-center size-6 pointer-events-none">
               <!-- Bars3：收起态 -->
               <Bars3Icon
                 :class="expanded ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'"
@@ -50,7 +51,8 @@
 
           <!-- 搜索框 -->
           <div class="flex-1 hidden sm:flex">
-            <div class="relative w-full h-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
+            <div
+              class="relative w-full h-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
               <input
                 ref="input"
                 :placeholder="placeholder"
@@ -65,17 +67,35 @@
 
           <!-- 右侧 登录 / 注册（可隐藏） -->
           <div v-if="showAuth" class="flex items-center space-x-4">
-            <a class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap" href="#" @click.prevent="$emit('signin')">
+            <a
+              class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+             @click="isLogin">
               {{ signInLabel }}
-            </a>
-            <a v-if="signUpLabel" class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap" href="#" @click.prevent="$emit('signup')">
-              {{ signUpLabel }}
             </a>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+
+
+  <Dialog :open="isOpen" @close="setIsOpen">
+    <DialogPanel>
+      <DialogTitle>Deactivate account</DialogTitle>
+      <DialogDescription>
+        This will permanently deactivate your account
+      </DialogDescription>
+
+      <p>
+        Are you sure you want to deactivate your account? All of your data will be
+        permanently removed. This action cannot be undone.
+      </p>
+
+      <button @click="setIsOpen(false)">Deactivate</button>
+      <button @click="setIsOpen(false)">Cancel</button>
+    </DialogPanel>
+  </Dialog>
 </template>
 
 <script setup>
@@ -85,18 +105,24 @@
  * - 支持自动滚动展开（autoExpandOnScroll）
  * - 暴露 expand/collapse/toggle 方法
  */
-import { ref, onMounted, onBeforeUnmount, watch, nextTick, defineExpose } from 'vue'
+import {ref, onMounted, onBeforeUnmount, watch, nextTick, defineExpose} from 'vue'
 import gsap from 'gsap'
-import { XMarkIcon, Bars3Icon } from '@heroicons/vue/24/outline'
+import {XMarkIcon, Bars3Icon} from '@heroicons/vue/24/outline'
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  DialogDescription,
+} from '@headlessui/vue'
 
 const props = defineProps({
-  modelValue: { type: Boolean, default: false },          // 受控展开
-  autoExpandOnScroll: { type: Boolean, default: true },   // 滚动后自动展开
-  scrollThreshold: { type: Number, default: 24 },         // 触发的滚动阈值
-  placeholder: { type: String, default: '搜索音乐、歌手或专辑' },
-  signInLabel: { type: String, default: '登录' },
-  signUpLabel: { type: String, default: '' },             // 不传则不展示
-  showAuth: { type: Boolean, default: true },
+  modelValue: {type: Boolean, default: false},          // 受控展开
+  autoExpandOnScroll: {type: Boolean, default: true},   // 滚动后自动展开
+  scrollThreshold: {type: Number, default: 24},         // 触发的滚动阈值
+  placeholder: {type: String, default: '搜索音乐、歌手或专辑'},
+  signInLabel: {type: String, default: '登录'},
+  signUpLabel: {type: String, default: ''},             // 不传则不展示
+  showAuth: {type: Boolean, default: true},
 })
 
 const emit = defineEmits(['update:modelValue', 'expand', 'collapse', 'toggle', 'search', 'signin', 'signup'])
@@ -122,7 +148,7 @@ function measureExpandedWidth() {
   const el = shell.value
   const cnt = content.value
   if (!el || !cnt) return 48
-  const prev = { width: el.style.width }
+  const prev = {width: el.style.width}
   el.style.width = 'auto'
   const rect = el.getBoundingClientRect()
   el.style.width = prev.width
@@ -135,7 +161,7 @@ function animateExpand(toExpand) {
 
   const toWidth = toExpand ? measureExpandedWidth() : 48
 
-  navTl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 0.5 } })
+  navTl = gsap.timeline({defaults: {ease: 'power3.out', duration: 0.5}})
     .to(shell.value, {
       width: toWidth,
       height: 48,
@@ -151,18 +177,27 @@ function animateExpand(toExpand) {
     }, 0)
 
   if (toExpand) {
-    navTl.fromTo(content.value, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.35 }, 0.1)
+    navTl.fromTo(content.value, {opacity: 0, y: -6}, {opacity: 1, y: 0, duration: 0.35}, 0.1)
   } else {
-    navTl.to(content.value, { opacity: 0, y: -6, duration: 0.2 }, 0)
+    navTl.to(content.value, {opacity: 0, y: -6, duration: 0.2}, 0)
   }
 
   emit('update:modelValue', toExpand)
   emit(toExpand ? 'expand' : 'collapse')
 }
 
-function expand()  { animateExpand(true) }
-function collapse(){ animateExpand(false) }
-function toggle()  { animateExpand(!expanded.value); emit('toggle', expanded.value) }
+function expand() {
+  animateExpand(true)
+}
+
+function collapse() {
+  animateExpand(false)
+}
+
+function toggle() {
+  animateExpand(!expanded.value);
+  emit('toggle', expanded.value)
+}
 
 function onScroll() {
   if (!props.autoExpandOnScroll) return
@@ -177,21 +212,35 @@ function onScroll() {
   }
 }
 
-defineExpose({ expand, collapse, toggle, focus: () => input.value?.focus() })
+defineExpose({expand, collapse, toggle, focus: () => input.value?.focus()})
 
 onMounted(async () => {
   await nextTick()
-  if (shell.value) gsap.set(shell.value, { width: 48, height: 48, borderRadius: 9999 })
-  window.addEventListener('scroll', onScroll, { passive: true })
+  if (shell.value) gsap.set(shell.value, {width: 48, height: 48, borderRadius: 9999})
+  window.addEventListener('scroll', onScroll, {passive: true})
 })
 
 onBeforeUnmount(() => {
   navTl?.kill()
   window.removeEventListener('scroll', onScroll)
 })
+
+let isLogin = () => {
+  console.log(1)
+  setIsOpen();
+}
+const isOpen = ref(true)
+
+function setIsOpen(value) {
+  isOpen.value = value
+}
 </script>
 
 <style scoped>
 /* 抗抖动：在部分浏览器减少亚像素抖动 */
-button, svg { backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: translateZ(0); }
+button, svg {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
 </style>

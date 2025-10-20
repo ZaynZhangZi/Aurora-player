@@ -8,7 +8,6 @@ const axiosInstance = axios.create({
     timeout: 10000, // 设置请求超时时间
 });
 
-const store=useCounterStore();
 
 
 // 请求拦截器，用于在请求之前做一些处理
