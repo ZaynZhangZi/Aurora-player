@@ -11,7 +11,7 @@
             loop
             muted
             playsinline
-            src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/ad/6b/bf/ad6bbf41-f62f-b4ab-116b-2d3516f3d85b/P854854673_Anull_video_gr598_sdr_3840x2160-.mp4"
+            src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/a3/49/ca/a349ca09-a0e8-5486-2523-27893505e67e/P992203961_Anull_video_gr598_sdr_3840x2160-.mp4"
           />
         </div>
         <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
@@ -27,7 +27,7 @@
              class="flex flex-col items-center justify-center will-change-transform">
           <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
           <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
-            {{ copy.hero.title }}
+           <span v-html="copy.hero.title"></span>
           </h1>
         </div>
       </div>
@@ -56,7 +56,7 @@ const copy = {
   brand: {name: '你的品牌'},
   common: {shopNow: '立即选购', search: '搜索', help: '帮助'},
   auth: {signIn: '登录', signUp: null},
-  hero: {title: 'ILLIT', subtitle: '今日推荐'},
+  hero: {title: 'The &nbsp; Weeknd', subtitle: '今日推荐'},
 }
 
 
@@ -171,7 +171,7 @@ function onHeroParallaxScroll() {
 
   // 背景：缩放、暗化、模糊
   gsap.to(bg, {
-    scale: 1 + progress * 1,        // 最多缩小 8%
+    scale: 1 + progress,        // 最多缩小 8%
     opacity: 1 - progress * 0.25,      // 暗化 25%
     filter: `blur(${progress * 6}px)`, // 最多 6px 模糊
     transformOrigin: 'center center',

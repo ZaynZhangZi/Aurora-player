@@ -15,4 +15,9 @@ export const loginAPi = {
   checkQrCode: (key) => {
     return apiClient.get(`/login/qr/check?key=${key}`);
   },
+
+  //退出登录
+  logout: () => {
+    return apiClient.get(`/logout`);
+  },
 }

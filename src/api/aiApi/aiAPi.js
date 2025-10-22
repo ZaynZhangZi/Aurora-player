@@ -5,7 +5,7 @@ export const aiAPi = {
   deepseekAPi() {
     const openai = new OpenAI({
       baseURL: 'https://api.deepseek.com',
-      apiKey:'',
+      apiKey:import.meta.env.VITE_DEEPSEEK_API_KEY,
       dangerouslyAllowBrowser: true
     });
 
