@@ -226,10 +226,9 @@ onBeforeUnmount(() => {
 })
 
 let isLogin = () => {
-  console.log(1)
-  setIsOpen();
+  setIsOpen(true)
 }
-const isOpen = ref(true)
+const isOpen = ref(false)
 
 function setIsOpen(value) {
   isOpen.value = value
