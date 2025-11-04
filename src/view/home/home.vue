@@ -2,36 +2,29 @@
   <div class="bg-white">
 
     <div class="relative bg-gray-900 overflow-hidden">
-      <!-- 背景层（包裹视频与遮罩：用于整体缩放/模糊/暗化） -->
-      <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
-        <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
-          <video
-            autoplay
-            class="object-cover w-full h-full"
-            loop
-            muted
-            playsinline
-            src="https://mvod.itunes.apple.com/itunes-assets/HLSMusic211/v4/a3/49/ca/a349ca09-a0e8-5486-2523-27893505e67e/P992203961_Anull_video_gr598_sdr_3840x2160-.mp4"
-          />
-        </div>
-        <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
+    <!-- 背景层（包裹视频与遮罩：用于整体缩放/模糊/暗化） -->
+    <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
+      <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
+        <SmartMedia :src="bannerMeadiasrc" scale-on-scroll/>
       </div>
+      <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
+    </div>
 
 
-      <div
-        ref="heroSectionEl"
-        class="relative mx-auto flex max-w-3xl flex-col items-center justify-center px-6 text-center lg:px-0 min-h-[70vh] sm:min-h-[90vh]"
-        @click="goartistDetail"
-      >
-        <div ref="heroTextEl"
-             class="flex flex-col items-center justify-center will-change-transform">
-          <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
-          <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
-           <span v-html="copy.hero.title"></span>
-          </h1>
-        </div>
+    <div
+      ref="heroSectionEl"
+      class="relative mx-auto flex max-w-3xl flex-col items-center justify-center px-6 text-center lg:px-0 min-h-[70vh] sm:min-h-[90vh]"
+      @click="goartistDetail"
+    >
+      <div ref="heroTextEl"
+           class="flex flex-col items-center justify-center will-change-transform">
+        <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
+        <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
+          <span>{{ tittle }}</span>
+        </h1>
       </div>
     </div>
+  </div>
   </div>
 
 
@@ -43,14 +36,14 @@
 
 <script setup>
 import {ref, onMounted, nextTick, onUnmounted} from 'vue'
-
 import gsap from 'gsap'
 import router from '@/router/index.js'
 import {playListsApi} from "@/api/playListsApi/playListsApi.js";
 import HomeCategorySection from "@/components/homeCategorySection/homeCategorySection.vue";
-import Kpop from "@/components/kpop/kpop.vue";
 import {aiAPi} from "@/api/aiApi/aiAPi.js";
-import {useCounterStore} from "@/stores/userStores.js";
+import {homeIndexApi} from "@/api/home/homeIndexApi.js";
+import Kpop from "@/components/kpop/kpop.vue";
+import SmartMedia from "@/components/smartMedia/smartMedia.vue";
 
 const copy = {
   brand: {name: '你的品牌'},
@@ -61,12 +54,9 @@ const copy = {
 
 
 
-const mobileMenuOpen = ref(false)
-
 /** ===== 顶部圆形→展开 动画逻辑 ===== */
 const navShell = ref(null)
 const navContent = ref(null)
-const fabBtn = ref(null)
 const expanded = ref(false)
 const hovering = ref(false)
 let resizing = false
@@ -258,6 +248,17 @@ let getRecommendPlayList = () => {
 getRecommendPlayList();
 
 
+let tittle = ref('');
+let bannerMeadiasrc = ref('');
+
+function getBanner() {
+  homeIndexApi.getBanner().then(res => {
+    tittle.value = res[0].title;
+    bannerMeadiasrc.value = res[0].mediaUrl;
+  })
+}
+
+getBanner();
 
 </script>
 

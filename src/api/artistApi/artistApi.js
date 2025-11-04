@@ -3,6 +3,7 @@
  * @description: 歌手接口
  */
 import apiClient from "@/axios/apiClient";
+import requestLocal from "@/axios/myBackend.js";
 
 
 export const artistApi = {
@@ -44,5 +45,10 @@ export const artistApi = {
   //搜索歌手
   searchArtist: (keywords) => {
     return apiClient.get(`/ugc/artist/search?keyword=${keywords}`);
+  },
+
+  //获取我们喜欢的歌手
+  getLikeArtist: () => {
+    return requestLocal.get(`/api/manage-list`);
   }
 }

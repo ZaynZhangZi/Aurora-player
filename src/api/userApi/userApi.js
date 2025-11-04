@@ -12,12 +12,22 @@ export const userApi={
 
     //生成二维码图片
     getQrCode(key){
-        return apiClient.get(`/login/qr/create?key=${key}&qrimg=true`)
+        return apiClient.get('/login/qr/create', {
+            params: {
+                key,
+                qrimg: true,
+            },
+        })
     },
 
     //二维码检测扫码状态接口
-    checkQrCode(key){
-        return apiClient.get(`/login/qr/check?key=${key}`)
+    checkQrCode(key, {noCookie = false} = {}){
+        return apiClient.get('/login/qr/check', {
+            params: {
+                key,
+                ...(noCookie ? {noCookie: true} : {}),
+            },
+        })
     },
 
     //获取账号信息
