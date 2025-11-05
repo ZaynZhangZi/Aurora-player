@@ -20,7 +20,7 @@ const router = createRouter({
         {
           path:'/home/artist',
           name:'artist',
-          component:()=>import('@/view/koreanArtist/artistMassgae.vue')
+          component:()=>import('@/view/Artisteg/Artisteg.vue')
         },
       ]
     },

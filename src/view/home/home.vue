@@ -29,7 +29,7 @@
 
 
   <main>
-    <kpop/>
+    <artist-preview :sections="sections"/>
     <homeCategorySection :title="'精品歌单'"/>
   </main>
 </template>
@@ -42,8 +42,9 @@ import {playListsApi} from "@/api/playListsApi/playListsApi.js";
 import HomeCategorySection from "@/components/homeCategorySection/homeCategorySection.vue";
 import {aiAPi} from "@/api/aiApi/aiAPi.js";
 import {homeIndexApi} from "@/api/home/homeIndexApi.js";
-import Kpop from "@/components/kpop/kpop.vue";
+import ArtistPreview from "@/components/ArtistPreview/ArtistPreview.vue";
 import SmartMedia from "@/components/smartMedia/smartMedia.vue";
+import {artistApi} from "@/api/artistApi/artistApi.js";
 
 const copy = {
   brand: {name: '你的品牌'},
@@ -51,6 +52,8 @@ const copy = {
   auth: {signIn: '登录', signUp: null},
   hero: {title: 'The &nbsp; Weeknd', subtitle: '今日推荐'},
 }
+
+let sections = ref(null)
 
 
 
@@ -258,8 +261,14 @@ function getBanner() {
   })
 }
 
-getBanner();
+function getLikeArtist(){
+  artistApi.getLikeArtist().then(res => {
+    sections.value=res
+  })
+}
 
+getBanner();
+getLikeArtist();
 </script>
 
 <style scoped>
