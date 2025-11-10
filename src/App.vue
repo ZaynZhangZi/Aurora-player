@@ -1,6 +1,6 @@
 <template>
   <floatingSearchFab/>
-  <router-view class="overflow-hidden"/>
+  <router-view/>
 </template>
 
 <script setup>
@@ -8,4 +8,8 @@ import FloatingSearchFab from "@/components/floatingSearchFab/floatingSearchFab.
 </script>
 
 
-<style scoped></style>
+<style>
+::-webkit-scrollbar {
+  display: none;
+}
+</style>
