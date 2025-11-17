@@ -22,7 +22,7 @@
   </div>
 
   <div>
-    <UniversalDisplay :title="getLikeArtistdata.title" :items="getLikeArtistItems"/>
+<!--    <UniversalDisplay :title="getLikeArtistdata.title" :items="getLikeArtistItems"/>-->
   </div>
 </template>
 
@@ -126,8 +126,8 @@ let getLikeArtist = () => {
   })
 }
 
-getLikeArtist();
-getRecommendPlayList();
+// getLikeArtist();
+// getRecommendPlayList();
 
 
 
