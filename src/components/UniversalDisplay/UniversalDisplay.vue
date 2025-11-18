@@ -1,88 +1,204 @@
 <template>
-  <div class="bg-white py-24  dark:bg-gray-900">
-    <div class="mx-auto max-w-7xl px-6 lg:px-8">
-      <div class=" max-w-2xl ">
-        <h2 class="text-4xl font-semibold tracking-tight text-balance text-gray-900 sm:text-5xl dark:text-white">From the blog</h2>
-      </div>
-      <div class="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-        <article v-for="post in posts" :key="post.id" class="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-gray-900 px-8 pt-80 pb-8 sm:pt-48 lg:pt-80 dark:bg-gray-800">
-          <img :src="post.imageUrl" alt="" class="absolute inset-0 -z-10 size-full object-cover" />
-          <div class="absolute inset-0 -z-10 bg-linear-to-t from-gray-900 via-gray-900/40 dark:from-black/80 dark:via-black/40"></div>
-          <div class="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-gray-900/10 dark:inset-ring-white/10"></div>
+  <div class="bg-white">
+    <div class="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-16 lg:max-w-7xl lg:px-8">
+      <!-- 标题 + 查看更多 -->
+      <div class="flex items-center justify-between mb-8">
+        <h2 class="text-2xl font-bold text-gray-900">
+          {{ finalData.title }}
+        </h2>
 
-          <div class="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-gray-300">
-            <time :datetime="post.datetime" class="mr-8">{{ post.date }}</time>
-            <div class="-ml-4 flex items-center gap-x-4">
-              <svg viewBox="0 0 2 2" class="-ml-0.5 size-0.5 flex-none fill-white/50 dark:fill-gray-300/50">
-                <circle cx="1" cy="1" r="1" />
-              </svg>
-              <div class="flex gap-x-2.5">
-                <img :src="post.author.imageUrl" alt="" class="size-6 flex-none rounded-full bg-white/10 dark:bg-gray-800/10" />
-                {{ post.author.name }}
+        <span
+          v-if="more"
+          class="text-sm font-medium transition cursor-pointer text-indigo-600 hover:text-indigo-500"
+          @click="emit('view-more')"
+        >
+          查看更多
+        </span>
+      </div>
+
+      <!-- 这里是关键：一个相对定位的容器，骨架和内容都 absolute 叠在里面 -->
+      <div class="relative min-h-[18rem]">
+        <!-- 骨架屏：absolute，占据同一块区域 -->
+        <div
+          ref="skeletonRef"
+          class="absolute inset-0 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8"
+        >
+          <div v-for="n in 4" :key="'skeleton-' + n" class="space-y-4">
+            <div class="h-72 w-full rounded-lg overflow-hidden bg-gray-200">
+              <div
+                class="w-full h-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 正式内容：同样 absolute，同样区域 -->
+        <div
+          ref="contentRef"
+          class="absolute inset-0 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8"
+        >
+          <div
+            v-for="product in finalData.subItems"
+            :key="product.id"
+          >
+            <div class="relative group h-72 w-full">
+              <div class="relative h-full w-full overflow-hidden rounded-lg">
+                <SmartMedia
+                  :src="product.mediaUrl"
+                  class="size-full object-cover transition duration-500 group-hover:scale-105"
+                />
+              </div>
+
+              <div
+                class="absolute inset-x-0 top-0 flex h-full items-end justify-end overflow-hidden rounded-lg p-4"
+              >
+                <!-- 你自己的渐变类名，保留 -->
+                <div
+                  aria-hidden="true"
+                  class="absolute inset-x-0 bottom-0 h-36 bg-linear-to-t from-black opacity-50"
+                ></div>
+                <p class="relative text-lg font-semibold text-white">
+                  {{ product.name }}
+                </p>
               </div>
             </div>
           </div>
-          <h3 class="mt-3 text-lg/6 font-semibold text-white">
-            <a :href="post.href">
-              <span class="absolute inset-0"></span>
-              {{ post.title }}
-            </a>
-          </h3>
-        </article>
+        </div>
+        <!-- /内容层 -->
       </div>
     </div>
   </div>
+
+
+
 </template>
 
 <script setup>
-const posts = [
-  {
-    id: 1,
-    title: 'Boost your conversion rate',
-    href: '#',
-    description:
-      'Illo sint voluptas. Error voluptates culpa eligendi. Hic vel totam vitae illo. Non aliquid explicabo necessitatibus unde. Sed exercitationem placeat consectetur nulla deserunt vel. Iusto corrupti dicta.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1496128858413-b36217c2ce36?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3603&q=80',
-    date: 'Mar 16, 2020',
-    datetime: '2020-03-16',
-    author: {
-      name: 'Michael Foster',
-      imageUrl:
-        'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-  },
-  {
-    id: 2,
-    title: 'How to use search engine optimization to drive sales',
-    href: '#',
-    description: 'Optio cum necessitatibus dolor voluptatum provident commodi et. Qui aperiam fugiat nemo cumque.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1547586696-ea22b4d4235d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Mar 10, 2020',
-    datetime: '2020-03-10',
-    author: {
-      name: 'Lindsay Walton',
-      imageUrl:
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-  },
-  {
-    id: 3,
-    title: 'Improve your customer experience',
-    href: '#',
-    description:
-      'Cupiditate maiores ullam eveniet adipisci in doloribus nulla minus. Voluptas iusto libero adipisci rem et corporis.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1492724441997-5dc865305da7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Feb 12, 2020',
-    datetime: '2020-02-12',
-    author: {
-      name: 'Tom Cook',
-      imageUrl:
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-  },
+import { ref, computed, watch, onMounted } from 'vue'
+import { gsap } from 'gsap'
+import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 
-]
+const emit = defineEmits(['view-more'])
+
+const props = defineProps({
+  // 结构：{ title: string, subItems: [] }
+  data: {
+    type: Object,
+    default: () => ({}),
+  },
+  more: {
+    type: Boolean,
+    default: false,
+  },
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+})
+
+// 默认占位数据
+const defaultData = {
+  title: 'Customers also bought',
+  subItems: [
+    {
+      id: 1,
+      name: 'Zip Tote Basket',
+      mediaUrl:
+        'https://tailwindcss.com/plus-assets/img/ecommerce-images/product-page-03-related-product-01.jpg',
+    },
+    {
+      id: 2,
+      name: 'Zip High Wall Tote',
+      mediaUrl:
+        'https://tailwindcss.com/plus-assets/img/ecommerce-images/product-page-03-related-product-02.jpg',
+    },
+    {
+      id: 3,
+      name: 'Halfsize Tote',
+      mediaUrl:
+        'https://tailwindcss.com/plus-assets/img/ecommerce-images/product-page-03-related-product-03.jpg',
+    },
+    {
+      id: 4,
+      name: 'High Wall Tote',
+      mediaUrl:
+        'https://tailwindcss.com/plus-assets/img/ecommerce-images/product-page-03-related-product-04.jpg',
+    },
+  ],
+}
+
+const finalData = computed(() => {
+  if (!props.data || !Array.isArray(props.data.subItems) || props.data.subItems.length === 0) {
+    return defaultData
+  }
+  return props.data
+})
+
+const skeletonRef = ref(null)
+const contentRef = ref(null)
+
+/** 初始化：根据 loading 决定谁显谁隐 */
+onMounted(() => {
+  if (props.loading) {
+    // loading 状态：骨架 1，内容 0
+    if (skeletonRef.value) gsap.set(skeletonRef.value, { opacity: 1 })
+    if (contentRef.value) gsap.set(contentRef.value, { opacity: 0 })
+  } else {
+    // 不是 loading：骨架 0，内容 1
+    if (skeletonRef.value) gsap.set(skeletonRef.value, { opacity: 0 })
+    if (contentRef.value) gsap.set(contentRef.value, { opacity: 1 })
+  }
+})
+
+/** 监听 loading 做原地交叉渐变 */
+watch(
+  () => props.loading,
+  (newVal, oldVal) => {
+    // true -> false：骨架 → 内容
+    if (oldVal === true && newVal === false) {
+      const tl = gsap.timeline()
+      if (skeletonRef.value) {
+        tl.to(skeletonRef.value, {
+          opacity: 0,
+          duration: 0.25,
+          ease: 'power1.out',
+        })
+      }
+      if (contentRef.value) {
+        tl.to(
+          contentRef.value,
+          {
+            opacity: 1,
+            duration: 0.25,
+            ease: 'power1.out',
+          },
+          '<'
+        )
+      }
+    }
+
+    // false -> true：内容 → 骨架（比如重新加载）
+    if (oldVal === false && newVal === true) {
+      const tl = gsap.timeline()
+      if (contentRef.value) {
+        tl.to(contentRef.value, {
+          opacity: 0,
+          duration: 0.2,
+          ease: 'power1.out',
+        })
+      }
+      if (skeletonRef.value) {
+        tl.to(
+          skeletonRef.value,
+          {
+            opacity: 1,
+            duration: 0.2,
+            ease: 'power1.out',
+          },
+          '<'
+        )
+      }
+    }
+  }
+)
 </script>

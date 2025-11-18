@@ -22,7 +22,7 @@
   </div>
 
   <div>
-<!--    <UniversalDisplay :title="getLikeArtistdata.title" :items="getLikeArtistItems"/>-->
+    <UniversalDisplay :loading="getLikeArtistloading" :more="false" :data="getLikeArtistdata"/>
   </div>
 </template>
 
@@ -113,21 +113,20 @@ let getRecommendPlayList = () => {
   })
 }
 
+
+let getLikeArtistloading=ref(true);
 let getLikeArtistdata = ref();
 let getLikeArtistItems = ref();
 let getLikeArtist = () => {
   artistApi.getLikeArtist().then(res => {
-    console.log(res[0]);
     getLikeArtistdata.value = res[0];
-    getLikeArtistItems.value = res[0].subItems.map(r => ({
-      name: r.name,
-      imageSrc: r.mediaUrl,
-    }))
+    console.log(res[0])
   })
+  setTimeout(() => getLikeArtistloading.value=false, 1000)
 }
 
-// getLikeArtist();
-// getRecommendPlayList();
+getLikeArtist();
+getRecommendPlayList();
 
 
 
