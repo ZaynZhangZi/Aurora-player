@@ -22,7 +22,7 @@
   </div>
 
   <div>
-    <UniversalDisplay :loading="getLikeArtistloading" :more="false" :data="getLikeArtistdata"/>
+    <UniversalDisplay :routeFn="toArtistDetial" :loading="getLikeArtistloading" :more="false" :data="getLikeArtistdata"/>
   </div>
 </template>
 
@@ -34,6 +34,7 @@ import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import UniversalDisplay from '@/components/UniversalDisplay/UniversalDisplay.vue'
 import {playListsApi} from "@/api/playListsApi/playListsApi.js";
 import {artistApi} from "@/api/artistApi/artistApi.js";
+import router from "@/router/index.js";
 
 const copy = {
   brand: { name: '你的品牌' },
@@ -128,7 +129,14 @@ let getLikeArtist = () => {
 getLikeArtist();
 getRecommendPlayList();
 
-
+function toArtistDetial(item) {
+  router.push({
+    path: '/home/artistDetial',
+    query: {
+      name: item.name
+    }
+  })
+}
 
 
 </script>

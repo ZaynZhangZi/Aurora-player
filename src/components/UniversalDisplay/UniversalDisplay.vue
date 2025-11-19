@@ -16,9 +16,9 @@
         </span>
       </div>
 
-      <!-- 这里是关键：一个相对定位的容器，骨架和内容都 absolute 叠在里面 -->
+      <!-- 关键：一个相对定位的容器，骨架和内容都 absolute 叠在里面 -->
       <div class="relative min-h-[18rem]">
-        <!-- 骨架屏：absolute，占据同一块区域 -->
+        <!-- 骨架屏 -->
         <div
           ref="skeletonRef"
           class="absolute inset-0 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8"
@@ -32,7 +32,7 @@
           </div>
         </div>
 
-        <!-- 正式内容：同样 absolute，同样区域 -->
+        <!-- 正式内容 -->
         <div
           ref="contentRef"
           class="absolute inset-0 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8"
@@ -40,8 +40,9 @@
           <div
             v-for="product in finalData.subItems"
             :key="product.id"
+            @click="handleItemClick(product)"
           >
-            <div class="relative group h-72 w-full">
+            <div class="relative group h-72 w-full cursor-pointer">
               <div class="relative h-full w-full overflow-hidden rounded-lg">
                 <SmartMedia
                   :src="product.mediaUrl"
@@ -52,7 +53,6 @@
               <div
                 class="absolute inset-x-0 top-0 flex h-full items-end justify-end overflow-hidden rounded-lg p-4"
               >
-                <!-- 你自己的渐变类名，保留 -->
                 <div
                   aria-hidden="true"
                   class="absolute inset-x-0 bottom-0 h-36 bg-linear-to-t from-black opacity-50"
@@ -69,14 +69,15 @@
     </div>
   </div>
 
-
-
+  <ModalRouterView />
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { gsap } from 'gsap'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
+import router from '@/router/index.js'
 
 const emit = defineEmits(['view-more'])
 
@@ -93,6 +94,18 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false,
+  },
+  /**
+   * 自定义卡片点击的路由函数：
+   *   (item) => { ... }
+   * 在父组件里可以这样用：
+   *   :routeFn="item => router.push({ name: 'artistDetail', params: { id: item.id } })"
+   *
+   * 如果不传，就走默认的 router.push('/home/artistDetial')
+   */
+  routeFn: {
+    type: Function,
+    default: null,
   },
 })
 
@@ -137,14 +150,22 @@ const finalData = computed(() => {
 const skeletonRef = ref(null)
 const contentRef = ref(null)
 
+/** 卡片点击统一入口：优先用父组件传进来的 routeFn，否则用默认跳转 */
+const handleItemClick = (item) => {
+  if (typeof props.routeFn === 'function') {
+    // 父组件完全控制跳转逻辑
+    props.routeFn(item)
+  } else {
+
+  }
+}
+
 /** 初始化：根据 loading 决定谁显谁隐 */
 onMounted(() => {
   if (props.loading) {
-    // loading 状态：骨架 1，内容 0
     if (skeletonRef.value) gsap.set(skeletonRef.value, { opacity: 1 })
     if (contentRef.value) gsap.set(contentRef.value, { opacity: 0 })
   } else {
-    // 不是 loading：骨架 0，内容 1
     if (skeletonRef.value) gsap.set(skeletonRef.value, { opacity: 0 })
     if (contentRef.value) gsap.set(contentRef.value, { opacity: 1 })
   }
@@ -177,7 +198,7 @@ watch(
       }
     }
 
-    // false -> true：内容 → 骨架（比如重新加载）
+    // false -> true：内容 → 骨架
     if (oldVal === false && newVal === true) {
       const tl = gsap.timeline()
       if (contentRef.value) {

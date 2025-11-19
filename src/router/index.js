@@ -12,8 +12,11 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/view/home/home.vue'),
       children:[
-
-
+        {
+          path:'/home/artistDetial',
+          name:'artisthero',
+          component: () => import('@/view/artistDetial/artistDetial.vue'),
+        },
       ]
     },
 

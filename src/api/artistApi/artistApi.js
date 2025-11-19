@@ -50,5 +50,10 @@ export const artistApi = {
   //获取我们喜欢的歌手
   getLikeArtist: () => {
     return requestLocal.get(`/api/manage-list`);
+  },
+
+  //获取歌手视频
+  getArtistVideo: (name) => {
+    return requestLocal.get(`/api/singer-videos/lookup?name=${name}`);
   }
 }
