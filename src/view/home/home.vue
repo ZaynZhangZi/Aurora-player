@@ -3,7 +3,8 @@
     <div class="relative bg-gray-900 overflow-hidden">
       <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
         <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
-          <SmartMedia :src="bannerMeadiasrc"/>
+          <SmartMedia :src="'https://pic1.imgdb.cn/item/653e20bdc458853aef7b97e7.jpg'" title="Now Playing"
+                      :content="['第一条固定显示', '第二条开始滚', '第三条继续滚']"/>
         </div>
         <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
       </div>
@@ -12,10 +13,7 @@
         class="relative mx-auto flex max-w-3xl flex-col items-center justify-center px-6 text-center lg:px-0 min-h-[70vh] sm:min-h-[90vh]"
       >
         <div ref="heroTextEl" class="flex flex-col items-center justify-center">
-          <p ref="subtitleEl" class="text-xl text-white">{{ copy.hero.subtitle }}</p>
-          <h1 ref="titleEl" class="mt-8 tracking-widest text-4xl font-bold text-white lg:text-6xl">
-            <span>{{ tittle }}</span>
-          </h1>
+
         </div>
       </div>
     </div>

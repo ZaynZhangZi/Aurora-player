@@ -1,15 +1,15 @@
-<!-- MediaAuto.vue（纯 JS 版） -->
 <template>
   <div
-    class="media-auto"
+    ref="wrapperRef"
+    class="relative isolate select-none overflow-hidden"
     :style="wrapperStyle"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
-    ref="wrapperRef"
   >
-
+    <!-- 图片 -->
     <img
       v-if="mediaType === 'image'"
+      class="relative z-[1] block w-full h-full"
       :src="imgSrc"
       :alt="alt"
       :decoding="decoding"
@@ -23,6 +23,7 @@
     <!-- 视频 -->
     <video
       v-else-if="mediaType === 'video'"
+      class="relative z-[1] block w-full h-full"
       :src="videoPrimarySrc"
       :poster="poster"
       :autoplay="autoplay"
@@ -36,7 +37,6 @@
       @error="onErrored"
       ref="videoRef"
     >
-      <!-- 如果传了多个源，自动生成 <source> 做格式兼容（避免重复 createObjectURL） -->
       <source
         v-for="(s, i) in videoSourceList"
         :key="i"
@@ -46,8 +46,55 @@
       您的浏览器不支持视频播放。
     </video>
 
-    <!-- 兜底（未知类型） -->
-    <slot v-else>不支持的媒体类型</slot>
+    <!-- ✅ 标题 + 内容覆盖层（居中，Tailwind） -->
+    <div
+      v-if="hasTextOverlay"
+      class="absolute inset-0 z-[10] flex flex-col items-center justify-center text-center pointer-events-none px-4 py-5 gap-2"
+      style="
+        background: radial-gradient(circle at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 72%);
+      "
+    >
+      <div
+        v-if="title"
+        class="font-bold leading-tight tracking-wide drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)] max-w-[92%] text-white text-6xl"
+      >
+        {{ title }}
+      </div>
+
+      <!-- content 只有 1 条：直接显示 -->
+      <div
+        v-if="!shouldScroll"
+        class="max-w-[92%] text-white text-3xl leading-[22px] drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)] truncate"
+      >
+        {{ contentList[0] || '' }}
+      </div>
+
+      <!-- ✅ content > 1：全部滚动（不固定第一条） -->
+      <div
+        v-else
+        class="max-w-[92%] mt-10 text-white text-2xl leading-[22px] drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)]"
+      >
+        <div class="relative overflow-hidden" :style="{ height: lineHeight + 'px' }">
+          <div
+            class="will-change-transform"
+            :style="{
+              transform: `translateY(${-scrollIndex * lineHeight}px)`,
+              transition: scrollNoTransition ? 'none' : `transform ${transitionMs}ms ease`
+            }"
+          >
+            <div
+              v-for="(t, i) in scrollLoop"
+              :key="i"
+              class="flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis"
+              :style="{ height: lineHeight + 'px' }"
+            >
+              {{ t }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -66,6 +113,10 @@ const VIDEO_EXTS = ['mp4','webm','ogg','ogv','mov','m4v','avi','mkv']
 const props = defineProps({
   // 字符串 URL、File、Blob，或它们的数组
   src: { type: [String, Object, Array], required: true },
+
+  // ✅ 标题与内容
+  title: { type: String, default: '' },
+  content: { type: [String, Array], default: '' }, // string | string[]
 
   // 图片
   alt: { type: String, default: '' },
@@ -106,6 +157,77 @@ const wrapperRef = ref(null)
 const scrollScale = ref(1)
 let scrollListenerAttached = false
 let rafId = null
+
+/**
+ * ✅ 文案滚动（全部滚动）
+ */
+const lineHeight = 22
+const intervalMs = 2200
+const transitionMs = 320
+const scrollIndex = ref(0)
+const scrollNoTransition = ref(false)
+let textTimer = null
+
+const contentList = computed(() => {
+  if (Array.isArray(props.content)) return props.content.filter(Boolean).map(v => String(v))
+  if (props.content === null || props.content === undefined) return []
+  const s = String(props.content).trim()
+  return s ? [s] : []
+})
+
+const hasTextOverlay = computed(() => !!props.title || contentList.value.length > 0)
+const shouldScroll = computed(() => contentList.value.length > 1)
+
+const scrollLoop = computed(() => {
+  const arr = contentList.value
+  if (arr.length <= 1) return arr
+  return [...arr, arr[0]] // 无缝：拼接第一条
+})
+
+function startTextScroll() {
+  stopTextScroll()
+  if (!shouldScroll.value) return
+  const arr = contentList.value
+  if (arr.length <= 1) return
+
+  textTimer = window.setInterval(() => {
+    scrollIndex.value += 1
+
+    // 到达“复制的第一条”后：等待过渡结束，瞬间跳回 0
+    if (scrollIndex.value >= arr.length) {
+      window.setTimeout(() => {
+        scrollNoTransition.value = true
+        scrollIndex.value = 0
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            scrollNoTransition.value = false
+          })
+        })
+      }, transitionMs)
+    }
+  }, intervalMs)
+}
+
+function stopTextScroll() {
+  if (textTimer) {
+    clearInterval(textTimer)
+    textTimer = null
+  }
+  scrollIndex.value = 0
+  scrollNoTransition.value = false
+}
+
+watch([() => props.content, shouldScroll], () => {
+  startTextScroll()
+}, { deep: true })
+
+onMounted(() => {
+  startTextScroll()
+})
+
+onBeforeUnmount(() => {
+  stopTextScroll()
+})
 
 /**
  * 把 src 统一为数组
@@ -223,7 +345,6 @@ const wrapperStyle = computed(() => {
     width: formatSize(props.width),
     height: formatSize(props.height),
     borderRadius: formatSize(props.radius),
-    overflow: 'hidden',
     position: 'relative',
     background: '#f6f7f9'
   }
@@ -345,8 +466,5 @@ function guessMimeFromUrl(url) {
 </script>
 
 <style scoped>
-.media-auto {
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
+/* ✅ Tailwind 已覆盖主要样式，这里保持空或放少量补充即可 */
 </style>
