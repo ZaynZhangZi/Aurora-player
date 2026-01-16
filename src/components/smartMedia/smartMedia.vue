@@ -9,7 +9,7 @@
     <!-- 图片 -->
     <img
       v-if="mediaType === 'image'"
-      class="relative z-[1] block w-full h-full"
+      class="relative z-1 block w-full h-full"
       :src="imgSrc"
       :alt="alt"
       :decoding="decoding"
@@ -23,7 +23,7 @@
     <!-- 视频 -->
     <video
       v-else-if="mediaType === 'video'"
-      class="relative z-[1] block w-full h-full"
+      class="relative z-1 block w-full h-full"
       :src="videoPrimarySrc"
       :poster="poster"
       :autoplay="autoplay"
@@ -49,44 +49,41 @@
     <!-- ✅ 标题 + 内容覆盖层（居中，Tailwind） -->
     <div
       v-if="hasTextOverlay"
-      class="absolute inset-0 z-[10] flex flex-col items-center justify-center text-center pointer-events-none px-4 py-5 gap-2"
-      style="
-        background: radial-gradient(circle at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 72%);
-      "
+      class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center pointer-events-none px-6"
+      style="background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.7) 90%);"
     >
+
       <div
         v-if="title"
-        class="font-bold leading-tight tracking-wide drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)] max-w-[92%] text-white text-6xl"
+        class="font-bold leading-tight tracking-wide drop-shadow-lg max-w-full text-white text-3xl md:text-5xl mb-4"
       >
         {{ title }}
       </div>
 
-      <!-- content 只有 1 条：直接显示 -->
       <div
         v-if="!shouldScroll"
-        class="max-w-[92%] text-white text-3xl leading-[22px] drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)] truncate"
+        class="max-w-[90%] text-white text-lg md:text-2xl leading-relaxed drop-shadow-md"
       >
         {{ contentList[0] || '' }}
       </div>
 
-      <!-- ✅ content > 1：全部滚动（不固定第一条） -->
       <div
         v-else
-        class="max-w-[92%] mt-10 text-white text-2xl leading-[22px] drop-shadow-[0_6px_22px_rgba(0,0,0,0.45)]"
+        class="max-w-[90%] mt-4 text-white text-lg md:text-xl"
       >
-        <div class="relative overflow-hidden" :style="{ height: lineHeight + 'px' }">
+        <div class="relative overflow-hidden" :style="{ height: (lineHeight + 8) + 'px' }">
           <div
             class="will-change-transform"
             :style="{
-              transform: `translateY(${-scrollIndex * lineHeight}px)`,
-              transition: scrollNoTransition ? 'none' : `transform ${transitionMs}ms ease`
-            }"
+          transform: `translateY(${-scrollIndex * (lineHeight + 8)}px)`,
+          transition: scrollNoTransition ? 'none' : `transform ${transitionMs}ms ease-out`
+        }"
           >
             <div
               v-for="(t, i) in scrollLoop"
               :key="i"
-              class="flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis"
-              :style="{ height: lineHeight + 'px' }"
+              class="flex items-center justify-center text-pretty"
+              :style="{ height: (lineHeight + 8) + 'px' }"
             >
               {{ t }}
             </div>
@@ -162,8 +159,8 @@ let rafId = null
  * ✅ 文案滚动（全部滚动）
  */
 const lineHeight = 22
-const intervalMs = 2200
-const transitionMs = 320
+const intervalMs = 3000
+const transitionMs = 1000
 const scrollIndex = ref(0)
 const scrollNoTransition = ref(false)
 let textTimer = null
@@ -466,5 +463,4 @@ function guessMimeFromUrl(url) {
 </script>
 
 <style scoped>
-/* ✅ Tailwind 已覆盖主要样式，这里保持空或放少量补充即可 */
 </style>

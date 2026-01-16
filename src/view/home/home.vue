@@ -3,10 +3,10 @@
     <div class="relative bg-gray-900 overflow-hidden">
       <div ref="heroBgLayerEl" class="absolute inset-0 will-change-transform ">
         <div aria-hidden="true" class="absolute inset-0 overflow-hidden">
-          <SmartMedia :src="'https://pic1.imgdb.cn/item/653e20bdc458853aef7b97e7.jpg'" title="Now Playing"
-                      :content="['第一条固定显示', '第二条开始滚', '第三条继续滚']"/>
+          <SmartMedia :src="bannerMeadiasrc" :title="tittle"
+                      :content="content"/>
         </div>
-        <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-50"/>
+        <div aria-hidden="true" class="absolute inset-0 bg-gray-900 opacity-20"/>
       </div>
 
       <div
@@ -19,8 +19,10 @@
     </div>
   </div>
 
-  <div>
-    <UniversalDisplay :routeFn="toArtistDetial" :loading="getLikeArtistloading" :more="false" :data="getLikeArtistdata"/>
+  <div class="w-full h-screen">
+<!--    <UniversalDisplay :routeFn="toArtistDetial" :loading="getLikeArtistloading" :more="false" :data="getLikeArtistdata"/>-->
+<!--    <DailyPick/>-->
+    <FluidImageBackground :imageUrl="'http://114.66.61.151:8080/api/uploads/acc903a2-f876-4963-baef-81a8299264a7.jpg?objectKey=acc903a2-f876-4963-baef-81a8299264a7.jpg'" />
   </div>
 </template>
 
@@ -33,6 +35,8 @@ import UniversalDisplay from '@/components/UniversalDisplay/UniversalDisplay.vue
 import {playListsApi} from "@/api/playListsApi/playListsApi.js";
 import {artistApi} from "@/api/artistApi/artistApi.js";
 import router from "@/router/index.js";
+import DailyPick from "@/components/DailyPick/DailyPick.vue";
+import FluidImageBackground from "@/components/FluidImageBackground/FluidImageBackground.vue";
 
 const copy = {
   brand: { name: '你的品牌' },
@@ -43,6 +47,7 @@ const copy = {
 
 const tittle = ref('')
 const bannerMeadiasrc = ref('')
+const content= ref('')
 
 const subtitleEl = ref(null)
 const titleEl = ref(null)
@@ -51,8 +56,11 @@ let tl // gsap timeline
 
 function getBanner () {
   homeIndexApi.getBanner().then(res => {
-    tittle.value = res[0]?.title || ''
-    bannerMeadiasrc.value = res[0]?.mediaUrl || ''
+    let data=res[0];
+    console.log( data)
+    tittle.value = data.title
+    bannerMeadiasrc.value = data.src[0] || ''
+    content.value = data.content
     nextTick(runTitleAnim) // 等 DOM 更新后执行动画
   })
 }
