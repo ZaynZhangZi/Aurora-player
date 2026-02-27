@@ -12,6 +12,18 @@ export const songsApi = {
     return apiClient.get(`/song/dynamic/cover?id=${id}`);
   },
 
+  getSongDetail(id) {
+    return apiClient.get(`/song/detail?ids=${id}`);
+  },
+
+  getSongUrl(id) {
+    return apiClient.get(`/song/url?id=${id}`);
+  },
+
+  getLyric(id) {
+    return apiClient.get(`/lyric?id=${id}`);
+  },
+
 
   //搜索歌曲
   searchSongs(keywords, limit, offset) {
@@ -22,7 +34,7 @@ export const songsApi = {
   //喜欢音乐列表
   getLikeSongs() {
     const store = useCounterStore();
-    if (store.getUserMassage.userId) {
+    if (store.userId) {
       return apiClient.get(`/likelist?uid=${store.userId}`);
     }
   },
@@ -30,7 +42,7 @@ export const songsApi = {
   //喜欢音乐
   likeSongs(id, like) {
     const store = useCounterStore();
-    if (store.getUserMassage.userId) {
+    if (store.userId) {
       return apiClient.get(`/like?id=${id}&like=${like}`);
     }
   },
@@ -43,5 +55,15 @@ export const songsApi = {
   //获取精品歌单
   getHighQualitySongs() {
     return apiClient.get(`/top/playlist/highquality?limit=3`);
-  }
+  },
+
+  //获取榜单概览
+  getTopListDetail() {
+    return apiClient.get('/toplist/detail');
+  },
+
+  //推荐播客节目
+  getPodcastPrograms(limit = 6) {
+    return apiClient.get(`/personalized/djprogram?limit=${limit}`);
+  },
 }

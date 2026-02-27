@@ -18,12 +18,12 @@ export const playListsApi = {
 
     //歌单 ( 网友精选碟 )
     getPlayList: (cat, limit, offset) => {
-        return apiClient.get(`/top/playlist?cat=${cat}&limit=${limit}`);
+        return apiClient.get(`/top/playlist?cat=${cat}&limit=${limit}&offset=${offset || 0}`);
     },
 
     //获取歌单所有歌曲
-    getPlayListSongs: (id) => {
-        return apiClient.get(`/playlist/track/all?id=${id}`);
+    getPlayListSongs: (id, limit = 200, offset = 0) => {
+        return apiClient.get(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
     },
 
     //推荐歌单

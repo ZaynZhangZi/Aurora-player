@@ -9,11 +9,20 @@
           @enter="handleEnter"
           @leave="handleLeave"
         >
-          <component
+          <div
             v-if="!isClosing"
-            :is="Component"
             class="modal-content"
-          />
+            :style="{
+              width: props.contentWidth,
+              height: props.contentHeight,
+              borderRadius: props.contentRadius,
+            }"
+          >
+            <component
+              :is="Component"
+              class="modal-page"
+            />
+          </div>
         </Transition>
       </div>
     </Teleport>
@@ -29,6 +38,9 @@ const props = defineProps({
   to: { type: String, default: 'body' },
   appear: { type: Boolean, default: true },
   closeOnBackdrop: { type: Boolean, default: true },
+  contentWidth: { type: String, default: '90vw' },
+  contentHeight: { type: String, default: '90vh' },
+  contentRadius: { type: String, default: '18px' },
 
   /** 允许用户覆盖默认动画 */
   enterAnim: { type: Function, default: null },
@@ -144,11 +156,13 @@ function handleLeave(el, done) {
 /* 90% 宽高，居中 */
 .modal-content {
   position: relative;
-  width: 90vw;
-  height: 90vh;
-  border-radius: 18px;
-  overflow: hidden;
+  overflow: auto;
   /* 如果你内部没设背景，这里最好给个底色 */
   background: #fff;
+}
+
+.modal-page {
+  width: 100%;
+  min-height: 100%;
 }
 </style>

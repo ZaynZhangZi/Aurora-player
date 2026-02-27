@@ -13,17 +13,25 @@ const axiosInstance = axios.create({
 // 请求拦截器，用于在请求之前做一些处理
 axiosInstance.interceptors.request.use(
     (config) => {
+        const store = useCounterStore();
+        const loginCookie = store.getUserCookie;
+
         // 添加时间戳参数
         config.params = {
             ...config.params,
             timestamp: new Date().getTime(),
         };
 
+        // 关键：通过 query 透传 cookie，避免浏览器端无法可靠写入后端域 Cookie
+        if (loginCookie && !config.params.cookie && !config.params.noCookie) {
+            config.params.cookie = loginCookie;
+        }
+
         // 检查是否存在 Cookie，存在时可在请求头中添加
-        if (useCounterStore().getUserCookie) {
+        if (loginCookie) {
             config.headers = {
                 ...config.headers,
-                'Custom-Cookie': useCounterStore().getUserCookie, // 示例：附加 Cookie 数据
+                'Custom-Cookie': loginCookie,
             };
         }
 

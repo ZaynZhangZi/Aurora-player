@@ -53,7 +53,15 @@ export const artistApi = {
   },
 
   //获取歌手视频
-  getArtistVideo: (name) => {
-    return requestLocal.get(`/api/singer-videos/lookup?name=${name}`);
+  getArtistVideo: async (name) => {
+    try {
+      return await requestLocal.get('/singer-videos/lookup', {
+        params: {name},
+      });
+    } catch (error) {
+      return requestLocal.get('/api/singer-videos/lookup', {
+        params: {name},
+      });
+    }
   }
 }

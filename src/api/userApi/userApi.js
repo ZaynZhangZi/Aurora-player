@@ -34,4 +34,24 @@ export const userApi={
     getUserInfo(){
         return apiClient.get('/user/account')
     },
+
+    getUserDetail(uid){
+        return apiClient.get(`/user/detail?uid=${uid}`)
+    },
+
+    getUserSubCount(){
+        return apiClient.get('/user/subcount')
+    },
+
+    getUserLevel(){
+        return apiClient.get('/user/level')
+    },
+
+    getUserPlaylist(uid, limit = 20, offset = 0){
+        return apiClient.get(`/user/playlist?uid=${uid}&limit=${limit}&offset=${offset}`)
+    },
+
+    logout() {
+        return apiClient.get('/logout')
+    },
 }

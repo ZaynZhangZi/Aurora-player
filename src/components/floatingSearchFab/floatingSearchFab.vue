@@ -58,7 +58,10 @@
                 :placeholder="placeholder"
                 class="w-full h-full text-sm text-white placeholder-white/60 bg-transparent outline-none ring-0 focus:ring-0 focus:outline-none transition-all duration-300"
                 type="text"
-                @keydown.enter="$emit('search', inputValue)"
+                @keydown.enter="handleSearchEnter"
+                @keydown.down.prevent="moveSelection(1)"
+                @keydown.up.prevent="moveSelection(-1)"
+                @keydown.esc="clearSearchState"
                 v-model="inputValue"
               />
             </div>
@@ -77,6 +80,7 @@
             <div
               v-else
               class="flex items-center gap-2 rounded-full bg-white/20 px-2 py-1 text-white/90"
+              @click="openProfile"
             >
               <img
                 v-if="avatarUrl"
@@ -85,10 +89,141 @@
                 class="size-6 rounded-full object-cover"
               />
               <span class="text-xs">{{ userNickname || '已登录' }}</span>
+              <button
+                class="rounded-full bg-white/25 px-2 py-0.5 text-[11px] transition hover:bg-white/35"
+                type="button"
+                @click.stop="logout"
+              >
+                退出
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      <Transition name="search-panel">
+        <div
+          v-if="searchPanelVisible"
+          class="pointer-events-auto mt-2 overflow-hidden rounded-2xl border border-white/45 bg-white/35 p-3 text-slate-900 shadow-2xl backdrop-blur-2xl"
+        >
+        <p v-if="searching" class="px-2 py-2 text-sm text-slate-700">正在搜索...</p>
+        <p v-else-if="searchError" class="px-2 py-2 text-sm text-red-300">{{ searchError }}</p>
+        <p v-else-if="isSearchEmpty" class="px-2 py-2 text-sm text-slate-700">没有找到相关结果</p>
+
+        <template v-else>
+          <section v-if="artistEntries.length" class="mb-2">
+            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(0)">歌手</p>
+            <TransitionGroup name="search-item" tag="div" appear>
+              <button
+                v-for="artist in artistEntries"
+                :key="`artist-${artist.id}`"
+                :class="isActiveEntry(artist.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
+                :style="getItemStaggerStyle(artist.globalIndex)"
+                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                type="button"
+                @click="openArtist(artist)"
+              >
+                <span class="text-sm">{{ artist.name }}</span>
+                <span class="text-xs text-slate-500">歌手</span>
+              </button>
+            </TransitionGroup>
+            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canPrev('artist')"
+                @click="changePage('artist', -1)"
+              >
+                上一页
+              </button>
+              <span>{{ getPageLabel('artist') }}</span>
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canNext('artist')"
+                @click="changePage('artist', 1)"
+              >
+                下一页
+              </button>
+            </div>
+          </section>
+
+          <section v-if="songEntries.length" class="mb-2">
+            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(1)">歌曲</p>
+            <TransitionGroup name="search-item" tag="div" appear>
+              <button
+                v-for="song in songEntries"
+                :key="`song-${song.id}`"
+                :class="isActiveEntry(song.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
+                :style="getItemStaggerStyle(song.globalIndex)"
+                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                type="button"
+                @click="openSong(song)"
+              >
+                <span class="truncate text-sm">{{ song.name }}</span>
+                <span class="ml-4 truncate text-xs text-slate-500">{{ getSongArtistName(song) }}</span>
+              </button>
+            </TransitionGroup>
+            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canPrev('song')"
+                @click="changePage('song', -1)"
+              >
+                上一页
+              </button>
+              <span>{{ getPageLabel('song') }}</span>
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canNext('song')"
+                @click="changePage('song', 1)"
+              >
+                下一页
+              </button>
+            </div>
+          </section>
+
+          <section v-if="playlistEntries.length">
+            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(2)">歌单</p>
+            <TransitionGroup name="search-item" tag="div" appear>
+              <button
+                v-for="playlist in playlistEntries"
+                :key="`playlist-${playlist.id}`"
+                :class="isActiveEntry(playlist.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
+                :style="getItemStaggerStyle(playlist.globalIndex)"
+                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                type="button"
+                @click="openPlaylist(playlist)"
+              >
+                <span class="truncate text-sm">{{ playlist.name }}</span>
+                <span class="ml-4 truncate text-xs text-slate-500">{{ playlist.creator?.nickname || '歌单' }}</span>
+              </button>
+            </TransitionGroup>
+            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canPrev('playlist')"
+                @click="changePage('playlist', -1)"
+              >
+                上一页
+              </button>
+              <span>{{ getPageLabel('playlist') }}</span>
+              <button
+                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                type="button"
+                :disabled="!canNext('playlist')"
+                @click="changePage('playlist', 1)"
+              >
+                下一页
+              </button>
+            </div>
+          </section>
+        </template>
+        </div>
+      </Transition>
     </div>
   </div>
 
@@ -211,6 +346,8 @@ import {XMarkIcon, Bars3Icon} from '@heroicons/vue/24/outline'
 import {Dialog, DialogPanel, DialogTitle, DialogDescription} from '@headlessui/vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
+import {searchApi} from '@/api/searchApi/searchApi.js'
+import {useRouter} from 'vue-router'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},          // 受控展开
@@ -246,6 +383,14 @@ const qrError = ref('')
 const pollingTimer = ref(null)
 const useNoCookie = ref(false)
 const isClosing = ref(false)
+const searchResult = ref(null)
+const searching = ref(false)
+const searchError = ref('')
+const pageSize = 6
+const searchPage = ref({artist: 0, song: 0, playlist: 0})
+const activeEntryIndex = ref(-1)
+
+const router = useRouter()
 
 const userStore = useCounterStore()
 const isLoggedIn = computed(() => userStore.isLoggedIn)
@@ -254,9 +399,33 @@ const userNickname = computed(() => userStore.nickname)
 
 let navTl = null
 let autoExpandByScroll = false
+let searchTimer = null
+let searchRequestId = 0
 
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
+})
+
+watch(inputValue, (value) => {
+  const keyword = value.trim()
+  if (!keyword || !expanded.value) {
+    clearSearchState()
+    return
+  }
+  searchPage.value = {artist: 0, song: 0, playlist: 0}
+  activeEntryIndex.value = -1
+  debounceSearch(keyword)
+})
+
+watch(expanded, (value) => {
+  if (!value) {
+    inputValue.value = ''
+    clearSearchState()
+  }
+})
+
+watch(isOpen, (open) => {
+  if (open) clearSearchState()
 })
 
 function measureExpandedWidth() {
@@ -332,6 +501,212 @@ function toggle() {
   emit('toggle', next) // 修正：抛出目标状态
 }
 
+function handleSearchEnter() {
+  if (activeEntryIndex.value >= 0) {
+    openEntryByIndex(activeEntryIndex.value)
+    return
+  }
+  const keyword = inputValue.value.trim()
+  if (!keyword) return
+  emit('search', keyword)
+  if (!searchResult.value) {
+    runSearch(keyword)
+  }
+}
+
+const artists = computed(() => searchResult.value?.artists || [])
+const songs = computed(() => searchResult.value?.songs || [])
+const playlists = computed(() => searchResult.value?.playlists || [])
+
+const artistEntries = computed(() => artists.value.map((item, index) => ({
+  ...item,
+  type: 'artist',
+  globalIndex: index,
+})))
+
+const songEntries = computed(() => songs.value.map((item, index) => ({
+  ...item,
+  type: 'song',
+  globalIndex: artistEntries.value.length + index,
+})))
+
+const playlistEntries = computed(() => playlists.value.map((item, index) => ({
+  ...item,
+  type: 'playlist',
+  globalIndex: artistEntries.value.length + songEntries.value.length + index,
+})))
+
+const flatEntries = computed(() => [
+  ...artistEntries.value,
+  ...songEntries.value,
+  ...playlistEntries.value,
+])
+
+const isSearchEmpty = computed(() => {
+  if (!searchResult.value) return false
+  return artists.value.length === 0 && songs.value.length === 0 && playlists.value.length === 0
+})
+
+const searchPanelVisible = computed(() => {
+  if (!expanded.value || !inputValue.value.trim() || isOpen.value) return false
+  return searching.value || Boolean(searchError.value) || Boolean(searchResult.value)
+})
+
+function clearSearchState() {
+  searchResult.value = null
+  searchError.value = ''
+  searching.value = false
+  activeEntryIndex.value = -1
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
+}
+
+function debounceSearch(keyword) {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    runSearch(keyword)
+  }, 280)
+}
+
+async function runSearch(keyword) {
+  const currentId = ++searchRequestId
+  searching.value = true
+  searchError.value = ''
+  try {
+    const res = await searchApi.searchComposite(keyword, {
+      limit: pageSize,
+      offsets: {
+        artist: searchPage.value.artist * pageSize,
+        song: searchPage.value.song * pageSize,
+        playlist: searchPage.value.playlist * pageSize,
+      },
+    })
+    if (currentId !== searchRequestId) return
+    searchResult.value = res || {}
+    const maxIndex = flatEntries.value.length - 1
+    if (maxIndex < 0) {
+      activeEntryIndex.value = -1
+    } else if (activeEntryIndex.value > maxIndex) {
+      activeEntryIndex.value = maxIndex
+    }
+  } catch (error) {
+    if (currentId !== searchRequestId) return
+    searchResult.value = null
+    searchError.value = error?.message || '搜索失败，请稍后重试'
+  } finally {
+    if (currentId === searchRequestId) searching.value = false
+  }
+}
+
+function openArtist(artist) {
+  if (!artist?.id) return
+  router.push({
+    path: '/artistDetial',
+    query: {id: artist.id},
+  })
+  collapse()
+}
+
+function openSong(song) {
+  if (!song?.id) return
+  router.push({
+    path: '/home/songDetail',
+    query: {id: song.id},
+  })
+  collapse()
+}
+
+function openPlaylist(playlist) {
+  if (!playlist?.id) return
+  router.push({
+    path: '/home/playlistDetail',
+    query: {id: playlist.id},
+  })
+  collapse()
+}
+
+function openProfile() {
+  router.push({ path: '/profile' })
+  collapse()
+}
+
+function getSongArtistName(song) {
+  const firstArtist = song?.ar?.[0]?.name || song?.artists?.[0]?.name || ''
+  return firstArtist
+}
+
+function isActiveEntry(index) {
+  return index === activeEntryIndex.value
+}
+
+function moveSelection(direction) {
+  if (!searchPanelVisible.value || !flatEntries.value.length) return
+  if (activeEntryIndex.value < 0) {
+    activeEntryIndex.value = direction > 0 ? 0 : flatEntries.value.length - 1
+    return
+  }
+  const len = flatEntries.value.length
+  activeEntryIndex.value = (activeEntryIndex.value + direction + len) % len
+}
+
+function openEntryByIndex(index) {
+  const entry = flatEntries.value[index]
+  if (!entry) return
+  if (entry.type === 'artist') openArtist(entry)
+  if (entry.type === 'song') openSong(entry)
+  if (entry.type === 'playlist') openPlaylist(entry)
+}
+
+function getTotalCount(type) {
+  return searchResult.value?.counts?.[type] || 0
+}
+
+function canPrev(type) {
+  return (searchPage.value[type] || 0) > 0
+}
+
+function canNext(type) {
+  const page = searchPage.value[type] || 0
+  return (page + 1) * pageSize < getTotalCount(type)
+}
+
+function getPageLabel(type) {
+  const totalCount = getTotalCount(type)
+  const totalPage = Math.max(1, Math.ceil(totalCount / pageSize))
+  const page = (searchPage.value[type] || 0) + 1
+  return `${page}/${totalPage}`
+}
+
+function getItemStaggerStyle(globalIndex) {
+  const capped = Math.min(Math.max(globalIndex, 0), 18)
+  return {
+    '--stagger-delay': `${capped * 28}ms`,
+  }
+}
+
+function getGroupTitleStyle(groupIndex) {
+  const base = Math.min(Math.max(groupIndex, 0), 4)
+  return {
+    '--group-delay': `${base * 80}ms`,
+  }
+}
+
+function changePage(type, delta) {
+  const keyword = inputValue.value.trim()
+  if (!keyword) return
+  const nextPage = (searchPage.value[type] || 0) + delta
+  if (nextPage < 0) return
+  if (delta > 0 && !canNext(type)) return
+  searchPage.value = {
+    ...searchPage.value,
+    [type]: nextPage,
+  }
+  activeEntryIndex.value = -1
+  runSearch(keyword)
+}
+
 function onScroll() {
   if (!props.autoExpandOnScroll) return
   const y = window.scrollY || document.documentElement.scrollTop
@@ -357,6 +732,7 @@ onBeforeUnmount(() => {
   navTl?.kill()
   window.removeEventListener('scroll', onScroll)
   stopQrPolling()
+  clearSearchState()
 })
 
 watch(isOpen, (open) => {
@@ -518,6 +894,16 @@ function refreshQr() {
   startQrLogin()
 }
 
+async function logout() {
+  try {
+    await userApi.logout()
+  } catch (error) {
+    console.warn('退出登录接口调用失败，已执行本地退出', error)
+  } finally {
+    userStore.logout()
+  }
+}
+
 function buildProfile(data) {
   const profileSource = data?.profile || data || {}
   return {
@@ -591,5 +977,55 @@ button, svg {
 /* 稳定绘制，减少合成抖动（给 DialogPanel 一个静态类以便 scoped 匹配） */
 .panel-anim {
   will-change: transform, opacity, filter;
+}
+
+.search-panel-enter-active,
+.search-panel-leave-active {
+  transition: opacity 220ms ease, transform 220ms ease, filter 220ms ease;
+}
+
+.search-panel-enter-from,
+.search-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  filter: blur(8px);
+}
+
+.search-item-enter-active {
+  transition: opacity 280ms ease, transform 280ms ease, filter 280ms ease;
+  transition-delay: var(--stagger-delay, 0ms);
+}
+
+.search-item-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.search-item-enter-from,
+.search-item-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.985);
+  filter: blur(6px);
+}
+
+.search-item-move {
+  transition: transform 220ms ease;
+}
+
+.search-group-title {
+  animation: searchGroupTitleIn 320ms ease both;
+  animation-delay: var(--group-delay, 0ms);
+}
+
+@keyframes searchGroupTitleIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 </style>
