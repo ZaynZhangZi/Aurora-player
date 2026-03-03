@@ -17,11 +17,6 @@ const router = createRouter({
           name:'playlistDetail',
           component: () => import('@/view/playlistDetail/playlistDetail.vue'),
         },
-        {
-          path:'songDetail',
-          name:'songDetail',
-          component: () => import('@/view/songDetail/songDetail.vue'),
-        },
       ]
     },
     {
@@ -35,11 +30,6 @@ const router = createRouter({
       component: () => import('@/view/playlistDetail/playlistDetail.vue'),
     },
     {
-      path: '/songDetail',
-      name: 'songDetailPage',
-      component: () => import('@/view/songDetail/songDetail.vue'),
-    },
-    {
       path: '/profile',
       name: 'profile',
       component: () => import('@/view/profile/profile.vue'),
@@ -48,11 +38,6 @@ const router = createRouter({
           path: 'playlistDetail',
           name: 'profilePlaylistDetail',
           component: () => import('@/view/playlistDetail/playlistDetail.vue'),
-        },
-        {
-          path: 'songDetail',
-          name: 'profileSongDetail',
-          component: () => import('@/view/songDetail/songDetail.vue'),
         },
       ],
     },

@@ -228,6 +228,7 @@ import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
+import {playSongById} from '@/utils/globalPlayer.js'
 
 const router = useRouter()
 
@@ -280,23 +281,22 @@ function openPlaylist(playlist) {
   })
 }
 
-function openSong(song) {
-  router.push({
-    path: '/home/songDetail',
-    query: {id: song.id},
-  })
+async function openSong(song) {
+  await playSongById(song)
 }
 
 function getSongArtists(song) {
   return song?.artists || song?.ar || []
 }
 
-function openPodcast(item) {
+async function openPodcast(item) {
   const id = item?.program?.mainSong?.id || item?.program?.id || null
   if (!id) return
-  router.push({
-    path: '/home/songDetail',
-    query: {id},
+  await playSongById({
+    id,
+    name: item?.name || item?.program?.name || '播客节目',
+    artists: item?.program?.mainSong?.ar || [],
+    cover: item?.picUrl || item?.program?.coverUrl || '',
   })
 }
 

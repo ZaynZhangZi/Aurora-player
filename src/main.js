@@ -7,6 +7,7 @@ import router from './router'
 
 
 import './index.css'
+import '@applemusic-like-lyrics/core/style.css'
 
 const app = createApp(App)
 

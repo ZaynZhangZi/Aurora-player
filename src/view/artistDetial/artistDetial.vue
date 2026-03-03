@@ -160,6 +160,7 @@
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {artistApi} from '@/api/artistApi/artistApi.js'
+import {playSongById} from '@/utils/globalPlayer.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -333,17 +334,8 @@ function formatDate(timestamp) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function getSongDetailPath() {
-  if (route.path.startsWith('/home/')) return '/home/songDetail'
-  if (route.path.startsWith('/profile/')) return '/profile/songDetail'
-  return '/songDetail'
-}
-
-function openSong(song) {
-  router.push({
-    path: getSongDetailPath(),
-    query: {id: song.id},
-  })
+async function openSong(song) {
+  await playSongById(song)
 }
 
 function openAlbum(album) {

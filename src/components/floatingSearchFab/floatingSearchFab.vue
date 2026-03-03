@@ -622,6 +622,7 @@ import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
+import {playSongById} from '@/utils/globalPlayer.js'
 import {useRouter} from 'vue-router'
 
 const props = defineProps({
@@ -1034,12 +1035,9 @@ function openArtist(artist) {
   collapse()
 }
 
-function openSong(song) {
+async function openSong(song) {
   if (!song?.id) return
-  router.push({
-    path: '/home/songDetail',
-    query: {id: song.id},
-  })
+  await playSongById(song)
   collapse()
 }
 

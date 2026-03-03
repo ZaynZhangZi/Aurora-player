@@ -75,6 +75,7 @@ import {useRoute, useRouter} from 'vue-router'
 import {XMarkIcon} from '@heroicons/vue/24/outline'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
+import {playSongById} from '@/utils/globalPlayer.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -186,16 +187,8 @@ function goBack() {
   router.back()
 }
 
-function openSong(track) {
-  let songPath = '/songDetail'
-  if (route.path.startsWith('/home/')) songPath = '/home/songDetail'
-  if (route.path.startsWith('/profile/')) songPath = '/profile/songDetail'
-  router.push({
-    path: songPath,
-    query: {
-      id: track.id,
-    },
-  })
+async function openSong(track) {
+  await playSongById(track)
 }
 
 function getTrackItemStyle(index) {
