@@ -54,7 +54,13 @@
           >
             <span class="mr-3 w-7 shrink-0 text-xs text-white/60">{{ index + 1 }}</span>
             <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ track.name }}</span>
-            <span class="ml-4 truncate text-xs text-white/60">{{ getArtistName(track) }}</span>
+            <ArtistLinks
+              :artists="getTrackArtists(track)"
+              container-class="ml-4 truncate text-xs text-white/70"
+              link-class="hover:text-white hover:underline"
+              separator-class="text-white/55"
+              fallback-class="text-white/60"
+            />
             <span class="ml-4 w-12 shrink-0 text-right text-xs text-white/50">{{ formatDuration(track.dt) }}</span>
           </button>
         </TransitionGroup>
@@ -64,10 +70,11 @@
 </template>
 
 <script setup>
-import {computed, onMounted, ref, watch} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {XMarkIcon} from '@heroicons/vue/24/outline'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -85,9 +92,11 @@ const tracks = ref([])
 const loading = ref(true)
 const error = ref('')
 const themeRgb = ref('92, 107, 192')
+const animatedThemeRgb = ref(themeRgb.value)
+let themeTweenFrame = 0
 
 const pageStyle = computed(() => ({
-  background: buildPageGradient(themeRgb.value),
+  background: buildPageGradient(animatedThemeRgb.value),
 }))
 
 function parseRgb(rgbString) {
@@ -115,8 +124,48 @@ function buildPageGradient(rgbString) {
   return `linear-gradient(180deg, rgba(${r},${g},${b},0.44) 0%, rgba(${midR},${midG},${midB},0.92) 42%, rgba(${deepR},${deepG},${deepB},1) 100%)`
 }
 
-function getArtistName(track) {
-  return track?.ar?.[0]?.name || track?.artists?.[0]?.name || '未知歌手'
+function easeOutCubic(t) {
+  return 1 - (1 - t) ** 3
+}
+
+function formatRgb(rgbArray) {
+  return `${Math.round(rgbArray[0])}, ${Math.round(rgbArray[1])}, ${Math.round(rgbArray[2])}`
+}
+
+function animateThemeColor(nextRgb, {duration = 420} = {}) {
+  const start = parseRgb(animatedThemeRgb.value)
+  const end = parseRgb(nextRgb)
+
+  if (themeTweenFrame) {
+    cancelAnimationFrame(themeTweenFrame)
+    themeTweenFrame = 0
+  }
+
+  const startAt = performance.now()
+
+  const tick = (now) => {
+    const elapsed = now - startAt
+    const progress = Math.min(1, elapsed / duration)
+    const eased = easeOutCubic(progress)
+
+    animatedThemeRgb.value = formatRgb([
+      start[0] + (end[0] - start[0]) * eased,
+      start[1] + (end[1] - start[1]) * eased,
+      start[2] + (end[2] - start[2]) * eased,
+    ])
+
+    if (progress < 1) {
+      themeTweenFrame = requestAnimationFrame(tick)
+    } else {
+      themeTweenFrame = 0
+    }
+  }
+
+  themeTweenFrame = requestAnimationFrame(tick)
+}
+
+function getTrackArtists(track) {
+  return track?.ar || track?.artists || []
 }
 
 function formatDuration(durationMs) {
@@ -243,7 +292,7 @@ async function pickThemeColor(coverUrl, seedName) {
     const bb = Math.min(220, Math.round(b / count))
 
     themeRgb.value = `${rr}, ${gg}, ${bb}`
-  } catch (_error) {
+  } catch {
     themeRgb.value = colorFromString(seedName)
   }
 }
@@ -292,6 +341,25 @@ async function loadPlaylist() {
 onMounted(() => {
   loadPlaylist()
 })
+
+onBeforeUnmount(() => {
+  if (themeTweenFrame) {
+    cancelAnimationFrame(themeTweenFrame)
+    themeTweenFrame = 0
+  }
+})
+
+watch(
+  themeRgb,
+  (nextValue, prevValue) => {
+    if (!prevValue || prevValue === nextValue) {
+      animatedThemeRgb.value = nextValue
+      return
+    }
+    animateThemeColor(nextValue)
+  },
+  {immediate: true},
+)
 
 watch(
   () => route.query.id,

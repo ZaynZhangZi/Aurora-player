@@ -77,22 +77,50 @@
             >
               {{ signInLabel }}
             </button>
-            <div
-              v-else
-              class="flex items-center gap-2 rounded-full bg-white/20 px-2 py-1 text-white/90"
-              @click="openProfile"
-            >
-              <img
-                v-if="avatarUrl"
-                :src="avatarUrl"
-                alt="用户头像"
-                class="size-6 rounded-full object-cover"
-              />
-              <span class="text-xs">{{ userNickname || '已登录' }}</span>
+            <div v-else class="flex items-center gap-2 text-white/90">
+              <button
+                class="relative rounded-full border border-white/35 bg-white/10 px-2.5 py-1 text-xs transition hover:bg-white/20"
+                type="button"
+                @click="openMessageCenter('notice')"
+              >
+                通知
+                <span
+                  v-if="noticeBadgeCount > 0"
+                  class="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white"
+                >
+                  {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
+                </span>
+              </button>
+              <button
+                class="relative rounded-full border border-white/35 bg-white/10 px-2.5 py-1 text-xs transition hover:bg-white/20"
+                type="button"
+                @click="openMessageCenter('private')"
+              >
+                私信
+                <span
+                  v-if="privateBadgeCount > 0"
+                  class="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white"
+                >
+                  {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
+                </span>
+              </button>
+              <button
+                class="flex items-center gap-2 rounded-full bg-white/20 px-2 py-1"
+                type="button"
+                @click="openProfile"
+              >
+                <img
+                  v-if="avatarUrl"
+                  :src="avatarUrl"
+                  alt="用户头像"
+                  class="size-6 rounded-full object-cover"
+                />
+                <span class="text-xs">{{ userNickname || '已登录' }}</span>
+              </button>
               <button
                 class="rounded-full bg-white/25 px-2 py-0.5 text-[11px] transition hover:bg-white/35"
                 type="button"
-                @click.stop="logout"
+                @click="logout"
               >
                 退出
               </button>
@@ -161,7 +189,13 @@
                 @click="openSong(song)"
               >
                 <span class="truncate text-sm">{{ song.name }}</span>
-                <span class="ml-4 truncate text-xs text-slate-500">{{ getSongArtistName(song) }}</span>
+                <ArtistLinks
+                  :artists="getSongArtists(song)"
+                  container-class="ml-4 truncate text-xs text-slate-500"
+                  link-class="hover:text-slate-700 hover:underline"
+                  separator-class="text-slate-400"
+                  fallback-class="text-slate-500"
+                />
               </button>
             </TransitionGroup>
             <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
@@ -337,6 +371,246 @@
       </DialogPanel>
     </div>
   </Dialog>
+
+  <Dialog :open="messageDialogOpen" @close="setMessageDialogOpen">
+    <div class="fixed inset-0 z-[60] bg-black/20 backdrop-blur-sm" aria-hidden="true"></div>
+    <div class="fixed inset-0 z-[61] flex items-center justify-center p-4">
+      <DialogPanel class="w-full max-w-3xl rounded-2xl border border-amber-200/80 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 p-5 text-stone-800 shadow-2xl">
+        <div class="mb-4 flex items-center justify-between">
+          <DialogTitle class="text-lg font-semibold">消息中心</DialogTitle>
+          <button class="rounded-full border border-amber-300 bg-white/80 px-3 py-1 text-xs text-stone-700 hover:bg-white" type="button" @click="setMessageDialogOpen(false)">
+            关闭
+          </button>
+        </div>
+
+        <div class="mb-4 flex items-center gap-2">
+          <button
+            :class="messageTab === 'notice' ? 'border-amber-400 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white/70 text-stone-600 hover:bg-white'"
+            class="rounded-full border px-3 py-1 text-xs"
+            type="button"
+            @click="switchMessageTab('notice')"
+          >
+            通知
+          </button>
+          <button
+            :class="messageTab === 'private' ? 'border-amber-400 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white/70 text-stone-600 hover:bg-white'"
+            class="rounded-full border px-3 py-1 text-xs"
+            type="button"
+            @click="switchMessageTab('private')"
+          >
+            私信
+          </button>
+        </div>
+
+        <section v-if="messageTab === 'notice'">
+          <p v-if="noticeLoading" class="text-sm text-stone-500">通知加载中...</p>
+          <p v-else-if="noticeError" class="text-sm text-red-500">{{ noticeError }}</p>
+          <div v-else class="max-h-[56vh] space-y-3 overflow-y-auto rounded-xl border border-amber-200 bg-white/85 p-3 pr-1">
+            <div
+              v-for="item in noticeList"
+              :key="item.id"
+              class="flex items-start gap-2"
+            >
+              <img
+                :src="item.avatarUrl || 'https://p1.music.126.net/4M6T2Bq8QJz7B4JrQJw8hA==/109951168123456789.jpg'"
+                alt="通知头像"
+                class="mt-0.5 size-8 rounded-full object-cover"
+              />
+              <div class="min-w-0 max-w-[84%] rounded-2xl rounded-tl-md border border-stone-200 bg-stone-50 px-3 py-2 shadow-sm">
+                <div class="mb-1 flex items-center justify-between gap-3">
+                  <p class="truncate text-xs font-semibold text-stone-700">{{ item.senderName }}</p>
+                  <span class="shrink-0 text-[11px] text-stone-400">{{ formatTime(item.time) }}</span>
+                </div>
+                <p class="mb-1 truncate text-xs text-stone-500">{{ item.title }}</p>
+                <p class="whitespace-pre-wrap break-words text-sm leading-6 text-stone-700">{{ item.content }}</p>
+                <a
+                  v-if="item.webUrl"
+                  :href="item.webUrl"
+                  class="mt-1 inline-block text-xs text-amber-700 underline-offset-2 hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  查看详情
+                </a>
+              </div>
+            </div>
+            <p v-if="!noticeList.length" class="text-center text-sm text-stone-500">暂无通知</p>
+            <button
+              v-if="noticeHasMore"
+              class="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              type="button"
+              :disabled="noticeLoadingMore"
+              @click="loadMoreNotices"
+            >
+              {{ noticeLoadingMore ? '加载中...' : '查看更多通知' }}
+            </button>
+          </div>
+        </section>
+
+        <section v-else>
+          <div class="grid h-[62vh] gap-3 md:grid-cols-[280px_1fr]">
+            <aside class="flex min-h-0 flex-col rounded-2xl border border-amber-200 bg-white/85 p-2.5 shadow-sm">
+              <div class="relative mb-2" data-private-receiver>
+                <input
+                  v-model.trim="privateTargetKeyword"
+                  class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-stone-400 focus:border-amber-400"
+                  type="text"
+                  placeholder="搜索昵称，新建会话"
+                  @focus="privateReceiverFocused = true"
+                  @blur="handlePrivateReceiverBlur"
+                />
+                <div
+                  v-if="privateReceiverDropdownVisible"
+                  class="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-amber-200 bg-white p-1 shadow-xl"
+                >
+                  <p v-if="privateReceiverLoading" class="px-2 py-2 text-xs text-stone-500">搜索中...</p>
+                  <p v-else-if="privateReceiverError" class="px-2 py-2 text-xs text-red-500">{{ privateReceiverError }}</p>
+                  <button
+                    v-for="user in privateReceiverResults"
+                    :key="user.userId"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-amber-50"
+                    type="button"
+                    @mousedown.prevent="selectPrivateTarget(user)"
+                  >
+                    <img
+                      v-if="user.avatarUrl"
+                      :src="user.avatarUrl"
+                      alt="用户头像"
+                      class="size-6 rounded-full object-cover"
+                    />
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-medium text-stone-700">{{ user.nickname || `用户 ${user.userId}` }}</p>
+                      <p class="truncate text-[11px] text-stone-400">uid: {{ user.userId }}</p>
+                    </div>
+                  </button>
+                  <p v-if="!privateReceiverLoading && !privateReceiverError && !privateReceiverResults.length" class="px-2 py-2 text-xs text-stone-400">没有搜索到用户</p>
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <input
+                  v-model.trim="privateConversationKeyword"
+                  class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs outline-none placeholder:text-stone-400 focus:border-amber-400"
+                  type="text"
+                  placeholder="搜索会话（昵称或内容）"
+                />
+              </div>
+
+              <div class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                <p v-if="privateLoading" class="px-2 py-2 text-sm text-stone-500">私信加载中...</p>
+                <p v-else-if="privateError" class="px-2 py-2 text-sm text-red-500">{{ privateError }}</p>
+                <template v-else>
+                  <button
+                    v-for="item in filteredPrivateList"
+                    :key="item.id"
+                    :class="activePrivateId === item.counterpartId ? 'bg-amber-100 border-amber-300' : 'bg-white border-stone-200 hover:bg-amber-50'"
+                    class="w-full rounded-xl border px-2.5 py-2 text-left transition"
+                    type="button"
+                    @click="openPrivateConversation(item)"
+                  >
+                    <div class="mb-1 flex items-center justify-between gap-2">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <img
+                          v-if="item.avatarUrl"
+                          :src="item.avatarUrl"
+                          alt="私信头像"
+                          class="size-6 rounded-full object-cover"
+                        />
+                        <p class="truncate text-xs font-medium">{{ item.counterpartName }}</p>
+                        <span v-if="item.unreadCount > 0" class="rounded-full bg-rose-500 px-1 text-[10px] text-white">
+                          {{ item.unreadCount > 99 ? '99+' : item.unreadCount }}
+                        </span>
+                      </div>
+                      <span class="shrink-0 text-[10px] text-stone-400">{{ formatTime(item.time) }}</span>
+                    </div>
+                    <p class="truncate text-[11px] text-stone-500">{{ item.content }}</p>
+                  </button>
+                  <p v-if="!filteredPrivateList.length" class="px-2 py-2 text-sm text-stone-500">暂无私信</p>
+                  <button
+                    v-if="privateHasMore"
+                    class="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                    type="button"
+                    :disabled="privateLoadingMore"
+                    @click="loadMorePrivateMessages"
+                  >
+                    {{ privateLoadingMore ? '加载中...' : '查看更多私信' }}
+                  </button>
+                </template>
+              </div>
+            </aside>
+
+            <div class="flex min-h-0 flex-col rounded-2xl border border-amber-200 bg-white/90">
+              <div class="flex items-center justify-between border-b border-amber-200 px-4 py-2.5">
+                <p class="text-sm font-semibold">
+                  {{ selectedPrivateTarget?.nickname || '选择一个会话' }}
+                </p>
+                <span v-if="selectedPrivateTarget?.userId" class="text-[11px] text-stone-400">uid: {{ selectedPrivateTarget.userId }}</span>
+              </div>
+
+              <div ref="privateHistoryScroller" class="chat-panel min-h-0 flex-1 overflow-y-auto px-3 py-3">
+                <button
+                  v-if="privateHistoryHasMore"
+                  class="mb-3 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                  type="button"
+                  :disabled="privateHistoryLoadingMore"
+                  @click="loadMorePrivateHistory"
+                >
+                  {{ privateHistoryLoadingMore ? '加载中...' : '加载更早消息' }}
+                </button>
+
+                <p v-if="privateHistoryLoading" class="text-center text-sm text-stone-500">会话加载中...</p>
+                <p v-else-if="privateHistoryError" class="text-center text-sm text-red-500">{{ privateHistoryError }}</p>
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="item in privateHistory"
+                    :key="item.id"
+                    :class="item.isSelf ? 'justify-end' : 'justify-start'"
+                    class="flex"
+                  >
+                    <div
+                      :class="[
+                        item.isSelf ? 'bg-amber-200/60 border-amber-300 rounded-br-md' : 'bg-stone-100 border-stone-200 rounded-bl-md',
+                        highlightedMessageIds[item.id] ? 'message-highlight' : ''
+                      ]"
+                      class="max-w-[78%] rounded-2xl border px-3 py-2"
+                    >
+                      <p class="whitespace-pre-wrap break-words text-sm leading-6">{{ item.content || '（空消息）' }}</p>
+                      <p class="mt-1 text-right text-[10px] text-stone-400">{{ formatTime(item.time) }}</p>
+                    </div>
+                  </div>
+                  <p v-if="!privateHistory.length" class="text-center text-sm text-stone-500">还没有消息，发一条试试</p>
+                </div>
+              </div>
+
+              <div class="border-t border-amber-200 p-3">
+                <div class="flex gap-2">
+                  <input
+                    v-model.trim="privateContent"
+                    class="flex-1 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-stone-400 focus:border-amber-400"
+                    type="text"
+                    maxlength="300"
+                    placeholder="输入私信内容"
+                    @keydown.enter="submitPrivateMessage"
+                  />
+                  <button
+                    class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                    :disabled="sendingPrivate"
+                    @click="submitPrivateMessage"
+                  >
+                    {{ sendingPrivate ? '发送中...' : '发送' }}
+                  </button>
+                </div>
+                <p v-if="privateFeedback" class="mt-2 text-xs" :class="privateFeedbackIsError ? 'text-red-500' : 'text-amber-700'">
+                  {{ privateFeedback }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </DialogPanel>
+    </div>
+  </Dialog>
 </template>
 
 <script setup>
@@ -344,6 +618,7 @@ import {ref, onMounted, onBeforeUnmount, watch, nextTick, defineExpose, computed
 import gsap from 'gsap'
 import {XMarkIcon, Bars3Icon} from '@heroicons/vue/24/outline'
 import {Dialog, DialogPanel, DialogTitle, DialogDescription} from '@headlessui/vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
@@ -396,11 +671,51 @@ const userStore = useCounterStore()
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const avatarUrl = computed(() => userStore.avatarUrl)
 const userNickname = computed(() => userStore.nickname)
+const messageDialogOpen = ref(false)
+const messageTab = ref('notice')
+const noticeBadgeCount = ref(0)
+const privateBadgeCount = ref(0)
+const noticeLoading = ref(false)
+const noticeError = ref('')
+const noticeList = ref([])
+const noticeHasMore = ref(false)
+const noticeLastTime = ref(-1)
+const noticeLoadingMore = ref(false)
+const privateLoading = ref(false)
+const privateError = ref('')
+const privateList = ref([])
+const privateHasMore = ref(false)
+const privateOffset = ref(0)
+const privateLoadingMore = ref(false)
+const activePrivateId = ref('')
+const privateHistory = ref([])
+const privateHistoryLoading = ref(false)
+const privateHistoryError = ref('')
+const privateHistoryHasMore = ref(false)
+const privateHistoryBefore = ref(0)
+const privateHistoryLoadingMore = ref(false)
+const privateHistoryScroller = ref(null)
+const privateConversationKeyword = ref('')
+const privateTargetKeyword = ref('')
+const privateReceiverLoading = ref(false)
+const privateReceiverError = ref('')
+const privateReceiverResults = ref([])
+const privateReceiverFocused = ref(false)
+const privateReceiverSearched = ref(false)
+const selectedPrivateTarget = ref(null)
+const highlightedMessageIds = ref({})
+const privateContent = ref('')
+const sendingPrivate = ref(false)
+const privateFeedback = ref('')
+const privateFeedbackIsError = ref(false)
 
 let navTl = null
 let autoExpandByScroll = false
 let searchTimer = null
 let searchRequestId = 0
+let privateReceiverSearchTimer = null
+let privateReceiverSearchRequestId = 0
+let privateHistoryRequestId = 0
 
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
@@ -427,6 +742,76 @@ watch(expanded, (value) => {
 watch(isOpen, (open) => {
   if (open) clearSearchState()
 })
+
+watch(messageDialogOpen, (open) => {
+  if (!open) {
+    privateReceiverFocused.value = false
+    privateReceiverResults.value = []
+    privateReceiverError.value = ''
+    privateReceiverSearched.value = false
+    privateHistory.value = []
+    privateHistoryError.value = ''
+    activePrivateId.value = ''
+    return
+  }
+  privateFeedback.value = ''
+  if (messageTab.value === 'notice') {
+    fetchNotices({reset: true})
+  } else {
+    fetchPrivateMessages({reset: true})
+  }
+})
+
+watch(isLoggedIn, (value) => {
+  if (!value) {
+    noticeBadgeCount.value = 0
+    privateBadgeCount.value = 0
+    return
+  }
+  refreshMessageBadges()
+}, {immediate: true})
+
+watch(privateTargetKeyword, (value) => {
+  const keyword = value.trim()
+  if (selectedPrivateTarget.value && keyword !== (selectedPrivateTarget.value.nickname || String(selectedPrivateTarget.value.userId))) {
+    selectedPrivateTarget.value = null
+  }
+  if (!keyword || selectedPrivateTarget.value?.nickname === keyword) {
+    privateReceiverResults.value = []
+    privateReceiverError.value = ''
+    privateReceiverSearched.value = false
+    return
+  }
+  debounceSearchPrivateReceiver(keyword)
+})
+
+watch(activePrivateId, () => {
+  nextTick(() => {
+    scrollPrivateHistoryToBottom()
+  })
+})
+
+watch(
+  () => privateHistory.value.map(item => item.id).join(','),
+  (nextIds, prevIds) => {
+    if (!nextIds) return
+    const prevSet = new Set((prevIds || '').split(',').filter(Boolean))
+    const added = privateHistory.value.filter(item => !prevSet.has(item.id))
+    if (!added.length || privateHistoryLoadingMore.value) return
+    if (!prevSet.size) {
+      nextTick(() => {
+        scrollPrivateHistoryToBottom()
+      })
+      return
+    }
+    if (added.length) {
+      markMessageHighlighted(added.slice(-4).map(item => item.id))
+      nextTick(() => {
+        scrollPrivateHistoryToBottom({ smooth: true })
+      })
+    }
+  },
+)
 
 function measureExpandedWidth() {
   const el = shell.value
@@ -552,6 +937,46 @@ const searchPanelVisible = computed(() => {
   return searching.value || Boolean(searchError.value) || Boolean(searchResult.value)
 })
 
+const privateReceiverDropdownVisible = computed(() => {
+  if (!privateReceiverFocused.value) return false
+  const keyword = privateTargetKeyword.value.trim()
+  if (!keyword) return false
+  return privateReceiverLoading.value || Boolean(privateReceiverError.value) || Boolean(privateReceiverResults.value.length) || privateReceiverSearched.value
+})
+
+const filteredPrivateList = computed(() => {
+  const keyword = privateConversationKeyword.value.trim().toLowerCase()
+  if (!keyword) return privateList.value
+  return privateList.value.filter((item) => {
+    const name = String(item.counterpartName || '').toLowerCase()
+    const content = String(item.content || '').toLowerCase()
+    return name.includes(keyword) || content.includes(keyword)
+  })
+})
+
+function scrollPrivateHistoryToBottom({ smooth = false } = {}) {
+  const el = privateHistoryScroller.value
+  if (!el) return
+  el.scrollTo({
+    top: el.scrollHeight,
+    behavior: smooth ? 'smooth' : 'auto',
+  })
+}
+
+function markMessageHighlighted(ids) {
+  const validIds = ids.filter(Boolean)
+  if (!validIds.length) return
+  const nextMap = {...highlightedMessageIds.value}
+  for (const id of validIds) nextMap[id] = true
+  highlightedMessageIds.value = nextMap
+
+  window.setTimeout(() => {
+    const current = {...highlightedMessageIds.value}
+    for (const id of validIds) delete current[id]
+    highlightedMessageIds.value = current
+  }, 2200)
+}
+
 function clearSearchState() {
   searchResult.value = null
   searchError.value = ''
@@ -632,9 +1057,457 @@ function openProfile() {
   collapse()
 }
 
-function getSongArtistName(song) {
-  const firstArtist = song?.ar?.[0]?.name || song?.artists?.[0]?.name || ''
-  return firstArtist
+function openMessageCenter(tab = 'notice') {
+  if (!isLoggedIn.value) return
+  messageTab.value = tab
+  if (tab === 'notice') noticeBadgeCount.value = 0
+  if (tab === 'private') privateBadgeCount.value = 0
+  setMessageDialogOpen(true)
+}
+
+async function setMessageDialogOpen(value) {
+  messageDialogOpen.value = value
+}
+
+function switchMessageTab(tab) {
+  if (messageTab.value === tab) return
+  messageTab.value = tab
+  privateFeedback.value = ''
+  if (!messageDialogOpen.value) return
+  if (tab === 'notice') {
+    fetchNotices({reset: true})
+    noticeBadgeCount.value = 0
+  } else {
+    fetchPrivateMessages({reset: true})
+    privateBadgeCount.value = 0
+  }
+}
+
+async function fetchNotices({reset = false} = {}) {
+  if (reset) {
+    noticeLoading.value = true
+    noticeLastTime.value = -1
+  } else {
+    noticeLoadingMore.value = true
+  }
+  noticeError.value = ''
+  try {
+    const res = await userApi.getNotices(30, noticeLastTime.value)
+    const payload = res?.data || {}
+    const list = normalizeNoticeList(payload)
+    noticeList.value = reset ? list : mergeById(noticeList.value, list)
+    noticeHasMore.value = Boolean(payload?.more)
+    noticeBadgeCount.value = extractNoticeUnread(payload)
+    if (list.length) {
+      const nextLast = payload?.lasttime || list[list.length - 1]?.time || noticeLastTime.value
+      noticeLastTime.value = Number.isFinite(Number(nextLast)) ? Number(nextLast) : noticeLastTime.value
+    }
+  } catch (error) {
+    noticeError.value = error?.message || '通知加载失败'
+    if (reset) noticeList.value = []
+  } finally {
+    if (reset) {
+      noticeLoading.value = false
+    } else {
+      noticeLoadingMore.value = false
+    }
+  }
+}
+
+async function fetchPrivateMessages({reset = false} = {}) {
+  if (reset) {
+    privateLoading.value = true
+    privateOffset.value = 0
+  } else {
+    privateLoadingMore.value = true
+  }
+  privateError.value = ''
+  try {
+    const res = await userApi.getPrivateMessages(30, privateOffset.value)
+    const payload = res?.data || {}
+    const list = normalizePrivateList(payload)
+    privateList.value = reset ? list : mergeById(privateList.value, list)
+    privateHasMore.value = Boolean(payload?.more)
+    privateBadgeCount.value = extractPrivateUnread(payload)
+    privateOffset.value += 30
+
+    if (reset) {
+      const targetId = selectedPrivateTarget.value?.userId
+      const matched = targetId
+        ? privateList.value.find(item => Number(item.counterpartId) === Number(targetId))
+        : privateList.value[0]
+      if (matched) {
+        openPrivateConversation(matched)
+      } else {
+        privateHistory.value = []
+        privateHistoryError.value = ''
+        activePrivateId.value = ''
+      }
+    }
+  } catch (error) {
+    privateError.value = error?.message || '私信加载失败'
+    if (reset) privateList.value = []
+  } finally {
+    if (reset) {
+      privateLoading.value = false
+    } else {
+      privateLoadingMore.value = false
+    }
+  }
+}
+
+function loadMoreNotices() {
+  if (!noticeHasMore.value || noticeLoadingMore.value) return
+  fetchNotices({reset: false})
+}
+
+function loadMorePrivateMessages() {
+  if (!privateHasMore.value || privateLoadingMore.value) return
+  fetchPrivateMessages({reset: false})
+}
+
+async function refreshMessageBadges() {
+  try {
+    const [noticeRes, privateRes] = await Promise.all([
+      userApi.getNotices(10, -1),
+      userApi.getPrivateMessages(10, 0),
+    ])
+    noticeBadgeCount.value = extractNoticeUnread(noticeRes?.data || {})
+    privateBadgeCount.value = extractPrivateUnread(privateRes?.data || {})
+  } catch (error) {
+    console.warn('消息未读数刷新失败', error)
+  }
+}
+
+function normalizeNoticeList(payload) {
+  const raw = payload?.notices || payload?.data?.notices || payload?.msgs || []
+  if (!Array.isArray(raw)) return []
+  return raw.map((item, index) => {
+    const parsed = parseNoticePayload(item)
+    return {
+      id: item?.id || item?.noticeId || `${item?.time || Date.now()}-${index}`,
+      senderName: item?.user?.nickname || parsed?.senderName || '系统通知',
+      avatarUrl: item?.user?.avatarUrl || parsed?.avatarUrl || '',
+      title: parsed?.title || item?.typeTitle || item?.noticeType || '系统通知',
+      content: parsed?.content || '你有一条新的通知',
+      time: item?.time || item?.lastTime || item?.createTime || 0,
+      webUrl: parsed?.webUrl || item?.webUrl || '',
+      unreadCount: Number(item?.newMsgCount || 0),
+    }
+  })
+}
+
+function parseNoticePayload(item) {
+  const source = item?.notice || item?.json || item?.content
+  if (!source) return null
+  let payload = source
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload)
+    } catch {
+      payload = {msg: source}
+    }
+  }
+
+  const generalMsg = payload?.generalMsg || payload?.generalNotice || payload?.promotionUrl || {}
+  const sender = payload?.user || {}
+  return {
+    senderName: sender?.nickname || payload?.fromNickName || '',
+    avatarUrl: sender?.avatarUrl || '',
+    title: generalMsg?.title || generalMsg?.noticeMsg || payload?.title || payload?.actionDesc || '',
+    content:
+      payload?.msg
+      || payload?.pushMsg
+      || generalMsg?.inboxBriefContent
+      || generalMsg?.content
+      || generalMsg?.noticeMsg
+      || generalMsg?.actionDesc
+      || '',
+    webUrl: payload?.pushUrl || generalMsg?.webUrl || payload?.webUrl || '',
+  }
+}
+
+function parsePrivateMessageBody(rawText) {
+  if (!rawText) return ''
+  if (typeof rawText === 'object') {
+    return rawText?.msg || rawText?.text || rawText?.message || JSON.stringify(rawText)
+  }
+  const text = String(rawText)
+  try {
+    const parsed = JSON.parse(text)
+    return parsed?.msg || parsed?.text || parsed?.message || text
+  } catch {
+    return text
+  }
+}
+
+function extractPrivateUnread(payload) {
+  if (Number.isFinite(Number(payload?.newMsgCount))) return Number(payload.newMsgCount)
+  const raw = payload?.msgs || payload?.data?.msgs || []
+  if (!Array.isArray(raw)) return 0
+  return raw.reduce((sum, item) => sum + Number(item?.newMsgCount || 0), 0)
+}
+
+function extractNoticeUnread(payload) {
+  if (Number.isFinite(Number(payload?.newNoticeCount))) return Number(payload.newNoticeCount)
+  const raw = payload?.notices || payload?.data?.notices || []
+  if (!Array.isArray(raw)) return 0
+  return raw.reduce((sum, item) => sum + Number(item?.newMsgCount || 0), 0)
+}
+
+function mergeById(oldList, newList) {
+  const map = new Map()
+  for (const item of oldList) map.set(item.id, item)
+  for (const item of newList) map.set(item.id, item)
+  return Array.from(map.values()).sort((a, b) => Number(b.time || 0) - Number(a.time || 0))
+}
+
+function mergeByIdAsc(oldList, newList) {
+  const map = new Map()
+  for (const item of oldList) map.set(item.id, item)
+  for (const item of newList) map.set(item.id, item)
+  return Array.from(map.values()).sort((a, b) => Number(a.time || 0) - Number(b.time || 0))
+}
+
+function normalizeUserTarget(user) {
+  if (!user) return null
+  return {
+    userId: Number(user.userId || user.id || 0),
+    nickname: user.nickname || user.userName || '',
+    avatarUrl: user.avatarUrl || user.avatar || '',
+  }
+}
+
+function normalizeUserSearchResult(item) {
+  return {
+    userId: Number(item?.userId || 0),
+    nickname: item?.nickname || '',
+    avatarUrl: item?.avatarUrl || '',
+  }
+}
+
+function debounceSearchPrivateReceiver(keyword) {
+  if (privateReceiverSearchTimer) clearTimeout(privateReceiverSearchTimer)
+  privateReceiverSearchTimer = setTimeout(() => {
+    searchPrivateReceiver(keyword)
+  }, 260)
+}
+
+async function searchPrivateReceiver(keyword) {
+  const currentId = ++privateReceiverSearchRequestId
+  privateReceiverLoading.value = true
+  privateReceiverError.value = ''
+  privateReceiverSearched.value = false
+  try {
+    const result = await searchApi.searchUsers(keyword, {limit: 8, offset: 0})
+    if (currentId !== privateReceiverSearchRequestId) return
+    privateReceiverResults.value = (result?.users || [])
+      .map(normalizeUserSearchResult)
+      .filter(item => item.userId)
+  } catch (error) {
+    if (currentId !== privateReceiverSearchRequestId) return
+    privateReceiverResults.value = []
+    privateReceiverError.value = error?.message || '搜索用户失败'
+  } finally {
+    if (currentId === privateReceiverSearchRequestId) {
+      privateReceiverLoading.value = false
+      privateReceiverSearched.value = true
+    }
+  }
+}
+
+function normalizePrivateList(payload) {
+  const raw = payload?.msgs || payload?.data?.msgs || payload?.messages || []
+  if (!Array.isArray(raw)) return []
+  const currentUserId = Number(userStore.userId) || null
+  return raw.map((item, index) => {
+    const fromUser = item?.fromUser || {}
+    const toUser = item?.toUser || {}
+    const fromId = Number(item?.fromUserId ?? fromUser?.userId) || null
+    const toId = Number(item?.toUserId ?? toUser?.userId) || null
+    const isSelfSender = currentUserId && fromId === currentUserId
+    const counterpartId = isSelfSender ? toId : fromId
+    const counterpartName = isSelfSender
+      ? (toUser?.nickname || item?.toNickName || `用户 ${toId || '-'}`)
+      : (fromUser?.nickname || item?.fromNickName || `用户 ${fromId || '-'}`)
+
+    return {
+      id: item?.id || `${item?.time || Date.now()}-${index}`,
+      content: parsePrivateMessageBody(item?.lastMsg || item?.msg || item?.message || ''),
+      time: item?.time || item?.lastTime || item?.createTime || 0,
+      counterpartId: counterpartId ? String(counterpartId) : '',
+      counterpartName,
+      avatarUrl: isSelfSender
+        ? (toUser?.avatarUrl || item?.toUserAvatar || '')
+        : (fromUser?.avatarUrl || item?.fromUserAvatar || ''),
+      unreadCount: Number(item?.newMsgCount || 0),
+    }
+  })
+}
+
+function normalizePrivateHistoryList(payload) {
+  const raw = payload?.msgs || payload?.data?.msgs || []
+  if (!Array.isArray(raw)) return []
+  const currentUserId = Number(userStore.userId) || null
+  return raw.map((item, index) => {
+    const fromUser = item?.fromUser || {}
+    const toUser = item?.toUser || {}
+    const fromId = Number(item?.fromUserId ?? fromUser?.userId) || null
+    const toId = Number(item?.toUserId ?? toUser?.userId) || null
+    const isSelf = currentUserId && fromId === currentUserId
+    return {
+      id: item?.id || `${item?.time || Date.now()}-${index}`,
+      content: parsePrivateMessageBody(item?.msg || item?.message || item?.lastMsg || ''),
+      time: Number(item?.time || item?.lastTime || item?.createTime || 0),
+      isSelf: Boolean(isSelf),
+      fromId,
+      toId,
+    }
+  }).sort((a, b) => a.time - b.time)
+}
+
+function openPrivateConversation(item) {
+  if (!item?.counterpartId) return
+  activePrivateId.value = String(item.counterpartId)
+  selectPrivateTarget({
+    userId: item.counterpartId,
+    nickname: item.counterpartName,
+    avatarUrl: item.avatarUrl,
+  })
+}
+
+async function fetchPrivateHistory(targetId, {reset = false} = {}) {
+  if (!targetId) return
+  const currentId = ++privateHistoryRequestId
+
+  if (reset) {
+    privateHistoryLoading.value = true
+    privateHistoryError.value = ''
+    privateHistory.value = []
+    privateHistoryBefore.value = 0
+  } else {
+    privateHistoryLoadingMore.value = true
+  }
+
+  try {
+    const res = await userApi.getPrivateHistory(targetId, 30, privateHistoryBefore.value)
+    if (currentId !== privateHistoryRequestId) return
+    const payload = res?.data || {}
+    const list = normalizePrivateHistoryList(payload)
+    privateHistoryHasMore.value = Boolean(payload?.more)
+    privateHistory.value = reset ? list : mergeByIdAsc(privateHistory.value, list)
+    if (privateHistory.value.length) {
+      privateHistoryBefore.value = Number(privateHistory.value[0].time || privateHistoryBefore.value)
+    }
+  } catch (error) {
+    if (currentId !== privateHistoryRequestId) return
+    if (reset && itemFromConversationList(targetId)) {
+      const preview = itemFromConversationList(targetId)
+      privateHistory.value = [{
+        id: `${preview.id}-preview`,
+        content: preview.content,
+        time: Number(preview.time || Date.now()),
+        isSelf: false,
+      }]
+      privateHistoryHasMore.value = false
+    }
+    privateHistoryError.value = error?.message || '会话加载失败'
+  } finally {
+    if (currentId !== privateHistoryRequestId) return
+    if (reset) {
+      privateHistoryLoading.value = false
+    } else {
+      privateHistoryLoadingMore.value = false
+    }
+  }
+}
+
+function itemFromConversationList(targetId) {
+  return privateList.value.find(item => String(item.counterpartId) === String(targetId)) || null
+}
+
+function loadMorePrivateHistory() {
+  if (!privateHistoryHasMore.value || privateHistoryLoadingMore.value) return
+  const targetId = selectedPrivateTarget.value?.userId
+  if (!targetId) return
+  fetchPrivateHistory(String(targetId), {reset: false})
+}
+
+function selectPrivateTarget(user) {
+  const target = normalizeUserTarget(user)
+  if (!target?.userId) return
+  selectedPrivateTarget.value = target
+  activePrivateId.value = String(target.userId)
+  privateTargetKeyword.value = target.nickname || String(target.userId)
+  privateReceiverResults.value = []
+  privateReceiverFocused.value = false
+  privateReceiverSearched.value = false
+  fetchPrivateHistory(String(target.userId), {reset: true})
+}
+
+function handlePrivateReceiverBlur() {
+  setTimeout(() => {
+    privateReceiverFocused.value = false
+  }, 120)
+}
+
+async function submitPrivateMessage() {
+  privateFeedback.value = ''
+  privateFeedbackIsError.value = false
+
+  const target = selectedPrivateTarget.value?.userId
+  const content = privateContent.value.trim()
+  if (!target || !Number.isFinite(Number(target))) {
+    privateFeedback.value = '请先搜索并选择接收方'
+    privateFeedbackIsError.value = true
+    return
+  }
+  if (!content) {
+    privateFeedback.value = '私信内容不能为空'
+    privateFeedbackIsError.value = true
+    return
+  }
+
+  sendingPrivate.value = true
+  try {
+    const res = await userApi.sendPrivateMessage(String(target), content)
+    const code = res?.data?.code
+    if (code && code !== 200) {
+      throw new Error(res?.data?.message || `发送失败，错误码 ${code}`)
+    }
+    privateFeedback.value = '发送成功'
+    privateHistory.value = mergeByIdAsc(privateHistory.value, [{
+      id: `local-${Date.now()}`,
+      content,
+      time: Date.now(),
+      isSelf: true,
+    }])
+    privateContent.value = ''
+    await fetchPrivateMessages({reset: true})
+    await fetchPrivateHistory(String(target), {reset: true})
+    privateBadgeCount.value = 0
+  } catch (error) {
+    privateFeedback.value = error?.message || '发送失败，请稍后重试'
+    privateFeedbackIsError.value = true
+  } finally {
+    sendingPrivate.value = false
+  }
+}
+
+function formatTime(value) {
+  const ts = Number(value)
+  if (!Number.isFinite(ts) || ts <= 0) return '-'
+  const date = new Date(ts)
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mi = String(date.getMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
+}
+
+function getSongArtists(song) {
+  return song?.ar || song?.artists || []
 }
 
 function isActiveEntry(index) {
@@ -733,6 +1606,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   stopQrPolling()
   clearSearchState()
+  if (privateReceiverSearchTimer) {
+    clearTimeout(privateReceiverSearchTimer)
+    privateReceiverSearchTimer = null
+  }
 })
 
 watch(isOpen, (open) => {
@@ -1014,6 +1891,27 @@ button, svg {
 .search-group-title {
   animation: searchGroupTitleIn 320ms ease both;
   animation-delay: var(--group-delay, 0ms);
+}
+
+.chat-panel {
+  background-image:
+    radial-gradient(circle at 18% 0%, rgba(245, 158, 11, 0.12), transparent 42%),
+    radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.10), transparent 40%);
+}
+
+.message-highlight {
+  animation: messageFlash 1.6s ease;
+}
+
+@keyframes messageFlash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45);
+    transform: translateY(2px);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+    transform: translateY(0);
+  }
 }
 
 @keyframes searchGroupTitleIn {

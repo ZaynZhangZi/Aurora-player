@@ -120,7 +120,7 @@
 </template>
 
 <script setup>
-import {computed, onMounted, ref} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
@@ -156,6 +156,8 @@ const level = ref({
 
 const playlists = ref([])
 const themeRgb = ref('214, 219, 228')
+const animatedThemeRgb = ref(themeRgb.value)
+let themeTweenFrame = 0
 
 const createdPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId === profile.value.userId))
 const subscribedPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId !== profile.value.userId))
@@ -174,7 +176,7 @@ const locationText = computed(() => {
 })
 
 const heroStyle = computed(() => {
-  const [r, g, b] = parseRgb(themeRgb.value)
+  const [r, g, b] = parseRgb(animatedThemeRgb.value)
   const softR = Math.min(255, Math.round((r + 245) / 2))
   const softG = Math.min(255, Math.round((g + 245) / 2))
   const softB = Math.min(255, Math.round((b + 245) / 2))
@@ -182,6 +184,46 @@ const heroStyle = computed(() => {
     background: `linear-gradient(135deg, rgba(${r},${g},${b},0.60), rgba(${softR},${softG},${softB},0.88))`,
   }
 })
+
+function easeOutCubic(t) {
+  return 1 - (1 - t) ** 3
+}
+
+function formatRgb(rgbArray) {
+  return `${Math.round(rgbArray[0])}, ${Math.round(rgbArray[1])}, ${Math.round(rgbArray[2])}`
+}
+
+function animateThemeColor(nextRgb, {duration = 420} = {}) {
+  const start = parseRgb(animatedThemeRgb.value)
+  const end = parseRgb(nextRgb)
+
+  if (themeTweenFrame) {
+    cancelAnimationFrame(themeTweenFrame)
+    themeTweenFrame = 0
+  }
+
+  const startedAt = performance.now()
+
+  const tick = (now) => {
+    const elapsed = now - startedAt
+    const progress = Math.min(1, elapsed / duration)
+    const eased = easeOutCubic(progress)
+
+    animatedThemeRgb.value = formatRgb([
+      start[0] + (end[0] - start[0]) * eased,
+      start[1] + (end[1] - start[1]) * eased,
+      start[2] + (end[2] - start[2]) * eased,
+    ])
+
+    if (progress < 1) {
+      themeTweenFrame = requestAnimationFrame(tick)
+    } else {
+      themeTweenFrame = 0
+    }
+  }
+
+  themeTweenFrame = requestAnimationFrame(tick)
+}
 
 function parseRgb(rgbString) {
   const parts = String(rgbString).split(',').map(v => Number(v.trim()))
@@ -246,7 +288,7 @@ async function pickAvatarTheme(avatarUrl, seed) {
     if (!count) throw new Error('no pixels')
 
     themeRgb.value = `${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)}`
-  } catch (_error) {
+  } catch {
     themeRgb.value = colorFromSeed(seed)
   }
 }
@@ -326,4 +368,23 @@ async function loadProfilePage() {
 onMounted(() => {
   loadProfilePage()
 })
+
+onBeforeUnmount(() => {
+  if (themeTweenFrame) {
+    cancelAnimationFrame(themeTweenFrame)
+    themeTweenFrame = 0
+  }
+})
+
+watch(
+  themeRgb,
+  (nextValue, prevValue) => {
+    if (!prevValue || prevValue === nextValue) {
+      animatedThemeRgb.value = nextValue
+      return
+    }
+    animateThemeColor(nextValue)
+  },
+  {immediate: true},
+)
 </script>

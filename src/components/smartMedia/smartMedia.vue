@@ -9,6 +9,7 @@
     <!-- 图片 -->
     <img
       v-if="mediaType === 'image'"
+      :key="imgSrc"
       class="relative z-1 block w-full h-full"
       :src="imgSrc"
       :alt="alt"
@@ -23,6 +24,7 @@
     <!-- 视频 -->
     <video
       v-else-if="mediaType === 'video'"
+      :key="videoPrimarySrc"
       class="relative z-1 block w-full h-full"
       :src="videoPrimarySrc"
       :poster="poster"
@@ -259,7 +261,10 @@ function isBlobLike(v) {
 function isImageSrc(s) {
   if (isBlobLike(s)) return s.type?.startsWith?.('image/')
   const ext = getExtFromUrl(s)
-  return IMAGE_EXTS.includes(ext)
+  if (IMAGE_EXTS.includes(ext)) return true
+  if (VIDEO_EXTS.includes(ext)) return false
+  // 很多 CDN 图片 URL 没有后缀，默认按图片处理
+  return true
 }
 function isVideoSrc(s) {
   if (isBlobLike(s)) return s.type?.startsWith?.('video/')
@@ -294,7 +299,7 @@ function toUrl(s) {
 }
 function revokeAll() {
   createdUrls.forEach(u => {
-    try { URL.revokeObjectURL(u) } catch {}
+    try { URL.revokeObjectURL(u) } catch (error) { void error }
   })
   createdUrls.clear()
 }

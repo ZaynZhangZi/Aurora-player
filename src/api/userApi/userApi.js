@@ -51,6 +51,43 @@ export const userApi={
         return apiClient.get(`/user/playlist?uid=${uid}&limit=${limit}&offset=${offset}`)
     },
 
+    getNotices(limit = 30, lasttime = -1) {
+        return apiClient.get('/msg/notices', {
+            params: {
+                limit,
+                lasttime,
+            },
+        })
+    },
+
+    getPrivateMessages(limit = 30, offset = 0) {
+        return apiClient.get('/msg/private', {
+            params: {
+                limit,
+                offset,
+            },
+        })
+    },
+
+    getPrivateHistory(uid, limit = 30, before = 0) {
+        return apiClient.get('/msg/private/history', {
+            params: {
+                uid,
+                limit,
+                before,
+            },
+        })
+    },
+
+    sendPrivateMessage(userIds, msg) {
+        return apiClient.post('/send/text', null, {
+            params: {
+                user_ids: userIds,
+                msg,
+            },
+        })
+    },
+
     logout() {
         return apiClient.get('/logout')
     },

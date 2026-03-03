@@ -4,7 +4,13 @@
       <div class="mb-6 flex items-center justify-between">
         <div>
           <h2 class="text-2xl font-semibold">{{ songName }}</h2>
-          <p class="mt-1 text-sm text-white/60">{{ artistName }}</p>
+          <ArtistLinks
+            :artists="artistList"
+            container-class="mt-1 text-sm text-white/70"
+            link-class="hover:text-white hover:underline"
+            separator-class="text-white/60"
+            fallback-class="text-white/60"
+          />
         </div>
         <button class="rounded-full border border-white/20 px-4 py-1.5 text-sm hover:bg-white/10" type="button" @click="goBack">
           关闭
@@ -31,12 +37,13 @@
 import {onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {songsApi} from '@/api/songsApi/songsApi.js'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 
 const route = useRoute()
 const router = useRouter()
 
 const songName = ref('歌曲详情')
-const artistName = ref('')
+const artistList = ref([])
 const songUrl = ref('')
 const lyric = ref('')
 const loading = ref(true)
@@ -51,6 +58,7 @@ async function loadSongDetail() {
   error.value = ''
   songUrl.value = ''
   lyric.value = ''
+  artistList.value = []
 
   const id = route.query.id
   if (!id) {
@@ -68,7 +76,7 @@ async function loadSongDetail() {
 
     const detail = detailRes?.data?.songs?.[0]
     if (detail?.name) songName.value = detail.name
-    if (detail?.ar?.[0]?.name) artistName.value = detail.ar[0].name
+    artistList.value = detail?.ar || detail?.artists || []
 
     songUrl.value = urlRes?.data?.data?.[0]?.url || ''
     lyric.value = lyricRes?.data?.lrc?.lyric || ''

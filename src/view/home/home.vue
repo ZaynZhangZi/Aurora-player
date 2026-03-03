@@ -92,7 +92,13 @@
           >
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold">{{ song.name }}</p>
-              <p class="truncate text-xs text-stone-500">{{ song.artists?.[0]?.name || song.ar?.[0]?.name || '未知歌手' }}</p>
+              <ArtistLinks
+                :artists="getSongArtists(song)"
+                container-class="text-xs text-stone-500"
+                link-class="hover:text-stone-800 hover:underline"
+                separator-class="text-stone-400"
+                fallback-class="text-stone-500"
+              />
             </div>
             <span class="ml-4 text-xs text-stone-400">播放</span>
           </button>
@@ -217,6 +223,7 @@
 import {onMounted, ref} from 'vue'
 import {useRouter} from 'vue-router'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
@@ -278,6 +285,10 @@ function openSong(song) {
     path: '/home/songDetail',
     query: {id: song.id},
   })
+}
+
+function getSongArtists(song) {
+  return song?.artists || song?.ar || []
 }
 
 function openPodcast(item) {

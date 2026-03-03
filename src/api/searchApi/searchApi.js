@@ -46,4 +46,15 @@ export const searchApi = {
       },
     }
   },
+
+  async searchUsers(keywords, { limit = 12, offset = 0 } = {}) {
+    const res = await this.searchByType(keywords, { type: 1002, limit, offset })
+    const result = res?.data?.result || {}
+    return {
+      users: result.userprofiles || [],
+      userCount: result.userprofileCount || 0,
+      limit,
+      offset,
+    }
+  },
 }
