@@ -113,6 +113,140 @@
           </div>
         </template>
       </section>
+
+      <section class="mt-8 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-2xl font-bold">云盘</h2>
+          <button
+            class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-50"
+            type="button"
+            :disabled="cloudLoading"
+            @click="loadCloudSongs(cloudPage)"
+          >
+            刷新
+          </button>
+        </div>
+
+        <div class="mb-4 rounded-2xl border border-stone-200 bg-stone-50 p-3">
+          <p class="mb-2 text-xs uppercase tracking-wide text-stone-500">云盘上传</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              :key="cloudFileInputKey"
+              type="file"
+              accept=".mp3,.flac,.wav,.m4a,.aac"
+              class="max-w-[260px] rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs"
+              @change="onCloudFileChange"
+            />
+            <button
+              class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="cloudUploading || !cloudUploadFile"
+              @click="uploadCloudSong"
+            >
+              {{ cloudUploading ? '上传中...' : '上传到云盘' }}
+            </button>
+            <span v-if="cloudUploadMessage" class="text-xs text-stone-600">{{ cloudUploadMessage }}</span>
+          </div>
+        </div>
+
+        <p v-if="cloudLoading" class="text-sm text-stone-500">云盘加载中...</p>
+        <p v-else-if="cloudError" class="text-sm text-red-500">{{ cloudError }}</p>
+
+        <template v-else>
+          <div v-if="cloudSongs.length" class="space-y-2">
+            <article
+              v-for="item in cloudSongs"
+              :key="`cloud-${item.songId}`"
+              class="rounded-2xl border border-stone-100 bg-stone-50 p-3"
+            >
+              <div class="flex flex-wrap items-start gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold">{{ item.songName }}</p>
+                  <p class="mt-1 truncate text-xs text-stone-500">{{ item.artistName }} · {{ item.albumName }}</p>
+                  <p class="mt-1 text-xs text-stone-500">ID {{ item.songId }} · {{ formatFileSize(item.fileSize) }} · {{ formatDateTime(item.addTime) }}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <button
+                    class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
+                    type="button"
+                    :disabled="cloudDetailLoadingId === item.songId"
+                    @click="toggleCloudDetail(item)"
+                  >
+                    {{ activeCloudDetailId === item.songId ? '收起详情' : '云盘数据详情' }}
+                  </button>
+                  <button
+                    class="rounded-full border border-red-300 bg-white px-3 py-1 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+                    type="button"
+                    :disabled="cloudDeletingId === item.songId"
+                    @click="deleteCloudSong(item)"
+                  >
+                    {{ cloudDeletingId === item.songId ? '删除中...' : '云盘歌曲删除' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  v-model.trim="cloudMatchInputs[item.songId]"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  placeholder="填写 asid"
+                  class="w-32 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs text-stone-700 outline-none transition focus:border-stone-500"
+                />
+                <button
+                  class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
+                  type="button"
+                  :disabled="cloudMatchLoadingId === item.songId"
+                  @click="correctCloudSongMatch(item)"
+                >
+                  歌曲信息匹配纠正
+                </button>
+                <button
+                  class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
+                  type="button"
+                  :disabled="cloudMatchLoadingId === item.songId"
+                  @click="correctCloudSongMatch(item, 0)"
+                >
+                  取消匹配
+                </button>
+              </div>
+
+              <div v-if="activeCloudDetailId === item.songId" class="mt-3 rounded-xl border border-stone-200 bg-white p-3 text-xs text-stone-600">
+                <p v-if="cloudDetailLoadingId === item.songId">详情加载中...</p>
+                <template v-else>
+                  <p>文件名：{{ cloudDetails[item.songId]?.fileName || item.fileName || '-' }}</p>
+                  <p class="mt-1">比特率：{{ cloudDetails[item.songId]?.bitrate || item.bitrate || '-' }}</p>
+                  <p class="mt-1">时长：{{ formatDuration(cloudDetails[item.songId]?.simpleSong?.dt || item.duration) }}</p>
+                  <p class="mt-1">歌曲 ID：{{ cloudDetails[item.songId]?.songId || item.songId }}</p>
+                </template>
+              </div>
+            </article>
+          </div>
+
+          <p v-else class="text-sm text-stone-500">云盘还没有歌曲。</p>
+
+          <div class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
+            <button
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="cloudPage <= 1 || cloudLoading"
+              @click="prevCloudPage"
+            >
+              上一页
+            </button>
+            <span>第 {{ cloudPage }} 页</span>
+            <button
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="!cloudCanNextPage || cloudLoading"
+              @click="nextCloudPage"
+            >
+              下一页
+            </button>
+          </div>
+        </template>
+      </section>
     </main>
 
     <ModalRouterView content-width="90vw" content-height="90vh" content-radius="16px" />
@@ -155,12 +289,29 @@ const level = ref({
 })
 
 const playlists = ref([])
+const cloudSongs = ref([])
+const cloudLoading = ref(false)
+const cloudError = ref('')
+const cloudLimit = 10
+const cloudPage = ref(1)
+const cloudHasMore = ref(false)
+const cloudDetailLoadingId = ref(null)
+const cloudDeletingId = ref(null)
+const cloudMatchLoadingId = ref(null)
+const cloudDetails = ref({})
+const activeCloudDetailId = ref(null)
+const cloudMatchInputs = ref({})
+const cloudUploadFile = ref(null)
+const cloudUploading = ref(false)
+const cloudUploadMessage = ref('')
+const cloudFileInputKey = ref(0)
 const themeRgb = ref('214, 219, 228')
 const animatedThemeRgb = ref(themeRgb.value)
 let themeTweenFrame = 0
 
 const createdPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId === profile.value.userId))
 const subscribedPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId !== profile.value.userId))
+const cloudCanNextPage = computed(() => cloudHasMore.value)
 
 const certificationText = computed(() => {
   const isArtist = profile.value.userType === 4 || profile.value.authStatus === 1
@@ -311,6 +462,194 @@ function openPlaylist(item) {
   })
 }
 
+function normalizeCloudSong(item = {}) {
+  const simple = item.simpleSong || {}
+  const ar = simple.ar || []
+  const artists = ar.map(artist => artist?.name).filter(Boolean).join(' / ')
+  return {
+    songId: Number(item.songId || simple.id || item.id || 0),
+    songName: item.songName || simple.name || item.fileName || '未知歌曲',
+    artistName: item.artist || artists || '未知歌手',
+    albumName: item.album || simple?.al?.name || '未知专辑',
+    fileName: item.fileName || '',
+    fileSize: Number(item.fileSize || 0),
+    bitrate: Number(item.bitrate || 0),
+    addTime: Number(item.addTime || 0),
+    duration: Number(simple.dt || 0),
+  }
+}
+
+function formatFileSize(size) {
+  const value = Number(size || 0)
+  if (value <= 0) return '-'
+  if (value >= 1024 ** 3) return `${(value / (1024 ** 3)).toFixed(2)} GB`
+  if (value >= 1024 ** 2) return `${(value / (1024 ** 2)).toFixed(2)} MB`
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${value} B`
+}
+
+function formatDateTime(timestamp) {
+  const value = Number(timestamp || 0)
+  if (!value) return '未知时间'
+  const d = new Date(value)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}:${min}`
+}
+
+function formatDuration(durationMs) {
+  const total = Math.floor(Number(durationMs || 0) / 1000)
+  const minute = Math.floor(total / 60)
+  const second = String(total % 60).padStart(2, '0')
+  return `${minute}:${second}`
+}
+
+async function loadCloudSongs(page = 1) {
+  if (!userStore.userId) return
+
+  cloudLoading.value = true
+  cloudError.value = ''
+  try {
+    const offset = (Math.max(1, page) - 1) * cloudLimit
+    const res = await userApi.getUserCloud(cloudLimit, offset)
+    const list = res?.data?.data || []
+    cloudSongs.value = list.map(normalizeCloudSong)
+    cloudPage.value = Math.max(1, page)
+    cloudHasMore.value = Boolean(res?.data?.hasMore)
+    if (!cloudSongs.value.length && cloudPage.value > 1) {
+      await loadCloudSongs(cloudPage.value - 1)
+    }
+  } catch (err) {
+    cloudError.value = err?.message || '云盘加载失败'
+  } finally {
+    cloudLoading.value = false
+  }
+}
+
+async function prevCloudPage() {
+  if (cloudPage.value <= 1) return
+  await loadCloudSongs(cloudPage.value - 1)
+}
+
+async function nextCloudPage() {
+  if (!cloudCanNextPage.value) return
+  await loadCloudSongs(cloudPage.value + 1)
+}
+
+function onCloudFileChange(event) {
+  const target = event?.target
+  if (!(target instanceof HTMLInputElement)) return
+  const file = target.files?.[0] || null
+  cloudUploadFile.value = file
+  cloudUploadMessage.value = file ? `已选择 ${file.name}` : ''
+}
+
+async function uploadCloudSong() {
+  if (!cloudUploadFile.value || cloudUploading.value) return
+
+  cloudUploading.value = true
+  cloudUploadMessage.value = ''
+  try {
+    await userApi.uploadCloudSong(cloudUploadFile.value)
+    cloudUploadMessage.value = '上传成功'
+    cloudUploadFile.value = null
+    cloudFileInputKey.value += 1
+    await loadCloudSongs(1)
+  } catch (err) {
+    cloudUploadMessage.value = err?.message || '上传失败'
+  } finally {
+    cloudUploading.value = false
+  }
+}
+
+async function toggleCloudDetail(item) {
+  const sid = Number(item?.songId || 0)
+  if (!sid) return
+
+  if (activeCloudDetailId.value === sid) {
+    activeCloudDetailId.value = null
+    return
+  }
+
+  activeCloudDetailId.value = sid
+  if (cloudDetails.value[sid]) return
+
+  cloudDetailLoadingId.value = sid
+  try {
+    const res = await userApi.getUserCloudDetail(String(sid))
+    const detail = (res?.data?.data || [])[0] || null
+    cloudDetails.value = {
+      ...cloudDetails.value,
+      [sid]: detail,
+    }
+  } catch {
+    cloudDetails.value = {
+      ...cloudDetails.value,
+      [sid]: null,
+    }
+  } finally {
+    cloudDetailLoadingId.value = null
+  }
+}
+
+async function deleteCloudSong(item) {
+  const sid = Number(item?.songId || 0)
+  if (!sid || cloudDeletingId.value) return
+  if (!window.confirm(`确定删除云盘歌曲《${item.songName}》吗？`)) return
+
+  cloudDeletingId.value = sid
+  try {
+    await userApi.deleteUserCloudSong(String(sid))
+    await loadCloudSongs(cloudPage.value)
+  } catch (err) {
+    cloudError.value = err?.message || '云盘歌曲删除失败'
+  } finally {
+    cloudDeletingId.value = null
+  }
+}
+
+async function correctCloudSongMatch(item, forcedAsid = null) {
+  const sid = Number(item?.songId || 0)
+  if (!sid || cloudMatchLoadingId.value) return
+
+  const raw = forcedAsid ?? cloudMatchInputs.value[sid]
+  const asid = Number(raw)
+  if (!Number.isFinite(asid) || asid < 0) {
+    cloudError.value = '请输入合法 asid（0 或 正整数）'
+    return
+  }
+
+  cloudMatchLoadingId.value = sid
+  try {
+    await userApi.correctCloudSongMatch(profile.value.userId, sid, asid)
+    cloudError.value = ''
+    cloudDetails.value = {
+      ...cloudDetails.value,
+      [sid]: null,
+    }
+    if (activeCloudDetailId.value === sid) {
+      cloudDetailLoadingId.value = sid
+      const detailRes = await userApi.getUserCloudDetail(String(sid))
+      const detail = (detailRes?.data?.data || [])[0] || null
+      cloudDetails.value = {
+        ...cloudDetails.value,
+        [sid]: detail,
+      }
+      cloudDetailLoadingId.value = null
+    }
+  } catch (err) {
+    cloudError.value = err?.message || '云盘歌曲信息匹配纠正失败'
+  } finally {
+    if (cloudDetailLoadingId.value === sid) {
+      cloudDetailLoadingId.value = null
+    }
+    cloudMatchLoadingId.value = null
+  }
+}
+
 async function loadProfilePage() {
   if (!userStore.userId) {
     error.value = '请先登录再查看个人中心'
@@ -358,6 +697,7 @@ async function loadProfilePage() {
     }
 
     playlists.value = playlistRes?.data?.playlist || []
+    await loadCloudSongs(1)
   } catch (err) {
     error.value = err?.message || '个人中心加载失败'
   } finally {

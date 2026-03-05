@@ -64,46 +64,59 @@
                 全部歌曲
               </button>
             </div>
-            <TransitionGroup v-if="songViewMode === 'top50'" name="song-expand" tag="div" class="space-y-1.5">
-              <button
-                v-for="(song, index) in visibleSongs"
-                :key="song.id"
-                class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
-                type="button"
-                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
-              >
-                <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
-                <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ song.name }}</span>
-                <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
-              </button>
-            </TransitionGroup>
-            <div v-else class="space-y-1.5" :style="songListStyle">
-              <button
-                v-for="(song, index) in visibleSongs"
-                :key="song.id"
-                class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
-                type="button"
-                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
-              >
-                <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
-                <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ song.name }}</span>
-                <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
-              </button>
-            </div>
-            <div v-if="songViewMode === 'all'" class="mt-3 flex items-center justify-end gap-2 text-xs text-stone-600">
+            <Transition name="song-page" mode="out-in">
+              <div :key="`${songViewMode}-${currentSongPage}`" class="space-y-1.5" :style="songListStyle">
+                <button
+                  v-for="(song, index) in visibleSongs"
+                  :key="song.id"
+                  class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
+                  type="button"
+                  @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
+                >
+                  <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-medium">{{ song.name }}</span>
+                    <span class="block truncate text-xs text-stone-500">{{ getSongMeta(song) }}</span>
+                  </span>
+                  <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
+                </button>
+              </div>
+            </Transition>
+            <p v-if="songViewMode === 'all' && songLoadingMore" class="mt-2 text-right text-xs text-stone-500">正在加载更多歌曲...</p>
+            <div class="mt-3 flex items-center justify-end gap-2 text-xs text-stone-600">
               <button
                 class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
                 type="button"
-                :disabled="songPage <= 1"
+                :disabled="currentSongPage <= 1"
                 @click="prevSongPage"
               >
                 上一页
               </button>
-              <span>第 {{ songPage }} 页</span>
+              <span v-if="songViewMode === 'all'">第 {{ currentSongPage }} 页</span>
+              <span v-else>第 {{ currentSongPage }} / {{ currentSongLoadedPages }} 页</span>
+              <div v-if="songViewMode === 'all'" class="flex items-center gap-1">
+                <input
+                  v-model.trim="allSongJumpInput"
+                  type="number"
+                  min="1"
+                  inputmode="numeric"
+                  class="w-16 rounded-full border border-stone-300 bg-white px-2 py-1 text-center text-xs text-stone-700 outline-none transition focus:border-stone-500"
+                  placeholder="页码"
+                  @keyup.enter="jumpToAllSongPage"
+                />
+                <button
+                  class="rounded-full border border-stone-300 px-2.5 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+                  type="button"
+                  :disabled="allSongJumping"
+                  @click="jumpToAllSongPage"
+                >
+                  跳转
+                </button>
+              </div>
               <button
                 class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
                 type="button"
-                :disabled="songPage >= songLoadedPages && !songHasMore"
+                :disabled="!canNextSongPage"
                 @click="nextSongPage"
               >
                 下一页
@@ -196,7 +209,7 @@
 
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <button
-              v-for="album in albums"
+              v-for="album in pagedAlbums"
               :key="`all-${album.id}`"
               class="group text-left"
               type="button"
@@ -214,14 +227,43 @@
             </button>
           </div>
 
-          <div class="mt-4 flex items-center justify-center" v-if="albumHasMore || albumLoadingMore">
+          <p v-if="albumLoadingMore" class="mt-3 text-right text-xs text-stone-500">正在加载更多专辑...</p>
+          <div class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
             <button
-              class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
               type="button"
-              :disabled="albumLoadingMore"
-              @click="loadMoreAlbums"
+              :disabled="albumPage <= 1"
+              @click="prevAlbumPage"
             >
-              {{ albumLoadingMore ? '加载中...' : '加载更多专辑' }}
+              上一页
+            </button>
+            <span>第 {{ albumPage }} 页</span>
+            <div class="flex items-center gap-1">
+              <input
+                v-model.trim="albumJumpInput"
+                type="number"
+                min="1"
+                inputmode="numeric"
+                class="w-16 rounded-full border border-stone-300 bg-white px-2 py-1 text-center text-xs text-stone-700 outline-none transition focus:border-stone-500"
+                placeholder="页码"
+                @keyup.enter="jumpToAlbumPage"
+              />
+              <button
+                class="rounded-full border border-stone-300 px-2.5 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+                type="button"
+                :disabled="albumJumping"
+                @click="jumpToAlbumPage"
+              >
+                跳转
+              </button>
+            </div>
+            <button
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="!canNextAlbumPage"
+              @click="nextAlbumPage"
+            >
+              下一页
             </button>
           </div>
         </section>
@@ -303,19 +345,27 @@ const heroMedia = ref('')
 
 const hotSongs = ref([])
 const allSongs = ref([])
-const songLimit = 50
-const songOffset = ref(0)
 const songHasMore = ref(false)
 const songLoadingMore = ref(false)
-const songPage = ref(1)
-const songPageSize = 20
+const topSongPage = ref(1)
+const allSongPage = ref(1)
+const songPageSize = 10
+const songRequestLimit = songPageSize
 const songViewMode = ref('top50')
+const songRequestOffset = ref(0)
+const songAllRequestFailed = ref(false)
+const allSongJumpInput = ref('')
+const allSongJumping = ref(false)
 const albums = ref([])
 const mvs = ref([])
-const albumLimit = 12
+const albumPageSize = 12
+const albumRequestLimit = albumPageSize
+const albumPage = ref(1)
 const albumOffset = ref(0)
 const albumHasMore = ref(false)
 const albumLoadingMore = ref(false)
+const albumJumpInput = ref('')
+const albumJumping = ref(false)
 const mvPlayerOpen = ref(false)
 const mvPlayerLoading = ref(false)
 const mvPlayerError = ref('')
@@ -333,23 +383,42 @@ const themeRgb = ref('56, 64, 82')
 const animatedThemeRgb = ref(themeRgb.value)
 let themeRaf = 0
 
-const topSongs = computed(() => hotSongs.value.slice(0, 50))
-const songLoadedPages = computed(() => Math.max(1, Math.ceil(allSongs.value.length / songPageSize)))
-const displayedAllSongs = computed(() => {
-  const start = (songPage.value - 1) * songPageSize
-  return allSongs.value.slice(start, start + songPageSize)
+const topSongs = computed(() => {
+  return mergeSongs([], hotSongs.value).slice(0, 50)
 })
-const visibleSongs = computed(() => (songViewMode.value === 'all' ? displayedAllSongs.value : topSongs.value))
+const topSongPages = computed(() => Math.max(1, Math.ceil(topSongs.value.length / songPageSize)))
+const allSongLoadedPages = computed(() => Math.max(1, Math.ceil(allSongs.value.length / songPageSize)))
+const currentSongPage = computed(() => (songViewMode.value === 'all' ? allSongPage.value : topSongPage.value))
+const currentSongLoadedPages = computed(() => (songViewMode.value === 'all' ? allSongLoadedPages.value : topSongPages.value))
+const canNextSongPage = computed(() => {
+  if (songViewMode.value === 'all') {
+    return allSongPage.value < allSongLoadedPages.value || songHasMore.value
+  }
+  return topSongPage.value < topSongPages.value
+})
+const visibleSongs = computed(() => {
+  const page = currentSongPage.value
+  const start = (page - 1) * songPageSize
+  if (songViewMode.value === 'all') {
+    return allSongs.value.slice(start, start + songPageSize)
+  }
+  return topSongs.value.slice(start, start + songPageSize)
+})
 const songListStyle = computed(() => {
-  if (songViewMode.value !== 'all') return undefined
   const itemHeight = 42
   const gap = 6
   const minHeight = (songPageSize * itemHeight) + ((songPageSize - 1) * gap)
   return {minHeight: `${minHeight}px`}
 })
-const songSectionLabel = computed(() => (songViewMode.value === 'all' ? `全部已加载 ${allSongs.value.length}` : `前50首 ${topSongs.value.length}`))
+const songSectionLabel = computed(() => (songViewMode.value === 'all' ? `全部歌曲 ${allSongs.value.length}` : `前50首 ${topSongs.value.length}`))
 const latestAlbum = computed(() => albums.value[0] || null)
 const featuredAlbums = computed(() => albums.value.slice(0, 6))
+const albumLoadedPages = computed(() => Math.max(1, Math.ceil(albums.value.length / albumPageSize)))
+const pagedAlbums = computed(() => {
+  const start = (albumPage.value - 1) * albumPageSize
+  return albums.value.slice(start, start + albumPageSize)
+})
+const canNextAlbumPage = computed(() => albumPage.value < albumLoadedPages.value || albumHasMore.value)
 const mvTotalPages = computed(() => Math.max(1, Math.ceil(mvs.value.length / mvPageSize)))
 const mvLoadedPages = computed(() => Math.max(1, Math.ceil(mvs.value.length / mvPageSize)))
 const pagedMvs = computed(() => {
@@ -508,6 +577,16 @@ function formatDate(timestamp) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function getSongMeta(song) {
+  const artists = (song?.ar || song?.artists || [])
+    .map(item => String(item?.name || '').trim())
+    .filter(Boolean)
+    .join(' / ')
+  const album = String(song?.al?.name || song?.album?.name || '').trim()
+  if (artists && album) return `${artists} · ${album}`
+  return artists || album || '未知歌手 · 未知专辑'
+}
+
 async function openSong(song, index = 0, queue = topSongs.value) {
   await playSongWithQueue(song, queue, index)
 }
@@ -622,8 +701,13 @@ function closeMvPlayer() {
 
 function switchSongViewMode(mode) {
   if (!['top50', 'all'].includes(mode)) return
-  songPage.value = 1
   songViewMode.value = mode
+  if (mode !== 'all') {
+    allSongJumpInput.value = ''
+  }
+  if (mode === 'all' && songAllRequestFailed.value && allSongs.value.length <= topSongs.value.length) {
+    loadMoreSongs()
+  }
 }
 
 function getSongQueue() {
@@ -631,8 +715,10 @@ function getSongQueue() {
 }
 
 function getSongQueueIndex(index) {
-  if (songViewMode.value !== 'all') return index
-  return (songPage.value - 1) * songPageSize + index
+  if (songViewMode.value === 'all') {
+    return (allSongPage.value - 1) * songPageSize + index
+  }
+  return (topSongPage.value - 1) * songPageSize + index
 }
 
 function getSongDisplayIndex(index) {
@@ -640,22 +726,61 @@ function getSongDisplayIndex(index) {
 }
 
 function prevSongPage() {
-  if (songPage.value <= 1) return
-  songPage.value -= 1
+  if (songViewMode.value === 'all') {
+    if (allSongPage.value <= 1) return
+    allSongPage.value -= 1
+    return
+  }
+  if (topSongPage.value <= 1) return
+  topSongPage.value -= 1
 }
 
 async function nextSongPage() {
-  const next = songPage.value + 1
-  if (next <= songLoadedPages.value) {
-    songPage.value = next
+  if (songViewMode.value !== 'all') {
+    if (topSongPage.value < topSongPages.value) {
+      topSongPage.value += 1
+    }
+    return
+  }
+
+  const next = allSongPage.value + 1
+  if (next <= allSongLoadedPages.value) {
+    allSongPage.value = next
     return
   }
 
   if (!songHasMore.value) return
   const ok = await loadMoreSongs()
   if (!ok) return
-  if (next <= songLoadedPages.value) {
-    songPage.value = next
+  if (next <= allSongLoadedPages.value) {
+    allSongPage.value = next
+  }
+}
+
+async function jumpToAllSongPage() {
+  if (songViewMode.value !== 'all' || allSongJumping.value) return
+
+  const target = Number(allSongJumpInput.value)
+  if (!Number.isFinite(target) || target < 1) {
+    allSongJumpInput.value = ''
+    return
+  }
+
+  allSongJumping.value = true
+  try {
+    if (target <= allSongLoadedPages.value) {
+      allSongPage.value = target
+      return
+    }
+
+    while (allSongLoadedPages.value < target && songHasMore.value) {
+      const ok = await loadMoreSongs()
+      if (!ok) break
+    }
+
+    allSongPage.value = Math.min(target, allSongLoadedPages.value)
+  } finally {
+    allSongJumping.value = false
   }
 }
 
@@ -692,6 +817,53 @@ async function loadMoreMvs() {
   }
 }
 
+function prevAlbumPage() {
+  if (albumPage.value <= 1) return
+  albumPage.value -= 1
+}
+
+async function nextAlbumPage() {
+  const next = albumPage.value + 1
+  if (next <= albumLoadedPages.value) {
+    albumPage.value = next
+    return
+  }
+
+  if (!albumHasMore.value) return
+  const ok = await loadMoreAlbums()
+  if (!ok) return
+  if (next <= albumLoadedPages.value) {
+    albumPage.value = next
+  }
+}
+
+async function jumpToAlbumPage() {
+  if (albumJumping.value) return
+
+  const target = Number(albumJumpInput.value)
+  if (!Number.isFinite(target) || target < 1) {
+    albumJumpInput.value = ''
+    return
+  }
+
+  albumJumping.value = true
+  try {
+    if (target <= albumLoadedPages.value) {
+      albumPage.value = target
+      return
+    }
+
+    while (albumLoadedPages.value < target && albumHasMore.value) {
+      const ok = await loadMoreAlbums()
+      if (!ok) break
+    }
+
+    albumPage.value = Math.min(target, albumLoadedPages.value)
+  } finally {
+    albumJumping.value = false
+  }
+}
+
 async function nextMvPage() {
   const next = mvPage.value + 1
   if (next <= mvLoadedPages.value) {
@@ -718,16 +890,17 @@ async function loadMoreSongs() {
   songLoadingMore.value = true
   try {
     const res = await artistApi.getArtistAllSongs(artistId.value, {
-      limit: songLimit,
-      offset: songOffset.value,
+      limit: songRequestLimit,
+      offset: songRequestOffset.value,
     })
     const nextSongs = res?.data?.songs || []
+    songAllRequestFailed.value = false
     allSongs.value = mergeSongs(allSongs.value, nextSongs)
-    songOffset.value = allSongs.value.length
-    songHasMore.value = Boolean(res?.data?.more ?? res?.data?.hasMore ?? (nextSongs.length >= songLimit))
+    songRequestOffset.value += nextSongs.length
+    songHasMore.value = Boolean(res?.data?.more)
     return true
   } catch {
-    songHasMore.value = false
+    songAllRequestFailed.value = true
     return false
   } finally {
     songLoadingMore.value = false
@@ -782,14 +955,21 @@ async function loadArtistPage() {
   error.value = ''
   hotSongs.value = []
   allSongs.value = []
-  songOffset.value = 0
   songHasMore.value = false
   songLoadingMore.value = false
-  songPage.value = 1
+  topSongPage.value = 1
+  allSongPage.value = 1
+  songRequestOffset.value = 0
+  songAllRequestFailed.value = false
+  allSongJumpInput.value = ''
+  allSongJumping.value = false
   albums.value = []
+  albumPage.value = 1
   albumOffset.value = 0
   albumHasMore.value = false
   albumLoadingMore.value = false
+  albumJumpInput.value = ''
+  albumJumping.value = false
   mvs.value = []
   mvPage.value = 1
   mvOffset.value = 0
@@ -810,8 +990,8 @@ async function loadArtistPage() {
     const [infoRes, hotRes, allSongsRes, albumRes, mvRes, heroRes] = await Promise.allSettled([
       artistApi.getArtistInfo(artistId.value),
       artistApi.getArtistHotSongs(artistId.value),
-      artistApi.getArtistAllSongs(artistId.value, {limit: songLimit, offset: 0}),
-      artistApi.getArtistAlbum(artistId.value, {limit: albumLimit, offset: 0}),
+      artistApi.getArtistAllSongs(artistId.value, {limit: songRequestLimit, offset: 0}),
+      artistApi.getArtistAlbum(artistId.value, {limit: albumRequestLimit, offset: 0}),
       artistApi.getArtistMv(artistId.value, {limit: mvPageSize * 2, offset: 0}),
       artistApi.getArtistVideo(route.query.name || artistName.value),
     ])
@@ -827,15 +1007,19 @@ async function loadArtistPage() {
 
     if (allSongsRes.status === 'fulfilled') {
       const initialSongs = allSongsRes.value?.data?.songs || []
-      allSongs.value = initialSongs
-      songOffset.value = initialSongs.length
-      songHasMore.value = Boolean(allSongsRes.value?.data?.more ?? allSongsRes.value?.data?.hasMore ?? (initialSongs.length >= songLimit))
+      allSongs.value = mergeSongs([], initialSongs)
+      songRequestOffset.value = initialSongs.length
+      songHasMore.value = Boolean(allSongsRes.value?.data?.more)
+    } else {
+      songAllRequestFailed.value = true
+      songHasMore.value = true
     }
 
     if (!allSongs.value.length) {
-      allSongs.value = hotSongs.value
-      songOffset.value = allSongs.value.length
-      songHasMore.value = false
+      allSongs.value = mergeSongs([], hotSongs.value)
+      if (!songAllRequestFailed.value) {
+        songHasMore.value = false
+      }
     }
 
     if (albumRes.status === 'fulfilled') {
@@ -868,12 +1052,12 @@ async function loadArtistPage() {
 }
 
 async function loadMoreAlbums() {
-  if (!artistId.value || albumLoadingMore.value || !albumHasMore.value) return
+  if (!artistId.value || albumLoadingMore.value || !albumHasMore.value) return false
 
   albumLoadingMore.value = true
   try {
     const res = await artistApi.getArtistAlbum(artistId.value, {
-      limit: albumLimit,
+      limit: albumRequestLimit,
       offset: albumOffset.value,
     })
     const nextAlbums = res?.data?.hotAlbums || []
@@ -892,8 +1076,10 @@ async function loadMoreAlbums() {
 
     albumOffset.value = albums.value.length
     albumHasMore.value = Boolean(res?.data?.more)
+    return true
   } catch {
     albumHasMore.value = false
+    return false
   } finally {
     albumLoadingMore.value = false
   }
@@ -940,32 +1126,42 @@ watch(
 )
 
 watch(
+  () => topSongs.value.length,
+  () => {
+    if (topSongPage.value > topSongPages.value) {
+      topSongPage.value = topSongPages.value
+    }
+  },
+)
+
+watch(
   () => allSongs.value.length,
   () => {
-    if (songPage.value > songLoadedPages.value) {
-      songPage.value = songLoadedPages.value
+    if (allSongPage.value > allSongLoadedPages.value) {
+      allSongPage.value = allSongLoadedPages.value
+    }
+  },
+)
+
+watch(
+  () => albums.value.length,
+  () => {
+    if (albumPage.value > albumLoadedPages.value) {
+      albumPage.value = albumLoadedPages.value
     }
   },
 )
 </script>
 
 <style scoped>
-.song-expand-enter-active {
-  transition: opacity 240ms ease, transform 240ms ease, filter 240ms ease;
+.song-page-enter-active,
+.song-page-leave-active {
+  transition: opacity 240ms ease, filter 240ms ease;
 }
 
-.song-expand-leave-active {
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.song-expand-enter-from,
-.song-expand-leave-to {
+.song-page-enter-from,
+.song-page-leave-to {
   opacity: 0;
-  transform: translateY(8px) scale(0.985);
-  filter: blur(5px);
-}
-
-.song-expand-move {
-  transition: transform 220ms ease;
+  filter: blur(2px);
 }
 </style>

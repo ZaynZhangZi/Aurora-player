@@ -297,6 +297,56 @@ export const userApi={
         })
     },
 
+    //云盘
+    getUserCloud(limit = 30, offset = 0) {
+        return apiClient.get('/user/cloud', {
+            params: {
+                limit,
+                offset,
+            },
+        })
+    },
+
+    //云盘数据详情
+    getUserCloudDetail(id) {
+        return apiClient.get('/user/cloud/detail', {
+            params: {
+                id,
+            },
+        })
+    },
+
+    //云盘歌曲删除
+    deleteUserCloudSong(id) {
+        return apiClient.post('/user/cloud/del', null, {
+            params: {
+                id,
+            },
+        })
+    },
+
+    //云盘上传
+    uploadCloudSong(songFile) {
+        const formData = new FormData()
+        formData.append('songFile', songFile)
+        return apiClient.post('/cloud', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        })
+    },
+
+    //云盘歌曲信息匹配纠正
+    correctCloudSongMatch(uid, sid, asid) {
+        return apiClient.post('/cloud/match', null, {
+            params: {
+                uid,
+                sid,
+                asid,
+            },
+        })
+    },
+
     //获取话题详情
     getTopicDetail(actid) {
         return apiClient.get('/topic/detail', {
