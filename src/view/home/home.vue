@@ -83,13 +83,13 @@
         <p v-if="loading.songs" class="text-sm text-stone-500">加载中...</p>
         <p v-else-if="errors.songs" class="text-sm text-red-500">{{ errors.songs }}</p>
         <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <button
-            v-for="song in newSongs"
-            :key="song.id"
-            class="flex items-center justify-between rounded-2xl border border-stone-200 bg-white px-4 py-3 text-left transition hover:border-stone-400"
-            type="button"
-            @click="openSong(song)"
-          >
+            <button
+              v-for="(song, index) in newSongs"
+              :key="song.id"
+              class="flex items-center justify-between rounded-2xl border border-stone-200 bg-white px-4 py-3 text-left transition hover:border-stone-400"
+              type="button"
+              @click="openSong(song, index)"
+            >
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold">{{ song.name }}</p>
               <ArtistLinks
@@ -167,6 +167,90 @@
         </div>
       </section>
 
+      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-2xl font-bold">MV 专区</h2>
+            <p class="mt-1 text-xs text-stone-500">全部 MV / 最新 MV / 网易出品 / 推荐 MV</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="source in mvSourceOptions"
+              :key="source.value"
+              class="rounded-full border px-3 py-1 text-xs font-medium transition"
+              :class="activeMvSource === source.value ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
+              type="button"
+              @click="switchMvSource(source.value)"
+            >
+              {{ source.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4 flex flex-wrap items-center gap-2" v-if="activeMvSource === 'all' || activeMvSource === 'latest'">
+          <select v-model="mvArea" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
+            <option v-for="area in mvAreas" :key="area" :value="area">地区：{{ area }}</option>
+          </select>
+          <select v-if="activeMvSource === 'all'" v-model="mvType" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
+            <option v-for="type in mvTypes" :key="type" :value="type">类型：{{ type }}</option>
+          </select>
+          <select v-if="activeMvSource === 'all'" v-model="mvOrder" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
+            <option v-for="order in mvOrders" :key="order" :value="order">排序：{{ order }}</option>
+          </select>
+          <button
+            class="rounded-full border border-stone-300 px-3 py-1 text-xs font-medium transition hover:bg-stone-100"
+            type="button"
+            @click="loadMvList({reset: true})"
+          >
+            刷新
+          </button>
+        </div>
+
+        <p v-if="loading.mv" class="text-sm text-stone-500">加载中...</p>
+        <p v-else-if="errors.mv" class="text-sm text-red-500">{{ errors.mv }}</p>
+        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <article
+            v-for="item in mvList"
+            :key="item.id"
+            class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            @click="openMv(item)"
+          >
+            <div class="aspect-video overflow-hidden bg-stone-200">
+              <SmartMedia :src="item.cover" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+            </div>
+            <div class="p-3">
+              <p class="truncate text-sm font-semibold">{{ item.name }}</p>
+              <p class="mt-1 truncate text-xs text-stone-500">{{ item.artistName || '未知歌手' }}</p>
+              <p class="mt-1 text-xs text-stone-500">播放 {{ Number(item.playCount || 0).toLocaleString() }}</p>
+            </div>
+          </article>
+          <p v-if="!mvList.length" class="text-sm text-stone-500">暂无 MV 数据</p>
+        </div>
+
+        <div
+          v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'"
+          class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600"
+        >
+          <button
+            class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+            type="button"
+            :disabled="mvOffset <= 0 || loading.mv"
+            @click="prevMvPage"
+          >
+            上一页
+          </button>
+          <span>第 {{ Math.floor(mvOffset / mvLimit) + 1 }} 页</span>
+          <button
+            class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+            type="button"
+            :disabled="!mvHasMore || loading.mv"
+            @click="nextMvPage"
+          >
+            下一页
+          </button>
+        </div>
+      </section>
+
       <section class="mb-10">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-2xl font-bold">热门歌手</h2>
@@ -215,12 +299,57 @@
 
     </main>
 
+    <Teleport to="body">
+      <div
+        v-if="mvPlayerOpen"
+        class="fixed inset-0 z-[1002] bg-black/65 p-4 backdrop-blur-sm"
+        @click.self="closeMvPlayer"
+      >
+        <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl">
+          <div class="flex items-center justify-between gap-3 border-b border-white/15 px-4 py-3 text-white">
+            <p class="truncate text-sm font-medium">{{ currentMv?.name || 'MV 播放' }}</p>
+            <div class="flex items-center gap-2">
+              <select
+                v-if="mvResolutions.length"
+                v-model="selectedMvResolution"
+                class="rounded-full border border-white/30 bg-black/45 px-2 py-1 text-xs text-white"
+                @change="changeMvResolution"
+              >
+                <option v-for="r in mvResolutions" :key="r" :value="r">{{ r }}P</option>
+              </select>
+              <button
+                class="rounded-full border border-white/30 px-3 py-1 text-xs transition hover:bg-white/10"
+                type="button"
+                @click="closeMvPlayer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+
+          <div class="aspect-video w-full bg-black">
+            <div v-if="mvPlayerLoading" class="grid h-full place-items-center text-sm text-white/70">MV 加载中...</div>
+            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm text-red-300">{{ mvPlayerError }}</div>
+            <video
+              v-else-if="currentMvUrl"
+              :src="currentMvUrl"
+              :poster="currentMv?.cover || ''"
+              controls
+              autoplay
+              playsinline
+              class="h-full w-full"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <ModalRouterView content-width="90vw" content-height="90vh" />
   </div>
 </template>
 
 <script setup>
-import {onMounted, ref} from 'vue'
+import {onBeforeUnmount, onMounted, ref} from 'vue'
 import {useRouter} from 'vue-router'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
@@ -228,9 +357,11 @@ import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
-import {playSongById} from '@/utils/globalPlayer.js'
+import {usePlayerStore} from '@/stores/playerStore.js'
+import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const router = useRouter()
+const playerStore = usePlayerStore()
 
 const hero = {
   media: 'https://pic1.imgdb.cn/item/653e20bdc458853aef7b97e7.jpg',
@@ -244,28 +375,56 @@ const topRanks = ref([])
 const podcastPrograms = ref([])
 const hotArtists = ref([])
 const highQualityPlaylists = ref([])
+const mvList = ref([])
 const playlistTags = ['全部', '华语', '欧美', '流行', '电子']
 const activePlaylistTag = ref('全部')
+
+const mvSourceOptions = [
+  {label: '全部 MV', value: 'all'},
+  {label: '最新 MV', value: 'latest'},
+  {label: '网易出品', value: 'exclusive'},
+  {label: '推荐 MV', value: 'recommend'},
+]
+const mvAreas = ['全部', '内地', '港台', '欧美', '日本', '韩国']
+const mvTypes = ['全部', '官方版', '原生', '现场版', '网易出品']
+const mvOrders = ['上升最快', '最热', '最新']
+const activeMvSource = ref('all')
+const mvArea = ref('全部')
+const mvType = ref('全部')
+const mvOrder = ref('上升最快')
+const mvLimit = ref(9)
+const mvOffset = ref(0)
+const mvHasMore = ref(false)
+const mvPlayerOpen = ref(false)
+const mvPlayerLoading = ref(false)
+const mvPlayerError = ref('')
+const currentMv = ref(null)
+const currentMvUrl = ref('')
+const mvResolutions = ref([])
+const selectedMvResolution = ref(1080)
+const shouldResumeMusicOnClose = ref(false)
 
 const loading = ref({
   recommend: true,
   top: true,
   songs: true,
   rank: true,
-  podcast: true,
-  artist: true,
-  hq: true,
-})
+    podcast: true,
+    artist: true,
+    hq: true,
+    mv: true,
+  })
 
 const errors = ref({
   recommend: '',
   top: '',
   songs: '',
   rank: '',
-  podcast: '',
-  artist: '',
-  hq: '',
-})
+    podcast: '',
+    artist: '',
+    hq: '',
+    mv: '',
+  })
 
 function openArtist(artist) {
   router.push({
@@ -281,8 +440,8 @@ function openPlaylist(playlist) {
   })
 }
 
-async function openSong(song) {
-  await playSongById(song)
+async function openSong(song, index = 0) {
+  await playSongWithQueue(song, newSongs.value, index)
 }
 
 function getSongArtists(song) {
@@ -298,6 +457,173 @@ async function openPodcast(item) {
     artists: item?.program?.mainSong?.ar || [],
     cover: item?.picUrl || item?.program?.coverUrl || '',
   })
+}
+
+function openMv(mv) {
+  if (!mv?.id) return
+  shouldResumeMusicOnClose.value = Boolean(playerStore.isPlaying && playerStore.hasSong)
+  if (shouldResumeMusicOnClose.value) {
+    playerStore.setPlaying(false)
+  }
+  currentMv.value = mv
+  currentMvUrl.value = ''
+  mvPlayerError.value = ''
+  mvPlayerLoading.value = true
+  mvPlayerOpen.value = true
+  selectedMvResolution.value = 1080
+  mvResolutions.value = [1080, 720, 480]
+
+  artistApi.getMvDetail(mv.id)
+    .then((res) => {
+      const brs = res?.data?.data?.brs || {}
+      const available = Object.keys(brs)
+        .map(item => Number(item))
+        .filter(item => Number.isFinite(item) && item > 0)
+        .sort((a, b) => b - a)
+      if (available.length) {
+        mvResolutions.value = available
+        selectedMvResolution.value = available[0]
+      }
+    })
+    .catch(() => {
+      mvResolutions.value = [1080, 720, 480]
+    })
+    .finally(() => {
+      loadMvUrl(mv.id, selectedMvResolution.value)
+    })
+}
+
+async function loadMvUrl(mvId, resolution) {
+  mvPlayerLoading.value = true
+  mvPlayerError.value = ''
+
+  const candidates = Array.from(new Set([
+    Number(resolution),
+    ...mvResolutions.value.map(item => Number(item)),
+    1080,
+    720,
+    480,
+    240,
+  ].filter(item => Number.isFinite(item) && item > 0))).sort((a, b) => b - a)
+
+  try {
+    for (const r of candidates) {
+      const res = await artistApi.getMvUrl(mvId, r)
+      const url = res?.data?.data?.url || ''
+      if (!url) continue
+      selectedMvResolution.value = r
+      currentMvUrl.value = url
+      return
+    }
+
+    mvPlayerError.value = '该 MV 暂无可播放地址'
+  } catch {
+    mvPlayerError.value = 'MV 加载失败，请稍后重试'
+  } finally {
+    mvPlayerLoading.value = false
+  }
+}
+
+function changeMvResolution() {
+  if (!currentMv.value?.id) return
+  currentMvUrl.value = ''
+  loadMvUrl(currentMv.value.id, Number(selectedMvResolution.value || 1080))
+}
+
+function closeMvPlayer() {
+  mvPlayerOpen.value = false
+  mvPlayerLoading.value = false
+  mvPlayerError.value = ''
+  currentMvUrl.value = ''
+  mvResolutions.value = []
+  if (shouldResumeMusicOnClose.value && playerStore.hasSong) {
+    playerStore.setPlaying(true)
+  }
+  shouldResumeMusicOnClose.value = false
+}
+
+function normalizeMvItem(item) {
+  return {
+    id: item?.id || null,
+    name: item?.name || item?.copywriter || '未知 MV',
+    cover: item?.cover || item?.imgurl || item?.picUrl || '',
+    artistName: item?.artistName || item?.artist?.name || item?.artists?.map(a => a.name).join(' / ') || '',
+    playCount: item?.playCount || item?.playTime || item?.playtime || 0,
+  }
+}
+
+async function loadMvList({reset = false} = {}) {
+  if (reset) {
+    mvOffset.value = 0
+  }
+
+  loading.value.mv = true
+  errors.value.mv = ''
+
+  try {
+    let res
+    if (activeMvSource.value === 'all') {
+      res = await artistApi.getAllMv({
+        area: mvArea.value,
+        type: mvType.value,
+        order: mvOrder.value,
+        limit: mvLimit.value,
+        offset: mvOffset.value,
+      })
+      const list = (res?.data?.data || []).map(normalizeMvItem)
+      mvList.value = list
+      mvHasMore.value = Boolean(res?.data?.hasMore ?? list.length >= mvLimit.value)
+      return
+    }
+
+    if (activeMvSource.value === 'latest') {
+      res = await artistApi.getLatestMv({
+        area: mvArea.value,
+        limit: mvLimit.value,
+      })
+      mvList.value = (res?.data?.data || []).map(normalizeMvItem)
+      mvHasMore.value = false
+      return
+    }
+
+    if (activeMvSource.value === 'exclusive') {
+      res = await artistApi.getExclusiveMv({
+        limit: mvLimit.value,
+        offset: mvOffset.value,
+      })
+      const raw = res?.data?.data || res?.data?.result || []
+      const list = raw.map(normalizeMvItem)
+      mvList.value = list
+      mvHasMore.value = Boolean(res?.data?.hasMore ?? list.length >= mvLimit.value)
+      return
+    }
+
+    res = await artistApi.getRecommendMv()
+    mvList.value = (res?.data?.result || res?.data?.data || []).map(normalizeMvItem)
+    mvHasMore.value = false
+  } catch (error) {
+    errors.value.mv = 'MV 加载失败'
+  } finally {
+    loading.value.mv = false
+  }
+}
+
+function switchMvSource(source) {
+  if (activeMvSource.value === source) return
+  activeMvSource.value = source
+  loadMvList({reset: true})
+}
+
+function nextMvPage() {
+  if (!mvHasMore.value || loading.value.mv) return
+  mvOffset.value += mvLimit.value
+  loadMvList()
+}
+
+function prevMvPage() {
+  if (mvOffset.value <= 0 || loading.value.mv) return
+  mvOffset.value = Math.max(0, mvOffset.value - mvLimit.value)
+  loadMvList()
 }
 
 function formatPodcastDuration(durationMs) {
@@ -401,7 +727,12 @@ onMounted(() => {
   loadNewSongs()
   loadTopRanks()
   loadPodcastPrograms()
+  loadMvList({reset: true})
   loadHotArtists()
   loadHighQualityPlaylists()
+})
+
+onBeforeUnmount(() => {
+  closeMvPlayer()
 })
 </script>

@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import('@/view/artistDetial/artistDetial.vue'),
     },
     {
+      path: '/albumDetail',
+      name: 'albumDetailPage',
+      component: () => import('@/view/albumDetail/albumDetail.vue'),
+    },
+    {
       path: '/playlistDetail',
       name: 'playlistDetailPage',
       component: () => import('@/view/playlistDetail/playlistDetail.vue'),
@@ -41,8 +46,6 @@ const router = createRouter({
         },
       ],
     },
-
-
   ],
 })
 

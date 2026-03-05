@@ -2,13 +2,7 @@
   <div class="min-h-full overflow-y-auto text-[#161616]" :style="pageStyle">
     <section class="relative overflow-hidden px-4 pb-8 pt-4 text-white sm:px-8 sm:pb-10" :style="heroStyle">
       <div class="mx-auto flex max-w-7xl justify-end">
-        <button
-          class="rounded-full border border-white/35 bg-white/10 px-4 py-1.5 text-sm backdrop-blur transition hover:bg-white/20"
-          type="button"
-          @click="goBack"
-        >
-          完成
-        </button>
+
       </div>
 
       <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
@@ -49,20 +43,70 @@
 
           <article class="rounded-2xl bg-stone-50 p-4">
             <div class="mb-3 flex items-center justify-between">
-              <p class="text-xs uppercase tracking-[0.18em] text-stone-500">热门歌曲</p>
-              <span class="text-xs text-stone-500">Top 10</span>
+              <p class="text-xs uppercase tracking-[0.18em] text-stone-500">歌曲</p>
+              <span class="text-xs text-stone-500">{{ songSectionLabel }}</span>
             </div>
-            <div class="space-y-1.5">
+            <div class="mb-3 flex items-center gap-2">
               <button
-                v-for="(song, index) in topSongs"
+                class="rounded-full border px-3 py-1 text-xs font-medium transition"
+                :class="songViewMode === 'top50' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
+                type="button"
+                @click="switchSongViewMode('top50')"
+              >
+                前50首
+              </button>
+              <button
+                class="rounded-full border px-3 py-1 text-xs font-medium transition"
+                :class="songViewMode === 'all' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
+                type="button"
+                @click="switchSongViewMode('all')"
+              >
+                全部歌曲
+              </button>
+            </div>
+            <TransitionGroup v-if="songViewMode === 'top50'" name="song-expand" tag="div" class="space-y-1.5">
+              <button
+                v-for="(song, index) in visibleSongs"
                 :key="song.id"
                 class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
                 type="button"
-                @click="openSong(song)"
+                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
               >
-                <span class="w-6 shrink-0 text-xs text-stone-500">{{ index + 1 }}</span>
+                <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
                 <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ song.name }}</span>
                 <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
+              </button>
+            </TransitionGroup>
+            <div v-else class="space-y-1.5" :style="songListStyle">
+              <button
+                v-for="(song, index) in visibleSongs"
+                :key="song.id"
+                class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
+                type="button"
+                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
+              >
+                <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
+                <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ song.name }}</span>
+                <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
+              </button>
+            </div>
+            <div v-if="songViewMode === 'all'" class="mt-3 flex items-center justify-end gap-2 text-xs text-stone-600">
+              <button
+                class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+                type="button"
+                :disabled="songPage <= 1"
+                @click="prevSongPage"
+              >
+                上一页
+              </button>
+              <span>第 {{ songPage }} 页</span>
+              <button
+                class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+                type="button"
+                :disabled="songPage >= songLoadedPages && !songHasMore"
+                @click="nextSongPage"
+              >
+                下一页
               </button>
             </div>
           </article>
@@ -103,17 +147,44 @@
           </div>
 
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <article v-for="mv in mvs.slice(0, 5)" :key="mv.id" class="rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <p class="line-clamp-2 text-sm font-semibold">{{ mv.name }}</p>
+            <article v-for="mv in pagedMvs" :key="mv.id" class="flex h-full flex-col rounded-xl border border-stone-200 bg-stone-50 p-3">
+              <div class="overflow-hidden rounded-lg bg-stone-200">
+                <img
+                  :src="getMvCover(mv)"
+                  :alt="mv.name"
+                  class="aspect-video w-full object-cover transition duration-300 hover:scale-105"
+                  @error="onBlockImageError"
+                />
+              </div>
+              <p class="mt-2 line-clamp-1 text-sm font-semibold" :title="mv.name">{{ mv.name }}</p>
               <p class="mt-1 text-xs text-stone-500">播放 {{ (mv.playCount || 0).toLocaleString() }}</p>
               <button
-                class="mt-3 rounded-full border border-stone-300 px-3 py-1 text-xs text-stone-700 transition hover:bg-stone-100"
+                class="mt-auto self-start rounded-full border border-stone-300 px-3 py-1 text-xs text-stone-700 transition hover:bg-stone-100"
                 type="button"
                 @click="openMv(mv)"
               >
-                打开 MV
+                播放 MV
               </button>
             </article>
+          </div>
+          <div v-if="mvs.length" class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
+            <button
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="mvPage <= 1"
+              @click="prevMvPage"
+            >
+              上一页
+            </button>
+            <span>第 {{ mvPage }} 页</span>
+            <button
+              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+              type="button"
+              :disabled="mvPage >= mvLoadedPages && !mvHasMore"
+              @click="nextMvPage"
+            >
+              下一页
+            </button>
           </div>
         </section>
 
@@ -142,6 +213,17 @@
               <p class="mt-2 truncate text-xs font-medium">{{ album.name }}</p>
             </button>
           </div>
+
+          <div class="mt-4 flex items-center justify-center" v-if="albumHasMore || albumLoadingMore">
+            <button
+              class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              :disabled="albumLoadingMore"
+              @click="loadMoreAlbums"
+            >
+              {{ albumLoadingMore ? '加载中...' : '加载更多专辑' }}
+            </button>
+          </div>
         </section>
 
         <section class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -153,6 +235,51 @@
         </section>
       </template>
     </main>
+
+    <Teleport to="body">
+      <div
+        v-if="mvPlayerOpen"
+        class="fixed inset-0 z-[1002] bg-black/70 p-4 backdrop-blur-sm"
+        @click.self="closeMvPlayer"
+      >
+        <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl">
+          <div class="flex items-center justify-between gap-3 border-b border-white/15 px-4 py-3 text-white">
+            <p class="truncate text-sm font-medium">{{ currentMv?.name || 'MV 播放' }}</p>
+            <div class="flex items-center gap-2">
+              <select
+                v-if="mvResolutions.length"
+                v-model="selectedMvResolution"
+                class="rounded-full border border-white/30 bg-black/45 px-2 py-1 text-xs text-white"
+                @change="changeMvResolution"
+              >
+                <option v-for="r in mvResolutions" :key="r" :value="r">{{ r }}P</option>
+              </select>
+              <button
+                class="rounded-full border border-white/30 px-3 py-1 text-xs transition hover:bg-white/10"
+                type="button"
+                @click="closeMvPlayer"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+
+          <div class="aspect-video w-full bg-black">
+            <div v-if="mvPlayerLoading" class="grid h-full place-items-center text-sm text-white/70">MV 加载中...</div>
+            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm text-red-300">{{ mvPlayerError }}</div>
+            <video
+              v-else-if="currentMvUrl"
+              :src="currentMvUrl"
+              :poster="getMvCover(currentMv)"
+              controls
+              autoplay
+              playsinline
+              class="h-full w-full"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -160,10 +287,12 @@
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {artistApi} from '@/api/artistApi/artistApi.js'
-import {playSongById} from '@/utils/globalPlayer.js'
+import {usePlayerStore} from '@/stores/playerStore.js'
+import {playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const route = useRoute()
 const router = useRouter()
+const playerStore = usePlayerStore()
 
 const loading = ref(true)
 const error = ref('')
@@ -173,15 +302,60 @@ const artistProfile = ref(null)
 const heroMedia = ref('')
 
 const hotSongs = ref([])
+const allSongs = ref([])
+const songLimit = 50
+const songOffset = ref(0)
+const songHasMore = ref(false)
+const songLoadingMore = ref(false)
+const songPage = ref(1)
+const songPageSize = 20
+const songViewMode = ref('top50')
 const albums = ref([])
 const mvs = ref([])
+const albumLimit = 12
+const albumOffset = ref(0)
+const albumHasMore = ref(false)
+const albumLoadingMore = ref(false)
+const mvPlayerOpen = ref(false)
+const mvPlayerLoading = ref(false)
+const mvPlayerError = ref('')
+const currentMv = ref(null)
+const currentMvUrl = ref('')
+const mvResolutions = ref([])
+const selectedMvResolution = ref(1080)
+const shouldResumeMusicOnClose = ref(false)
+const mvPage = ref(1)
+const mvPageSize = 10
+const mvOffset = ref(0)
+const mvHasMore = ref(false)
+const mvLoadingMore = ref(false)
 const themeRgb = ref('56, 64, 82')
 const animatedThemeRgb = ref(themeRgb.value)
 let themeRaf = 0
 
-const topSongs = computed(() => hotSongs.value.slice(0, 10))
+const topSongs = computed(() => hotSongs.value.slice(0, 50))
+const songLoadedPages = computed(() => Math.max(1, Math.ceil(allSongs.value.length / songPageSize)))
+const displayedAllSongs = computed(() => {
+  const start = (songPage.value - 1) * songPageSize
+  return allSongs.value.slice(start, start + songPageSize)
+})
+const visibleSongs = computed(() => (songViewMode.value === 'all' ? displayedAllSongs.value : topSongs.value))
+const songListStyle = computed(() => {
+  if (songViewMode.value !== 'all') return undefined
+  const itemHeight = 42
+  const gap = 6
+  const minHeight = (songPageSize * itemHeight) + ((songPageSize - 1) * gap)
+  return {minHeight: `${minHeight}px`}
+})
+const songSectionLabel = computed(() => (songViewMode.value === 'all' ? `全部已加载 ${allSongs.value.length}` : `前50首 ${topSongs.value.length}`))
 const latestAlbum = computed(() => albums.value[0] || null)
 const featuredAlbums = computed(() => albums.value.slice(0, 6))
+const mvTotalPages = computed(() => Math.max(1, Math.ceil(mvs.value.length / mvPageSize)))
+const mvLoadedPages = computed(() => Math.max(1, Math.ceil(mvs.value.length / mvPageSize)))
+const pagedMvs = computed(() => {
+  const start = (mvPage.value - 1) * mvPageSize
+  return mvs.value.slice(start, start + mvPageSize)
+})
 const artistDescription = computed(() => {
   const text = String(artistProfile.value?.briefDesc || '').trim()
   if (text) return text
@@ -334,18 +508,230 @@ function formatDate(timestamp) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-async function openSong(song) {
-  await playSongById(song)
+async function openSong(song, index = 0, queue = topSongs.value) {
+  await playSongWithQueue(song, queue, index)
+}
+
+function mergeSongs(base = [], incoming = []) {
+  const existed = new Set(base.map(item => String(item?.id || '')))
+  const merged = [...base]
+  incoming.forEach((item) => {
+    const key = String(item?.id || '')
+    if (!key || existed.has(key)) return
+    existed.add(key)
+    merged.push(item)
+  })
+  return merged
+}
+
+function getMvCover(mv) {
+  return mv?.imgurl16v9 || mv?.cover || mv?.picUrl || artistAvatar.value
 }
 
 function openAlbum(album) {
   if (!album?.id) return
-  window.open(`https://music.163.com/#/album?id=${album.id}`, '_blank', 'noopener,noreferrer')
+  router.push({
+    path: '/albumDetail',
+    query: {id: album.id},
+  })
 }
 
 function openMv(mv) {
   if (!mv?.id) return
-  window.open(`https://music.163.com/#/mv?id=${mv.id}`, '_blank', 'noopener,noreferrer')
+  shouldResumeMusicOnClose.value = Boolean(playerStore.isPlaying && playerStore.hasSong)
+  if (shouldResumeMusicOnClose.value) {
+    playerStore.setPlaying(false)
+  }
+  currentMv.value = mv
+  currentMvUrl.value = ''
+  mvPlayerError.value = ''
+  mvPlayerLoading.value = true
+  mvPlayerOpen.value = true
+
+  selectedMvResolution.value = 1080
+  mvResolutions.value = [1080, 720, 480]
+
+  artistApi.getMvDetail(mv.id)
+    .then((res) => {
+      const brs = res?.data?.data?.brs || {}
+      const available = Object.keys(brs)
+        .map(item => Number(item))
+        .filter(item => Number.isFinite(item) && item > 0)
+        .sort((a, b) => b - a)
+      if (available.length) {
+        mvResolutions.value = available
+        selectedMvResolution.value = available[0]
+      }
+    })
+    .catch(() => {
+      mvResolutions.value = [1080, 720, 480]
+    })
+    .finally(() => {
+      loadMvUrl(mv.id, selectedMvResolution.value)
+    })
+}
+
+async function loadMvUrl(mvId, resolution) {
+  mvPlayerLoading.value = true
+  mvPlayerError.value = ''
+
+  const candidates = Array.from(new Set([
+    Number(resolution),
+    ...mvResolutions.value.map(item => Number(item)),
+    1080,
+    720,
+    480,
+    240,
+  ].filter(item => Number.isFinite(item) && item > 0))).sort((a, b) => b - a)
+
+  try {
+    for (const r of candidates) {
+      const res = await artistApi.getMvUrl(mvId, r)
+      const url = res?.data?.data?.url || ''
+      if (!url) continue
+      selectedMvResolution.value = r
+      currentMvUrl.value = url
+      return
+    }
+
+    mvPlayerError.value = '该 MV 暂无可播放地址'
+  } catch {
+    mvPlayerError.value = 'MV 加载失败，请稍后重试'
+  } finally {
+    mvPlayerLoading.value = false
+  }
+}
+
+function changeMvResolution() {
+  if (!currentMv.value?.id) return
+  currentMvUrl.value = ''
+  loadMvUrl(currentMv.value.id, Number(selectedMvResolution.value || 1080))
+}
+
+function closeMvPlayer() {
+  mvPlayerOpen.value = false
+  mvPlayerLoading.value = false
+  mvPlayerError.value = ''
+  currentMvUrl.value = ''
+  mvResolutions.value = []
+  if (shouldResumeMusicOnClose.value && playerStore.hasSong) {
+    playerStore.setPlaying(true)
+  }
+  shouldResumeMusicOnClose.value = false
+}
+
+function switchSongViewMode(mode) {
+  if (!['top50', 'all'].includes(mode)) return
+  songPage.value = 1
+  songViewMode.value = mode
+}
+
+function getSongQueue() {
+  return songViewMode.value === 'all' ? allSongs.value : topSongs.value
+}
+
+function getSongQueueIndex(index) {
+  if (songViewMode.value !== 'all') return index
+  return (songPage.value - 1) * songPageSize + index
+}
+
+function getSongDisplayIndex(index) {
+  return getSongQueueIndex(index) + 1
+}
+
+function prevSongPage() {
+  if (songPage.value <= 1) return
+  songPage.value -= 1
+}
+
+async function nextSongPage() {
+  const next = songPage.value + 1
+  if (next <= songLoadedPages.value) {
+    songPage.value = next
+    return
+  }
+
+  if (!songHasMore.value) return
+  const ok = await loadMoreSongs()
+  if (!ok) return
+  if (next <= songLoadedPages.value) {
+    songPage.value = next
+  }
+}
+
+async function loadMoreMvs() {
+  if (!artistId.value || mvLoadingMore.value || !mvHasMore.value) return false
+
+  mvLoadingMore.value = true
+  try {
+    const res = await artistApi.getArtistMv(artistId.value, {
+      limit: mvPageSize * 2,
+      offset: mvOffset.value,
+    })
+    const nextMvs = res?.data?.mvs || []
+    if (nextMvs.length) {
+      const existed = new Set(mvs.value.map(item => String(item?.id || '')))
+      const merged = [...mvs.value]
+      nextMvs.forEach((item) => {
+        const key = String(item?.id || '')
+        if (!key || existed.has(key)) return
+        existed.add(key)
+        merged.push(item)
+      })
+      mvs.value = merged
+    }
+
+    mvOffset.value = mvs.value.length
+    mvHasMore.value = Boolean(res?.data?.hasMore)
+    return true
+  } catch {
+    mvHasMore.value = false
+    return false
+  } finally {
+    mvLoadingMore.value = false
+  }
+}
+
+async function nextMvPage() {
+  const next = mvPage.value + 1
+  if (next <= mvLoadedPages.value) {
+    mvPage.value = next
+    return
+  }
+
+  if (!mvHasMore.value) return
+  const ok = await loadMoreMvs()
+  if (!ok) return
+  if (next <= mvLoadedPages.value) {
+    mvPage.value = next
+  }
+}
+
+function prevMvPage() {
+  if (mvPage.value <= 1) return
+  mvPage.value -= 1
+}
+
+async function loadMoreSongs() {
+  if (!artistId.value || songLoadingMore.value || !songHasMore.value) return false
+
+  songLoadingMore.value = true
+  try {
+    const res = await artistApi.getArtistAllSongs(artistId.value, {
+      limit: songLimit,
+      offset: songOffset.value,
+    })
+    const nextSongs = res?.data?.songs || []
+    allSongs.value = mergeSongs(allSongs.value, nextSongs)
+    songOffset.value = allSongs.value.length
+    songHasMore.value = Boolean(res?.data?.more ?? res?.data?.hasMore ?? (nextSongs.length >= songLimit))
+    return true
+  } catch {
+    songHasMore.value = false
+    return false
+  } finally {
+    songLoadingMore.value = false
+  }
 }
 
 function onAvatarError(event) {
@@ -395,8 +781,21 @@ async function loadArtistPage() {
   loading.value = true
   error.value = ''
   hotSongs.value = []
+  allSongs.value = []
+  songOffset.value = 0
+  songHasMore.value = false
+  songLoadingMore.value = false
+  songPage.value = 1
   albums.value = []
+  albumOffset.value = 0
+  albumHasMore.value = false
+  albumLoadingMore.value = false
   mvs.value = []
+  mvPage.value = 1
+  mvOffset.value = 0
+  mvHasMore.value = false
+  mvLoadingMore.value = false
+  songViewMode.value = 'top50'
   artistProfile.value = null
 
   await ensureArtistId()
@@ -408,11 +807,12 @@ async function loadArtistPage() {
   }
 
   try {
-    const [infoRes, hotRes, albumRes, mvRes, heroRes] = await Promise.allSettled([
+    const [infoRes, hotRes, allSongsRes, albumRes, mvRes, heroRes] = await Promise.allSettled([
       artistApi.getArtistInfo(artistId.value),
       artistApi.getArtistHotSongs(artistId.value),
-      artistApi.getArtistAlbum(artistId.value, 0),
-      artistApi.getArtistMv(artistId.value, 0),
+      artistApi.getArtistAllSongs(artistId.value, {limit: songLimit, offset: 0}),
+      artistApi.getArtistAlbum(artistId.value, {limit: albumLimit, offset: 0}),
+      artistApi.getArtistMv(artistId.value, {limit: mvPageSize * 2, offset: 0}),
       artistApi.getArtistVideo(route.query.name || artistName.value),
     ])
 
@@ -425,12 +825,31 @@ async function loadArtistPage() {
       hotSongs.value = hotRes.value?.data?.songs || []
     }
 
+    if (allSongsRes.status === 'fulfilled') {
+      const initialSongs = allSongsRes.value?.data?.songs || []
+      allSongs.value = initialSongs
+      songOffset.value = initialSongs.length
+      songHasMore.value = Boolean(allSongsRes.value?.data?.more ?? allSongsRes.value?.data?.hasMore ?? (initialSongs.length >= songLimit))
+    }
+
+    if (!allSongs.value.length) {
+      allSongs.value = hotSongs.value
+      songOffset.value = allSongs.value.length
+      songHasMore.value = false
+    }
+
     if (albumRes.status === 'fulfilled') {
-      albums.value = albumRes.value?.data?.hotAlbums || []
+      const initialAlbums = albumRes.value?.data?.hotAlbums || []
+      albums.value = initialAlbums
+      albumOffset.value = initialAlbums.length
+      albumHasMore.value = Boolean(albumRes.value?.data?.more)
     }
 
     if (mvRes.status === 'fulfilled') {
-      mvs.value = mvRes.value?.data?.mvs || []
+      const initialMvs = mvRes.value?.data?.mvs || []
+      mvs.value = initialMvs
+      mvOffset.value = initialMvs.length
+      mvHasMore.value = Boolean(mvRes.value?.data?.hasMore)
     }
 
     if (heroRes.status === 'fulfilled') {
@@ -448,11 +867,44 @@ async function loadArtistPage() {
   }
 }
 
+async function loadMoreAlbums() {
+  if (!artistId.value || albumLoadingMore.value || !albumHasMore.value) return
+
+  albumLoadingMore.value = true
+  try {
+    const res = await artistApi.getArtistAlbum(artistId.value, {
+      limit: albumLimit,
+      offset: albumOffset.value,
+    })
+    const nextAlbums = res?.data?.hotAlbums || []
+
+    if (nextAlbums.length) {
+      const existed = new Set(albums.value.map(item => String(item?.id || '')))
+      const merged = [...albums.value]
+      nextAlbums.forEach((item) => {
+        const key = String(item?.id || '')
+        if (!key || existed.has(key)) return
+        existed.add(key)
+        merged.push(item)
+      })
+      albums.value = merged
+    }
+
+    albumOffset.value = albums.value.length
+    albumHasMore.value = Boolean(res?.data?.more)
+  } catch {
+    albumHasMore.value = false
+  } finally {
+    albumLoadingMore.value = false
+  }
+}
+
 onMounted(() => {
   loadArtistPage()
 })
 
 onBeforeUnmount(() => {
+  closeMvPlayer()
   if (themeRaf) {
     cancelAnimationFrame(themeRaf)
     themeRaf = 0
@@ -477,4 +929,43 @@ watch(
     loadArtistPage()
   },
 )
+
+watch(
+  () => mvs.value.length,
+  () => {
+    if (mvPage.value > mvTotalPages.value) {
+      mvPage.value = mvTotalPages.value
+    }
+  },
+)
+
+watch(
+  () => allSongs.value.length,
+  () => {
+    if (songPage.value > songLoadedPages.value) {
+      songPage.value = songLoadedPages.value
+    }
+  },
+)
 </script>
+
+<style scoped>
+.song-expand-enter-active {
+  transition: opacity 240ms ease, transform 240ms ease, filter 240ms ease;
+}
+
+.song-expand-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.song-expand-enter-from,
+.song-expand-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  filter: blur(5px);
+}
+
+.song-expand-move {
+  transition: transform 220ms ease;
+}
+</style>

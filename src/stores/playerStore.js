@@ -1,5 +1,21 @@
 import {defineStore} from 'pinia'
 
+export const PLAY_MODE = {
+  SEQUENCE: 'sequence',
+  SINGLE: 'single',
+  SHUFFLE: 'shuffle',
+}
+
+function normalizeQueueItem(song) {
+  return {
+    id: song?.id ?? null,
+    name: song?.name || '',
+    artists: song?.artists || song?.ar || [],
+    cover: song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || '',
+    url: song?.url || '',
+  }
+}
+
 export const usePlayerStore = defineStore('global-player', {
   state: () => ({
     currentSong: {
@@ -14,10 +30,15 @@ export const usePlayerStore = defineStore('global-player', {
     durationMs: 0,
     volume: 0.85,
     autoPlayOnLoad: false,
+    playQueue: [],
+    currentQueueIndex: -1,
+    playMode: PLAY_MODE.SEQUENCE,
+    playlistPanelOpen: false,
   }),
 
   getters: {
     hasSong: (state) => Boolean(state.currentSong?.id && state.currentSong?.url),
+    queueLength: (state) => state.playQueue.length,
   },
 
   actions: {
@@ -62,11 +83,68 @@ export const usePlayerStore = defineStore('global-player', {
       if (!Number.isFinite(v)) return
       this.volume = Math.min(1, Math.max(0, v))
     },
+
+    setQueue(queue = [], {startIndex = 0} = {}) {
+      const normalized = Array.isArray(queue)
+        ? queue
+            .map(normalizeQueueItem)
+            .filter(item => Number.isFinite(Number(item.id)) && Number(item.id) > 0)
+        : []
+      this.playQueue = normalized
+
+      if (!normalized.length) {
+        this.currentQueueIndex = -1
+        return
+      }
+
+      const nextIndex = Number(startIndex)
+      if (Number.isInteger(nextIndex) && nextIndex >= 0 && nextIndex < normalized.length) {
+        this.currentQueueIndex = nextIndex
+        return
+      }
+
+      this.currentQueueIndex = 0
+    },
+
+    setCurrentQueueIndex(index) {
+      const nextIndex = Number(index)
+      if (!Number.isInteger(nextIndex)) return
+      if (nextIndex < 0 || nextIndex >= this.playQueue.length) return
+      this.currentQueueIndex = nextIndex
+    },
+
+    syncQueueIndexBySongId(songId) {
+      const id = String(songId || '')
+      if (!id || !this.playQueue.length) return
+      const nextIndex = this.playQueue.findIndex(item => String(item.id) === id)
+      if (nextIndex >= 0) this.currentQueueIndex = nextIndex
+    },
+
+    setPlayMode(mode) {
+      const allow = [PLAY_MODE.SEQUENCE, PLAY_MODE.SINGLE, PLAY_MODE.SHUFFLE]
+      if (!allow.includes(mode)) return
+      this.playMode = mode
+    },
+
+    cyclePlayMode() {
+      const order = [PLAY_MODE.SEQUENCE, PLAY_MODE.SINGLE, PLAY_MODE.SHUFFLE]
+      const current = order.indexOf(this.playMode)
+      const nextIndex = current < 0 ? 0 : (current + 1) % order.length
+      this.playMode = order[nextIndex]
+    },
+
+    setPlaylistPanelOpen(value) {
+      this.playlistPanelOpen = Boolean(value)
+    },
+
+    togglePlaylistPanel() {
+      this.playlistPanelOpen = !this.playlistPanelOpen
+    },
   },
 
   persist: {
     key: 'global-player-store',
     storage: localStorage,
-    paths: ['currentSong', 'volume'],
+    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode'],
   },
 })

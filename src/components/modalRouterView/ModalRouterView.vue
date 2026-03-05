@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { gsap } from 'gsap'
 
@@ -130,6 +130,10 @@ function handleLeave(el, done) {
   if (props.leaveAnim) props.leaveAnim(el, wrappedDone)
   else defaultLeave(el, wrappedDone)
 }
+
+onBeforeUnmount(() => {
+  unlockScroll()
+})
 </script>
 
 <style scoped>

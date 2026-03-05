@@ -5,8 +5,8 @@
       <!-- 外壳：grid 两列，左 48px 固定按钮，右侧自适应内容 -->
       <div
         ref="shell"
-        :class="expanded ? 'rounded-full pl-0 pr-4 sm:pr-6 h-12' : 'h-12 w-12 rounded-full'"
-        class="mt-3 grid items-center overflow-hidden border border-white/10 shadow-lg ring-1 ring-white/10 bg-white/10 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr] pointer-events-auto"
+        :class="[expanded ? 'rounded-full pl-0 pr-4 sm:pr-6 h-12' : 'h-12 w-12 rounded-full', shellToneClass]"
+        class="mt-3 grid items-center overflow-hidden border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr] pointer-events-auto transition-colors duration-200"
         @mouseenter="hovering = true"
         @mouseleave="hovering = false"
       >
@@ -15,8 +15,8 @@
           <button
             ref="btn"
             :aria-pressed="expanded"
-            :class="expanded ? 'scale-95' : 'scale-100'"
-            class="grid place-items-center size-12 text-white/90 hover:text-white transition-transform duration-300 will-change-transform"
+            :class="[expanded ? 'scale-95' : 'scale-100', btnToneClass]"
+            class="grid place-items-center size-12 transition-transform duration-300 will-change-transform"
             type="button"
             @click="toggle()"
           >
@@ -56,7 +56,8 @@
               <input
                 ref="input"
                 :placeholder="placeholder"
-                class="w-full h-full text-sm text-white placeholder-white/60 bg-transparent outline-none ring-0 focus:ring-0 focus:outline-none transition-all duration-300"
+                :class="inputToneClass"
+                class="w-full h-full text-sm bg-transparent outline-none ring-0 focus:ring-0 focus:outline-none transition-all duration-300"
                 type="text"
                 @keydown.enter="handleSearchEnter"
                 @keydown.down.prevent="moveSelection(1)"
@@ -71,15 +72,17 @@
           <div v-if="showAuth" class="flex items-center space-x-4 cursor-pointer">
             <button
               v-if="!isLoggedIn"
-              class="text-sm font-medium text-white/90 hover:text-white transition-colors whitespace-nowrap"
+              :class="signInToneClass"
+              class="text-sm font-medium transition-colors whitespace-nowrap"
               type="button"
               @click="openLoginDialog"
             >
               {{ signInLabel }}
             </button>
-            <div v-else class="flex items-center gap-2 text-white/90">
+            <div v-else :class="authTextToneClass" class="flex items-center gap-2">
               <button
-                class="relative rounded-full border border-white/35 bg-white/10 px-2.5 py-1 text-xs transition hover:bg-white/20"
+                :class="chipToneClass"
+                class="relative rounded-full border px-2.5 py-1 text-xs transition"
                 type="button"
                 @click="openMessageCenter('notice')"
               >
@@ -92,7 +95,8 @@
                 </span>
               </button>
               <button
-                class="relative rounded-full border border-white/35 bg-white/10 px-2.5 py-1 text-xs transition hover:bg-white/20"
+                :class="chipToneClass"
+                class="relative rounded-full border px-2.5 py-1 text-xs transition"
                 type="button"
                 @click="openMessageCenter('private')"
               >
@@ -105,7 +109,8 @@
                 </span>
               </button>
               <button
-                class="flex items-center gap-2 rounded-full bg-white/20 px-2 py-1"
+                :class="chipSoftToneClass"
+                class="flex items-center gap-2 rounded-full px-2 py-1 transition"
                 type="button"
                 @click="openProfile"
               >
@@ -118,7 +123,8 @@
                 <span class="text-xs">{{ userNickname || '已登录' }}</span>
               </button>
               <button
-                class="rounded-full bg-white/25 px-2 py-0.5 text-[11px] transition hover:bg-white/35"
+                :class="chipGhostToneClass"
+                class="rounded-full px-2 py-0.5 text-[11px] transition"
                 type="button"
                 @click="logout"
               >
@@ -622,7 +628,7 @@ import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
-import {playSongById} from '@/utils/globalPlayer.js'
+import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useRouter} from 'vue-router'
 
 const props = defineProps({
@@ -709,6 +715,7 @@ const privateContent = ref('')
 const sendingPrivate = ref(false)
 const privateFeedback = ref('')
 const privateFeedbackIsError = ref(false)
+const fabContrastMode = ref('on-dark')
 
 let navTl = null
 let autoExpandByScroll = false
@@ -717,6 +724,63 @@ let searchRequestId = 0
 let privateReceiverSearchTimer = null
 let privateReceiverSearchRequestId = 0
 let privateHistoryRequestId = 0
+let contrastRaf = 0
+
+const shellToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'border-stone-800/45 ring-stone-900/20 bg-stone-900/58 text-white'
+  }
+  return 'border-white/30 ring-white/20 bg-white/38 text-stone-900'
+})
+
+const btnToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'text-white/90 hover:text-white'
+  }
+  return 'text-stone-800 hover:text-black'
+})
+
+const inputToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'text-white placeholder-white/65'
+  }
+  return 'text-stone-800 placeholder-stone-500'
+})
+
+const signInToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'text-white/90 hover:text-white'
+  }
+  return 'text-stone-700 hover:text-stone-900'
+})
+
+const authTextToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'text-white/90'
+  }
+  return 'text-stone-700'
+})
+
+const chipToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'border-white/35 bg-white/10 hover:bg-white/20'
+  }
+  return 'border-stone-300 bg-white/60 hover:bg-white/80'
+})
+
+const chipSoftToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'bg-white/20 hover:bg-white/28'
+  }
+  return 'bg-white/70 hover:bg-white/90'
+})
+
+const chipGhostToneClass = computed(() => {
+  if (fabContrastMode.value === 'on-light') {
+    return 'bg-white/25 hover:bg-white/35'
+  }
+  return 'bg-white/78 hover:bg-white'
+})
 
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
@@ -738,6 +802,11 @@ watch(expanded, (value) => {
     inputValue.value = ''
     clearSearchState()
   }
+  scheduleContrastUpdate()
+})
+
+watch(() => router.currentRoute.value.fullPath, () => {
+  scheduleContrastUpdate()
 })
 
 watch(isOpen, (open) => {
@@ -1037,7 +1106,12 @@ function openArtist(artist) {
 
 async function openSong(song) {
   if (!song?.id) return
-  await playSongById(song)
+  const queueIndex = songEntries.value.findIndex(item => String(item.id) === String(song.id))
+  if (queueIndex >= 0) {
+    await playSongWithQueue(song, songEntries.value, queueIndex)
+  } else {
+    await playSongById(song)
+  }
   collapse()
 }
 
@@ -1579,6 +1653,7 @@ function changePage(type, delta) {
 }
 
 function onScroll() {
+  scheduleContrastUpdate()
   if (!props.autoExpandOnScroll) return
   const y = window.scrollY || document.documentElement.scrollTop
   const nearTop = y <= props.scrollThreshold
@@ -1591,17 +1666,100 @@ function onScroll() {
   }
 }
 
+function parseColorValue(colorString) {
+  const text = String(colorString || '').trim()
+  if (!text || text === 'transparent') return null
+
+  const rgbMatch = text.match(/^rgba?\(([^)]+)\)$/i)
+  if (rgbMatch) {
+    const raw = rgbMatch[1].split(',').map(item => Number(item.trim()))
+    if (raw.length < 3) return null
+    const [r, g, b, a = 1] = raw
+    if (![r, g, b].every(Number.isFinite) || !Number.isFinite(a)) return null
+    return {r, g, b, a}
+  }
+
+  const hex = text.replace('#', '')
+  if (hex.length === 3 || hex.length === 4) {
+    const r = Number.parseInt(hex[0] + hex[0], 16)
+    const g = Number.parseInt(hex[1] + hex[1], 16)
+    const b = Number.parseInt(hex[2] + hex[2], 16)
+    const a = hex.length === 4 ? Number.parseInt(hex[3] + hex[3], 16) / 255 : 1
+    return {r, g, b, a}
+  }
+  if (hex.length === 6 || hex.length === 8) {
+    const r = Number.parseInt(hex.slice(0, 2), 16)
+    const g = Number.parseInt(hex.slice(2, 4), 16)
+    const b = Number.parseInt(hex.slice(4, 6), 16)
+    const a = hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1
+    return {r, g, b, a}
+  }
+
+  return null
+}
+
+function estimateLuminance({r, g, b}) {
+  const rr = Number(r) / 255
+  const gg = Number(g) / 255
+  const bb = Number(b) / 255
+  return 0.2126 * rr + 0.7152 * gg + 0.0722 * bb
+}
+
+function pickBackdropElement() {
+  if (!shell.value) return null
+  const rect = shell.value.getBoundingClientRect()
+  const x = Math.round(rect.left + rect.width * 0.5)
+  const y = Math.round(rect.top + rect.height * 0.5)
+  const stack = document.elementsFromPoint(x, y)
+  return stack.find(el => el !== shell.value && !shell.value.contains(el)) || null
+}
+
+function detectBackdropLuminance() {
+  let el = pickBackdropElement()
+  while (el && el !== document.documentElement) {
+    const parsed = parseColorValue(getComputedStyle(el).backgroundColor)
+    if (parsed && parsed.a > 0.06) {
+      return estimateLuminance(parsed)
+    }
+    el = el.parentElement
+  }
+
+  const bodyColor = parseColorValue(getComputedStyle(document.body).backgroundColor)
+  if (bodyColor) return estimateLuminance(bodyColor)
+  return 0.94
+}
+
+function updateFabContrast() {
+  const luminance = detectBackdropLuminance()
+  fabContrastMode.value = luminance > 0.74 ? 'on-light' : 'on-dark'
+}
+
+function scheduleContrastUpdate() {
+  if (contrastRaf) return
+  contrastRaf = requestAnimationFrame(() => {
+    contrastRaf = 0
+    updateFabContrast()
+  })
+}
+
 defineExpose({expand, collapse, toggle, focus: () => input.value?.focus()})
 
 onMounted(async () => {
   await nextTick()
   if (shell.value) gsap.set(shell.value, {width: 48, height: 48, borderRadius: 9999})
+  updateFabContrast()
   window.addEventListener('scroll', onScroll, {passive: true})
+  window.addEventListener('resize', scheduleContrastUpdate)
 })
 
 onBeforeUnmount(() => {
   navTl?.kill()
   window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', scheduleContrastUpdate)
+  if (contrastRaf) {
+    cancelAnimationFrame(contrastRaf)
+    contrastRaf = 0
+  }
   stopQrPolling()
   clearSearchState()
   if (privateReceiverSearchTimer) {
