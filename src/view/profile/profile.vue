@@ -1,11 +1,14 @@
 <template>
   <div class="min-h-screen bg-stone-100 text-stone-900">
     <section class="relative overflow-hidden border-b border-stone-200 bg-white">
-      <div class="absolute inset-0" :style="heroStyle" />
-      <div class="relative mx-auto max-w-7xl px-4 py-10 sm:px-8">
+      <div class="profile-hero-flow absolute inset-0" />
+      <canvas ref="heroCanvasRef" class="profile-hero-canvas absolute inset-0" />
+      <div class="pointer-events-none absolute -left-16 top-10 h-44 w-44 rounded-full bg-white/25 blur-2xl" />
+      <div class="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-stone-100/40 blur-2xl" />
+      <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-8">
         <div class="mb-4 flex justify-end">
           <button
-            class="rounded-full border border-stone-300 bg-white/90 px-4 py-1.5 text-sm transition hover:bg-white"
+            class="rounded-full border border-stone-300 bg-white/90 px-4 py-1.5 text-sm text-stone-700 transition hover:-translate-y-0.5 hover:bg-white"
             type="button"
             @click="goBack"
           >
@@ -18,17 +21,23 @@
             v-if="profile.avatarUrl"
             :src="profile.avatarUrl"
             alt="avatar"
-            class="h-32 w-32 rounded-3xl border border-white/70 object-cover shadow-lg"
+            class="h-32 w-32 rounded-3xl border border-white/70 object-cover shadow-xl shadow-stone-300/40"
           />
 
           <div>
-            <p class="text-xs uppercase tracking-[0.22em] text-stone-500">Personal Center</p>
-            <h1 class="mt-2 text-4xl font-black leading-tight">{{ profile.nickname || '我的主页' }}</h1>
+            <p class="text-xs uppercase tracking-[0.22em] text-stone-600">Personal Center</p>
+            <h1 class="mt-2 text-4xl font-black leading-tight text-stone-900">{{ profile.nickname || '我的主页' }}</h1>
 
             <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
               <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">UID {{ profile.userId || '-' }}</span>
               <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">{{ certificationText }}</span>
               <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">地区 {{ locationText }}</span>
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">关注 {{ formatCount(profile.follows) }}</span>
+              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">粉丝 {{ formatCount(profile.followeds) }}</span>
+              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">等级 Lv.{{ level.level || 0 }}</span>
             </div>
 
             <p class="mt-4 max-w-3xl rounded-2xl border border-stone-200 bg-white/80 px-4 py-3 text-sm leading-relaxed text-stone-700">
@@ -40,26 +49,29 @@
     </section>
 
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-      <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <article class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <p class="text-xs text-stone-500">歌单</p>
-          <p class="mt-2 text-2xl font-bold">{{ formatCount(subCount.playlistCount) }}</p>
-        </article>
-        <article class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <p class="text-xs text-stone-500">关注</p>
-          <p class="mt-2 text-2xl font-bold">{{ formatCount(profile.follows) }}</p>
-        </article>
-        <article class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <p class="text-xs text-stone-500">粉丝</p>
-          <p class="mt-2 text-2xl font-bold">{{ formatCount(profile.followeds) }}</p>
-        </article>
-        <article class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <p class="text-xs text-stone-500">等级</p>
-          <p class="mt-2 text-2xl font-bold">Lv.{{ level.level || 0 }}</p>
-        </article>
+      <section class="mb-5 flex items-center gap-5 border-b border-stone-200">
+        <div class="flex items-center gap-4">
+          <button
+            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
+            :class="activeTab === 'playlist' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            type="button"
+            @click="switchTab('playlist')"
+          >
+            歌单总览
+          </button>
+          <button
+            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
+            :class="activeTab === 'cloud' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            type="button"
+            @click="switchTab('cloud')"
+          >
+            云盘管理
+          </button>
+        </div>
       </section>
 
-      <section class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+      <transition name="tab-panel" mode="out-in">
+        <section v-if="activeTab === 'playlist'" key="playlist" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
         <div class="mb-5 flex items-center justify-between">
           <h2 class="text-2xl font-bold">我的歌单</h2>
           <span class="text-xs text-stone-500">创建 {{ createdPlaylists.length }} · 收藏 {{ subscribedPlaylists.length }}</span>
@@ -75,7 +87,7 @@
               <article
                 v-for="item in createdPlaylists"
                 :key="`created-${item.id}`"
-                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:border-stone-300 hover:bg-white"
+                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
                 @click="openPlaylist(item)"
               >
                 <div class="h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-stone-200">
@@ -97,7 +109,7 @@
               <article
                 v-for="item in subscribedPlaylists"
                 :key="`sub-${item.id}`"
-                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:border-stone-300 hover:bg-white"
+                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
                 @click="openPlaylist(item)"
               >
                 <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-200">
@@ -112,9 +124,9 @@
             <p v-if="!subscribedPlaylists.length" class="text-sm text-stone-500">还没有收藏歌单。</p>
           </div>
         </template>
-      </section>
+        </section>
 
-      <section class="mt-8 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+        <section v-else key="cloud" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-2xl font-bold">云盘</h2>
           <button
@@ -157,7 +169,8 @@
             <article
               v-for="item in cloudSongs"
               :key="`cloud-${item.songId}`"
-              class="rounded-2xl border border-stone-100 bg-stone-50 p-3"
+              class="cursor-pointer rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
+              @click="playCloudSong(item)"
             >
               <div class="flex flex-wrap items-start gap-3">
                 <div class="min-w-0 flex-1">
@@ -170,7 +183,7 @@
                     class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
                     type="button"
                     :disabled="cloudDetailLoadingId === item.songId"
-                    @click="toggleCloudDetail(item)"
+                    @click.stop="toggleCloudDetail(item)"
                   >
                     {{ activeCloudDetailId === item.songId ? '收起详情' : '云盘数据详情' }}
                   </button>
@@ -178,38 +191,11 @@
                     class="rounded-full border border-red-300 bg-white px-3 py-1 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-40"
                     type="button"
                     :disabled="cloudDeletingId === item.songId"
-                    @click="deleteCloudSong(item)"
+                    @click.stop="deleteCloudSong(item)"
                   >
                     {{ cloudDeletingId === item.songId ? '删除中...' : '云盘歌曲删除' }}
                   </button>
                 </div>
-              </div>
-
-              <div class="mt-3 flex flex-wrap items-center gap-2">
-                <input
-                  v-model.trim="cloudMatchInputs[item.songId]"
-                  type="number"
-                  min="0"
-                  inputmode="numeric"
-                  placeholder="填写 asid"
-                  class="w-32 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs text-stone-700 outline-none transition focus:border-stone-500"
-                />
-                <button
-                  class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
-                  type="button"
-                  :disabled="cloudMatchLoadingId === item.songId"
-                  @click="correctCloudSongMatch(item)"
-                >
-                  歌曲信息匹配纠正
-                </button>
-                <button
-                  class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
-                  type="button"
-                  :disabled="cloudMatchLoadingId === item.songId"
-                  @click="correctCloudSongMatch(item, 0)"
-                >
-                  取消匹配
-                </button>
               </div>
 
               <div v-if="activeCloudDetailId === item.songId" class="mt-3 rounded-xl border border-stone-200 bg-white p-3 text-xs text-stone-600">
@@ -227,6 +213,7 @@
           <p v-else class="text-sm text-stone-500">云盘还没有歌曲。</p>
 
           <div class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
+            <span class="mr-2">每页 10 首</span>
             <button
               class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
               type="button"
@@ -246,7 +233,8 @@
             </button>
           </div>
         </template>
-      </section>
+        </section>
+      </transition>
     </main>
 
     <ModalRouterView content-width="90vw" content-height="90vh" content-radius="16px" />
@@ -254,10 +242,11 @@
 </template>
 
 <script setup>
-import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
+import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 
 const router = useRouter()
@@ -265,6 +254,7 @@ const userStore = useCounterStore()
 
 const loading = ref(true)
 const error = ref('')
+const activeTab = ref('playlist')
 
 const profile = ref({
   userId: userStore.userId,
@@ -280,10 +270,6 @@ const profile = ref({
   userType: 0,
 })
 
-const subCount = ref({
-  playlistCount: 0,
-})
-
 const level = ref({
   level: 0,
 })
@@ -297,44 +283,232 @@ const cloudPage = ref(1)
 const cloudHasMore = ref(false)
 const cloudDetailLoadingId = ref(null)
 const cloudDeletingId = ref(null)
-const cloudMatchLoadingId = ref(null)
+const cloudPlayingId = ref(null)
 const cloudDetails = ref({})
 const activeCloudDetailId = ref(null)
-const cloudMatchInputs = ref({})
 const cloudUploadFile = ref(null)
 const cloudUploading = ref(false)
 const cloudUploadMessage = ref('')
 const cloudFileInputKey = ref(0)
 const themeRgb = ref('214, 219, 228')
 const animatedThemeRgb = ref(themeRgb.value)
+const heroCanvasRef = ref(null)
 let themeTweenFrame = 0
+let heroCanvasFrame = 0
+let heroCanvasTimeStart = 0
+let heroResizeObserver = null
+
+const liquidBlobs = [
+  {x: 0.16, y: 0.2, r: 0.46, dx: 0.14, dy: 0.11, speed: 0.00044, phase: 0.2, alpha: 0.48},
+  {x: 0.84, y: 0.3, r: 0.38, dx: 0.16, dy: 0.14, speed: 0.00037, phase: 1.4, alpha: 0.42},
+  {x: 0.6, y: 0.8, r: 0.42, dx: 0.19, dy: 0.12, speed: 0.00033, phase: 2.4, alpha: 0.38},
+]
 
 const createdPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId === profile.value.userId))
 const subscribedPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId !== profile.value.userId))
 const cloudCanNextPage = computed(() => cloudHasMore.value)
+
+const PROVINCE_NAME_MAP = {
+  110000: '北京',
+  120000: '天津',
+  130000: '河北',
+  140000: '山西',
+  150000: '内蒙古',
+  210000: '辽宁',
+  220000: '吉林',
+  230000: '黑龙江',
+  310000: '上海',
+  320000: '江苏',
+  330000: '浙江',
+  340000: '安徽',
+  350000: '福建',
+  360000: '江西',
+  370000: '山东',
+  410000: '河南',
+  420000: '湖北',
+  430000: '湖南',
+  440000: '广东',
+  450000: '广西',
+  460000: '海南',
+  500000: '重庆',
+  510000: '四川',
+  520000: '贵州',
+  530000: '云南',
+  540000: '西藏',
+  610000: '陕西',
+  620000: '甘肃',
+  630000: '青海',
+  640000: '宁夏',
+  650000: '新疆',
+  710000: '台湾',
+  810000: '香港',
+  820000: '澳门',
+}
+
+const CITY_NAME_MAP = {
+  110100: '北京市',
+  120100: '天津市',
+  310100: '上海市',
+  500100: '重庆市',
+}
 
 const certificationText = computed(() => {
   const isArtist = profile.value.userType === 4 || profile.value.authStatus === 1
   return isArtist ? '网易云音乐人认证' : '普通用户'
 })
 
-const locationText = computed(() => {
-  if (!profile.value.province && !profile.value.city) return '未设置'
-  if (profile.value.province && profile.value.city) {
-    return `${profile.value.province}-${profile.value.city}`
+function resolveRegionName(regionCode, type = 'province') {
+  const raw = Number(regionCode)
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return regionCode ? String(regionCode) : ''
   }
-  return String(profile.value.province || profile.value.city)
+
+  const normalized = Number(String(Math.trunc(raw)).padEnd(6, '0').slice(0, 6))
+  if (type === 'city') {
+    const cityName = CITY_NAME_MAP[normalized]
+    if (cityName) return cityName
+  }
+
+  const provinceCode = Math.floor(normalized / 10000) * 10000
+  return PROVINCE_NAME_MAP[provinceCode] || ''
+}
+
+const locationText = computed(() => {
+  const provinceName = resolveRegionName(profile.value.province, 'province')
+  const cityName = resolveRegionName(profile.value.city, 'city')
+
+  if (!provinceName && !cityName) return '未设置'
+  if (provinceName && cityName && provinceName !== cityName) {
+    return `${provinceName} ${cityName}`
+  }
+  return provinceName || cityName
 })
 
-const heroStyle = computed(() => {
+function buildLiquidPalette() {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
-  const softR = Math.min(255, Math.round((r + 245) / 2))
-  const softG = Math.min(255, Math.round((g + 245) / 2))
-  const softB = Math.min(255, Math.round((b + 245) / 2))
-  return {
-    background: `linear-gradient(135deg, rgba(${r},${g},${b},0.60), rgba(${softR},${softG},${softB},0.88))`,
+  const base = rgbToHsl(r, g, b)
+  const c1 = hslToRgb(base.h - 12, clamp(base.s * 0.95 + 0.12, 0.38, 0.74), clamp(base.l - 0.05, 0.32, 0.54))
+  const c2 = hslToRgb(base.h + 28, clamp(base.s * 0.82 + 0.12, 0.34, 0.64), clamp(base.l + 0.32, 0.72, 0.9))
+  const c3 = hslToRgb(base.h + 2, clamp(base.s * 0.3 + 0.05, 0.12, 0.3), 0.94)
+  return {c1, c2, c3}
+}
+
+function ensureHeroCanvasSize() {
+  const canvas = heroCanvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const width = Math.max(1, Math.round(rect.width))
+  const height = Math.max(1, Math.round(rect.height))
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const targetWidth = Math.round(width * dpr)
+  const targetHeight = Math.round(height * dpr)
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth
+    canvas.height = targetHeight
   }
-})
+}
+
+function drawLiquidBackground(time) {
+  const canvas = heroCanvasRef.value
+  if (!canvas) return
+  const context = canvas.getContext('2d')
+  if (!context) return
+
+  ensureHeroCanvasSize()
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const width = canvas.width / dpr
+  const height = canvas.height / dpr
+  if (width <= 0 || height <= 0) return
+
+  context.setTransform(dpr, 0, 0, dpr, 0, 0)
+  context.clearRect(0, 0, width, height)
+
+  const {c1, c2, c3} = buildLiquidPalette()
+
+  const bg = context.createLinearGradient(0, 0, width, height)
+  bg.addColorStop(0, `rgba(${c1[0]}, ${c1[1]}, ${c1[2]}, 0.86)`)
+  bg.addColorStop(1, `rgba(${c2[0]}, ${c2[1]}, ${c2[2]}, 0.95)`)
+  context.fillStyle = bg
+  context.fillRect(0, 0, width, height)
+
+  context.save()
+  context.filter = 'blur(22px)'
+  context.globalCompositeOperation = 'screen'
+
+  for (const blob of liquidBlobs) {
+    const elapsed = (time - heroCanvasTimeStart) * blob.speed
+    const x = width * (blob.x + Math.sin(elapsed + blob.phase) * blob.dx)
+    const y = height * (blob.y + Math.cos(elapsed * 1.1 + blob.phase * 1.6) * blob.dy)
+    const radius = Math.max(width, height) * (blob.r + Math.sin(elapsed * 1.8 + blob.phase) * 0.08)
+
+    const gradient = context.createRadialGradient(x, y, radius * 0.12, x, y, radius)
+    gradient.addColorStop(0, `rgba(${c3[0]}, ${c3[1]}, ${c3[2]}, ${blob.alpha * 1.08})`)
+    gradient.addColorStop(0.46, `rgba(${c2[0]}, ${c2[1]}, ${c2[2]}, ${blob.alpha * 0.86})`)
+    gradient.addColorStop(1, `rgba(${c1[0]}, ${c1[1]}, ${c1[2]}, 0)`)
+
+    context.fillStyle = gradient
+    context.beginPath()
+    context.arc(x, y, radius, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.restore()
+
+  const sheen = context.createRadialGradient(width * 0.2, height * 0.16, 8, width * 0.2, height * 0.16, Math.max(width, height) * 0.86)
+  sheen.addColorStop(0, `rgba(${c3[0]}, ${c3[1]}, ${c3[2]}, 0.28)`)
+  sheen.addColorStop(1, `rgba(${c3[0]}, ${c3[1]}, ${c3[2]}, 0)`)
+  context.fillStyle = sheen
+  context.fillRect(0, 0, width, height)
+}
+
+function renderHeroCanvasStatic() {
+  const now = performance.now()
+  heroCanvasTimeStart = now
+  drawLiquidBackground(now)
+}
+
+function tickHeroCanvas(now) {
+  drawLiquidBackground(now)
+  heroCanvasFrame = requestAnimationFrame(tickHeroCanvas)
+}
+
+function startHeroCanvas() {
+  stopHeroCanvas()
+  renderHeroCanvasStatic()
+
+  if (typeof requestAnimationFrame !== 'function') {
+    return
+  }
+
+  const preferStatic = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  if (preferStatic) {
+    return
+  }
+
+  heroCanvasTimeStart = performance.now()
+  heroCanvasFrame = requestAnimationFrame(tickHeroCanvas)
+}
+
+function stopHeroCanvas() {
+  if (!heroCanvasFrame) return
+  cancelAnimationFrame(heroCanvasFrame)
+  heroCanvasFrame = 0
+}
+
+function setupHeroCanvasObserver() {
+  const canvas = heroCanvasRef.value
+  if (!canvas || typeof ResizeObserver === 'undefined') return
+  heroResizeObserver = new ResizeObserver(() => {
+    renderHeroCanvasStatic()
+  })
+  heroResizeObserver.observe(canvas)
+}
 
 function easeOutCubic(t) {
   return 1 - (1 - t) ** 3
@@ -385,16 +559,135 @@ function parseRgb(rgbString) {
   ]
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function rgbToHsl(r, g, b) {
+  const rn = clamp(r / 255, 0, 1)
+  const gn = clamp(g / 255, 0, 1)
+  const bn = clamp(b / 255, 0, 1)
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const delta = max - min
+  const l = (max + min) / 2
+
+  if (delta === 0) {
+    return {h: 0, s: 0, l}
+  }
+
+  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min)
+  let h = 0
+  if (max === rn) {
+    h = (gn - bn) / delta + (gn < bn ? 6 : 0)
+  } else if (max === gn) {
+    h = (bn - rn) / delta + 2
+  } else {
+    h = (rn - gn) / delta + 4
+  }
+
+  return {h: h * 60, s, l}
+}
+
+function hslToRgb(h, s, l) {
+  const hue = ((h % 360) + 360) % 360
+  const sat = clamp(s, 0, 1)
+  const lig = clamp(l, 0, 1)
+
+  const c = (1 - Math.abs(2 * lig - 1)) * sat
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const m = lig - c / 2
+
+  let rn = 0
+  let gn = 0
+  let bn = 0
+
+  if (hue < 60) {
+    rn = c
+    gn = x
+  } else if (hue < 120) {
+    rn = x
+    gn = c
+  } else if (hue < 180) {
+    gn = c
+    bn = x
+  } else if (hue < 240) {
+    gn = x
+    bn = c
+  } else if (hue < 300) {
+    rn = x
+    bn = c
+  } else {
+    rn = c
+    bn = x
+  }
+
+  return [
+    Math.round((rn + m) * 255),
+    Math.round((gn + m) * 255),
+    Math.round((bn + m) * 255),
+  ]
+}
+
+function tuneThemeColor(rgb) {
+  const [r, g, b] = rgb
+  const hsl = rgbToHsl(r, g, b)
+  const tunedS = clamp(hsl.s * 0.8 + 0.16, 0.26, 0.58)
+  const tunedL = clamp(hsl.l * 0.74 + 0.2, 0.44, 0.66)
+  return hslToRgb(hsl.h, tunedS, tunedL)
+}
+
 function colorFromSeed(seed) {
   const text = String(seed || 'profile')
   let hash = 0
   for (let i = 0; i < text.length; i += 1) {
     hash = text.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const r = 140 + (Math.abs(hash) % 70)
-  const g = 150 + (Math.abs(hash >> 8) % 70)
-  const b = 165 + (Math.abs(hash >> 16) % 70)
-  return `${r}, ${g}, ${b}`
+  const hue = Math.abs(hash) % 360
+  const saturation = 0.32 + (Math.abs(hash >> 6) % 20) / 100
+  const lightness = 0.52 + (Math.abs(hash >> 12) % 12) / 100
+  return formatRgb(hslToRgb(hue, saturation, lightness))
+}
+
+function pickDominantAvatarColor(data) {
+  const bucketSize = 24
+  const buckets = new Map()
+
+  for (let i = 0; i < data.length; i += 16) {
+    const alpha = data[i + 3] / 255
+    if (alpha < 0.08) continue
+
+    const pr = data[i]
+    const pg = data[i + 1]
+    const pb = data[i + 2]
+    const hsl = rgbToHsl(pr, pg, pb)
+    if (hsl.s < 0.1 || hsl.l < 0.08 || hsl.l > 0.92) continue
+
+    const lightBalance = 1 - Math.abs(hsl.l - 0.56)
+    const weight = alpha * (0.35 + hsl.s * 1.15 + lightBalance * 0.75)
+    const key = `${Math.round(pr / bucketSize)}-${Math.round(pg / bucketSize)}-${Math.round(pb / bucketSize)}`
+    const group = buckets.get(key) || {r: 0, g: 0, b: 0, score: 0}
+
+    group.r += pr * weight
+    group.g += pg * weight
+    group.b += pb * weight
+    group.score += weight
+
+    buckets.set(key, group)
+  }
+
+  let picked = null
+  for (const value of buckets.values()) {
+    if (!picked || value.score > picked.score) picked = value
+  }
+
+  if (!picked || picked.score <= 0) return null
+
+  return [
+    Math.round(picked.r / picked.score),
+    Math.round(picked.g / picked.score),
+    Math.round(picked.b / picked.score),
+  ]
 }
 
 async function pickAvatarTheme(avatarUrl, seed) {
@@ -424,21 +717,9 @@ async function pickAvatarTheme(avatarUrl, seed) {
     context.drawImage(image, 0, 0, size, size)
 
     const {data} = context.getImageData(0, 0, size, size)
-    let r = 0
-    let g = 0
-    let b = 0
-    let count = 0
-
-    for (let i = 0; i < data.length; i += 16) {
-      r += data[i]
-      g += data[i + 1]
-      b += data[i + 2]
-      count += 1
-    }
-
-    if (!count) throw new Error('no pixels')
-
-    themeRgb.value = `${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)}`
+    const dominant = pickDominantAvatarColor(data)
+    if (!dominant) throw new Error('no pixels')
+    themeRgb.value = formatRgb(tuneThemeColor(dominant))
   } catch {
     themeRgb.value = colorFromSeed(seed)
   }
@@ -453,6 +734,10 @@ function formatCount(value) {
 
 function goBack() {
   router.back()
+}
+
+function switchTab(tab) {
+  activeTab.value = tab
 }
 
 function openPlaylist(item) {
@@ -476,6 +761,21 @@ function normalizeCloudSong(item = {}) {
     bitrate: Number(item.bitrate || 0),
     addTime: Number(item.addTime || 0),
     duration: Number(simple.dt || 0),
+    coverUrl: simple?.al?.picUrl || '',
+  }
+}
+
+function toCloudQueueItem(song) {
+  const artistNames = String(song?.artistName || '')
+    .split(' / ')
+    .map(name => name.trim())
+    .filter(Boolean)
+
+  return {
+    id: Number(song?.songId || 0),
+    name: song?.songName || '未知歌曲',
+    artists: artistNames.map(name => ({name})),
+    cover: song?.coverUrl || '',
   }
 }
 
@@ -611,42 +911,21 @@ async function deleteCloudSong(item) {
   }
 }
 
-async function correctCloudSongMatch(item, forcedAsid = null) {
+async function playCloudSong(item) {
   const sid = Number(item?.songId || 0)
-  if (!sid || cloudMatchLoadingId.value) return
+  if (!sid || cloudPlayingId.value === sid) return
 
-  const raw = forcedAsid ?? cloudMatchInputs.value[sid]
-  const asid = Number(raw)
-  if (!Number.isFinite(asid) || asid < 0) {
-    cloudError.value = '请输入合法 asid（0 或 正整数）'
-    return
-  }
-
-  cloudMatchLoadingId.value = sid
+  cloudPlayingId.value = sid
+  cloudError.value = ''
   try {
-    await userApi.correctCloudSongMatch(profile.value.userId, sid, asid)
-    cloudError.value = ''
-    cloudDetails.value = {
-      ...cloudDetails.value,
-      [sid]: null,
+    const queue = cloudSongs.value.map(toCloudQueueItem).filter(song => song.id > 0)
+    const queueIndex = Math.max(0, queue.findIndex(song => song.id === sid))
+    const ok = await playSongWithQueue(toCloudQueueItem(item), queue, queueIndex)
+    if (!ok) {
+      cloudError.value = '当前云盘歌曲暂时无法播放'
     }
-    if (activeCloudDetailId.value === sid) {
-      cloudDetailLoadingId.value = sid
-      const detailRes = await userApi.getUserCloudDetail(String(sid))
-      const detail = (detailRes?.data?.data || [])[0] || null
-      cloudDetails.value = {
-        ...cloudDetails.value,
-        [sid]: detail,
-      }
-      cloudDetailLoadingId.value = null
-    }
-  } catch (err) {
-    cloudError.value = err?.message || '云盘歌曲信息匹配纠正失败'
   } finally {
-    if (cloudDetailLoadingId.value === sid) {
-      cloudDetailLoadingId.value = null
-    }
-    cloudMatchLoadingId.value = null
+    cloudPlayingId.value = null
   }
 }
 
@@ -658,9 +937,8 @@ async function loadProfilePage() {
   }
 
   try {
-    const [detailRes, subRes, levelRes, playlistRes] = await Promise.all([
+    const [detailRes, levelRes, playlistRes] = await Promise.all([
       userApi.getUserDetail(userStore.userId),
-      userApi.getUserSubCount(),
       userApi.getUserLevel(),
       userApi.getUserPlaylist(userStore.userId, 40, 0),
     ])
@@ -688,10 +966,6 @@ async function loadProfilePage() {
       avatarUrl: profile.value.avatarUrl,
     })
 
-    subCount.value = {
-      playlistCount: subRes?.data?.createdPlaylistCount || subRes?.data?.playlistCount || 0,
-    }
-
     level.value = {
       level: levelRes?.data?.data?.level || 0,
     }
@@ -705,7 +979,11 @@ async function loadProfilePage() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await nextTick()
+  ensureHeroCanvasSize()
+  setupHeroCanvasObserver()
+  startHeroCanvas()
   loadProfilePage()
 })
 
@@ -713,6 +991,11 @@ onBeforeUnmount(() => {
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
+  }
+  stopHeroCanvas()
+  if (heroResizeObserver) {
+    heroResizeObserver.disconnect()
+    heroResizeObserver = null
   }
 })
 
@@ -727,4 +1010,61 @@ watch(
   },
   {immediate: true},
 )
+
+watch(
+  animatedThemeRgb,
+  () => {
+    if (!heroCanvasFrame) {
+      renderHeroCanvasStatic()
+    }
+  },
+)
 </script>
+
+<style scoped>
+.profile-hero-flow {
+  z-index: 0;
+  background: transparent;
+}
+
+.profile-hero-canvas {
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.96;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-kpi-pill {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+  animation: kpi-rise 360ms ease both;
+}
+
+.profile-kpi-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(28, 25, 23, 0.08);
+}
+
+@keyframes kpi-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-panel-enter-active,
+.tab-panel-leave-active {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.tab-panel-enter-from,
+.tab-panel-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>

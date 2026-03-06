@@ -1,6 +1,6 @@
 <template>
   <RouterView v-slot="{ Component }">
-    <Teleport :to="to" v-if="Component || isClosing">
+    <Teleport :to="to" v-if="Component">
       <div class="modal-overlay">
         <div class="modal-backdrop" @click="handleBackdropClick" />
 
@@ -10,7 +10,7 @@
           @leave="handleLeave"
         >
           <div
-            v-if="!isClosing"
+            v-if="Component"
             class="modal-content"
             :style="{
               width: props.contentWidth,
@@ -18,10 +18,7 @@
               borderRadius: props.contentRadius,
             }"
           >
-            <component
-              :is="Component"
-              class="modal-page"
-            />
+            <component :is="Component" class="modal-page" />
           </div>
         </Transition>
       </div>
@@ -30,7 +27,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { gsap } from 'gsap'
 
@@ -49,7 +46,6 @@ const props = defineProps({
 
 const emit = defineEmits(['closed', 'backdrop-click'])
 
-const isClosing = ref(false)
 const router = useRouter()
 
 // 记录原始 body overflow，避免影响别的页面
@@ -67,8 +63,6 @@ function unlockScroll() {
 }
 
 function closeModal() {
-  if (isClosing.value) return
-  isClosing.value = true
   router.back()
 }
 
@@ -113,7 +107,6 @@ function defaultLeave(el, done) {
    统一入口：决定用默认还是自定义
 ============================ */
 function handleEnter(el, done) {
-  isClosing.value = false
   lockScroll()
   if (props.enterAnim) props.enterAnim(el, done)
   else defaultEnter(el, done)
@@ -121,7 +114,6 @@ function handleEnter(el, done) {
 
 function handleLeave(el, done) {
   const wrappedDone = () => {
-    isClosing.value = false
     unlockScroll()
     emit('closed')
     done()
@@ -134,6 +126,18 @@ function handleLeave(el, done) {
 onBeforeUnmount(() => {
   unlockScroll()
 })
+
+watch(
+  () => router.currentRoute.value.fullPath,
+  async () => {
+    await nextTick()
+    if (typeof window === 'undefined') return
+    const hasModal = Boolean(document.querySelector('.modal-overlay'))
+    if (!hasModal) {
+      unlockScroll()
+    }
+  },
+)
 </script>
 
 <style scoped>

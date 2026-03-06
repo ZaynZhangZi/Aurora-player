@@ -74,14 +74,19 @@
           >
             <div class="flex min-w-0 flex-1 items-center">
               <span class="mr-3 w-7 shrink-0 text-xs text-white/60">{{ index + 1 }}</span>
-              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ track.name }}</span>
-              <ArtistLinks
-                :artists="getTrackArtists(track)"
-                container-class="ml-4 truncate text-xs text-white/70"
-                link-class="hover:text-white hover:underline"
-                separator-class="text-white/55"
-                fallback-class="text-white/60"
-              />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium" :title="track.name || '未知歌曲'">{{ track.name || '未知歌曲' }}</p>
+                <div class="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-white/70" :title="getTrackArtistsFullText(track)">
+                  <ArtistLinks
+                    :artists="getTrackArtistsPreview(track)"
+                    container-class="min-w-0 truncate"
+                    link-class="hover:text-white hover:underline"
+                    separator-class="text-white/55"
+                    fallback-class="text-white/60"
+                  />
+                  <span v-if="getTrackArtistsOmittedCount(track) > 0" class="shrink-0 text-white/60">等{{ getTrackArtistsOmittedCount(track) }}位</span>
+                </div>
+              </div>
             </div>
             <div class="ml-4 flex shrink-0 items-center gap-3">
               <button
@@ -212,6 +217,26 @@ function animateThemeColor(nextRgb, {duration = 420} = {}) {
 
 function getTrackArtists(track) {
   return track?.ar || track?.artists || []
+}
+
+function normalizeTrackArtistNameList(track) {
+  return getTrackArtists(track)
+    .map(item => String(item?.name || item?.artistName || '').trim())
+    .filter(Boolean)
+}
+
+function getTrackArtistsPreview(track, maxVisible = 4) {
+  return getTrackArtists(track).slice(0, maxVisible)
+}
+
+function getTrackArtistsOmittedCount(track, maxVisible = 4) {
+  return Math.max(0, getTrackArtists(track).length - maxVisible)
+}
+
+function getTrackArtistsFullText(track) {
+  const artistNames = normalizeTrackArtistNameList(track)
+  if (!artistNames.length) return '未知歌手'
+  return artistNames.join('、')
 }
 
 function formatDuration(durationMs) {

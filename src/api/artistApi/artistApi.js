@@ -134,13 +134,18 @@ export const artistApi = {
 
   //获取歌手视频
   getArtistVideo: async (name) => {
+    const queryName = String(name || '').trim();
+    if (!queryName) {
+      return {data: null};
+    }
+
     try {
-      return await requestLocal.get('/singer-videos/lookup', {
-        params: {name},
+      return await requestLocal.get('/api/singer-videos/lookup', {
+        params: {name: queryName},
       });
     } catch (error) {
-      return requestLocal.get('/api/singer-videos/lookup', {
-        params: {name},
+      return requestLocal.get('/singer-videos/lookup', {
+        params: {name: queryName},
       });
     }
   }

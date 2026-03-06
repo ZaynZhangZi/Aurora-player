@@ -1,11 +1,32 @@
 <template>
   <div class="min-h-full overflow-y-auto text-[#161616]" :style="pageStyle">
-    <section class="relative overflow-hidden px-4 pb-8 pt-4 text-white sm:px-8 sm:pb-10" :style="heroStyle">
+    <section class="relative overflow-hidden px-4 pb-8 pt-4 text-white sm:px-8 sm:pb-10">
+      <div class="artist-hero-base absolute inset-0" />
+      <canvas ref="heroCanvasRef" class="artist-hero-canvas absolute inset-0" />
+      <template v-if="hasHeroVideo">
+        <video
+          class="artist-hero-video absolute inset-0"
+          :class="heroVideoReady ? 'artist-hero-video-ready' : 'artist-hero-video-pending'"
+          :src="heroBannerVideo"
+          :poster="heroBannerPoster || artistAvatar"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          @loadeddata="onHeroVideoLoaded"
+          @error="onHeroVideoError"
+        />
+        <div
+          class="artist-hero-video-mask absolute inset-0 transition-opacity duration-500"
+          :class="heroVideoReady ? 'opacity-100' : 'opacity-0'"
+        />
+      </template>
       <div class="mx-auto flex max-w-7xl justify-end">
 
       </div>
 
-      <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+      <div v-if="!hasHeroVideo || !heroVideoReady" class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
         <div class="h-32 w-32 overflow-hidden rounded-full border border-white/30 bg-white/10 shadow-xl sm:h-52 sm:w-52">
           <img
             :src="artistAvatar"
@@ -17,7 +38,7 @@
       </div>
 
       <div class="relative z-20 mx-auto mt-8 flex max-w-7xl min-h-[340px] flex-col pb-2 sm:min-h-[520px]">
-        <h1 class="mt-auto text-left text-3xl font-black tracking-tight sm:text-5xl">{{ artistName || '歌手详情' }}</h1>
+        <h1 class="mt-auto text-left text-3xl font-black tracking-tight sm:text-5xl" :class="hasHeroVideo ? 'artist-hero-title-video' : ''">{{ artistName || '歌手详情' }}</h1>
       </div>
     </section>
 
@@ -66,20 +87,38 @@
             </div>
             <Transition name="song-page" mode="out-in">
               <div :key="`${songViewMode}-${currentSongPage}`" class="space-y-1.5" :style="songListStyle">
-                <button
+                <div
                   v-for="(song, index) in visibleSongs"
                   :key="song.id"
-                  class="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
-                  type="button"
+                  class="group flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
+                  role="button"
+                  tabindex="0"
                   @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
+                  @keydown.enter.prevent="openSong(song, getSongQueueIndex(index), getSongQueue())"
+                  @keydown.space.prevent="openSong(song, getSongQueueIndex(index), getSongQueue())"
                 >
                   <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-sm font-medium">{{ song.name }}</span>
-                    <span class="block truncate text-xs text-stone-500">{{ getSongMeta(song) }}</span>
+                    <div class="relative mt-0.5 flex min-w-0 items-center gap-1 text-xs text-stone-500">
+                      <ArtistLinks
+                        :artists="getSongArtistsPreview(song)"
+                        container-class="truncate"
+                        link-class="hover:text-stone-700 hover:underline"
+                        separator-class="text-stone-400"
+                        fallback-class="text-stone-400"
+                      />
+                      <span v-if="getSongArtistsOmittedCount(song) > 0" class="shrink-0 text-stone-400">等{{ getSongArtistsOmittedCount(song) }}位</span>
+                      <span
+                        v-if="shouldShowArtistsTooltip(song)"
+                        class="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden max-w-[520px] rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-700 shadow-lg group-hover:block"
+                      >
+                        {{ getSongArtistsFullText(song) }}
+                      </span>
+                    </div>
                   </span>
                   <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
-                </button>
+                </div>
               </div>
             </Transition>
             <p v-if="songViewMode === 'all' && songLoadingMore" class="mt-2 text-right text-xs text-stone-500">正在加载更多歌曲...</p>
@@ -326,9 +365,10 @@
 </template>
 
 <script setup>
-import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {artistApi} from '@/api/artistApi/artistApi.js'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 
@@ -341,7 +381,9 @@ const error = ref('')
 const artistId = ref(null)
 const artistName = ref('')
 const artistProfile = ref(null)
-const heroMedia = ref('')
+const heroBannerVideo = ref('')
+const heroBannerPoster = ref('')
+const heroVideoReady = ref(false)
 
 const hotSongs = ref([])
 const allSongs = ref([])
@@ -381,7 +423,17 @@ const mvHasMore = ref(false)
 const mvLoadingMore = ref(false)
 const themeRgb = ref('56, 64, 82')
 const animatedThemeRgb = ref(themeRgb.value)
+const heroCanvasRef = ref(null)
 let themeRaf = 0
+let heroCanvasRaf = 0
+let heroCanvasStart = 0
+let heroCanvasResizeObserver = null
+
+const heroLiquidBlobs = [
+  {x: 0.12, y: 0.22, r: 0.5, dx: 0.14, dy: 0.1, speed: 0.00042, phase: 0.2, alpha: 0.44},
+  {x: 0.84, y: 0.24, r: 0.42, dx: 0.16, dy: 0.14, speed: 0.00036, phase: 1.3, alpha: 0.4},
+  {x: 0.62, y: 0.78, r: 0.48, dx: 0.2, dy: 0.12, speed: 0.0003, phase: 2.5, alpha: 0.34},
+]
 
 const topSongs = computed(() => {
   return mergeSongs([], hotSongs.value).slice(0, 50)
@@ -432,8 +484,10 @@ const artistDescription = computed(() => {
 })
 
 const artistAvatar = computed(() => {
-  return artistProfile.value?.avatar || artistProfile.value?.picUrl || heroMedia.value
+  return artistProfile.value?.avatar || artistProfile.value?.picUrl || artistProfile.value?.img1v1Url || ''
 })
+
+const hasHeroVideo = computed(() => Boolean(heroBannerVideo.value))
 
 const pageStyle = computed(() => {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
@@ -445,12 +499,135 @@ const pageStyle = computed(() => {
   }
 })
 
-const heroStyle = computed(() => {
+function buildHeroLiquidPalette() {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
-  return {
-    background: `linear-gradient(135deg, rgba(${r},${g},${b},0.86) 0%, rgba(${Math.max(14, Math.round(r * 0.42))},${Math.max(18, Math.round(g * 0.42))},${Math.max(22, Math.round(b * 0.46))},0.98) 100%)`,
+  const dark = [
+    Math.max(16, Math.round(r * 0.44)),
+    Math.max(18, Math.round(g * 0.44)),
+    Math.max(24, Math.round(b * 0.48)),
+  ]
+  const light = [
+    Math.min(255, Math.round((r + 220) / 2)),
+    Math.min(255, Math.round((g + 224) / 2)),
+    Math.min(255, Math.round((b + 232) / 2)),
+  ]
+  const glow = [
+    Math.min(255, Math.round((r + 244) / 2)),
+    Math.min(255, Math.round((g + 248) / 2)),
+    Math.min(255, Math.round((b + 250) / 2)),
+  ]
+  return {dark, light, glow}
+}
+
+function ensureHeroCanvasSize() {
+  const canvas = heroCanvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const width = Math.max(1, Math.round(rect.width))
+  const height = Math.max(1, Math.round(rect.height))
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const targetWidth = Math.round(width * dpr)
+  const targetHeight = Math.round(height * dpr)
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth
+    canvas.height = targetHeight
   }
-})
+}
+
+function drawHeroCanvas(time) {
+  const canvas = heroCanvasRef.value
+  if (!canvas) return
+  const context = canvas.getContext('2d')
+  if (!context) return
+
+  ensureHeroCanvasSize()
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const width = canvas.width / dpr
+  const height = canvas.height / dpr
+  if (width <= 0 || height <= 0) return
+
+  context.setTransform(dpr, 0, 0, dpr, 0, 0)
+  context.clearRect(0, 0, width, height)
+
+  const {dark, light, glow} = buildHeroLiquidPalette()
+  const base = context.createLinearGradient(0, 0, width, height)
+  base.addColorStop(0, `rgba(${dark[0]}, ${dark[1]}, ${dark[2]}, 0.9)`)
+  base.addColorStop(1, `rgba(${light[0]}, ${light[1]}, ${light[2]}, 0.94)`)
+  context.fillStyle = base
+  context.fillRect(0, 0, width, height)
+
+  context.save()
+  context.globalCompositeOperation = 'screen'
+  context.filter = 'blur(24px)'
+
+  for (const blob of heroLiquidBlobs) {
+    const elapsed = (time - heroCanvasStart) * blob.speed
+    const x = width * (blob.x + Math.sin(elapsed + blob.phase) * blob.dx)
+    const y = height * (blob.y + Math.cos(elapsed * 1.15 + blob.phase * 1.4) * blob.dy)
+    const radius = Math.max(width, height) * (blob.r + Math.sin(elapsed * 1.8 + blob.phase) * 0.08)
+
+    const gradient = context.createRadialGradient(x, y, radius * 0.14, x, y, radius)
+    gradient.addColorStop(0, `rgba(${glow[0]}, ${glow[1]}, ${glow[2]}, ${blob.alpha * 1.08})`)
+    gradient.addColorStop(0.45, `rgba(${light[0]}, ${light[1]}, ${light[2]}, ${blob.alpha * 0.84})`)
+    gradient.addColorStop(1, `rgba(${dark[0]}, ${dark[1]}, ${dark[2]}, 0)`)
+
+    context.fillStyle = gradient
+    context.beginPath()
+    context.arc(x, y, radius, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  context.restore()
+}
+
+function renderHeroCanvasStatic() {
+  const now = performance.now()
+  heroCanvasStart = now
+  drawHeroCanvas(now)
+}
+
+function tickHeroCanvas(now) {
+  drawHeroCanvas(now)
+  heroCanvasRaf = requestAnimationFrame(tickHeroCanvas)
+}
+
+function startHeroCanvas() {
+  stopHeroCanvas()
+  renderHeroCanvasStatic()
+
+  if (typeof requestAnimationFrame !== 'function') return
+
+  const prefersStatic = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  if (prefersStatic) return
+
+  heroCanvasStart = performance.now()
+  heroCanvasRaf = requestAnimationFrame(tickHeroCanvas)
+}
+
+function stopHeroCanvas() {
+  if (!heroCanvasRaf) return
+  cancelAnimationFrame(heroCanvasRaf)
+  heroCanvasRaf = 0
+}
+
+function setupHeroCanvasObserver() {
+  const canvas = heroCanvasRef.value
+  if (!canvas || typeof ResizeObserver === 'undefined') return
+  if (heroCanvasResizeObserver) {
+    heroCanvasResizeObserver.disconnect()
+    heroCanvasResizeObserver = null
+  }
+  heroCanvasResizeObserver = new ResizeObserver(() => {
+    renderHeroCanvasStatic()
+  })
+  heroCanvasResizeObserver.observe(canvas)
+}
 
 function parseRgb(rgbString) {
   const parts = String(rgbString).split(',').map(v => Number(v.trim()))
@@ -479,6 +656,62 @@ function easeOutCubic(t) {
 
 function formatRgb(values) {
   return `${Math.round(values[0])}, ${Math.round(values[1])}, ${Math.round(values[2])}`
+}
+
+function normalizeMaybeUrl(value) {
+  if (typeof value !== 'string') return ''
+  const url = value.trim()
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return ''
+}
+
+function firstValidUrl(candidates = []) {
+  for (const item of candidates) {
+    const url = normalizeMaybeUrl(item)
+    if (url) return url
+  }
+  return ''
+}
+
+function resolveArtistBanner(payload) {
+  const root = payload?.data || payload || {}
+  const primary = Array.isArray(root) ? (root[0] || {}) : root
+  const nested = primary?.data || primary?.result || primary?.record || {}
+
+  const bannerVideo = firstValidUrl([
+    primary?.banner,
+    primary?.bannerUrl,
+    primary?.bannerVideo,
+    primary?.videoUrl,
+    primary?.url,
+    primary?.video?.url,
+    nested?.banner,
+    nested?.bannerUrl,
+    nested?.bannerVideo,
+    nested?.videoUrl,
+    nested?.url,
+    nested?.video?.url,
+  ])
+
+  const bannerPoster = firstValidUrl([
+    primary?.poster,
+    primary?.posterUrl,
+    primary?.cover,
+    primary?.coverUrl,
+    primary?.thumbnail,
+    primary?.thumb,
+    primary?.picUrl,
+    nested?.poster,
+    nested?.posterUrl,
+    nested?.cover,
+    nested?.coverUrl,
+    nested?.thumbnail,
+    nested?.thumb,
+    nested?.picUrl,
+  ])
+
+  return {bannerVideo, bannerPoster}
 }
 
 function animateThemeTo(nextRgb, {duration = 460} = {}) {
@@ -564,6 +797,15 @@ function goBack() {
   router.back()
 }
 
+function onHeroVideoError() {
+  heroVideoReady.value = false
+  heroBannerVideo.value = ''
+}
+
+function onHeroVideoLoaded() {
+  heroVideoReady.value = true
+}
+
 function formatDuration(durationMs) {
   const total = Math.floor((durationMs || 0) / 1000)
   const minute = Math.floor(total / 60)
@@ -577,14 +819,31 @@ function formatDate(timestamp) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function getSongMeta(song) {
-  const artists = (song?.ar || song?.artists || [])
-    .map(item => String(item?.name || '').trim())
-    .filter(Boolean)
-    .join(' / ')
-  const album = String(song?.al?.name || song?.album?.name || '').trim()
-  if (artists && album) return `${artists} · ${album}`
-  return artists || album || '未知歌手 · 未知专辑'
+function normalizeSongArtists(song) {
+  return (song?.ar || song?.artists || [])
+    .map(item => ({
+      id: item?.id || item?.artistId || '',
+      name: String(item?.name || item?.artistName || '').trim(),
+    }))
+    .filter(item => item.name)
+}
+
+function getSongArtistsPreview(song, maxVisible = 4) {
+  return normalizeSongArtists(song).slice(0, maxVisible)
+}
+
+function getSongArtistsOmittedCount(song, maxVisible = 4) {
+  return Math.max(0, normalizeSongArtists(song).length - maxVisible)
+}
+
+function shouldShowArtistsTooltip(song) {
+  return normalizeSongArtists(song).length > 5
+}
+
+function getSongArtistsFullText(song) {
+  const names = normalizeSongArtists(song).map(item => item.name)
+  if (!names.length) return '未知歌手'
+  return names.join(' / ')
 }
 
 async function openSong(song, index = 0, queue = topSongs.value) {
@@ -977,6 +1236,9 @@ async function loadArtistPage() {
   mvLoadingMore.value = false
   songViewMode.value = 'top50'
   artistProfile.value = null
+  heroBannerVideo.value = ''
+  heroBannerPoster.value = ''
+  heroVideoReady.value = false
 
   await ensureArtistId()
 
@@ -987,13 +1249,12 @@ async function loadArtistPage() {
   }
 
   try {
-    const [infoRes, hotRes, allSongsRes, albumRes, mvRes, heroRes] = await Promise.allSettled([
+    const [infoRes, hotRes, allSongsRes, albumRes, mvRes] = await Promise.allSettled([
       artistApi.getArtistInfo(artistId.value),
       artistApi.getArtistHotSongs(artistId.value),
       artistApi.getArtistAllSongs(artistId.value, {limit: songRequestLimit, offset: 0}),
       artistApi.getArtistAlbum(artistId.value, {limit: albumRequestLimit, offset: 0}),
       artistApi.getArtistMv(artistId.value, {limit: mvPageSize * 2, offset: 0}),
-      artistApi.getArtistVideo(route.query.name || artistName.value),
     ])
 
     if (infoRes.status === 'fulfilled') {
@@ -1036,12 +1297,29 @@ async function loadArtistPage() {
       mvHasMore.value = Boolean(mvRes.value?.data?.hasMore)
     }
 
-    if (heroRes.status === 'fulfilled') {
-      heroMedia.value = heroRes.value?.videoUrl || heroMedia.value
+    const lookupName = String(
+      artistProfile.value?.name
+      || artistName.value
+      || route.query.name
+      || '',
+    ).trim()
+
+    if (lookupName) {
+      try {
+        const heroRes = await artistApi.getArtistVideo(lookupName)
+        const {bannerVideo, bannerPoster} = resolveArtistBanner(heroRes)
+        heroBannerVideo.value = bannerVideo
+        heroBannerPoster.value = bannerPoster
+        heroVideoReady.value = false
+      } catch {
+        heroBannerVideo.value = ''
+        heroBannerPoster.value = ''
+        heroVideoReady.value = false
+      }
     }
 
     await pickThemeFromImage(
-      artistProfile.value?.cover || artistProfile.value?.picUrl || heroMedia.value,
+      heroBannerPoster.value || artistProfile.value?.cover || artistProfile.value?.picUrl,
       artistName.value,
     )
   } catch (err) {
@@ -1085,7 +1363,11 @@ async function loadMoreAlbums() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await nextTick()
+  ensureHeroCanvasSize()
+  setupHeroCanvasObserver()
+  startHeroCanvas()
   loadArtistPage()
 })
 
@@ -1094,6 +1376,11 @@ onBeforeUnmount(() => {
   if (themeRaf) {
     cancelAnimationFrame(themeRaf)
     themeRaf = 0
+  }
+  stopHeroCanvas()
+  if (heroCanvasResizeObserver) {
+    heroCanvasResizeObserver.disconnect()
+    heroCanvasResizeObserver = null
   }
 })
 
@@ -1107,6 +1394,39 @@ watch(
     animateThemeTo(nextValue)
   },
   {immediate: true},
+)
+
+watch(
+  animatedThemeRgb,
+  () => {
+    if (!heroCanvasRaf) {
+      renderHeroCanvasStatic()
+    }
+  },
+)
+
+watch(
+  hasHeroVideo,
+  async (nextValue) => {
+    await nextTick()
+    ensureHeroCanvasSize()
+    setupHeroCanvasObserver()
+    if (!nextValue || !heroVideoReady.value) {
+      startHeroCanvas()
+    }
+  },
+)
+
+watch(
+  heroVideoReady,
+  (ready) => {
+    if (hasHeroVideo.value && ready) {
+      stopHeroCanvas()
+      renderHeroCanvasStatic()
+      return
+    }
+    startHeroCanvas()
+  },
 )
 
 watch(
@@ -1154,6 +1474,48 @@ watch(
 </script>
 
 <style scoped>
+.artist-hero-base {
+  background: #17202c;
+}
+
+.artist-hero-video {
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 520ms ease, filter 520ms ease;
+}
+
+.artist-hero-video-pending {
+  opacity: 0;
+  filter: blur(2px);
+}
+
+.artist-hero-video-ready {
+  opacity: 1;
+  filter: blur(0);
+}
+
+.artist-hero-video-mask {
+  z-index: 3;
+  background:
+    radial-gradient(130% 90% at 50% 0%, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.22) 70%),
+    linear-gradient(180deg, rgba(8, 12, 18, 0.2) 0%, rgba(8, 12, 18, 0.5) 100%);
+}
+
+.artist-hero-title-video {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.artist-hero-canvas {
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.98;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .song-page-enter-active,
 .song-page-leave-active {
   transition: opacity 240ms ease, filter 240ms ease;

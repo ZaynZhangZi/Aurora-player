@@ -1,5 +1,5 @@
 <template>
-  <div ref="playerRootRef" class="fixed inset-x-0 bottom-3 z-[79] px-3 sm:bottom-4 sm:px-4" role="region" aria-label="全局播放器">
+  <div ref="playerRootRef" class="fixed inset-x-0 bottom-3 z-[999] px-3 sm:bottom-4 sm:px-4" role="region" aria-label="全局播放器">
     <div class="mx-auto max-w-6xl rounded-2xl border border-white/25 bg-black/38 shadow-[0_14px_40px_rgba(15,23,42,0.30)] backdrop-blur-2xl">
       <div class="hidden h-[86px] grid-cols-[minmax(0,1fr)_minmax(360px,520px)_minmax(0,1fr)] items-center gap-4 px-5 md:grid">
         <Transition name="track-swap" mode="out-in">
@@ -9,7 +9,24 @@
             </div>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-white">{{ songName || '未在播放' }}</p>
+              <div v-if="shouldScrollArtists" class="artist-marquee mt-0.5 text-xs text-white/72">
+                <div class="artist-marquee-track">
+                  <div class="artist-marquee-segment">
+                    <template v-for="(artist, index) in normalizedArtistList" :key="`desktop-marquee-a-${artist.id || artist.name}-${index}`">
+                      <button class="artist-marquee-link" type="button" @click.stop="openArtistFromPlayer(artist)">{{ artist.name }}</button>
+                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                    </template>
+                  </div>
+                  <div class="artist-marquee-segment" aria-hidden="true">
+                    <template v-for="(artist, index) in normalizedArtistList" :key="`desktop-marquee-b-${artist.id || artist.name}-${index}`">
+                      <span>{{ artist.name }}</span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                    </template>
+                  </div>
+                </div>
+              </div>
               <ArtistLinks
+                v-else
                 :artists="artistList"
                 container-class="text-xs text-white/72"
                 link-class="hover:text-white hover:underline"
@@ -99,7 +116,24 @@
             </div>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-white">{{ songName || '未在播放' }}</p>
+              <div v-if="shouldScrollArtists" class="artist-marquee mt-0.5 text-xs text-white/72">
+                <div class="artist-marquee-track">
+                  <div class="artist-marquee-segment">
+                    <template v-for="(artist, index) in normalizedArtistList" :key="`mobile-marquee-a-${artist.id || artist.name}-${index}`">
+                      <button class="artist-marquee-link" type="button" @click.stop="openArtistFromPlayer(artist)">{{ artist.name }}</button>
+                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                    </template>
+                  </div>
+                  <div class="artist-marquee-segment" aria-hidden="true">
+                    <template v-for="(artist, index) in normalizedArtistList" :key="`mobile-marquee-b-${artist.id || artist.name}-${index}`">
+                      <span>{{ artist.name }}</span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                    </template>
+                  </div>
+                </div>
+              </div>
               <ArtistLinks
+                v-else
                 :artists="artistList"
                 container-class="text-xs text-white/72"
                 link-class="hover:text-white hover:underline"
@@ -219,6 +253,7 @@
 
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {useRouter} from 'vue-router'
 import {XMarkIcon} from '@heroicons/vue/24/outline'
 import {BackwardIcon, ForwardIcon, PauseIcon, PlayIcon, SpeakerWaveIcon} from '@heroicons/vue/24/solid'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
@@ -226,6 +261,7 @@ import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
 import {playQueueByDirection, playQueueByIndex} from '@/utils/globalPlayer.js'
 
 const playerStore = usePlayerStore()
+const router = useRouter()
 const audioRef = ref(null)
 const playerRootRef = ref(null)
 let playerResizeObserver = null
@@ -233,6 +269,15 @@ let playerResizeObserver = null
 const hasSong = computed(() => playerStore.hasSong)
 const songName = computed(() => playerStore.currentSong?.name || '')
 const artistList = computed(() => playerStore.currentSong?.artists || [])
+const normalizedArtistList = computed(() => {
+  return (artistList.value || [])
+    .map(item => ({
+      id: item?.id || item?.artistId || '',
+      name: String(item?.name || item?.artistName || '').trim(),
+    }))
+    .filter(item => item.name)
+})
+const shouldScrollArtists = computed(() => normalizedArtistList.value.length > 5)
 const coverUrl = computed(() => playerStore.currentSong?.cover || '')
 const audioSrc = computed(() => playerStore.currentSong?.url || '')
 const isPlaying = computed(() => playerStore.isPlaying)
@@ -270,6 +315,17 @@ function formatMs(ms) {
   const min = Math.floor(sec / 60)
   const remain = String(sec % 60).padStart(2, '0')
   return `${min}:${remain}`
+}
+
+function openArtistFromPlayer(artist) {
+  if (!artist?.name) return
+  router.push({
+    path: '/artistDetial',
+    query: {
+      id: artist.id || '',
+      name: artist.name,
+    },
+  })
 }
 
 function syncAudioVolume() {
@@ -456,5 +512,52 @@ onBeforeUnmount(() => {
 .playlist-dialog-leave-to .playlist-dialog-panel {
   opacity: 0;
   transform: translateY(14px) scale(0.98);
+}
+
+.artist-marquee {
+  overflow: hidden;
+  width: min(320px, 52vw);
+  white-space: nowrap;
+}
+
+.artist-marquee-track {
+  display: inline-flex;
+  min-width: max-content;
+  gap: 2rem;
+  animation: artist-marquee 18s linear infinite;
+}
+
+.artist-marquee-segment {
+  min-width: max-content;
+}
+
+.artist-marquee-track span {
+  display: inline-block;
+}
+
+.artist-marquee-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.artist-marquee-link:hover {
+  color: rgba(255, 255, 255, 0.98);
+  text-decoration: underline;
+}
+
+@keyframes artist-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-50% - 1rem));
+  }
 }
 </style>
