@@ -1,6 +1,6 @@
 <template>
   <div ref="playerRootRef" class="fixed inset-x-0 bottom-3 z-[999] px-3 sm:bottom-4 sm:px-4" role="region" aria-label="全局播放器">
-    <div class="mx-auto max-w-6xl rounded-2xl border border-white/25 bg-black/38 shadow-[0_14px_40px_rgba(15,23,42,0.30)] backdrop-blur-2xl">
+    <div class="player-shell mx-auto max-w-6xl rounded-2xl" :style="playerStyle">
       <div class="hidden h-[86px] grid-cols-[minmax(0,1fr)_minmax(360px,520px)_minmax(0,1fr)] items-center gap-4 px-5 md:grid">
         <Transition name="track-swap" mode="out-in">
           <div :key="songTransitionKey" class="flex min-w-0 items-center gap-3">
@@ -8,19 +8,19 @@
               <img v-if="coverUrl" :src="coverUrl" alt="cover" class="h-full w-full object-cover" />
             </div>
             <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-white">{{ songName || '未在播放' }}</p>
-              <div v-if="shouldScrollArtists" class="artist-marquee mt-0.5 text-xs text-white/72">
+              <p class="player-text-primary truncate text-sm font-semibold">{{ songName || '未在播放' }}</p>
+              <div v-if="shouldScrollArtists" class="artist-marquee player-text-muted mt-0.5 text-xs">
                 <div class="artist-marquee-track">
                   <div class="artist-marquee-segment">
                     <template v-for="(artist, index) in normalizedArtistList" :key="`desktop-marquee-a-${artist.id || artist.name}-${index}`">
                       <button class="artist-marquee-link" type="button" @click.stop="openArtistFromPlayer(artist)">{{ artist.name }}</button>
-                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="player-separator"> / </span>
                     </template>
                   </div>
                   <div class="artist-marquee-segment" aria-hidden="true">
                     <template v-for="(artist, index) in normalizedArtistList" :key="`desktop-marquee-b-${artist.id || artist.name}-${index}`">
                       <span>{{ artist.name }}</span>
-                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="player-separator"> / </span>
                     </template>
                   </div>
                 </div>
@@ -28,10 +28,10 @@
               <ArtistLinks
                 v-else
                 :artists="artistList"
-                container-class="text-xs text-white/72"
-                link-class="hover:text-white hover:underline"
-                separator-class="text-white/55"
-                fallback-class="text-white/72"
+                :container-class="artistLinksContainerClass"
+                :link-class="artistLinksClass"
+                :separator-class="artistSeparatorClass"
+                :fallback-class="artistLinksContainerClass"
               />
             </div>
           </div>
@@ -40,7 +40,7 @@
         <div class="flex flex-col items-center gap-1.5">
           <div class="flex items-center gap-4">
             <button
-              class="grid h-8 w-8 place-items-center rounded-full border border-white/35 text-white/85 transition hover:bg-white/12 disabled:opacity-50"
+              class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
               type="button"
               :disabled="!canPlayPrev"
               @click="playPrevSong"
@@ -48,7 +48,7 @@
               <BackwardIcon class="h-4 w-4" />
             </button>
             <button
-              class="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-900 transition hover:bg-white/90 disabled:opacity-40"
+              class="player-main-btn grid h-10 w-10 place-items-center rounded-full transition disabled:opacity-40"
               type="button"
               :disabled="!hasSong"
               @click="togglePlay"
@@ -57,7 +57,7 @@
               <PlayIcon v-else class="h-5 w-5" />
             </button>
             <button
-              class="grid h-8 w-8 place-items-center rounded-full border border-white/35 text-white/85 transition hover:bg-white/12 disabled:opacity-50"
+              class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
               type="button"
               :disabled="!canPlayNext"
               @click="playNextSong"
@@ -66,10 +66,10 @@
             </button>
           </div>
 
-          <div class="flex w-full items-center gap-2 text-[11px] text-white/72">
+          <div class="player-text-muted flex w-full items-center gap-2 text-[11px]">
             <span class="w-10 text-right">{{ formatMs(currentTimeMs) }}</span>
             <input
-              class="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/22 accent-white"
+              class="player-range h-1.5 flex-1 cursor-pointer appearance-none rounded-full"
               type="range"
               min="0"
               :max="Math.max(durationMs, 1)"
@@ -82,22 +82,22 @@
 
         <div class="flex items-center justify-end gap-2">
           <button
-            class="rounded-full border border-white/35 px-2 py-1 text-[11px] text-white/85 transition hover:bg-white/12"
+            class="player-chip-btn rounded-full px-2 py-1 text-[11px] transition"
             type="button"
             @click="cyclePlayMode"
           >
             {{ playModeLabel }}
           </button>
           <button
-            class="rounded-full border border-white/35 px-2 py-1 text-[11px] text-white/85 transition hover:bg-white/12"
+            class="player-chip-btn rounded-full px-2 py-1 text-[11px] transition"
             type="button"
             @click="togglePlaylistPanel"
           >
             播放列表
           </button>
-          <SpeakerWaveIcon class="h-4 w-4 text-white/70" />
+          <SpeakerWaveIcon class="player-text-muted h-4 w-4" />
           <input
-            class="h-1.5 w-24 cursor-pointer appearance-none rounded-full bg-white/22 accent-white"
+            class="player-range h-1.5 w-24 cursor-pointer appearance-none rounded-full"
             type="range"
             min="0"
             max="1"
@@ -115,19 +115,19 @@
               <img v-if="coverUrl" :src="coverUrl" alt="cover" class="h-full w-full object-cover" />
             </div>
             <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-white">{{ songName || '未在播放' }}</p>
-              <div v-if="shouldScrollArtists" class="artist-marquee mt-0.5 text-xs text-white/72">
+              <p class="player-text-primary truncate text-sm font-semibold">{{ songName || '未在播放' }}</p>
+              <div v-if="shouldScrollArtists" class="artist-marquee player-text-muted mt-0.5 text-xs">
                 <div class="artist-marquee-track">
                   <div class="artist-marquee-segment">
                     <template v-for="(artist, index) in normalizedArtistList" :key="`mobile-marquee-a-${artist.id || artist.name}-${index}`">
                       <button class="artist-marquee-link" type="button" @click.stop="openArtistFromPlayer(artist)">{{ artist.name }}</button>
-                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="player-separator"> / </span>
                     </template>
                   </div>
                   <div class="artist-marquee-segment" aria-hidden="true">
                     <template v-for="(artist, index) in normalizedArtistList" :key="`mobile-marquee-b-${artist.id || artist.name}-${index}`">
                       <span>{{ artist.name }}</span>
-                      <span v-if="index < normalizedArtistList.length - 1" class="text-white/45"> / </span>
+                      <span v-if="index < normalizedArtistList.length - 1" class="player-separator"> / </span>
                     </template>
                   </div>
                 </div>
@@ -135,10 +135,10 @@
               <ArtistLinks
                 v-else
                 :artists="artistList"
-                container-class="text-xs text-white/72"
-                link-class="hover:text-white hover:underline"
-                separator-class="text-white/55"
-                fallback-class="text-white/72"
+                :container-class="artistLinksContainerClass"
+                :link-class="artistLinksClass"
+                :separator-class="artistSeparatorClass"
+                :fallback-class="artistLinksContainerClass"
               />
             </div>
           </div>
@@ -146,7 +146,7 @@
 
         <div class="flex items-center gap-2">
           <button
-            class="grid h-8 w-8 place-items-center rounded-full border border-white/35 bg-white/8 text-white disabled:opacity-50"
+            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full disabled:opacity-50"
             type="button"
             :disabled="!canPlayPrev"
             @click="playPrevSong"
@@ -154,7 +154,7 @@
             <BackwardIcon class="h-4 w-4" />
           </button>
           <button
-            class="grid h-9 w-9 place-items-center rounded-full border border-white/35 bg-white text-stone-900"
+            class="player-main-btn grid h-9 w-9 place-items-center rounded-full"
             type="button"
             :disabled="!hasSong"
             @click="togglePlay"
@@ -163,7 +163,7 @@
             <PlayIcon v-else class="h-4 w-4" />
           </button>
           <button
-            class="grid h-8 w-8 place-items-center rounded-full border border-white/35 bg-white/8 text-white disabled:opacity-50"
+            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full disabled:opacity-50"
             type="button"
             :disabled="!canPlayNext"
             @click="playNextSong"
@@ -171,21 +171,21 @@
             <ForwardIcon class="h-4 w-4" />
           </button>
           <button
-            class="rounded-full border border-white/35 px-2 py-1 text-[10px] text-white/85"
+            class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
             type="button"
             @click="cyclePlayMode"
           >
             {{ playModeLabel }}
           </button>
           <button
-            class="rounded-full border border-white/35 px-2 py-1 text-[10px] text-white/85"
+            class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
             type="button"
             @click="togglePlaylistPanel"
           >
             列表
           </button>
           <input
-            class="h-1.5 w-16 cursor-pointer appearance-none rounded-full bg-white/22 accent-white"
+            class="player-range h-1.5 w-16 cursor-pointer appearance-none rounded-full"
             type="range"
             min="0"
             max="1"
@@ -241,6 +241,7 @@
     <audio
       ref="audioRef"
       :src="audioSrc"
+      crossorigin="anonymous"
       preload="metadata"
       @loadedmetadata="onLoadedMetadata"
       @timeupdate="onTimeUpdate"
@@ -265,6 +266,30 @@ const router = useRouter()
 const audioRef = ref(null)
 const playerRootRef = ref(null)
 let playerResizeObserver = null
+let themePickToken = 0
+let mediaQueryMotion = null
+let mediaQueryMotionHandler = null
+
+const themeBaseRgb = ref([38, 56, 98])
+const themeAccentRgb = ref([78, 114, 176])
+const themeGlowRgb = ref([138, 176, 236])
+const themeIsDark = ref(true)
+const rhythmLevel = ref(0)
+const beatLevel = ref(0)
+const visualPulse = ref(0)
+const prefersReducedMotion = ref(false)
+
+let audioContext = null
+let analyserNode = null
+let mediaSourceNode = null
+let analyserFrame = 0
+let analyserData = null
+let analyserPrevData = null
+let analyserLastTs = 0
+let rhythmEnergyEma = 0
+let rhythmFluxEma = 0
+let lowBandEma = 0
+let rhythmGain = 1
 
 const hasSong = computed(() => playerStore.hasSong)
 const songName = computed(() => playerStore.currentSong?.name || '')
@@ -278,6 +303,9 @@ const normalizedArtistList = computed(() => {
     .filter(item => item.name)
 })
 const shouldScrollArtists = computed(() => normalizedArtistList.value.length > 5)
+const artistLinksContainerClass = computed(() => 'text-xs player-text-muted')
+const artistLinksClass = computed(() => 'hover:underline player-link')
+const artistSeparatorClass = computed(() => 'player-separator')
 const coverUrl = computed(() => playerStore.currentSong?.cover || '')
 const audioSrc = computed(() => playerStore.currentSong?.url || '')
 const isPlaying = computed(() => playerStore.isPlaying)
@@ -290,6 +318,36 @@ const playlistPanelOpen = computed(() => playerStore.playlistPanelOpen)
 const songTransitionKey = computed(() => {
   const song = playerStore.currentSong || {}
   return `${song.id || 'none'}-${song.url || ''}-${song.name || ''}`
+})
+
+const playerStyle = computed(() => {
+  const [b1, b2, b3] = themeBaseRgb.value
+  const [a1, a2, a3] = themeAccentRgb.value
+  const [g1, g2, g3] = themeGlowRgb.value
+  const strongBeat = clamp((beatLevel.value - 0.1) / 0.84, 0, 1)
+  const baseFlow = isPlaying.value ? clamp(rhythmLevel.value * 0.26 + 0.12, 0.12, 0.34) : 0
+  const pulse = prefersReducedMotion.value
+    ? 0
+    : Math.max(baseFlow, clamp(strongBeat * 0.82 + visualPulse.value * 0.66 + rhythmLevel.value * 0.22, 0, 1))
+
+  return {
+    '--player-fg': themeIsDark.value ? '245, 248, 255' : '24, 31, 45',
+    '--player-fg-muted': themeIsDark.value ? '205, 218, 238' : '84, 94, 114',
+    '--player-separator': themeIsDark.value ? '168, 184, 213' : '126, 136, 156',
+    '--player-border': themeIsDark.value ? '255, 255, 255' : '24, 31, 45',
+    '--player-border-alpha': (themeIsDark.value ? 0.24 : 0.16).toFixed(2),
+    '--player-base': `${b1}, ${b2}, ${b3}`,
+    '--player-accent': `${a1}, ${a2}, ${a3}`,
+    '--player-glow': `${g1}, ${g2}, ${g3}`,
+    '--player-glow-alpha': (0.14 + pulse * 0.5).toFixed(3),
+    '--player-sat': (1 + pulse * 0.34).toFixed(3),
+    '--player-brightness': (1 + pulse * 0.12).toFixed(3),
+    '--player-shadow-alpha': (0.24 + pulse * 0.22).toFixed(3),
+    '--player-aura-scale': (1 + pulse * 0.2).toFixed(4),
+    '--player-soft-bg-alpha': themeIsDark.value ? '0.18' : '0.08',
+    '--player-main-bg': themeIsDark.value ? '248, 251, 255' : '24, 31, 45',
+    '--player-main-fg': themeIsDark.value ? '18, 24, 36' : '244, 248, 255',
+  }
 })
 
 const playModeLabel = computed(() => {
@@ -309,6 +367,338 @@ const canPlayNext = computed(() => {
   if (playerStore.playMode === PLAY_MODE.SHUFFLE) return playQueue.value.length > 1
   return currentQueueIndex.value >= 0 && currentQueueIndex.value < playQueue.value.length - 1
 })
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function rgbToHsl(r, g, b) {
+  const rn = clamp(r / 255, 0, 1)
+  const gn = clamp(g / 255, 0, 1)
+  const bn = clamp(b / 255, 0, 1)
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const delta = max - min
+  const l = (max + min) / 2
+
+  if (delta === 0) return {h: 0, s: 0, l}
+
+  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min)
+  let h = 0
+  if (max === rn) h = (gn - bn) / delta + (gn < bn ? 6 : 0)
+  else if (max === gn) h = (bn - rn) / delta + 2
+  else h = (rn - gn) / delta + 4
+
+  return {h: h * 60, s, l}
+}
+
+function hslToRgb(h, s, l) {
+  const hue = ((h % 360) + 360) % 360
+  const sat = clamp(s, 0, 1)
+  const lig = clamp(l, 0, 1)
+  const c = (1 - Math.abs(2 * lig - 1)) * sat
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const m = lig - c / 2
+
+  let rn = 0
+  let gn = 0
+  let bn = 0
+
+  if (hue < 60) {
+    rn = c
+    gn = x
+  } else if (hue < 120) {
+    rn = x
+    gn = c
+  } else if (hue < 180) {
+    gn = c
+    bn = x
+  } else if (hue < 240) {
+    gn = x
+    bn = c
+  } else if (hue < 300) {
+    rn = x
+    bn = c
+  } else {
+    rn = c
+    bn = x
+  }
+
+  return [
+    Math.round((rn + m) * 255),
+    Math.round((gn + m) * 255),
+    Math.round((bn + m) * 255),
+  ]
+}
+
+function getRgbBrightness([r, g, b]) {
+  return (r * 299 + g * 587 + b * 114) / 1000
+}
+
+function mixRgb(from, to, ratio) {
+  const t = clamp(ratio, 0, 1)
+  return [
+    Math.round(from[0] * (1 - t) + to[0] * t),
+    Math.round(from[1] * (1 - t) + to[1] * t),
+    Math.round(from[2] * (1 - t) + to[2] * t),
+  ]
+}
+
+function getYellowGreenBias(hue) {
+  const d1 = Math.abs(hue - 78)
+  const d2 = Math.abs(hue - 118)
+  const nearest = Math.min(d1, d2)
+  return clamp(1 - nearest / 65, 0, 1)
+}
+
+function applyThemeByBase(baseRgb) {
+  const [r, g, b] = baseRgb
+  const hsl = rgbToHsl(r, g, b)
+  const yellowGreenBias = getYellowGreenBias(hsl.h)
+  const neutral = [48, 58, 84]
+
+  const base = hslToRgb(
+    hsl.h,
+    clamp(hsl.s * (0.78 - yellowGreenBias * 0.14) + 0.06, 0.22, 0.62),
+    clamp(hsl.l * (0.48 - yellowGreenBias * 0.08) + 0.08, 0.16, 0.38),
+  )
+  const accent = hslToRgb(
+    hsl.h + 14,
+    clamp(hsl.s * (0.62 - yellowGreenBias * 0.12) + 0.08, 0.2, 0.52),
+    clamp(hsl.l * (0.62 - yellowGreenBias * 0.1) + 0.16, 0.3, 0.56),
+  )
+  const glow = hslToRgb(
+    hsl.h - 8,
+    clamp(hsl.s * (0.46 - yellowGreenBias * 0.12) + 0.06, 0.16, 0.42),
+    clamp(hsl.l + 0.2 - yellowGreenBias * 0.12, 0.48, 0.74),
+  )
+
+  const mixedBase = mixRgb(base, neutral, 0.12 + yellowGreenBias * 0.2)
+  const mixedAccent = mixRgb(accent, neutral, 0.08 + yellowGreenBias * 0.16)
+  const mixedGlow = mixRgb(glow, neutral, 0.05 + yellowGreenBias * 0.12)
+
+  themeBaseRgb.value = mixedBase
+  themeAccentRgb.value = mixedAccent
+  themeGlowRgb.value = mixedGlow
+  themeIsDark.value = getRgbBrightness(mixedBase) < 146
+}
+
+function applyFallbackTheme(seedText = '') {
+  const text = String(seedText || 'player')
+  let hash = 0
+  for (let i = 0; i < text.length; i += 1) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash) % 360
+  const fallbackBase = hslToRgb(hue, 0.56, 0.44)
+  applyThemeByBase(fallbackBase)
+}
+
+async function pickThemeFromCover(cover) {
+  if (!cover) {
+    applyFallbackTheme(songName.value)
+    return
+  }
+
+  const currentToken = ++themePickToken
+
+  try {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.referrerPolicy = 'no-referrer'
+
+    await new Promise((resolve, reject) => {
+      image.onload = resolve
+      image.onerror = reject
+      image.src = cover
+    })
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', {willReadFrequently: true})
+    if (!ctx) throw new Error('canvas unavailable')
+
+    const size = 52
+    canvas.width = size
+    canvas.height = size
+    ctx.drawImage(image, 0, 0, size, size)
+
+    const {data} = ctx.getImageData(0, 0, size, size)
+    const bucketMap = new Map()
+
+    for (let i = 0; i < data.length; i += 16) {
+      const alpha = data[i + 3] / 255
+      if (alpha < 0.08) continue
+
+      const pr = data[i]
+      const pg = data[i + 1]
+      const pb = data[i + 2]
+      const max = Math.max(pr, pg, pb)
+      const min = Math.min(pr, pg, pb)
+      const sat = max === 0 ? 0 : (max - min) / max
+      const light = (max + min) / 510
+      if (light < 0.06 || light > 0.94) continue
+
+      const weight = alpha * (0.3 + sat * 1.2 + (1 - Math.abs(light - 0.48)) * 0.75)
+      const key = `${Math.round(pr / 24)}-${Math.round(pg / 24)}-${Math.round(pb / 24)}`
+      const current = bucketMap.get(key) || {r: 0, g: 0, b: 0, w: 0}
+      current.r += pr * weight
+      current.g += pg * weight
+      current.b += pb * weight
+      current.w += weight
+      bucketMap.set(key, current)
+    }
+
+    let best = null
+    for (const item of bucketMap.values()) {
+      if (!best || item.w > best.w) best = item
+    }
+    if (!best || best.w <= 0) throw new Error('no color')
+
+    if (currentToken !== themePickToken) return
+
+    applyThemeByBase([
+      Math.round(best.r / best.w),
+      Math.round(best.g / best.w),
+      Math.round(best.b / best.w),
+    ])
+  } catch {
+    if (currentToken !== themePickToken) return
+    applyFallbackTheme(songName.value)
+  }
+}
+
+function ensureAnalyser() {
+  if (!audioRef.value || typeof window === 'undefined') return false
+  const Context = window.AudioContext || window.webkitAudioContext
+  if (!Context) return false
+
+  try {
+    if (!audioContext) {
+      audioContext = new Context()
+    }
+    if (!analyserNode) {
+      analyserNode = audioContext.createAnalyser()
+      analyserNode.fftSize = 256
+      analyserNode.smoothingTimeConstant = 0.82
+    }
+    if (!mediaSourceNode) {
+      mediaSourceNode = audioContext.createMediaElementSource(audioRef.value)
+      mediaSourceNode.connect(analyserNode)
+      analyserNode.connect(audioContext.destination)
+      analyserData = new Uint8Array(analyserNode.frequencyBinCount)
+      analyserPrevData = new Uint8Array(analyserNode.frequencyBinCount)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function stopRhythmLoop() {
+  if (analyserFrame) {
+    cancelAnimationFrame(analyserFrame)
+    analyserFrame = 0
+  }
+}
+
+function tickRhythm(now) {
+  if (!analyserNode || !analyserData || !analyserPrevData) {
+    analyserFrame = requestAnimationFrame(tickRhythm)
+    return
+  }
+
+  if (now - analyserLastTs > 20) {
+    analyserNode.getByteFrequencyData(analyserData)
+    let low = 0
+    let mid = 0
+    let high = 0
+    let flux = 0
+    let total = 0
+    const lowCount = Math.max(6, Math.floor(analyserData.length * 0.08))
+    const midStart = lowCount
+    const midEnd = Math.max(midStart + 1, Math.floor(analyserData.length * 0.28))
+    const highStart = midEnd
+    const highEnd = Math.max(highStart + 1, Math.floor(analyserData.length * 0.62))
+
+    for (let i = 0; i < lowCount; i += 1) low += analyserData[i]
+    for (let i = midStart; i < midEnd; i += 1) mid += analyserData[i]
+    for (let i = highStart; i < highEnd; i += 1) high += analyserData[i]
+    for (let i = 0; i < analyserData.length; i += 1) {
+      const current = analyserData[i]
+      total += current
+      const diff = current - analyserPrevData[i]
+      if (diff > 0) flux += diff
+      analyserPrevData[i] = current
+    }
+
+    const lowEnergy = low / (lowCount * 255)
+    const midEnergy = mid / ((midEnd - midStart) * 255)
+    const highEnergy = high / ((highEnd - highStart) * 255)
+    const totalEnergy = total / (analyserData.length * 255)
+    const fluxEnergy = flux / (analyserData.length * 255)
+
+    rhythmEnergyEma = rhythmEnergyEma > 0
+      ? rhythmEnergyEma * 0.88 + totalEnergy * 0.12
+      : totalEnergy
+    rhythmFluxEma = rhythmFluxEma > 0
+      ? rhythmFluxEma * 0.9 + fluxEnergy * 0.1
+      : fluxEnergy
+
+    const energyBoost = clamp((totalEnergy - rhythmEnergyEma * 0.9) * 3.4, 0, 1)
+    const fluxBoost = clamp((fluxEnergy - rhythmFluxEma * 0.72) * 7.8, 0, 1)
+    const fluxRatio = clamp(fluxEnergy / (rhythmFluxEma + 0.016), 0, 2.6)
+
+    lowBandEma = lowBandEma > 0 ? lowBandEma * 0.86 + lowEnergy * 0.14 : lowEnergy
+    const lowTransient = clamp((lowEnergy - lowBandEma * 0.9) * 4.6, 0, 1)
+
+    const bodyRaw = clamp(totalEnergy * 1.08 + lowEnergy * 0.56 + midEnergy * 0.38 + highEnergy * 0.18, 0, 1)
+    const targetLevel = 0.42
+    const adaptive = clamp(targetLevel / (bodyRaw + 0.08), 0.9, 2.4)
+    rhythmGain = rhythmGain * 0.93 + adaptive * 0.07
+
+    const bodyLevel = clamp(bodyRaw * rhythmGain, 0, 1)
+    const beatKickRaw = fluxBoost * 0.78 + fluxRatio * 0.22 + energyBoost * 0.4 + lowTransient * 1.05
+    const beatKick = Math.pow(clamp((beatKickRaw - 0.1) / 0.9, 0, 1), 0.78)
+
+    rhythmLevel.value = clamp(rhythmLevel.value * 0.5 + bodyLevel * 0.5, 0, 1)
+    beatLevel.value = clamp(Math.max(beatLevel.value * 0.86, beatKick), 0, 1)
+
+    const targetPulse = clamp(rhythmLevel.value * 0.42 + beatLevel.value * 0.78, 0, 1)
+    if (targetPulse > visualPulse.value) {
+      visualPulse.value = clamp(visualPulse.value + (targetPulse - visualPulse.value) * 0.24, 0, 1)
+    } else {
+      visualPulse.value = clamp(visualPulse.value + (targetPulse - visualPulse.value) * 0.08, 0, 1)
+    }
+    analyserLastTs = now
+  }
+
+  if (!playerStore.isPlaying) {
+    rhythmLevel.value *= 0.88
+    beatLevel.value *= 0.66
+    visualPulse.value *= 0.92
+  }
+
+  analyserFrame = requestAnimationFrame(tickRhythm)
+}
+
+async function startRhythmLoop() {
+  if (!hasSong.value) return
+  if (prefersReducedMotion.value) return
+  if (!ensureAnalyser()) return
+
+  if (audioContext?.state === 'suspended') {
+    try {
+      await audioContext.resume()
+    } catch {
+      return
+    }
+  }
+
+  if (!analyserFrame) {
+    analyserLastTs = 0
+    analyserFrame = requestAnimationFrame(tickRhythm)
+  }
+}
 
 function formatMs(ms) {
   const sec = Math.floor((ms || 0) / 1000)
@@ -408,10 +798,16 @@ function onTimeUpdate() {
 
 function onPlay() {
   playerStore.setPlaying(true)
+  startRhythmLoop()
 }
 
 function onPause() {
   playerStore.setPlaying(false)
+  if (!playerStore.isPlaying) {
+    rhythmLevel.value *= 0.72
+    beatLevel.value *= 0.52
+    visualPulse.value *= 0.85
+  }
 }
 
 function updatePlayerSpaceVar() {
@@ -441,11 +837,30 @@ async function onEnded() {
 watch(
   audioSrc,
   async () => {
+    rhythmLevel.value = 0
+    beatLevel.value = 0
+    visualPulse.value = 0
+    rhythmEnergyEma = 0
+    rhythmFluxEma = 0
+    lowBandEma = 0
+    rhythmGain = 1
+    if (analyserPrevData) {
+      analyserPrevData.fill(0)
+    }
     playerStore.setDurationMs(0)
     playerStore.setCurrentTimeMs(0)
     await nextTick()
     syncAudioVolume()
     ensurePlaybackState()
+    startRhythmLoop()
+  },
+  {immediate: true},
+)
+
+watch(
+  coverUrl,
+  (nextCover) => {
+    pickThemeFromCover(nextCover)
   },
   {immediate: true},
 )
@@ -454,10 +869,14 @@ watch(
   () => playerStore.isPlaying,
   () => {
     ensurePlaybackState()
+    if (playerStore.isPlaying) {
+      startRhythmLoop()
+    }
   },
 )
 
 onMounted(() => {
+  applyFallbackTheme('global-player')
   updatePlayerSpaceVar()
   playerResizeObserver = new ResizeObserver(() => {
     updatePlayerSpaceVar()
@@ -466,9 +885,69 @@ onMounted(() => {
     playerResizeObserver.observe(playerRootRef.value)
   }
   window.addEventListener('resize', updatePlayerSpaceVar)
+
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    mediaQueryMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    mediaQueryMotionHandler = () => {
+      prefersReducedMotion.value = Boolean(mediaQueryMotion?.matches)
+      if (prefersReducedMotion.value) {
+        stopRhythmLoop()
+        rhythmLevel.value = 0
+        beatLevel.value = 0
+        visualPulse.value = 0
+        lowBandEma = 0
+        rhythmGain = 1
+      } else if (playerStore.isPlaying) {
+        startRhythmLoop()
+      }
+    }
+    mediaQueryMotionHandler()
+    if (typeof mediaQueryMotion.addEventListener === 'function') {
+      mediaQueryMotion.addEventListener('change', mediaQueryMotionHandler)
+    } else if (typeof mediaQueryMotion.addListener === 'function') {
+      mediaQueryMotion.addListener(mediaQueryMotionHandler)
+    }
+  }
 })
 
 onBeforeUnmount(() => {
+  stopRhythmLoop()
+
+  if (mediaQueryMotion) {
+    if (mediaQueryMotionHandler) {
+      if (typeof mediaQueryMotion.removeEventListener === 'function') {
+        mediaQueryMotion.removeEventListener('change', mediaQueryMotionHandler)
+      } else if (typeof mediaQueryMotion.removeListener === 'function') {
+        mediaQueryMotion.removeListener(mediaQueryMotionHandler)
+      }
+    }
+    mediaQueryMotion = null
+    mediaQueryMotionHandler = null
+  }
+
+  if (mediaSourceNode) {
+    try {
+      mediaSourceNode.disconnect()
+    } catch {
+      // noop
+    }
+    mediaSourceNode = null
+  }
+
+  if (analyserNode) {
+    try {
+      analyserNode.disconnect()
+    } catch {
+      // noop
+    }
+    analyserNode = null
+  }
+
+  if (audioContext) {
+    audioContext.close().catch(() => {})
+    audioContext = null
+  }
+
   if (playerResizeObserver) {
     playerResizeObserver.disconnect()
     playerResizeObserver = null
@@ -478,6 +957,109 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.player-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(var(--player-border), var(--player-border-alpha));
+  background:
+    radial-gradient(120% 140% at 12% 12%, rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.9)) 0%, rgba(var(--player-glow), 0) 56%),
+    linear-gradient(128deg, rgba(var(--player-base), 0.88) 0%, rgba(var(--player-accent), 0.94) 100%);
+  background-size: 170% 180%, 100% 100%;
+  background-position: 2% 8%, 50% 50%;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, var(--player-shadow-alpha));
+  backdrop-filter: blur(22px);
+  filter: saturate(var(--player-sat)) brightness(var(--player-brightness));
+  transition: background 320ms ease, border-color 240ms ease, filter 180ms ease, box-shadow 200ms ease;
+  animation: player-shell-drift 18s ease-in-out infinite alternate;
+}
+
+.player-shell::before,
+.player-shell::after {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 220ms ease, transform 240ms ease;
+}
+
+.player-shell::before {
+  background:
+    radial-gradient(34% 36% at 24% 30%, rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.8)) 0%, rgba(var(--player-glow), 0) 72%),
+    radial-gradient(30% 34% at 76% 64%, rgba(var(--player-accent), calc(var(--player-glow-alpha) * 0.64)) 0%, rgba(var(--player-accent), 0) 76%);
+  opacity: 0.78;
+  transform: scale(var(--player-aura-scale));
+  mix-blend-mode: screen;
+  animation: player-aura-drift-a 14s ease-in-out infinite alternate;
+}
+
+.player-shell::after {
+  background: radial-gradient(60% 42% at 52% 14%, rgba(var(--player-fg), 0.16) 0%, rgba(var(--player-fg), 0) 74%);
+  opacity: 0.6;
+  animation: player-aura-drift-b 22s ease-in-out infinite alternate-reverse;
+}
+
+.player-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.player-text-primary {
+  color: rgb(var(--player-fg));
+}
+
+.player-text-muted {
+  color: rgba(var(--player-fg-muted), 0.92);
+}
+
+.player-separator {
+  color: rgba(var(--player-separator), 0.85);
+}
+
+.player-link {
+  color: rgba(var(--player-fg-muted), 0.95);
+}
+
+.player-link:hover {
+  color: rgb(var(--player-fg));
+}
+
+.player-soft-btn {
+  border: 1px solid rgba(var(--player-border), 0.34);
+  color: rgba(var(--player-fg), 0.9);
+  background: rgba(var(--player-fg), var(--player-soft-bg-alpha));
+}
+
+.player-soft-btn:hover {
+  background: rgba(var(--player-fg), calc(var(--player-soft-bg-alpha) + 0.08));
+}
+
+.player-main-btn {
+  border: 1px solid rgba(var(--player-main-bg), 0.65);
+  color: rgb(var(--player-main-fg));
+  background: rgba(var(--player-main-bg), 0.96);
+}
+
+.player-main-btn:hover {
+  background: rgba(var(--player-main-bg), 0.88);
+}
+
+.player-chip-btn {
+  border: 1px solid rgba(var(--player-border), 0.34);
+  color: rgba(var(--player-fg), 0.9);
+  background: rgba(var(--player-fg), 0.1);
+}
+
+.player-chip-btn:hover {
+  background: rgba(var(--player-fg), 0.18);
+}
+
+.player-range {
+  background: rgba(var(--player-fg), 0.2);
+  accent-color: rgba(var(--player-main-bg), 0.95);
+}
+
 .track-swap-enter-active,
 .track-swap-leave-active {
   transition: opacity 0.2s ease, transform 0.24s ease;
@@ -548,7 +1130,7 @@ onBeforeUnmount(() => {
 }
 
 .artist-marquee-link:hover {
-  color: rgba(255, 255, 255, 0.98);
+  color: rgb(var(--player-fg));
   text-decoration: underline;
 }
 
@@ -558,6 +1140,43 @@ onBeforeUnmount(() => {
   }
   to {
     transform: translateX(calc(-50% - 1rem));
+  }
+}
+
+@keyframes player-shell-drift {
+  0% {
+    background-position: 2% 8%, 50% 50%;
+  }
+  100% {
+    background-position: 26% -2%, 50% 50%;
+  }
+}
+
+@keyframes player-aura-drift-a {
+  0% {
+    transform: translate3d(-2.2%, -1.6%, 0) scale(var(--player-aura-scale));
+  }
+  100% {
+    transform: translate3d(2.4%, 1.8%, 0) scale(calc(var(--player-aura-scale) * 1.06));
+  }
+}
+
+@keyframes player-aura-drift-b {
+  0% {
+    transform: translate3d(1.8%, -1.1%, 0);
+    opacity: 0.52;
+  }
+  100% {
+    transform: translate3d(-1.8%, 1.9%, 0);
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-shell,
+  .player-shell::before,
+  .player-shell::after {
+    animation: none;
   }
 }
 </style>
