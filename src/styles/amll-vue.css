@@ -1,0 +1,14 @@
+@import "../../node_modules/@applemusic-like-lyrics/vue/dist/amll-vue.css";
+
+.amll-wrapper {
+	background-color: #222 !important;
+	z-index: 3000 !important;
+}
+
+.amll-prebuilt {
+	background-color: #222 !important;
+}
+
+.amll-lyric-player {
+	mix-blend-mode: normal;
+}

@@ -1971,17 +1971,18 @@ function animateDialogOut() {
   const overlay = dialogOverlay.value
   const panel = dialogPanel.value
   if (!overlay && !panel) return Promise.resolve()
+  const targets = [overlay, panel].filter(Boolean)
 
   isClosing.value = true
 
   return new Promise((resolve) => {
-    gsap.killTweensOf([overlay, panel])
+    gsap.killTweensOf(targets)
 
     const tl = gsap.timeline({
       defaults: {ease: 'power2.in', duration: 0.18},
       onComplete: () => {
         isClosing.value = false
-        gsap.set([overlay, panel], {clearProps: 'all'})
+        if (targets.length) gsap.set(targets, {clearProps: 'all'})
         resolve()
       },
     })
