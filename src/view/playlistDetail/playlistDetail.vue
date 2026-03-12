@@ -9,8 +9,8 @@
     </button>
 
     <div class="mx-auto max-w-6xl px-4 py-8 sm:px-8">
-      <div class="mb-8 grid gap-5 rounded-3xl border border-white/10 bg-white/5 p-5 sm:grid-cols-[220px_1fr]">
-        <div class="aspect-square overflow-hidden rounded-2xl bg-white/10">
+      <div class="mb-8 grid gap-5 rounded-3xl border border-white/10 bg-white/5 p-5 sm:grid-cols-[220px_1fr]" :style="playlistCardTransitionStyle">
+        <div class="aspect-square overflow-hidden rounded-2xl bg-white/10" :style="playlistCoverTransitionStyle">
           <img v-if="playlist.coverImgUrl" :src="playlist.coverImgUrl" alt="playlist-cover" class="h-full w-full object-cover" />
         </div>
 
@@ -117,6 +117,11 @@ import {HeartIcon as HeartSolidIcon} from '@heroicons/vue/24/solid'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
+import {
+  buildPlaylistTransitionName,
+  runViewTransition,
+  setActivePlaylistTransitionId,
+} from '@/utils/viewTransition.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useCounterStore} from '@/stores/userStores.js'
 
@@ -149,6 +154,20 @@ let themeTweenFrame = 0
 const pageStyle = computed(() => ({
   background: buildPageGradient(animatedThemeRgb.value),
 }))
+
+const playlistTransitionId = computed(() => Number(route.query.id || playlist.value.id || 0))
+
+const playlistCardTransitionStyle = computed(() => {
+  const name = buildPlaylistTransitionName(playlistTransitionId.value, 'card')
+  if (!name) return {}
+  return {viewTransitionName: name}
+})
+
+const playlistCoverTransitionStyle = computed(() => {
+  const name = buildPlaylistTransitionName(playlistTransitionId.value, 'cover')
+  if (!name) return {}
+  return {viewTransitionName: name}
+})
 
 function parseRgb(rgbString) {
   const parts = String(rgbString)
@@ -253,8 +272,37 @@ function formatCount(value) {
   return String(num)
 }
 
-function goBack() {
-  router.back()
+function resolveBackTarget() {
+  const matched = route.matched || []
+  if (matched.length > 1) {
+    const parent = matched[matched.length - 2]
+    if (parent?.name) {
+      return {name: parent.name}
+    }
+    if (parent?.path) {
+      return parent.path
+    }
+  }
+
+  return null
+}
+
+async function goBack() {
+  setActivePlaylistTransitionId(playlistTransitionId.value)
+  const target = resolveBackTarget()
+
+  await runViewTransition(() => {
+    if (target) {
+      return router.push(target)
+    }
+
+    if (window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push('/home')
+  })
 }
 
 async function openSong(track, index = 0) {
@@ -477,6 +525,7 @@ async function loadPlaylist() {
 }
 
 onMounted(() => {
+  setActivePlaylistTransitionId(playlistTransitionId.value)
   loadPlaylist()
 })
 
@@ -502,6 +551,7 @@ watch(
 watch(
   () => route.query.id,
   () => {
+    setActivePlaylistTransitionId(playlistTransitionId.value)
     actionFeedback.value = ''
     loadPlaylist()
   },

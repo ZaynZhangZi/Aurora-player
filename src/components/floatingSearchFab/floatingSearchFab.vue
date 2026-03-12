@@ -1,11 +1,11 @@
 <template>
   <!-- 固定在顶部：你也可以通过 props 改位置/宽度 -->
   <div class="fixed inset-x-0 top-0 z-50 pointer-events-none">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
       <!-- 外壳：grid 两列，左 48px 固定按钮，右侧自适应内容 -->
       <div
         ref="shell"
-        :class="[expanded ? 'rounded-full pl-0 pr-4 sm:pr-6 h-12' : 'h-12 w-12 rounded-full', shellToneClass]"
+        :class="[expanded ? 'rounded-full pl-0 pr-3 sm:pr-6 h-12' : 'h-12 w-12 rounded-full', shellToneClass]"
         class="mt-3 grid items-center overflow-hidden border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr] pointer-events-auto transition-colors duration-200"
         @mouseenter="hovering = true"
         @mouseleave="hovering = false"
@@ -42,7 +42,7 @@
         <div
           v-show="expanded && contentVisible"
           ref="content"
-          class="col-[2/3] min-w-0 w-full flex items-center justify-between gap-4"
+          class="col-[2/3] min-w-0 w-full flex items-center justify-between gap-2 sm:gap-4"
         >
           <!-- 左侧插槽（可选：比如货币/分类） -->
           <div class="hidden sm:block">
@@ -50,9 +50,9 @@
           </div>
 
           <!-- 搜索框 -->
-          <div class="flex-1 hidden sm:flex">
+          <div class="flex min-w-0 flex-1">
             <div
-              class="relative w-full h-full max-w-lg md:max-w-2xl transition-all duration-300 ease-out">
+              class="relative h-full w-full max-w-none transition-all duration-300 ease-out sm:max-w-lg md:max-w-2xl">
               <input
                 ref="input"
                 :placeholder="placeholder"
@@ -69,7 +69,7 @@
           </div>
 
           <!-- 右侧 登录 / 注册（可隐藏） -->
-          <div v-if="showAuth" class="flex items-center space-x-4 cursor-pointer">
+          <div v-if="showAuth" class="hidden cursor-pointer items-center space-x-4 sm:flex">
             <button
               v-if="!isLoggedIn"
               :class="signInToneClass"
@@ -135,46 +135,73 @@
         </div>
       </div>
 
-      <Transition name="search-panel">
-        <div
-          v-if="searchPanelVisible"
-          class="pointer-events-auto mt-2 overflow-hidden rounded-2xl border border-white/45 bg-white/35 p-3 text-slate-900 shadow-2xl backdrop-blur-2xl"
-        >
-        <p v-if="searching" class="px-2 py-2 text-sm text-slate-700">正在搜索...</p>
-        <p v-else-if="searchError" class="px-2 py-2 text-sm text-red-300">{{ searchError }}</p>
-        <p v-else-if="isSearchEmpty" class="px-2 py-2 text-sm text-slate-700">没有找到相关结果</p>
+      <div
+        v-if="searchPanelVisible"
+        class="search-panel-surface pointer-events-auto mt-2 overflow-hidden rounded-2xl border p-2.5 text-slate-900 shadow-xl backdrop-blur-2xl"
+      >
+        <div class="search-topbar mb-2 flex items-center justify-between gap-2 px-1">
+          <div class="flex items-center gap-1 text-[11px] text-slate-500">
+            <span class="search-stat-pill">歌手 {{ artistEntries.length }}</span>
+            <span class="search-stat-pill">歌曲 {{ songEntries.length }}</span>
+            <span class="search-stat-pill">歌单 {{ playlistEntries.length }}</span>
+          </div>
+        </div>
 
-        <template v-else>
-          <section v-if="artistEntries.length" class="mb-2">
-            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(0)">歌手</p>
-            <TransitionGroup name="search-item" tag="div" appear>
+        <div class="search-panel-body max-h-[40vh] overflow-y-auto pr-1">
+          <p v-if="searching" class="rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">正在搜索...</p>
+          <p v-else-if="searchError" class="rounded-lg border border-red-200 bg-red-50/75 px-3 py-2 text-sm text-red-500">{{ searchError }}</p>
+          <p v-else-if="isSearchEmpty" class="rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-600">没有找到相关结果</p>
+
+          <template v-else>
+            <div class="flex flex-col gap-2">
+          <section
+            v-if="artistEntries.length"
+            class="search-section rounded-xl border border-slate-200/80 bg-white/70 p-2"
+            :class="intentType === 'artist' ? 'search-section-focus' : ''"
+            :style="getResultSectionStyle('artist')"
+          >
+            <div class="search-section-head px-1 pb-1.5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">歌手</p>
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] text-slate-400">{{ getTotalCount('artist') }} 条</span>
+                <span v-if="isSectionLoading('artist')" class="text-[11px] text-slate-500">加载中...</span>
+              </div>
+            </div>
+            <p v-if="sectionError.artist" class="px-1 pb-1 text-[11px] text-red-500">{{ sectionError.artist }}</p>
+            <div>
               <button
                 v-for="artist in artistEntries"
                 :key="`artist-${artist.id}`"
-                :class="isActiveEntry(artist.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
-                :style="getItemStaggerStyle(artist.globalIndex)"
-                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                :class="isActiveEntry(artist.globalIndex) ? 'search-row-active' : 'search-row-idle'"
+                class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
                 type="button"
                 @click="openArtist(artist)"
               >
-                <span class="text-sm">{{ artist.name }}</span>
-                <span class="text-xs text-slate-500">歌手</span>
+                <div class="flex min-w-0 items-center gap-2">
+                  <img v-if="getArtistAvatar(artist)" :src="getArtistAvatar(artist)" alt="artist" class="h-8 w-8 rounded-full object-cover" />
+                  <div v-else class="search-avatar-fallback">艺</div>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-slate-800">{{ artist.name }}</p>
+                    <p class="truncate text-[11px] text-slate-500">{{ getArtistSubtitle(artist) }}</p>
+                  </div>
+                </div>
+                <span class="search-tag">歌手</span>
               </button>
-            </TransitionGroup>
-            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+            </div>
+            <div class="mt-2 flex items-center justify-end gap-2 px-1 text-xs text-slate-600">
               <button
-                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                class="search-pager-btn"
                 type="button"
-                :disabled="!canPrev('artist')"
+                :disabled="!canPrev('artist') || isSectionLoading('artist')"
                 @click="changePage('artist', -1)"
               >
                 上一页
               </button>
               <span>{{ getPageLabel('artist') }}</span>
               <button
-                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                class="search-pager-btn"
                 type="button"
-                :disabled="!canNext('artist')"
+                :disabled="!canNext('artist') || isSectionLoading('artist')"
                 @click="changePage('artist', 1)"
               >
                 下一页
@@ -182,42 +209,60 @@
             </div>
           </section>
 
-          <section v-if="songEntries.length" class="mb-2">
-            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(1)">歌曲</p>
-            <TransitionGroup name="search-item" tag="div" appear>
+          <section
+            v-if="songEntries.length"
+            class="search-section rounded-xl border border-slate-200/80 bg-white/70 p-2"
+            :class="intentType === 'song' ? 'search-section-focus' : ''"
+            :style="getResultSectionStyle('song')"
+          >
+            <div class="search-section-head px-1 pb-1.5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">歌曲</p>
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] text-slate-400">{{ getTotalCount('song') }} 条</span>
+                <span v-if="isSectionLoading('song')" class="text-[11px] text-slate-500">加载中...</span>
+              </div>
+            </div>
+            <p v-if="sectionError.song" class="px-1 pb-1 text-[11px] text-red-500">{{ sectionError.song }}</p>
+            <div>
               <button
                 v-for="song in songEntries"
                 :key="`song-${song.id}`"
-                :class="isActiveEntry(song.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
-                :style="getItemStaggerStyle(song.globalIndex)"
-                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                :class="isActiveEntry(song.globalIndex) ? 'search-row-active' : 'search-row-idle'"
+                class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
                 type="button"
                 @click="openSong(song)"
               >
-                <span class="truncate text-sm">{{ song.name }}</span>
-                <ArtistLinks
-                  :artists="getSongArtists(song)"
-                  container-class="ml-4 truncate text-xs text-slate-500"
-                  link-class="hover:text-slate-700 hover:underline"
-                  separator-class="text-slate-400"
-                  fallback-class="text-slate-500"
-                />
+                <div class="flex min-w-0 items-center gap-2">
+                  <img v-if="getSongCover(song)" :src="getSongCover(song)" alt="song" class="h-8 w-8 rounded-md object-cover" />
+                  <div v-else class="search-avatar-fallback rounded-md">曲</div>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-slate-800">{{ song.name }}</p>
+                    <ArtistLinks
+                      :artists="getSongArtists(song)"
+                      container-class="truncate text-[11px] text-slate-500"
+                      link-class="hover:text-slate-700 hover:underline"
+                      separator-class="text-slate-400"
+                      fallback-class="text-slate-500"
+                    />
+                  </div>
+                </div>
+                <span class="search-tag">歌曲</span>
               </button>
-            </TransitionGroup>
-            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+            </div>
+            <div class="mt-2 flex items-center justify-end gap-2 px-1 text-xs text-slate-600">
               <button
-                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                class="search-pager-btn"
                 type="button"
-                :disabled="!canPrev('song')"
+                :disabled="!canPrev('song') || isSectionLoading('song')"
                 @click="changePage('song', -1)"
               >
                 上一页
               </button>
               <span>{{ getPageLabel('song') }}</span>
               <button
-                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                class="search-pager-btn"
                 type="button"
-                :disabled="!canNext('song')"
+                :disabled="!canNext('song') || isSectionLoading('song')"
                 @click="changePage('song', 1)"
               >
                 下一页
@@ -225,27 +270,45 @@
             </div>
           </section>
 
-          <section v-if="playlistEntries.length">
-            <p class="search-group-title px-2 pb-1 text-xs uppercase tracking-wide text-slate-500" :style="getGroupTitleStyle(2)">歌单</p>
-            <TransitionGroup name="search-item" tag="div" appear>
+          <section
+            v-if="playlistEntries.length"
+            class="search-section rounded-xl border border-slate-200/80 bg-white/70 p-2"
+            :class="intentType === 'playlist' ? 'search-section-focus' : ''"
+            :style="getResultSectionStyle('playlist')"
+          >
+            <div class="search-section-head px-1 pb-1.5">
+              <p class="text-xs uppercase tracking-wide text-slate-500">歌单</p>
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] text-slate-400">{{ getTotalCount('playlist') }} 条</span>
+                <span v-if="isSectionLoading('playlist')" class="text-[11px] text-slate-500">加载中...</span>
+              </div>
+            </div>
+            <p v-if="sectionError.playlist" class="px-1 pb-1 text-[11px] text-red-500">{{ sectionError.playlist }}</p>
+            <div>
               <button
                 v-for="playlist in playlistEntries"
                 :key="`playlist-${playlist.id}`"
-                :class="isActiveEntry(playlist.globalIndex) ? 'bg-white/60' : 'hover:bg-white/45'"
-                :style="getItemStaggerStyle(playlist.globalIndex)"
-                class="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
+                :class="isActiveEntry(playlist.globalIndex) ? 'search-row-active' : 'search-row-idle'"
+                class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2 text-left"
                 type="button"
                 @click="openPlaylist(playlist)"
               >
-                <span class="truncate text-sm">{{ playlist.name }}</span>
-                <span class="ml-4 truncate text-xs text-slate-500">{{ playlist.creator?.nickname || '歌单' }}</span>
+                <div class="flex min-w-0 items-center gap-2">
+                  <img v-if="getPlaylistCover(playlist)" :src="getPlaylistCover(playlist)" alt="playlist" class="h-8 w-8 rounded-md object-cover" />
+                  <div v-else class="search-avatar-fallback rounded-md">单</div>
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-slate-800">{{ playlist.name }}</p>
+                    <p class="truncate text-[11px] text-slate-500">{{ playlist.creator?.nickname || '歌单' }}</p>
+                  </div>
+                </div>
+                <span class="search-tag">歌单</span>
               </button>
-            </TransitionGroup>
-            <div class="mt-1 flex items-center justify-end gap-2 px-2 text-xs text-slate-600">
+            </div>
+            <div class="mt-2 flex items-center justify-end gap-2 px-1 text-xs text-slate-600">
               <button
-                class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                class="search-pager-btn"
                 type="button"
-                :disabled="!canPrev('playlist')"
+                :disabled="!canPrev('playlist') || isSectionLoading('playlist')"
                 @click="changePage('playlist', -1)"
               >
                 上一页
@@ -254,16 +317,17 @@
               <button
                 class="rounded-full border border-slate-400/50 px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-30"
                 type="button"
-                :disabled="!canNext('playlist')"
+                :disabled="!canNext('playlist') || isSectionLoading('playlist')"
                 @click="changePage('playlist', 1)"
               >
                 下一页
               </button>
             </div>
           </section>
-        </template>
+            </div>
+          </template>
         </div>
-      </Transition>
+      </div>
     </div>
   </div>
 
@@ -668,6 +732,8 @@ const isClosing = ref(false)
 const searchResult = ref(null)
 const searching = ref(false)
 const searchError = ref('')
+const sectionLoading = ref({artist: false, song: false, playlist: false})
+const sectionError = ref({artist: '', song: '', playlist: ''})
 const pageSize = 6
 const searchPage = ref({artist: 0, song: 0, playlist: 0})
 const activeEntryIndex = ref(-1)
@@ -716,6 +782,7 @@ const sendingPrivate = ref(false)
 const privateFeedback = ref('')
 const privateFeedbackIsError = ref(false)
 const fabContrastMode = ref('on-dark')
+const viewportWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 
 let navTl = null
 let autoExpandByScroll = false
@@ -885,13 +952,24 @@ watch(
 
 function measureExpandedWidth() {
   const el = shell.value
-  const cnt = content.value
-  if (!el || !cnt) return 48
-  const prev = {width: el.style.width}
-  el.style.width = 'auto'
-  const rect = el.getBoundingClientRect()
-  el.style.width = prev.width
-  return rect.width
+  if (!el) return 48
+
+  if (viewportWidth.value >= 640) {
+    const prevWidth = el.style.width
+    el.style.width = 'auto'
+    const rect = el.getBoundingClientRect()
+    el.style.width = prevWidth
+    return rect.width
+  }
+
+  const parentWidth = el.parentElement?.getBoundingClientRect().width || viewportWidth.value
+  return Math.max(220, Math.round(parentWidth || 48))
+}
+
+function syncExpandedWidth() {
+  const el = shell.value
+  if (!el || !expanded.value || navTl) return
+  gsap.set(el, {width: measureExpandedWidth()})
 }
 
 function animateExpand(toExpand) {
@@ -961,6 +1039,13 @@ function handleSearchEnter() {
     openEntryByIndex(activeEntryIndex.value)
     return
   }
+
+  const preferredIndex = getPreferredEntryIndex()
+  if (preferredIndex >= 0 && intentType.value !== 'mixed' && intentConfidence.value >= 0.56) {
+    openEntryByIndex(preferredIndex)
+    return
+  }
+
   const keyword = inputValue.value.trim()
   if (!keyword) return
   emit('search', keyword)
@@ -996,6 +1081,129 @@ const flatEntries = computed(() => [
   ...songEntries.value,
   ...playlistEntries.value,
 ])
+
+function normalizeIntentText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[\u3000-\u303f`~!@#$%^&*()_+\-=\[\]{};:'"\\|,.<>/?，。！？、；：“”‘’【】（）《》]/g, '')
+}
+
+function charOverlapScore(a, b) {
+  if (!a || !b) return 0
+  const sa = new Set(a.split(''))
+  const sb = new Set(b.split(''))
+  let overlap = 0
+  for (const ch of sa) {
+    if (sb.has(ch)) overlap += 1
+  }
+  return overlap / Math.max(1, Math.max(sa.size, sb.size))
+}
+
+function calcNameMatchScore(keywordRaw, textRaw) {
+  const keyword = normalizeIntentText(keywordRaw)
+  const text = normalizeIntentText(textRaw)
+  if (!keyword || !text) return 0
+  if (keyword === text) return 12
+  if (text.startsWith(keyword) || keyword.startsWith(text)) return 9
+  if (text.includes(keyword) || keyword.includes(text)) return 7
+  return Number((charOverlapScore(keyword, text) * 6).toFixed(2))
+}
+
+function calcTopMatchScore(type, keyword) {
+  const list = type === 'artist'
+    ? artists.value
+    : type === 'song'
+      ? songs.value
+      : playlists.value
+
+  const top = list.slice(0, 6)
+  if (!top.length) return 0
+
+  let best = 0
+  let sum = 0
+  top.forEach((item, index) => {
+    const weight = 1 - index * 0.12
+    const mainName = item?.name || ''
+    const mainScore = calcNameMatchScore(keyword, mainName)
+
+    let extra = 0
+    if (type === 'song') {
+      const artistNames = (item?.ar || item?.artists || []).map(a => a?.name).join(' ')
+      extra = calcNameMatchScore(keyword, artistNames) * 0.28
+    } else if (type === 'playlist') {
+      extra = calcNameMatchScore(keyword, item?.creator?.nickname || '') * 0.15
+    }
+
+    const score = (mainScore + extra) * Math.max(0.45, weight)
+    best = Math.max(best, score)
+    sum += score
+  })
+
+  return Number((best * 0.72 + (sum / top.length) * 0.28).toFixed(2))
+}
+
+function calcHintBoost(keyword) {
+  const artistHints = ['歌手', '歌星', '谁唱', 'artist', 'singer', '乐队']
+  const songHints = ['歌曲', '歌名', '单曲', '歌词', 'song', 'track']
+  const playlistHints = ['歌单', 'playlist', '合集', '清单']
+
+  const artist = artistHints.some(token => keyword.includes(token)) ? 4.8 : 0
+  const song = songHints.some(token => keyword.includes(token)) ? 4.8 : 0
+  const playlist = playlistHints.some(token => keyword.includes(token)) ? 4.8 : 0
+
+  return {artist, song, playlist}
+}
+
+const intentAnalysis = computed(() => {
+  const keyword = inputValue.value.trim()
+  if (!keyword) {
+    return {type: 'mixed', confidence: 0, scores: {artist: 0, song: 0, playlist: 0}}
+  }
+
+  const counts = {
+    artist: Number(getTotalCount('artist') || 0),
+    song: Number(getTotalCount('song') || 0),
+    playlist: Number(getTotalCount('playlist') || 0),
+  }
+
+  const hint = calcHintBoost(keyword.toLowerCase())
+
+  const scores = {
+    artist: calcTopMatchScore('artist', keyword) + Math.min(3, Math.log1p(counts.artist) * 0.78) + hint.artist,
+    song: calcTopMatchScore('song', keyword) + Math.min(2.6, Math.log1p(counts.song) * 0.58) + hint.song,
+    playlist: calcTopMatchScore('playlist', keyword) + Math.min(2.2, Math.log1p(counts.playlist) * 0.52) + hint.playlist,
+  }
+
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  const [topType, topScore] = sorted[0]
+  const secondScore = sorted[1]?.[1] || 0
+  const margin = topScore - secondScore
+  const confidence = Math.max(0, Math.min(1, (margin + topScore * 0.08) / 8.5))
+
+  if (topScore < 3.5 || margin < 1.05 || confidence < 0.42) {
+    return {type: 'mixed', confidence, scores}
+  }
+
+  return {type: topType, confidence, scores}
+})
+
+const intentType = computed(() => intentAnalysis.value.type)
+const intentConfidence = computed(() => intentAnalysis.value.confidence)
+
+const intentLabel = computed(() => {
+  if (intentType.value === 'artist') return `更像在找歌手（${Math.round(intentConfidence.value * 100)}%）`
+  if (intentType.value === 'song') return `更像在找歌曲（${Math.round(intentConfidence.value * 100)}%）`
+  if (intentType.value === 'playlist') return `更像在找歌单（${Math.round(intentConfidence.value * 100)}%）`
+  return '综合搜索'
+})
+
+const intentBadgeClass = computed(() => {
+  if (intentType.value === 'artist') return 'border-emerald-300 bg-emerald-100/75 text-emerald-800'
+  if (intentType.value === 'song') return 'border-sky-300 bg-sky-100/75 text-sky-800'
+  if (intentType.value === 'playlist') return 'border-amber-300 bg-amber-100/75 text-amber-800'
+  return 'border-slate-300 bg-slate-100/75 text-slate-700'
+})
 
 const isSearchEmpty = computed(() => {
   if (!searchResult.value) return false
@@ -1051,6 +1259,8 @@ function clearSearchState() {
   searchResult.value = null
   searchError.value = ''
   searching.value = false
+  sectionLoading.value = {artist: false, song: false, playlist: false}
+  sectionError.value = {artist: '', song: '', playlist: ''}
   activeEntryIndex.value = -1
   if (searchTimer) {
     clearTimeout(searchTimer)
@@ -1065,21 +1275,75 @@ function debounceSearch(keyword) {
   }, 280)
 }
 
-async function runSearch(keyword) {
+async function runSearch(keyword, {onlyType = ''} = {}) {
   const currentId = ++searchRequestId
-  searching.value = true
-  searchError.value = ''
+  if (onlyType) {
+    sectionLoading.value = {
+      ...sectionLoading.value,
+      [onlyType]: true,
+    }
+    sectionError.value = {
+      ...sectionError.value,
+      [onlyType]: '',
+    }
+  } else {
+    searching.value = true
+    searchError.value = ''
+    sectionError.value = {artist: '', song: '', playlist: ''}
+  }
   try {
-    const res = await searchApi.searchComposite(keyword, {
-      limit: pageSize,
-      offsets: {
-        artist: searchPage.value.artist * pageSize,
-        song: searchPage.value.song * pageSize,
-        playlist: searchPage.value.playlist * pageSize,
-      },
-    })
+    let res = null
+    if (onlyType) {
+      const typeMap = {artist: 100, song: 1, playlist: 1000}
+      res = await searchApi.searchByType(keyword, {
+        type: typeMap[onlyType] || 1,
+        limit: pageSize,
+        offset: (searchPage.value[onlyType] || 0) * pageSize,
+      })
+    } else {
+      res = await searchApi.searchComposite(keyword, {
+        limit: pageSize,
+        offsets: {
+          artist: searchPage.value.artist * pageSize,
+          song: searchPage.value.song * pageSize,
+          playlist: searchPage.value.playlist * pageSize,
+        },
+      })
+    }
     if (currentId !== searchRequestId) return
-    searchResult.value = res || {}
+
+    if (onlyType) {
+      const result = res?.data?.result || {}
+      const prev = searchResult.value || {
+        artists: [],
+        songs: [],
+        playlists: [],
+        counts: {artist: 0, song: 0, playlist: 0},
+        limit: pageSize,
+        offsets: {artist: 0, song: 0, playlist: 0},
+      }
+
+      const next = {
+        ...prev,
+        artists: onlyType === 'artist' ? (result.artists || []) : prev.artists,
+        songs: onlyType === 'song' ? (result.songs || []) : prev.songs,
+        playlists: onlyType === 'playlist' ? (result.playlists || []) : prev.playlists,
+        counts: {
+          ...prev.counts,
+          artist: onlyType === 'artist' ? (result.artistCount || 0) : (prev.counts?.artist || 0),
+          song: onlyType === 'song' ? (result.songCount || 0) : (prev.counts?.song || 0),
+          playlist: onlyType === 'playlist' ? (result.playlistCount || 0) : (prev.counts?.playlist || 0),
+        },
+        offsets: {
+          ...prev.offsets,
+          [onlyType]: (searchPage.value[onlyType] || 0) * pageSize,
+        },
+      }
+      searchResult.value = next
+    } else {
+      searchResult.value = res || {}
+    }
+
     const maxIndex = flatEntries.value.length - 1
     if (maxIndex < 0) {
       activeEntryIndex.value = -1
@@ -1088,10 +1352,26 @@ async function runSearch(keyword) {
     }
   } catch (error) {
     if (currentId !== searchRequestId) return
-    searchResult.value = null
-    searchError.value = error?.message || '搜索失败，请稍后重试'
+    if (onlyType) {
+      sectionError.value = {
+        ...sectionError.value,
+        [onlyType]: error?.message || '该模块加载失败',
+      }
+    } else {
+      searchResult.value = null
+      searchError.value = error?.message || '搜索失败，请稍后重试'
+    }
   } finally {
-    if (currentId === searchRequestId) searching.value = false
+    if (currentId === searchRequestId) {
+      if (onlyType) {
+        sectionLoading.value = {
+          ...sectionLoading.value,
+          [onlyType]: false,
+        }
+      } else {
+        searching.value = false
+      }
+    }
   }
 }
 
@@ -1582,6 +1862,25 @@ function getSongArtists(song) {
   return song?.ar || song?.artists || []
 }
 
+function getArtistAvatar(artist) {
+  return artist?.img1v1Url || artist?.picUrl || artist?.avatarUrl || ''
+}
+
+function getArtistSubtitle(artist) {
+  const alias = Array.isArray(artist?.alias) ? artist.alias.filter(Boolean).join(' / ') : ''
+  if (alias) return alias
+  const account = artist?.accountId ? `账号 ${artist.accountId}` : ''
+  return account || '网易云音乐歌手'
+}
+
+function getSongCover(song) {
+  return song?.al?.picUrl || song?.album?.picUrl || song?.coverImgUrl || ''
+}
+
+function getPlaylistCover(playlist) {
+  return playlist?.coverImgUrl || playlist?.picUrl || ''
+}
+
 function isActiveEntry(index) {
   return index === activeEntryIndex.value
 }
@@ -1589,7 +1888,8 @@ function isActiveEntry(index) {
 function moveSelection(direction) {
   if (!searchPanelVisible.value || !flatEntries.value.length) return
   if (activeEntryIndex.value < 0) {
-    activeEntryIndex.value = direction > 0 ? 0 : flatEntries.value.length - 1
+    const preferred = direction > 0 ? getPreferredEntryIndex() : getPreferredEntryIndexFromTail()
+    activeEntryIndex.value = preferred >= 0 ? preferred : (direction > 0 ? 0 : flatEntries.value.length - 1)
     return
   }
   const len = flatEntries.value.length
@@ -1624,23 +1924,39 @@ function getPageLabel(type) {
   return `${page}/${totalPage}`
 }
 
-function getItemStaggerStyle(globalIndex) {
-  const capped = Math.min(Math.max(globalIndex, 0), 18)
-  return {
-    '--stagger-delay': `${capped * 28}ms`,
-  }
+function isSectionLoading(type) {
+  return Boolean(sectionLoading.value?.[type])
 }
 
-function getGroupTitleStyle(groupIndex) {
-  const base = Math.min(Math.max(groupIndex, 0), 4)
-  return {
-    '--group-delay': `${base * 80}ms`,
+function getResultSectionStyle(type) {
+  const orderMap = {
+    mixed: {artist: 1, song: 2, playlist: 3},
+    artist: {artist: 1, song: 2, playlist: 3},
+    song: {song: 1, artist: 2, playlist: 3},
+    playlist: {playlist: 1, song: 2, artist: 3},
   }
+  const orders = orderMap[intentType.value] || orderMap.mixed
+  return {order: String(orders[type] || 4)}
+}
+
+function getPreferredEntryIndex() {
+  if (intentType.value === 'artist' && artistEntries.value.length) return artistEntries.value[0].globalIndex
+  if (intentType.value === 'song' && songEntries.value.length) return songEntries.value[0].globalIndex
+  if (intentType.value === 'playlist' && playlistEntries.value.length) return playlistEntries.value[0].globalIndex
+  return flatEntries.value.length ? 0 : -1
+}
+
+function getPreferredEntryIndexFromTail() {
+  if (intentType.value === 'artist' && artistEntries.value.length) return artistEntries.value.at(-1).globalIndex
+  if (intentType.value === 'song' && songEntries.value.length) return songEntries.value.at(-1).globalIndex
+  if (intentType.value === 'playlist' && playlistEntries.value.length) return playlistEntries.value.at(-1).globalIndex
+  return flatEntries.value.length ? flatEntries.value.length - 1 : -1
 }
 
 function changePage(type, delta) {
   const keyword = inputValue.value.trim()
   if (!keyword) return
+  if (isSectionLoading(type)) return
   const nextPage = (searchPage.value[type] || 0) + delta
   if (nextPage < 0) return
   if (delta > 0 && !canNext(type)) return
@@ -1649,7 +1965,7 @@ function changePage(type, delta) {
     [type]: nextPage,
   }
   activeEntryIndex.value = -1
-  runSearch(keyword)
+  runSearch(keyword, {onlyType: type})
 }
 
 function onScroll() {
@@ -1746,16 +2062,28 @@ defineExpose({expand, collapse, toggle, focus: () => input.value?.focus()})
 
 onMounted(async () => {
   await nextTick()
-  if (shell.value) gsap.set(shell.value, {width: 48, height: 48, borderRadius: 9999})
+  if (shell.value) {
+    gsap.set(shell.value, {
+      width: expanded.value ? measureExpandedWidth() : 48,
+      height: 48,
+      borderRadius: 9999,
+    })
+  }
   updateFabContrast()
   window.addEventListener('scroll', onScroll, {passive: true})
-  window.addEventListener('resize', scheduleContrastUpdate)
+  window.addEventListener('resize', onResize)
 })
+
+function onResize() {
+  viewportWidth.value = window.innerWidth
+  scheduleContrastUpdate()
+  syncExpandedWidth()
+}
 
 onBeforeUnmount(() => {
   navTl?.kill()
   window.removeEventListener('scroll', onScroll)
-  window.removeEventListener('resize', scheduleContrastUpdate)
+  window.removeEventListener('resize', onResize)
   if (contrastRaf) {
     cancelAnimationFrame(contrastRaf)
     contrastRaf = 0
@@ -1947,9 +2275,14 @@ function buildProfile(data) {
 }
 
 /** 进场动画：固定 transformOrigin，轻微缩放+模糊 */
+function resolveAnimTarget(target) {
+  const el = target?.$el || target
+  return el && el.nodeType === 1 ? el : null
+}
+
 function animateDialogIn() {
-  const overlay = dialogOverlay.value
-  const panel = dialogPanel.value
+  const overlay = resolveAnimTarget(dialogOverlay.value)
+  const panel = resolveAnimTarget(dialogPanel.value)
   if (!overlay && !panel) return
   gsap.killTweensOf([overlay, panel])
 
@@ -1968,8 +2301,8 @@ function animateDialogIn() {
 
 /** 退场动画：不做 y 位移；关闭期间禁用 hover 放大 */
 function animateDialogOut() {
-  const overlay = dialogOverlay.value
-  const panel = dialogPanel.value
+  const overlay = resolveAnimTarget(dialogOverlay.value)
+  const panel = resolveAnimTarget(dialogPanel.value)
   if (!overlay && !panel) return Promise.resolve()
   const targets = [overlay, panel].filter(Boolean)
 
@@ -1982,7 +2315,9 @@ function animateDialogOut() {
       defaults: {ease: 'power2.in', duration: 0.18},
       onComplete: () => {
         isClosing.value = false
-        if (targets.length) gsap.set(targets, {clearProps: 'all'})
+        for (const target of targets) {
+          if (target?.style) gsap.set(target, {clearProps: 'all'})
+        }
         resolve()
       },
     })
@@ -2013,41 +2348,90 @@ button, svg {
   will-change: transform, opacity, filter;
 }
 
-.search-panel-enter-active,
-.search-panel-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease, filter 220ms ease;
+
+.search-panel-surface {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(248, 250, 252, 0.76);
 }
 
-.search-panel-enter-from,
-.search-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.98);
-  filter: blur(8px);
+.search-topbar {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  padding-bottom: 6px;
 }
 
-.search-item-enter-active {
-  transition: opacity 280ms ease, transform 280ms ease, filter 280ms ease;
-  transition-delay: var(--stagger-delay, 0ms);
+.search-stat-pill {
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.6);
+  padding: 1px 7px;
 }
 
-.search-item-leave-active {
-  transition: opacity 120ms ease, transform 120ms ease;
+.search-section {
+  transition: box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
 }
 
-.search-item-enter-from,
-.search-item-leave-to {
-  opacity: 0;
-  transform: translateY(6px) scale(0.985);
-  filter: blur(6px);
+.search-section-focus {
+  border-color: rgba(71, 85, 105, 0.36);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
 }
 
-.search-item-move {
-  transition: transform 220ms ease;
+.search-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.search-group-title {
-  animation: searchGroupTitleIn 320ms ease both;
-  animation-delay: var(--group-delay, 0ms);
+.search-row {
+  transition: background-color 160ms ease, transform 180ms ease;
+}
+
+.search-row-idle:hover {
+  background: rgba(241, 245, 249, 0.88);
+}
+
+.search-row-active {
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.34);
+}
+
+.search-tag {
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.46);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 2px 8px;
+  font-size: 11px;
+  color: rgb(71, 85, 105);
+}
+
+.search-avatar-fallback {
+  display: grid;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.26);
+  color: rgb(71, 85, 105);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.search-pager-btn {
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.52);
+  background: rgba(255, 255, 255, 0.64);
+  padding: 2px 9px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.search-pager-btn:hover {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.search-pager-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
 }
 
 .chat-panel {
@@ -2071,16 +2455,4 @@ button, svg {
   }
 }
 
-@keyframes searchGroupTitleIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
 </style>

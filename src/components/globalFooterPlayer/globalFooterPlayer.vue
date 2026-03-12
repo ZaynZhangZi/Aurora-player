@@ -1,7 +1,7 @@
 <template>
 	<div
 		ref="playerRootRef"
-		class="fixed inset-x-0 bottom-3 z-[999] px-3 sm:bottom-4 sm:px-4"
+		class="fixed inset-x-0 bottom-3 z-[999] px-2 sm:bottom-4 sm:px-4"
 		role="region"
 		aria-label="全局播放器"
 	>
@@ -10,7 +10,7 @@
 			:style="playerStyle"
 		>
 			<div
-				class="hidden h-[86px] grid-cols-[minmax(0,1fr)_minmax(360px,520px)_minmax(0,1fr)] items-center gap-4 px-5 md:grid"
+				class="hidden h-[86px] grid-cols-[minmax(200px,1fr)_minmax(320px,520px)_minmax(180px,1fr)] items-center gap-4 px-5 lg:grid"
 			>
 				<Transition name="track-swap" mode="out-in">
 					<div :key="songTransitionKey" class="flex min-w-0 items-center gap-3">
@@ -21,8 +21,24 @@
 							aria-label="打开歌词页"
 							@click="openLyricPage"
 						>
+							<video
+								v-if="dynamicCoverUrl && dynamicCoverIsVideo"
+								:src="dynamicCoverUrl"
+								class="h-full w-full object-cover"
+								autoplay
+								muted
+								loop
+								playsinline
+								preload="metadata"
+							/>
 							<img
-								v-if="coverUrl"
+								v-else-if="dynamicCoverUrl"
+								:src="dynamicCoverUrl"
+								alt="dynamic-cover"
+								class="h-full w-full object-cover"
+							>
+							<img
+								v-else-if="coverUrl"
 								:src="coverUrl"
 								alt="cover"
 								class="h-full w-full object-cover"
@@ -159,10 +175,10 @@
 			</div>
 
 			<div
-				class="flex h-[84px] items-center justify-between gap-3 px-3 md:hidden"
+				class="grid min-h-[94px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:px-3 lg:hidden"
 			>
 				<Transition name="track-swap" mode="out-in">
-					<div :key="songTransitionKey" class="flex min-w-0 items-center gap-3">
+					<div :key="songTransitionKey" class="flex min-w-0 items-center gap-2.5">
 						<button
 							class="h-11 w-11 overflow-hidden rounded-lg bg-white/20"
 							type="button"
@@ -170,8 +186,24 @@
 							aria-label="打开歌词页"
 							@click="openLyricPage"
 						>
+							<video
+								v-if="dynamicCoverUrl && dynamicCoverIsVideo"
+								:src="dynamicCoverUrl"
+								class="h-full w-full object-cover"
+								autoplay
+								muted
+								loop
+								playsinline
+								preload="metadata"
+							/>
 							<img
-								v-if="coverUrl"
+								v-else-if="dynamicCoverUrl"
+								:src="dynamicCoverUrl"
+								alt="dynamic-cover"
+								class="h-full w-full object-cover"
+							>
+							<img
+								v-else-if="coverUrl"
 								:src="coverUrl"
 								alt="cover"
 								class="h-full w-full object-cover"
@@ -234,7 +266,7 @@
 					</div>
 				</Transition>
 
-				<div class="flex items-center gap-2">
+				<div class="flex max-w-[52vw] flex-wrap items-center justify-end gap-1.5 sm:gap-2">
 					<button
 						class="player-soft-btn grid h-8 w-8 place-items-center rounded-full disabled:opacity-50"
 						type="button"
@@ -261,21 +293,14 @@
 						<ForwardIcon class="h-4 w-4" />
 					</button>
 					<button
-						class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
+						class="player-chip-btn hidden rounded-full px-2 py-1 text-[10px] sm:inline-flex"
 						type="button"
 						@click="cyclePlayMode"
 					>
 						{{ playModeLabel }}
 					</button>
-					<button
-						class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
-						type="button"
-						@click="togglePlaylistPanel"
-					>
-						列表
-					</button>
 					<input
-						class="player-range h-1.5 w-16 cursor-pointer appearance-none rounded-full"
+						class="player-range hidden h-1.5 w-16 cursor-pointer appearance-none rounded-full sm:block"
 						type="range"
 						min="0"
 						max="1"
@@ -283,6 +308,19 @@
 						:value="volume"
 						@input="changeVolume"
 					>
+				</div>
+
+				<div class="player-text-muted col-span-2 flex items-center gap-2 px-0.5 text-[11px]">
+					<span class="w-9 text-right">{{ formatMs(currentTimeMs) }}</span>
+					<input
+						class="player-range h-1.5 flex-1 cursor-pointer appearance-none rounded-full"
+						type="range"
+						min="0"
+						:max="Math.max(durationMs, 1)"
+						:value="Math.min(currentTimeMs, durationMs || 0)"
+						@input="seekByInput"
+					>
+					<span class="w-9">{{ formatMs(durationMs) }}</span>
 				</div>
 			</div>
 		</div>
@@ -298,8 +336,8 @@
 				:music-name="songName"
 				:music-artists="amllArtists"
 				:music-album="amllAlbum"
-				:cover="coverUrl"
-				:cover-is-video="false"
+				:cover="amllCoverUrl"
+				:cover-is-video="amllCoverIsVideo"
 				:lyric-lines="amllLyricLines"
 				:duration="durationMs"
 				:playing="isPlaying"
@@ -473,6 +511,10 @@ const songTransitionKey = computed(() => {
 const amllArtists = computed(() =>
 	normalizedArtistList.value.map((item) => item.name),
 );
+const amllCoverUrl = computed(() => dynamicCoverUrl.value || coverUrl.value);
+const amllCoverIsVideo = computed(
+	() => Boolean(dynamicCoverUrl.value && dynamicCoverIsVideo.value),
+);
 
 const amllCurrentTimeMs = computed({
 	get: () => Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS),
@@ -501,6 +543,11 @@ const amllVolume = computed({
 const amllLowFreqVolume = computed(() =>
 	clamp(0.08 + rhythmLevel.value * 0.48 + beatLevel.value * 0.64, 0.08, 1),
 );
+
+const dynamicCoverUrl = ref("");
+const dynamicCoverIsVideo = ref(false);
+let dynamicCoverToken = 0;
+const dynamicCoverCache = new Map();
 
 const playerStyle = computed(() => {
 	const [b1, b2, b3] = themeBaseRgb.value;
@@ -957,6 +1004,80 @@ function openArtistFromPlayer(artist) {
 	});
 }
 
+function getExt(url = "") {
+	const clean = String(url).split("?")[0].split("#")[0].toLowerCase();
+	const index = clean.lastIndexOf(".");
+	return index >= 0 ? clean.slice(index + 1) : "";
+}
+
+function isVideoUrl(url = "") {
+	return ["mp4", "webm", "m4v", "mov", "ogg", "ogv"].includes(getExt(url));
+}
+
+function pickDynamicCover(payload) {
+	const data = payload?.data ?? payload;
+	const root = data?.data ?? data ?? {};
+	const hintedType = String(root?.type || root?.format || "").toLowerCase();
+	const sources = [
+		root?.videoPlayUrl,
+		root?.url,
+		root?.cover,
+		root?.video,
+		root?.videoUrl,
+		root?.dynamicCover,
+		root?.dynamicCoverUrl,
+		root?.mvUrl,
+		Array.isArray(root) ? root[0]?.videoPlayUrl : "",
+		Array.isArray(root) ? root[0]?.url : "",
+		Array.isArray(root) ? root[0]?.cover : "",
+		Array.isArray(root?.list) ? root.list[0]?.videoPlayUrl : "",
+		Array.isArray(root?.list) ? root.list[0]?.url : "",
+		Array.isArray(root?.list) ? root.list[0]?.cover : "",
+	];
+
+	for (const candidate of sources) {
+		const url = String(candidate || "").trim();
+		if (!url || !/^https?:\/\//i.test(url)) continue;
+		return {
+			url,
+			isVideo: hintedType.includes("video") || isVideoUrl(url),
+		};
+	}
+
+	return {url: "", isVideo: false};
+}
+
+async function loadDynamicCover(songId) {
+	const id = Number(songId);
+	if (!Number.isFinite(id) || id <= 0) {
+		dynamicCoverUrl.value = "";
+		dynamicCoverIsVideo.value = false;
+		return;
+	}
+
+	if (dynamicCoverCache.has(id)) {
+		const cached = dynamicCoverCache.get(id) || {url: "", isVideo: false};
+		dynamicCoverUrl.value = cached.url || "";
+		dynamicCoverIsVideo.value = Boolean(cached.isVideo);
+		return;
+	}
+
+	const token = ++dynamicCoverToken;
+	try {
+		const res = await songsApi.getDynamicCover(id);
+		const dynamic = pickDynamicCover(res);
+		dynamicCoverCache.set(id, dynamic);
+		if (token !== dynamicCoverToken) return;
+		dynamicCoverUrl.value = dynamic.url;
+		dynamicCoverIsVideo.value = Boolean(dynamic.isVideo);
+	} catch {
+		dynamicCoverCache.set(id, {url: "", isVideo: false});
+		if (token !== dynamicCoverToken) return;
+		dynamicCoverUrl.value = "";
+		dynamicCoverIsVideo.value = false;
+	}
+}
+
 function syncAudioVolume() {
 	if (!audioRef.value) return;
 	audioRef.value.volume = volume.value;
@@ -1177,6 +1298,7 @@ watch(
 watch(
 	() => playerStore.currentSong?.id,
 	async (songId) => {
+		await loadDynamicCover(songId);
 		await loadCurrentSongLyric(songId);
 		amllAlbum.value = "";
 		amllHideLyricView.value = false;
@@ -1466,8 +1588,14 @@ onBeforeUnmount(() => {
 
 .artist-marquee {
 	overflow: hidden;
-	width: min(320px, 52vw);
+	width: min(300px, 50vw);
 	white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+	.artist-marquee {
+		width: min(210px, 54vw);
+	}
 }
 
 .artist-marquee-track {

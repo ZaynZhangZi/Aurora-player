@@ -28,8 +28,9 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { gsap } from 'gsap'
+import {runViewTransition, setActivePlaylistTransitionId} from '@/utils/viewTransition.js'
 
 const props = defineProps({
   to: { type: String, default: 'body' },
@@ -47,6 +48,7 @@ const props = defineProps({
 const emit = defineEmits(['closed', 'backdrop-click'])
 
 const router = useRouter()
+const route = useRoute()
 
 // 记录原始 body overflow，避免影响别的页面
 const originalBodyOverflow = ref('')
@@ -63,7 +65,34 @@ function unlockScroll() {
 }
 
 function closeModal() {
-  router.back()
+  if (route.name === 'playlistDetail') {
+    setActivePlaylistTransitionId(route.query?.id)
+  }
+
+  const matched = route.matched || []
+  let target = null
+
+  if (matched.length > 1) {
+    const parent = matched[matched.length - 2]
+    if (parent?.name) {
+      target = {name: parent.name}
+    } else if (parent?.path) {
+      target = parent.path
+    }
+  }
+
+  runViewTransition(() => {
+    if (target) {
+      return router.push(target)
+    }
+
+    if (window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push('/home')
+  })
 }
 
 function handleBackdropClick() {

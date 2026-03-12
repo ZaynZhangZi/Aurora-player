@@ -6,13 +6,7 @@
 
         <div class="mb-4 flex items-center justify-between">
           <p class="text-[11px] uppercase tracking-[0.24em] text-stone-500">Album Detail</p>
-          <button
-            class="rounded-full border border-stone-300 bg-white/85 px-4 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-white"
-            type="button"
-            @click="goBack"
-          >
-            返回
-          </button>
+
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[300px_1fr] lg:items-end">

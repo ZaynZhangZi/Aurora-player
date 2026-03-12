@@ -7,13 +7,7 @@
       <div class="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-stone-100/40 blur-2xl" />
       <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-8">
         <div class="mb-4 flex justify-end">
-          <button
-            class="rounded-full border border-stone-300 bg-white/90 px-4 py-1.5 text-sm text-stone-700 transition hover:-translate-y-0.5 hover:bg-white"
-            type="button"
-            @click="goBack"
-          >
-            返回
-          </button>
+
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[140px_1fr] lg:items-center">
@@ -66,6 +60,14 @@
             @click="switchTab('cloud')"
           >
             云盘管理
+          </button>
+          <button
+            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
+            :class="activeTab === 'listening' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            type="button"
+            @click="switchTab('listening')"
+          >
+            听歌画像
           </button>
         </div>
       </section>
@@ -126,7 +128,7 @@
         </template>
         </section>
 
-        <section v-else key="cloud" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+        <section v-else-if="activeTab === 'cloud'" key="cloud" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-2xl font-bold">云盘</h2>
           <button
@@ -234,6 +236,59 @@
           </div>
         </template>
         </section>
+
+        <section v-else-if="activeTab === 'listening'" key="listening" class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold">听歌风格画像</h2>
+            </div>
+            <div class="inline-flex rounded-xl border border-stone-300 bg-stone-50 p-1 text-xs">
+              <button
+                class="rounded-lg px-3 py-1 transition"
+                :class="listeningRange === 'week' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-white'"
+                type="button"
+                @click="setListeningRange('week')"
+              >
+                本周
+              </button>
+              <button
+                class="rounded-lg px-3 py-1 transition"
+                :class="listeningRange === 'all' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-white'"
+                type="button"
+                @click="setListeningRange('all')"
+              >
+                全时段
+              </button>
+            </div>
+          </div>
+
+          <p v-if="listeningLoading" class="text-sm text-stone-500">正在分析你的听歌分布...</p>
+          <p v-else-if="listeningError" class="text-sm text-red-500">{{ listeningError }}</p>
+
+          <div v-else class="grid gap-4">
+              <div class="listening-gradient-stage listening-gradient-stage-large" :style="listeningMeshStyle">
+                <div class="pointer-events-none absolute inset-0 rounded-2xl border border-white/30" />
+                <div
+                  v-if="!listeningBuckets.length"
+                  class="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl border border-white/35 bg-black/25 px-3 py-2 text-xs text-white/90 backdrop-blur-sm"
+                >
+                  暂无可分析的听歌记录，先播放几首歌再回来看看。
+                </div>
+              </div>
+
+              <div v-if="listeningBuckets.length" class="flex flex-wrap gap-2">
+                <span
+                  v-for="item in listeningBuckets.slice(0, 4)"
+                  :key="item.key"
+                  class="inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white px-2.5 py-1 text-[11px] text-stone-700"
+                >
+                  <span class="inline-block h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
+                  {{ item.label }} {{ item.percent }}%
+                </span>
+              </div>
+              <p v-else class="text-xs text-stone-500">当前暂无分布标签，系统会在有足够播放记录后自动生成。</p>
+          </div>
+        </section>
       </transition>
     </main>
 
@@ -244,6 +299,7 @@
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
+import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
@@ -290,6 +346,11 @@ const cloudUploadFile = ref(null)
 const cloudUploading = ref(false)
 const cloudUploadMessage = ref('')
 const cloudFileInputKey = ref(0)
+const listeningLoading = ref(false)
+const listeningError = ref('')
+const listeningRange = ref('week')
+const listeningRecords = ref({week: [], all: []})
+const listeningBuckets = ref([])
 const themeRgb = ref('214, 219, 228')
 const animatedThemeRgb = ref(themeRgb.value)
 const heroCanvasRef = ref(null)
@@ -307,6 +368,16 @@ const liquidBlobs = [
 const createdPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId === profile.value.userId))
 const subscribedPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId !== profile.value.userId))
 const cloudCanNextPage = computed(() => cloudHasMore.value)
+
+const LISTENING_BUCKET_META = {
+  mellow: {label: '轻松治愈', color: '#F59E0B'},
+  rhythm: {label: '节奏律动', color: '#3B82F6'},
+  pop: {label: '流行热歌', color: '#22C55E'},
+  electronic: {label: '电子/派对', color: '#A855F7'},
+  travel: {label: '旅行公路', color: '#EAB308'},
+  power: {label: '运动燃系', color: '#EF4444'},
+  other: {label: '其他', color: '#06B6D4'},
+}
 
 const PROVINCE_NAME_MAP = {
   110000: '北京',
@@ -637,6 +708,91 @@ function tuneThemeColor(rgb) {
   return hslToRgb(hsl.h, tunedS, tunedL)
 }
 
+function getListeningPaletteVectors() {
+  if (!listeningBuckets.value.length) {
+    return [
+      {color: '#3B82F6', weight: 0.4},
+      {color: '#A855F7', weight: 0.34},
+      {color: '#22C55E', weight: 0.26},
+    ]
+  }
+
+  const top = listeningBuckets.value.slice(0, 5)
+  const sum = top.reduce((acc, item) => acc + item.percent, 0) || 1
+  return top.map((item) => ({
+    color: item.color,
+    weight: item.percent / sum,
+  }))
+}
+
+function frac(v) {
+  return v - Math.floor(v)
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t
+}
+
+function smoothstep(t) {
+  return t * t * (3 - 2 * t)
+}
+
+function hash2(x, y, seed = 0) {
+  const n = x * 127.1 + y * 311.7 + seed * 74.7
+  return frac(Math.sin(n) * 43758.5453123)
+}
+
+function valueNoise2D(x, y, seed = 0) {
+  const x0 = Math.floor(x)
+  const y0 = Math.floor(y)
+  const xf = x - x0
+  const yf = y - y0
+
+  const n00 = hash2(x0, y0, seed)
+  const n10 = hash2(x0 + 1, y0, seed)
+  const n01 = hash2(x0, y0 + 1, seed)
+  const n11 = hash2(x0 + 1, y0 + 1, seed)
+
+  const u = smoothstep(xf)
+  const v = smoothstep(yf)
+
+  const nx0 = lerp(n00, n10, u)
+  const nx1 = lerp(n01, n11, u)
+  return lerp(nx0, nx1, v)
+}
+
+const listeningMeshStyle = computed(() => {
+  const vectors = getListeningPaletteVectors()
+  const weightSum = vectors.reduce((acc, item) => acc + item.weight, 0) || 1
+  const normalizedWeights = vectors.map((item) => item.weight / weightSum)
+  const lchBase = chroma.average(vectors.map(item => item.color), 'lch', normalizedWeights)
+  const baseBright = lchBase.brighten(0.65).saturate(0.72)
+  const baseDeep = lchBase.darken(0.78).saturate(0.18)
+
+  const meshStops = []
+  const meshCount = Math.max(6, vectors.length * 2)
+  for (let i = 0; i < meshCount; i += 1) {
+    const a = vectors[i % vectors.length]
+    const b = vectors[(i + 1) % vectors.length]
+    const noiseA = valueNoise2D(i * 0.87, 1.13, 11)
+    const noiseB = valueNoise2D(i * 1.13, 2.07, 29)
+    const blendT = 0.2 + noiseA * 0.58
+    const mixed = chroma.mix(a.color, b.color, blendT, 'lch').saturate(0.9).brighten(0.2)
+    const px = 8 + noiseA * 84
+    const py = 8 + noiseB * 84
+    const r = 18 + (a.weight + b.weight) * 34
+    meshStops.push(`radial-gradient(circle at ${px.toFixed(2)}% ${py.toFixed(2)}%, ${mixed.alpha(0.62).css()} 0%, ${mixed.alpha(0.18).css()} ${r.toFixed(2)}%, ${mixed.alpha(0).css()} ${(r + 20).toFixed(2)}%)`)
+  }
+
+  const baseLayer = `linear-gradient(135deg, ${baseBright.alpha(0.96).css()} 0%, ${baseDeep.alpha(0.96).css()} 100%)`
+  return {
+    background: [
+      ...meshStops,
+      baseLayer,
+    ].join(', '),
+  }
+})
+
 function colorFromSeed(seed) {
   const text = String(seed || 'profile')
   let hash = 0
@@ -730,6 +886,131 @@ function formatCount(value) {
   if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`
   if (num >= 10000) return `${(num / 10000).toFixed(1)}万`
   return String(num)
+}
+
+function normalizeText(value) {
+  return String(value || '').toLowerCase().trim()
+}
+
+function detectListeningBucket(record) {
+  const song = record?.song || {}
+  const title = normalizeText(song?.name)
+  const album = normalizeText(song?.al?.name)
+  const artists = (song?.ar || []).map(item => normalizeText(item?.name)).join(' ')
+  const merged = `${title} ${album} ${artists}`
+
+  const isPureMusic = merged.includes('纯音乐') || merged.includes('instrumental') || merged.includes('piano') || merged.includes('钢琴')
+  const isElectronic = /(edm|house|techno|electro|trance|dubstep|remix|dj|电子|电音)/.test(merged)
+  const isPower = /(workout|fitness|gym|运动|燃|battle|hardstyle|metal|摇滚|rock|punk|说唱|rap|hiphop)/.test(merged)
+  const isTravel = /(旅行|公路|road|trip|sunset|city pop|citypop|民谣|folk|camp)/.test(merged)
+  const isRhythm = /(dance|funk|r&b|rb|节奏|律动|groove|swing|city)/.test(merged)
+  const isMellow = /(治愈|晚安|sleep|lofi|chill|ambient|study|学习|雨声|轻音乐)/.test(merged)
+
+  if (isPureMusic || isMellow) return 'mellow'
+  if (isElectronic) return 'electronic'
+  if (isPower) return 'power'
+  if (isTravel) return 'travel'
+  if (isRhythm) return 'rhythm'
+
+  const hasKana = /[\u3040-\u30ff]/.test(merged)
+  const hasHangul = /[\uac00-\ud7af]/.test(merged)
+  const hasCjk = /[\u4e00-\u9fff]/.test(merged)
+  const hasLatin = /[a-z]/.test(merged)
+
+  if (hasKana || hasHangul) return 'rhythm'
+  if (hasCjk && !hasLatin) return 'pop'
+  if (hasLatin && !hasCjk) return 'travel'
+  if (hasLatin && hasCjk) return 'pop'
+
+  return 'other'
+}
+
+function buildListeningProfile(records = []) {
+  const bucketWeight = {
+    mellow: 0,
+    rhythm: 0,
+    pop: 0,
+    electronic: 0,
+    travel: 0,
+    power: 0,
+    other: 0,
+  }
+
+  let total = 0
+  for (const item of records) {
+    const weight = Number(item?.playCount || item?.score || 1)
+    if (!Number.isFinite(weight) || weight <= 0) continue
+    const bucket = detectListeningBucket(item)
+    bucketWeight[bucket] += weight
+    total += weight
+  }
+
+  if (!total) {
+    listeningBuckets.value = []
+    return
+  }
+
+  const sorted = Object.entries(bucketWeight)
+    .map(([key, weight]) => {
+      const meta = LISTENING_BUCKET_META[key]
+      return {
+        key,
+        label: meta.label,
+        color: meta.color,
+        weight,
+        percent: Number(((weight / total) * 100).toFixed(1)),
+      }
+    })
+    .filter(item => item.weight > 0)
+    .sort((a, b) => b.weight - a.weight)
+
+  let remains = 100
+  const normalized = sorted.map((item, index) => {
+    if (index === sorted.length - 1) {
+      return {...item, percent: Number(remains.toFixed(1))}
+    }
+    const next = Math.min(remains, Math.max(0, item.percent))
+    remains -= next
+    return {...item, percent: Number(next.toFixed(1))}
+  })
+
+  listeningBuckets.value = normalized
+}
+
+async function ensureListeningRecords(type) {
+  if (!userStore.userId) return []
+  if (listeningRecords.value[type]?.length) {
+    return listeningRecords.value[type]
+  }
+
+  const apiType = type === 'week' ? 1 : 0
+  const res = await userApi.getUserRecord(userStore.userId, apiType)
+  const payload = res?.data || {}
+  const list = type === 'week'
+    ? (payload.weekData || payload.allData || [])
+    : (payload.allData || payload.weekData || [])
+
+  listeningRecords.value = {
+    ...listeningRecords.value,
+    [type]: Array.isArray(list) ? list : [],
+  }
+  return listeningRecords.value[type]
+}
+
+async function setListeningRange(type) {
+  if (listeningRange.value === type && listeningBuckets.value.length) return
+  listeningRange.value = type
+  listeningLoading.value = true
+  listeningError.value = ''
+  try {
+    const records = await ensureListeningRecords(type)
+    buildListeningProfile(records)
+  } catch (error) {
+    listeningError.value = error?.message || '听歌画像分析失败'
+    listeningBuckets.value = []
+  } finally {
+    listeningLoading.value = false
+  }
 }
 
 function goBack() {
@@ -972,6 +1253,7 @@ async function loadProfilePage() {
 
     playlists.value = playlistRes?.data?.playlist || []
     await loadCloudSongs(1)
+    await setListeningRange(listeningRange.value)
   } catch (err) {
     error.value = err?.message || '个人中心加载失败'
   } finally {
@@ -1019,6 +1301,7 @@ watch(
     }
   },
 )
+
 </script>
 
 <style scoped>
@@ -1044,6 +1327,26 @@ watch(
 .profile-kpi-pill:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(28, 25, 23, 0.08);
+}
+
+.listening-gradient-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(100, 116, 139, 0.34);
+  background:
+    radial-gradient(circle at 18% 22%, rgba(59, 130, 246, 0.44), transparent 44%),
+    radial-gradient(circle at 82% 18%, rgba(168, 85, 247, 0.4), transparent 46%),
+    radial-gradient(circle at 60% 80%, rgba(34, 197, 94, 0.34), transparent 48%),
+    #334155;
+  min-height: 190px;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.listening-gradient-stage-large {
+  height: 240px;
+  min-height: 240px;
 }
 
 @keyframes kpi-rise {

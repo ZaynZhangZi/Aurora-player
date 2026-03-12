@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@applemusic-like-lyrics/core": "^0.2.0-alpha.5",
-    "@applemusic-like-lyrics/vue": "file:applemusic-like-lyrics-vue-0.2.1.tgz",
+    "@applemusic-like-lyrics/vue": "file:applemusic-like-lyrics-vue-0.2.2.tgz",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
     "@tailwindcss/vite": "^4.1.13",
@@ -27,6 +27,7 @@
     "gsap": "^3.13.0",
     "jss": "^10.10.0",
     "jss-preset-default": "^10.10.0",
+    "motion": "^12.36.0",
     "openai": "^6.3.0",
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.5.0",

@@ -12,13 +12,13 @@
         <div class="max-w-2xl rounded-2xl border border-white/30 bg-black/20 px-5 py-4 text-white backdrop-blur-md sm:px-6 sm:py-5">
           <p class="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/80 sm:text-xs">My Music Demo</p>
           <h1 class="text-3xl font-black leading-[1.1] sm:max-w-[12ch] sm:text-5xl">今天听点什么</h1>
-          <p class="mt-3 max-w-[34ch] text-sm leading-relaxed text-white/90 sm:text-base">从网友精选碟开始，接着切到新歌与热门歌手，30 秒帮你进入听歌状态。</p>
+          <p class="mt-3 max-w-[34ch] text-sm leading-relaxed text-white/90 sm:text-base">{{ hero.subtitle }}</p>
         </div>
       </div>
     </section>
 
     <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <section class="mb-10">
+      <section class="motion-section mb-10">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-2xl font-bold">推荐歌单</h2>
         </div>
@@ -28,10 +28,11 @@
           <article
             v-for="item in recommendPlaylists"
             :key="item.id"
-            class="group cursor-pointer"
+            class="motion-card group cursor-pointer"
+            :style="getPlaylistCardTransitionStyle(item)"
             @click="openPlaylist(item)"
           >
-            <div class="relative aspect-square overflow-hidden rounded-2xl bg-stone-200">
+            <div class="relative aspect-square overflow-hidden rounded-2xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
               <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
             </div>
             <p class="mt-2 truncate text-sm font-medium">{{ item.name }}</p>
@@ -39,7 +40,7 @@
         </div>
       </section>
 
-      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+      <section class="motion-section mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-2xl font-bold">网友精选碟</h2>
           <span class="text-xs uppercase tracking-[0.2em] text-stone-400">Top Playlist</span>
@@ -62,10 +63,11 @@
           <article
             v-for="item in topPlaylists"
             :key="item.id"
-            class="group flex cursor-pointer gap-3 rounded-2xl border border-stone-100 p-3 transition hover:border-stone-300 hover:bg-stone-50"
+            class="motion-card group flex cursor-pointer gap-3 rounded-2xl border border-stone-100 p-3 transition hover:border-stone-300 hover:bg-stone-50"
+            :style="getPlaylistCardTransitionStyle(item)"
             @click="openPlaylist(item)"
           >
-            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-stone-200">
+            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
               <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
             </div>
             <div class="min-w-0">
@@ -76,7 +78,7 @@
         </div>
       </section>
 
-      <section class="mb-10">
+      <section class="motion-section mb-10">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-2xl font-bold">推荐新音乐</h2>
         </div>
@@ -105,7 +107,7 @@
         </div>
       </section>
 
-      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+      <section class="motion-section mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-2xl font-bold">热门榜单</h2>
           <span class="text-xs uppercase tracking-[0.2em] text-stone-400">Top Charts</span>
@@ -117,10 +119,11 @@
             v-for="rank in topRanks"
             :key="rank.id"
             class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            :style="getPlaylistCardTransitionStyle(rank)"
             @click="openPlaylist(rank)"
           >
             <div class="flex gap-3 p-3">
-              <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-200">
+              <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(rank)">
                 <SmartMedia :src="rank.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
               </div>
               <div class="min-w-0 flex-1">
@@ -212,7 +215,7 @@
           <article
             v-for="item in mvList"
             :key="item.id"
-            class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            class="motion-card group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
             @click="openMv(item)"
           >
             <div class="aspect-video overflow-hidden bg-stone-200">
@@ -284,9 +287,10 @@
             v-for="item in highQualityPlaylists"
             :key="item.id"
             class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            :style="getPlaylistCardTransitionStyle(item)"
             @click="openPlaylist(item)"
           >
-            <div class="aspect-[4/3] overflow-hidden bg-stone-200">
+            <div class="aspect-[4/3] overflow-hidden bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
               <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
             </div>
             <div class="p-3">
@@ -298,6 +302,24 @@
       </section>
 
     </main>
+
+    <button
+      ref="releaseNotesFabRef"
+      class="motion-fab fixed bottom-[calc(var(--global-player-space,96px)+12px)] right-4 z-[1000] grid h-12 w-12 place-items-center rounded-full border border-stone-300 bg-white/95 text-stone-700 shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white"
+      type="button"
+      aria-label="打开更新日志"
+      @click="openReleaseNotesPanel"
+    >
+      <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 4h8l4 4v11a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+        <path d="M15 4v5h5" />
+        <path d="M9 13h6" />
+        <path d="M9 17h4" />
+      </svg>
+      <span class="absolute -right-1 -top-1 max-w-[72px] truncate rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+        {{ latestReleaseTag }}
+      </span>
+    </button>
 
     <Teleport to="body">
       <div
@@ -342,6 +364,90 @@
           </div>
         </div>
       </div>
+
+      <Transition name="release-notes">
+        <div
+          v-if="releaseNotesOpen"
+          class="fixed inset-0 z-[1003] bg-black/45 p-4 backdrop-blur-sm"
+          @click.self="releaseNotesOpen = false"
+        >
+          <div class="release-notes-panel ml-auto h-full w-full max-w-2xl overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-cyan-50 to-white shadow-2xl">
+            <div class="border-b border-sky-100 px-4 py-3 sm:px-5">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-lg font-semibold text-slate-900">版本更新日志</p>
+                  <p class="text-xs text-slate-500">展示每个版本的更新亮点、已知问题和 Bug 修复记录</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-slate-700 ring-1 ring-slate-200">
+                    最新版本 {{ latestReleaseTag }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="h-[calc(100%-82px)] overflow-y-auto p-4 sm:p-5">
+              <p v-if="loading.releaseNotes" class="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">正在加载版本日志...</p>
+              <p v-else-if="errors.releaseNotes" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-500">{{ errors.releaseNotes }}</p>
+              <div v-else-if="releaseNotes.length" class="space-y-4">
+                <article
+                  v-for="item in releaseNotes"
+                  :key="item.id"
+                  class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="inline-flex items-center rounded-md bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
+                        v{{ item.version || '0.0.0' }}
+                      </div>
+                      <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.title }}</p>
+                    </div>
+                    <span class="shrink-0 text-xs text-slate-500">{{ item.dateText }}</span>
+                  </div>
+
+                  <div class="mt-3 grid grid-cols-1 gap-3">
+                    <section class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                      <h4 class="text-xs font-semibold text-emerald-800">更新亮点</h4>
+                      <ul class="mt-1 space-y-1 text-xs text-emerald-900 sm:text-sm">
+                        <li v-for="(text, idx) in asList(item.highlights)" :key="`h-${item.id}-${idx}`">- {{ text }}</li>
+                        <li v-if="asList(item.highlights).length === 0" class="text-emerald-700/70">暂无</li>
+                      </ul>
+                    </section>
+
+                    <section class="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <h4 class="text-xs font-semibold text-amber-800">已知问题</h4>
+                      <ul class="mt-1 space-y-1 text-xs text-amber-900 sm:text-sm">
+                        <li v-for="(text, idx) in asList(item.knownIssues)" :key="`k-${item.id}-${idx}`">- {{ text }}</li>
+                        <li v-if="asList(item.knownIssues).length === 0" class="text-amber-700/70">暂无</li>
+                      </ul>
+                    </section>
+
+                    <section class="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+                      <h4 class="text-xs font-semibold text-rose-800">Bug 修复</h4>
+                      <ul class="mt-1 space-y-1 text-xs text-rose-900 sm:text-sm">
+                        <li v-for="(text, idx) in asList(item.bugFixes)" :key="`b-${item.id}-${idx}`">- {{ text }}</li>
+                        <li v-if="asList(item.bugFixes).length === 0" class="text-rose-700/70">暂无</li>
+                      </ul>
+                    </section>
+                  </div>
+
+                </article>
+              </div>
+              <p v-else class="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">暂无更新日志</p>
+            </div>
+
+            <div class="border-t border-slate-200 bg-white/70 px-4 py-3 sm:px-5">
+              <button
+                class="rounded-full border border-stone-300 px-3 py-1 text-xs text-stone-600 transition hover:bg-stone-100"
+                type="button"
+                @click="releaseNotesOpen = false"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </Teleport>
 
     <ModalRouterView content-width="90vw" content-height="90vh" />
@@ -349,24 +455,48 @@
 </template>
 
 <script setup>
-import {onBeforeUnmount, onMounted, ref} from 'vue'
-import {useRouter} from 'vue-router'
+import {computed, onBeforeUnmount, onMounted, ref} from 'vue'
+import {useRoute, useRouter} from 'vue-router'
+import {animate, hover, inView, press} from 'motion'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
+import {homeIndexApi} from '@/api/home/homeIndexApi.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
+import {
+  activePlaylistTransitionId,
+  buildPlaylistTransitionName,
+  runViewTransition,
+  setActivePlaylistTransitionId,
+} from '@/utils/viewTransition.js'
 import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const router = useRouter()
+const route = useRoute()
 const playerStore = usePlayerStore()
+const releaseNotesFabRef = ref(null)
+const motionCleanups = []
 
-const hero = {
-  media: 'https://pic1.imgdb.cn/item/653e20bdc458853aef7b97e7.jpg',
-  title: 'Now Playing',
-}
+const hero = ref({
+  media: '',
+  title: '',
+  subtitle: '',
+})
+
+const releaseNotes = ref([])
+const releaseNotesOpen = ref(false)
+const latestReleaseTag = computed(() => {
+  const first = releaseNotes.value[0]
+  const explicitTag = String(first?.version || first?.tag || '').trim()
+  if (explicitTag) return explicitTag
+  const title = String(first?.title || '')
+  const match = title.match(/v?\d+(?:\.\d+){0,3}(?:[-._a-zA-Z0-9]+)?/)
+  if (match?.[0]) return match[0]
+  return releaseNotes.value.length ? 'NEW' : '...'
+})
 
 const recommendPlaylists = ref([])
 const topPlaylists = ref([])
@@ -405,6 +535,8 @@ const selectedMvResolution = ref(1080)
 const shouldResumeMusicOnClose = ref(false)
 
 const loading = ref({
+  banner: true,
+  releaseNotes: true,
   recommend: true,
   top: true,
   songs: true,
@@ -416,6 +548,8 @@ const loading = ref({
   })
 
 const errors = ref({
+  banner: '',
+  releaseNotes: '',
   recommend: '',
   top: '',
   songs: '',
@@ -433,11 +567,31 @@ function openArtist(artist) {
   })
 }
 
-function openPlaylist(playlist) {
-  router.push({
-    path: '/home/playlistDetail',
-    query: {id: playlist.id},
+async function openPlaylist(playlist) {
+  if (!playlist?.id) return
+  setActivePlaylistTransitionId(playlist.id)
+  await runViewTransition(() => {
+    return router.push({
+      path: '/home/playlistDetail',
+      query: {id: playlist.id},
+    })
   })
+}
+
+function getPlaylistCardTransitionStyle(playlist) {
+  if (route.name === 'playlistDetail') return {}
+  if (Number(playlist?.id) !== activePlaylistTransitionId.value) return {}
+  const transitionName = buildPlaylistTransitionName(playlist?.id, 'card')
+  if (!transitionName) return {}
+  return {viewTransitionName: transitionName}
+}
+
+function getPlaylistCoverTransitionStyle(playlist) {
+  if (route.name === 'playlistDetail') return {}
+  if (Number(playlist?.id) !== activePlaylistTransitionId.value) return {}
+  const transitionName = buildPlaylistTransitionName(playlist?.id, 'cover')
+  if (!transitionName) return {}
+  return {viewTransitionName: transitionName}
 }
 
 async function openSong(song, index = 0) {
@@ -633,6 +787,155 @@ function formatPodcastDuration(durationMs) {
   return `${minute}:${second}`
 }
 
+function normalizeBannerItem(item, index = 0) {
+  const srcList = Array.isArray(item?.src) ? item.src : []
+  const contentList = Array.isArray(item?.content) ? item.content : []
+  const image = srcList[0] || item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || ''
+  const subtitleFromList = contentList
+    .map(entry => String(entry || '').trim())
+    .filter(Boolean)
+    .join(' · ')
+  return {
+    id: item?.targetId || item?.bannerId || item?.id || `banner-${index}`,
+    media: image,
+    title: item?.typeTitle || item?.title || 'Now Playing',
+    subtitle: subtitleFromList || item?.copywriter || item?.description || hero.value.subtitle,
+  }
+}
+
+function normalizeReleaseNoteItem(item, index = 0) {
+  const timeSource = item?.createdAt || item?.updatedAt || item?.time || item?.date || 0
+  const ts = Number.isFinite(Number(timeSource))
+    ? Number(timeSource)
+    : Date.parse(String(timeSource || ''))
+  const title = item?.title || item?.name || `更新 ${index + 1}`
+  const explicitContent = item?.content || item?.description || item?.body || ''
+  const highlights = Array.isArray(item?.highlights) ? item.highlights.filter(Boolean) : []
+  const bugFixes = Array.isArray(item?.bugFixes) ? item.bugFixes.filter(Boolean) : []
+  const knownIssues = Array.isArray(item?.knownIssues) ? item.knownIssues.filter(Boolean) : []
+  const mergedBlocks = [
+    highlights.length ? `亮点：${highlights.join('；')}` : '',
+    bugFixes.length ? `修复：${bugFixes.join('；')}` : '',
+    knownIssues.length ? `已知问题：${knownIssues.join('；')}` : '',
+  ].filter(Boolean)
+  const content = explicitContent || mergedBlocks.join('\n')
+  return {
+    id: item?.id || `${title}-${index}`,
+    title,
+    content,
+    version: item?.version || item?.tag || item?.release || '',
+    highlights,
+    bugFixes,
+    knownIssues,
+    dateText: Number.isFinite(ts) && ts > 0 ? new Date(ts).toLocaleDateString() : '-',
+  }
+}
+
+function asList(value) {
+  return Array.isArray(value) ? value : []
+}
+
+function openReleaseNotesPanel() {
+  releaseNotesOpen.value = true
+  if (!releaseNotes.value.length && !loading.value.releaseNotes) {
+    loadReleaseNotes()
+  }
+}
+
+function setupMotionEffects() {
+  if (typeof window === 'undefined') return
+
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (prefersReduced) return
+
+  const sections = document.querySelectorAll('.motion-section')
+  sections.forEach((el) => {
+    const stop = inView(
+      el,
+      () => {
+        animate(
+          el,
+          {opacity: [0, 1], y: [18, 0], filter: ['blur(6px)', 'blur(0px)']},
+          {duration: 0.32, easing: [0.22, 1, 0.36, 1]},
+        )
+      },
+      {amount: 0.2},
+    )
+    motionCleanups.push(stop)
+  })
+
+  const cards = document.querySelectorAll('.motion-card')
+  cards.forEach((el) => {
+    const stopHover = hover(el, () => {
+      const ctrl = animate(el, {y: -4, scale: 1.01}, {type: 'spring', stiffness: 380, damping: 28, mass: 0.35})
+      return () => ctrl.stop()
+    })
+    const stopPress = press(el, () => {
+      const down = animate(el, {scale: 0.985}, {duration: 0.1})
+      return () => {
+        down.stop()
+        animate(el, {scale: 1}, {duration: 0.16, easing: [0.22, 1, 0.36, 1]})
+      }
+    })
+    motionCleanups.push(stopHover)
+    motionCleanups.push(stopPress)
+  })
+
+  if (releaseNotesFabRef.value) {
+    const stopHover = hover(releaseNotesFabRef.value, () => {
+      const ctrl = animate(releaseNotesFabRef.value, {scale: 1.06, y: -1}, {type: 'spring', stiffness: 520, damping: 30, mass: 0.28})
+      return () => ctrl.stop()
+    })
+    const stopPress = press(releaseNotesFabRef.value, () => {
+      const down = animate(releaseNotesFabRef.value, {scale: 0.92, y: 0}, {duration: 0.1})
+      return () => {
+        down.stop()
+        animate(releaseNotesFabRef.value, {scale: 1, y: 0}, {duration: 0.16, easing: [0.22, 1, 0.36, 1]})
+      }
+    })
+    motionCleanups.push(stopHover)
+    motionCleanups.push(stopPress)
+  }
+}
+
+async function loadHomeBanner() {
+  loading.value.banner = true
+  errors.value.banner = ''
+  try {
+    const res = await homeIndexApi.getBanner()
+    const raw = res?.banners || res?.data?.banners || res?.data?.data?.banners || res?.data?.data || res?.data || res || []
+    const list = Array.isArray(raw) ? raw.map(normalizeBannerItem) : []
+    if (list.length) {
+      const firstUsable = list.find(item => String(item?.media || '').trim()) || list[0]
+      hero.value = {
+        ...hero.value,
+        ...firstUsable,
+      }
+    }
+  } catch (error) {
+    errors.value.banner = error?.message || 'Banner 加载失败'
+  } finally {
+    loading.value.banner = false
+  }
+}
+
+async function loadReleaseNotes() {
+  loading.value.releaseNotes = true
+  errors.value.releaseNotes = ''
+  try {
+    const res = await homeIndexApi.getReleaseNotes({limit: 6})
+    const raw = res?.list || res?.data?.list || res?.data?.data?.list || res?.data?.data || res?.data || res || []
+    releaseNotes.value = Array.isArray(raw)
+      ? raw.map(normalizeReleaseNoteItem)
+      : []
+  } catch (error) {
+    errors.value.releaseNotes = error?.message || '更新日志加载失败'
+    releaseNotes.value = []
+  } finally {
+    loading.value.releaseNotes = false
+  }
+}
+
 async function loadRecommendPlaylists() {
   try {
     const res = await playListsApi.getRecommendPlayList()
@@ -722,6 +1025,9 @@ async function loadHighQualityPlaylists() {
 }
 
 onMounted(() => {
+  setupMotionEffects()
+  loadHomeBanner()
+  loadReleaseNotes()
   loadRecommendPlaylists()
   loadTopPlaylists()
   loadNewSongs()
@@ -733,6 +1039,41 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  motionCleanups.splice(0).forEach(stop => {
+    if (typeof stop === 'function') stop()
+  })
   closeMvPlayer()
 })
 </script>
+
+<style scoped>
+.release-notes-enter-active,
+.release-notes-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.release-notes-enter-from,
+.release-notes-leave-to {
+  opacity: 0;
+}
+
+.release-notes-enter-active .release-notes-panel,
+.release-notes-leave-active .release-notes-panel {
+  transition: transform 240ms ease, opacity 220ms ease;
+}
+
+.release-notes-enter-from .release-notes-panel,
+.release-notes-leave-to .release-notes-panel {
+  opacity: 0;
+  transform: translateX(24px) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .release-notes-enter-active,
+  .release-notes-leave-active,
+  .release-notes-enter-active .release-notes-panel,
+  .release-notes-leave-active .release-notes-panel {
+    transition-duration: 0ms !important;
+  }
+}
+</style>
