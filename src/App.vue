@@ -1,18 +1,6 @@
 <template>
 	<div class="app-shell">
 		<floatingSearchFab />
-		<button
-			v-if="showGlobalBack"
-			class="global-back-btn"
-			type="button"
-			aria-label="返回上一级"
-			@click="goBack"
-		>
-			<svg viewBox="0 0 24 24" aria-hidden="true" class="global-back-icon">
-				<path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
-			</svg>
-			<span class="global-back-text">返回</span>
-		</button>
 		<div ref="contentRef" class="app-content">
 			<router-view />
 		</div>
@@ -21,7 +9,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
 import FloatingSearchFab from "@/components/floatingSearchFab/floatingSearchFab.vue";
@@ -30,7 +18,18 @@ import GlobalFooterPlayer from "@/components/globalFooterPlayer/globalFooterPlay
 const route = useRoute();
 const router = useRouter();
 const contentRef = ref(null);
-const showGlobalBack = computed(() => route.path !== "/home");
+const canGoBack = computed(() => route.path !== "/home");
+
+const swipeState = {
+	active: false,
+	triggered: false,
+	startX: 0,
+	startY: 0,
+};
+
+const EDGE_START_LIMIT = 28;
+const MIN_SWIPE_DISTANCE = 76;
+const MAX_VERTICAL_DRIFT = 56;
 
 function goBack() {
 	const matched = route.matched || [];
@@ -54,6 +53,81 @@ function goBack() {
 	router.push("/home");
 }
 
+function handleKeydown(event) {
+	if (!canGoBack.value) return;
+	const target = event.target;
+	const editable =
+		target instanceof HTMLElement &&
+		(target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+	if (editable) return;
+
+	const isAltArrowLeft = event.altKey && event.key === "ArrowLeft";
+	const isMacBracketBack = event.metaKey && event.key === "[";
+	const isCtrlBracketBack = event.ctrlKey && event.key === "[";
+	const isBackspace = event.key === "Backspace";
+	const isBrowserBackKey = event.key === "BrowserBack";
+
+	if (isAltArrowLeft || isMacBracketBack || isCtrlBracketBack || isBackspace || isBrowserBackKey) {
+		event.preventDefault();
+		goBack();
+	}
+}
+
+function handleMouseup(event) {
+	if (!canGoBack.value) return;
+	if (event.button === 3) {
+		event.preventDefault();
+		goBack();
+	}
+}
+
+function onTouchStart(event) {
+	if (!canGoBack.value || event.touches.length !== 1) return;
+	const touch = event.touches[0];
+	if (touch.clientX > EDGE_START_LIMIT) return;
+
+	swipeState.active = true;
+	swipeState.triggered = false;
+	swipeState.startX = touch.clientX;
+	swipeState.startY = touch.clientY;
+}
+
+function onTouchMove(event) {
+	if (!swipeState.active || swipeState.triggered || event.touches.length !== 1) return;
+	const touch = event.touches[0];
+	const deltaX = touch.clientX - swipeState.startX;
+	const deltaY = Math.abs(touch.clientY - swipeState.startY);
+
+	if (deltaX > MIN_SWIPE_DISTANCE && deltaY < MAX_VERTICAL_DRIFT) {
+		swipeState.triggered = true;
+		swipeState.active = false;
+		goBack();
+	}
+}
+
+function onTouchEnd() {
+	swipeState.active = false;
+	swipeState.triggered = false;
+}
+
+function bindGlobalBackGesture() {
+	window.addEventListener("keydown", handleKeydown);
+	window.addEventListener("mouseup", handleMouseup);
+	window.addEventListener("touchstart", onTouchStart, { passive: true });
+	window.addEventListener("touchmove", onTouchMove, { passive: true });
+	window.addEventListener("touchend", onTouchEnd, { passive: true });
+	window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+}
+
+function unbindGlobalBackGesture() {
+	window.removeEventListener("keydown", handleKeydown);
+	window.removeEventListener("mouseup", handleMouseup);
+	window.removeEventListener("touchstart", onTouchStart);
+	window.removeEventListener("touchmove", onTouchMove);
+	window.removeEventListener("touchend", onTouchEnd);
+	window.removeEventListener("touchcancel", onTouchEnd);
+}
+
 function runRouteEnterMotion() {
 	if (!contentRef.value) return;
 	animate(
@@ -65,6 +139,11 @@ function runRouteEnterMotion() {
 
 onMounted(() => {
 	runRouteEnterMotion();
+	bindGlobalBackGesture();
+});
+
+onBeforeUnmount(() => {
+	unbindGlobalBackGesture();
 });
 
 watch(
@@ -88,48 +167,6 @@ watch(
 .app-content {
 	padding-bottom: 0;
 	background: transparent;
-}
-
-.global-back-btn {
-	position: fixed;
-	left: 14px;
-	top: calc(env(safe-area-inset-top, 0px) + 14px);
-	z-index: 55;
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	height: 38px;
-	padding: 0 12px 0 10px;
-	border-radius: 9999px;
-	border: 1px solid rgba(148, 163, 184, 0.36);
-	background: rgba(248, 250, 252, 0.88);
-	color: rgb(51, 65, 85);
-	box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
-	backdrop-filter: blur(10px);
-	transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.global-back-btn:hover {
-	background: rgba(255, 255, 255, 0.96);
-	transform: translateY(-1px);
-	box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
-}
-
-.global-back-icon {
-	height: 16px;
-	width: 16px;
-}
-
-.global-back-text {
-	font-size: 12px;
-	font-weight: 600;
-	letter-spacing: 0.01em;
-}
-
-@media (max-width: 640px) {
-	.global-back-btn {
-		display: none;
-	}
 }
 
 ::view-transition-old(root),

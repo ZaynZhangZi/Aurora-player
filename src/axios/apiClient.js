@@ -15,6 +15,7 @@ axiosInstance.interceptors.request.use(
     (config) => {
         const store = useCounterStore();
         const loginCookie = store.getUserCookie;
+        const noCookie = Boolean(config.params?.noCookie);
 
         // 添加时间戳参数
         config.params = {
@@ -23,16 +24,20 @@ axiosInstance.interceptors.request.use(
         };
 
         // 关键：通过 query 透传 cookie，避免浏览器端无法可靠写入后端域 Cookie
-        if (loginCookie && !config.params.cookie && !config.params.noCookie) {
+        if (loginCookie && !config.params.cookie && !noCookie) {
             config.params.cookie = loginCookie;
         }
 
         // 检查是否存在 Cookie，存在时可在请求头中添加
-        if (loginCookie) {
+        if (loginCookie && !noCookie) {
             config.headers = {
                 ...config.headers,
                 'Custom-Cookie': loginCookie,
             };
+        }
+
+        if (config.params?.noCookie) {
+            delete config.params.noCookie;
         }
 
         return config;

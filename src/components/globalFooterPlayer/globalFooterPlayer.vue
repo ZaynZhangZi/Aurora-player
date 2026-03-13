@@ -401,8 +401,11 @@
 			ref="audioRef"
 			:src="audioSrc"
 			crossorigin="anonymous"
+			playsinline
+			webkit-playsinline="true"
 			preload="metadata"
 			@loadedmetadata="onLoadedMetadata"
+			@durationchange="onDurationChange"
 			@timeupdate="onTimeUpdate"
 			@play="onPlay"
 			@pause="onPause"
@@ -456,6 +459,7 @@ const rhythmLevel = ref(0);
 const beatLevel = ref(0);
 const visualPulse = ref(0);
 const prefersReducedMotion = ref(false);
+const isIOSDevice = ref(false);
 
 let audioContext = null;
 let analyserNode = null;
@@ -468,6 +472,7 @@ let rhythmEnergyEma = 0;
 let rhythmFluxEma = 0;
 let lowBandEma = 0;
 let rhythmGain = 1;
+let mediaSessionHandlersBound = false;
 
 const amllOpened = ref(false);
 const amllMounted = ref(false);
@@ -815,6 +820,7 @@ async function pickThemeFromCover(cover) {
 
 function ensureAnalyser() {
 	if (!audioRef.value || typeof window === "undefined") return false;
+	if (isIOSDevice.value) return false;
 	const Context = window.AudioContext || window.webkitAudioContext;
 	if (!Context) return false;
 
@@ -986,6 +992,151 @@ async function startRhythmLoop() {
 	}
 }
 
+function detectIOSDevice() {
+	if (typeof navigator === "undefined") return false;
+	const ua = String(navigator.userAgent || "");
+	const platform = String(navigator.platform || "");
+	const touchPoints = Number(navigator.maxTouchPoints || 0);
+	return /iPad|iPhone|iPod/i.test(ua) ||
+		(platform === "MacIntel" && touchPoints > 1);
+}
+
+function setAudioSessionPlaybackMode() {
+	if (typeof navigator === "undefined") return;
+	const audioSession = navigator.audioSession;
+	if (!audioSession || typeof audioSession !== "object") return;
+	try {
+		audioSession.type = "playback";
+	} catch {
+		// noop
+	}
+}
+
+function updateMediaSessionMetadata() {
+	if (typeof navigator === "undefined") return;
+	if (!("mediaSession" in navigator)) return;
+	const title = songName.value || "未在播放";
+	const artist = normalizedArtistList.value.map((item) => item.name).join(" / ");
+	const artworkSrc = resolveMediaSessionArtworkUrl();
+	if (typeof window.MediaMetadata !== "function") return;
+	try {
+			navigator.mediaSession.metadata = new window.MediaMetadata({
+				title,
+				artist,
+				album: amllAlbum.value || "",
+				artwork: artworkSrc
+					? [
+						{ src: artworkSrc, sizes: "96x96" },
+						{ src: artworkSrc, sizes: "128x128" },
+						{ src: artworkSrc, sizes: "192x192" },
+						{ src: artworkSrc, sizes: "256x256" },
+						{ src: artworkSrc, sizes: "384x384" },
+						{ src: artworkSrc, sizes: "512x512" },
+					]
+					: [],
+			});
+	} catch {
+		// noop
+	}
+}
+
+function updateMediaSessionPlaybackState() {
+	if (typeof navigator === "undefined") return;
+	if (!("mediaSession" in navigator)) return;
+	try {
+		navigator.mediaSession.playbackState = hasSong.value && isPlaying.value
+			? "playing"
+			: "paused";
+	} catch {
+		// noop
+	}
+}
+
+function updateMediaSessionPositionState() {
+	if (typeof navigator === "undefined") return;
+	if (!("mediaSession" in navigator)) return;
+	if (typeof navigator.mediaSession.setPositionState !== "function") return;
+	const durationSec = Math.max(0, Number(durationMs.value || 0) / 1000);
+	const positionSec = Math.max(0, Number(currentTimeMs.value || 0) / 1000);
+	if (!Number.isFinite(durationSec) || !Number.isFinite(positionSec)) return;
+	if (durationSec <= 0) return;
+	try {
+		navigator.mediaSession.setPositionState({
+			duration: durationSec,
+			position: Math.min(positionSec, durationSec),
+			playbackRate: 1,
+		});
+	} catch {
+		// noop
+	}
+}
+
+function setupMediaSessionHandlers() {
+	if (typeof navigator === "undefined") return;
+	if (!("mediaSession" in navigator)) return;
+	if (mediaSessionHandlersBound) return;
+
+	const setHandler = (action, handler) => {
+		try {
+			navigator.mediaSession.setActionHandler(action, handler);
+		} catch {
+			// noop
+		}
+	};
+
+	setHandler("play", async () => {
+		if (!audioRef.value || !hasSong.value) return;
+		try {
+			await audioRef.value.play();
+		} catch {
+			playerStore.setPlaying(false);
+		}
+	});
+	setHandler("pause", () => {
+		audioRef.value?.pause();
+	});
+	setHandler("previoustrack", () => {
+		playQueueByDirection("prev", { trigger: "manual" });
+	});
+	setHandler("nexttrack", () => {
+		playQueueByDirection("next", { trigger: "manual" });
+	});
+	setHandler("seekbackward", null);
+	setHandler("seekforward", null);
+	setHandler("seekto", (details = {}) => {
+		if (!audioRef.value) return;
+		const seekTime = Number(details.seekTime);
+		if (!Number.isFinite(seekTime)) return;
+		audioRef.value.currentTime = Math.max(0, seekTime);
+		playerStore.setCurrentTimeMs(Math.floor((audioRef.value.currentTime || 0) * 1000));
+		updateMediaSessionPositionState();
+	});
+
+	mediaSessionHandlersBound = true;
+}
+
+function clearMediaSessionHandlers() {
+	if (typeof navigator === "undefined") return;
+	if (!("mediaSession" in navigator)) return;
+	const actions = [
+		"play",
+		"pause",
+		"previoustrack",
+		"nexttrack",
+		"seekbackward",
+		"seekforward",
+		"seekto",
+	];
+	actions.forEach((action) => {
+		try {
+			navigator.mediaSession.setActionHandler(action, null);
+		} catch {
+			// noop
+		}
+	});
+	mediaSessionHandlersBound = false;
+}
+
 function formatMs(ms) {
 	const sec = Math.floor((ms || 0) / 1000);
 	const min = Math.floor(sec / 60);
@@ -1012,6 +1163,25 @@ function getExt(url = "") {
 
 function isVideoUrl(url = "") {
 	return ["mp4", "webm", "m4v", "mov", "ogg", "ogv"].includes(getExt(url));
+}
+
+function resolveMediaSessionArtworkUrl() {
+	const dynamic = String(dynamicCoverUrl.value || "").trim();
+	if (dynamic && !dynamicCoverIsVideo.value && !isVideoUrl(dynamic)) {
+		return dynamic;
+	}
+	const cover = String(coverUrl.value || "").trim();
+	if (cover && !isVideoUrl(cover)) {
+		return cover;
+	}
+	return "";
+}
+
+function syncDurationFromAudio() {
+	if (!audioRef.value) return;
+	const seconds = Number(audioRef.value.duration || 0);
+	if (!Number.isFinite(seconds) || seconds <= 0) return;
+	playerStore.setDurationMs(Math.floor(seconds * 1000));
 }
 
 function pickDynamicCover(payload) {
@@ -1220,24 +1390,34 @@ async function playSongAtIndex(index) {
 
 function onLoadedMetadata() {
 	if (!audioRef.value) return;
-	playerStore.setDurationMs(Math.floor((audioRef.value.duration || 0) * 1000));
+	syncDurationFromAudio();
 	syncAudioVolume();
+	updateMediaSessionPositionState();
+}
+
+function onDurationChange() {
+	syncDurationFromAudio();
+	updateMediaSessionPositionState();
 }
 
 function onTimeUpdate() {
 	if (!audioRef.value) return;
+	syncDurationFromAudio();
 	playerStore.setCurrentTimeMs(
 		Math.floor((audioRef.value.currentTime || 0) * 1000),
 	);
+	updateMediaSessionPositionState();
 }
 
 function onPlay() {
 	playerStore.setPlaying(true);
 	startRhythmLoop();
+	updateMediaSessionPlaybackState();
 }
 
 function onPause() {
 	playerStore.setPlaying(false);
+	updateMediaSessionPlaybackState();
 	if (!playerStore.isPlaying) {
 		rhythmLevel.value *= 0.72;
 		beatLevel.value *= 0.52;
@@ -1302,9 +1482,16 @@ watch(
 		await loadCurrentSongLyric(songId);
 		amllAlbum.value = "";
 		amllHideLyricView.value = false;
+		updateMediaSessionMetadata();
+		updateMediaSessionPlaybackState();
+		updateMediaSessionPositionState();
 	},
 	{ immediate: true },
 );
+
+watch([songName, normalizedArtistList, coverUrl, dynamicCoverUrl], () => {
+	updateMediaSessionMetadata();
+});
 
 watch(
 	coverUrl,
@@ -1318,13 +1505,25 @@ watch(
 	() => playerStore.isPlaying,
 	() => {
 		ensurePlaybackState();
+		updateMediaSessionPlaybackState();
 		if (playerStore.isPlaying) {
 			startRhythmLoop();
 		}
 	},
 );
 
+watch([currentTimeMs, durationMs], () => {
+	updateMediaSessionPositionState();
+});
+
 onMounted(() => {
+	isIOSDevice.value = detectIOSDevice();
+	setAudioSessionPlaybackMode();
+	setupMediaSessionHandlers();
+	updateMediaSessionMetadata();
+	updateMediaSessionPlaybackState();
+	updateMediaSessionPositionState();
+
 	applyFallbackTheme("global-player");
 	updatePlayerSpaceVar();
 	playerResizeObserver = new ResizeObserver(() => {
@@ -1363,6 +1562,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+	clearMediaSessionHandlers();
 	stopRhythmLoop();
 	if (amllUnmountTimer) {
 		window.clearTimeout(amllUnmountTimer);
@@ -1688,5 +1888,30 @@ onBeforeUnmount(() => {
 
 :deep(.amll-prebuilt) {
 	background-color: #222;
+}
+
+:deep(.amll-prebuilt__overlay) {
+	pointer-events: none !important;
+}
+
+:deep(.amll-prebuilt__vertical-mobile-controls),
+:deep(.amll-prebuilt__bar),
+:deep(.amll-prebuilt__volumeRow),
+:deep(.amll-prebuilt__controls) {
+	position: relative;
+	z-index: 3;
+	pointer-events: auto;
+}
+
+:deep(.amll-prebuilt__nowPlayingSliderInner),
+:deep(.amll-prebuilt__nowPlayingSliderThumb) {
+	pointer-events: none;
+}
+
+:deep(.amll-prebuilt__rangeHit) {
+	pointer-events: auto;
+	touch-action: none;
+	-webkit-appearance: none;
+	appearance: none;
 }
 </style>

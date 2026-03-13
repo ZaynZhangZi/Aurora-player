@@ -9,7 +9,7 @@ import { useCounterStore } from '@/stores/userStores.js'
  * - 错误自动处理 & 控制台打印
  */
 const requestLocal = axios.create({
-  baseURL: 'http://114.66.61.151:8080/',  // 访问地址
+  baseURL: 'http://musicadmin.xiaojunjunjun.com/',  // 访问地址
   timeout: 1000,                     // 超时
   withCredentials: true,              // 携带 Cookie（后端支持时才生效）
 })

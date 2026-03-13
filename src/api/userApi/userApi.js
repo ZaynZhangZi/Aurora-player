@@ -7,7 +7,11 @@ import apiClient from "@/axios/apiClient";
 export const userApi={
     //二维码 key 生成接口
     getQrKey(){
-        return apiClient.get('/login/qr/key')
+        return apiClient.get('/login/qr/key', {
+            params: {
+                noCookie: true,
+            },
+        })
     },
 
     //生成二维码图片
@@ -16,12 +20,13 @@ export const userApi={
             params: {
                 key,
                 qrimg: true,
+                noCookie: true,
             },
         })
     },
 
     //二维码检测扫码状态接口
-    checkQrCode(key, {noCookie = false} = {}){
+    checkQrCode(key, {noCookie = true} = {}){
         return apiClient.get('/login/qr/check', {
             params: {
                 key,

@@ -13,8 +13,8 @@ export default defineConfig({
 		},
 	},
 	server: {
-		host: "0.0.0.0",
 		port: 5173,
+    host: true,
 		proxy: {
 			"/api": {
 				target: "http://114.66.61.151:3000",
