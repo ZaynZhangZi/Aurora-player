@@ -128,7 +128,7 @@ packages:
       '@pixi/sprite': '*'
 
   '@applemusic-like-lyrics/vue@file:applemusic-like-lyrics-vue-0.2.2.tgz':
-    resolution: {integrity: sha512-tO7cjRHCZMJzHZfV/ytWPAyuNq5xHMcg0cpPFqP+Cl3hehUDWLkGYgMIr1XOUkHk2knHmkbHtHY8MYoXUUd31g==, tarball: file:applemusic-like-lyrics-vue-0.2.2.tgz}
+    resolution: {integrity: sha512-FOmmNBfAuwBSU3DCQUM5GsFEf9NpccH9fqXKtR16iARg2qsTluCDXm9YPg5GjI7io1U9gos2ANWifpHePjJAMQ==, tarball: file:applemusic-like-lyrics-vue-0.2.2.tgz}
     version: 0.2.2
     peerDependencies:
       vue: '*'

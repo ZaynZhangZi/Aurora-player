@@ -37,6 +37,8 @@
       :style="mediaStyle"
       @canplay="onLoaded"
       @error="onErrored"
+      @play="enforceVideoMuteIfNeeded"
+      @volumechange="handleVideoVolumeChange"
       ref="videoRef"
     >
       <source
@@ -98,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onBeforeUnmount, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onBeforeUnmount, onMounted } from 'vue'
 
 /**
  * 允许的扩展名
@@ -133,6 +135,7 @@ const props = defineProps({
   autoplay: { type: Boolean, default: true },
   loop: { type: Boolean, default: true },
   muted: { type: Boolean, default: true },
+  lockMuted: { type: Boolean, default: false },
   controls: { type: Boolean, default: false },
   playsinline: { type: Boolean, default: true },
   preload: { type: String, default: 'metadata' }, // auto/metadata/none
@@ -386,6 +389,21 @@ function handleMouseLeave() {
   if (!props.autoplay) videoRef.value?.pause?.()
 }
 
+function enforceVideoMuteIfNeeded() {
+  if (!props.lockMuted || mediaType.value !== 'video') return
+  const el = videoRef.value
+  if (!el) return
+  el.defaultMuted = true
+  el.muted = true
+  if (el.volume !== 0) {
+    el.volume = 0
+  }
+}
+
+function handleVideoVolumeChange() {
+  enforceVideoMuteIfNeeded()
+}
+
 /**
  * src 变化：重置状态 & 回收旧 URL
  */
@@ -440,9 +458,19 @@ function detachScrollListener() {
 }
 
 onMounted(() => {
+  nextTick(() => {
+    enforceVideoMuteIfNeeded()
+  })
+
   if (props.scaleOnScroll) {
     attachScrollListener()
   }
+})
+
+watch([() => props.lockMuted, mediaType, videoPrimarySrc], () => {
+  nextTick(() => {
+    enforceVideoMuteIfNeeded()
+  })
 })
 
 watch(() => props.scaleOnScroll, (enabled) => {

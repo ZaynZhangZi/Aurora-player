@@ -6,6 +6,7 @@
         :src="hero.media"
         :title="hero.title"
         :content="hero.subtitle"
+        :lock-muted="true"
       />
       <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-black/40" />
       <div class="relative mx-auto flex h-full max-w-7xl items-end px-4 pb-8 sm:px-6 sm:pb-10 lg:px-8">
