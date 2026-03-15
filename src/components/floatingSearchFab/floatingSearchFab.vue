@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-x-0 top-0 z-50 pointer-events-none">
+  <div class="fixed inset-x-0 top-0 z-[998] pointer-events-none">
     <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
 
       <div class="flex items-start gap-2 sm:gap-3 w-full">
@@ -20,7 +20,7 @@
         <div
           ref="shell"
           :class="[expanded ? 'rounded-full pl-0 pr-1 sm:pr-6 h-12' : 'h-12 w-12 rounded-full', shellToneClass]"
-          class="mt-2 sm:mt-3 grid items-center overflow-hidden border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr] pointer-events-auto transition-colors duration-200"
+          class="mt-2 sm:mt-3 grid items-center overflow-visible border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 [grid-template-columns:48px_1fr] pointer-events-auto transition-colors duration-200"
           @mouseenter="hovering = true"
           @mouseleave="hovering = false"
         >
@@ -87,61 +87,111 @@
               >
                 {{ signInLabel }}
               </button>
-              <div v-else :class="authTextToneClass" class="flex items-center gap-1 sm:gap-2">
-                <button
-                  :class="chipToneClass"
-                  class="relative rounded-full border px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs transition"
-                  type="button"
-                  @click="openMessageCenter('notice')"
-                >
-                  <span class="hidden sm:inline">通知</span>
-                  <span class="sm:hidden">通</span>
-                  <span
-                    v-if="noticeBadgeCount > 0"
-                    class="absolute -right-1 -top-1 grid min-w-3.5 sm:min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] sm:text-[10px] font-semibold text-white shadow-sm"
+              <div v-else :class="authTextToneClass" class="flex items-center gap-1.5 sm:gap-2">
+                <div class="relative" ref="profileMenuRootRef">
+                  <button
+                    :class="chipSoftToneClass"
+                    class="relative flex items-center gap-1.5 rounded-full p-0.5 pr-2 sm:px-2.5 sm:py-1.5 transition"
+                    type="button"
+                    @click.stop="toggleProfileMenu"
                   >
-                    {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
-                  </span>
-                </button>
-                <button
-                  :class="chipToneClass"
-                  class="relative rounded-full border px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs transition"
-                  type="button"
-                  @click="openMessageCenter('private')"
-                >
-                  <span class="hidden sm:inline">私信</span>
-                  <span class="sm:hidden">私</span>
-                  <span
-                    v-if="privateBadgeCount > 0"
-                    class="absolute -right-1 -top-1 grid min-w-3.5 sm:min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] sm:text-[10px] font-semibold text-white shadow-sm"
-                  >
-                    {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
-                  </span>
-                </button>
-                <button
-                  :class="chipSoftToneClass"
-                  class="flex items-center gap-1.5 rounded-full p-0.5 sm:px-2 sm:py-1 transition"
-                  type="button"
-                  @click="openProfile"
-                >
-                  <img
-                    v-if="avatarUrl"
-                    :src="avatarUrl"
-                    alt="用户头像"
-                    class="size-6 sm:size-6 rounded-full object-cover shadow-sm"
-                  />
-                  <span class="hidden sm:inline text-xs truncate max-w-[80px]">{{
-                      userNickname || '已登录'
-                    }}</span>
-                </button>
+                    <img
+                      v-if="avatarUrl"
+                      :src="avatarUrl"
+                      alt="用户头像"
+                      class="size-6 rounded-full object-cover shadow-sm"
+                    />
+                    <span v-else class="search-avatar-fallback size-6 text-[10px]">我</span>
+                    <span class="hidden sm:inline max-w-[88px] truncate text-xs font-medium">{{ userNickname || '已登录' }}</span>
+                    <ChevronDownIcon class="hidden sm:inline size-3.5 transition" :class="[btnToneClass, profileMenuOpen ? 'rotate-180' : 'rotate-0']" />
+                    <span
+                      v-if="totalMessageBadgeCount > 0"
+                      class="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white shadow-sm"
+                    >
+                      {{ totalMessageBadgeCount > 99 ? '99+' : totalMessageBadgeCount }}
+                    </span>
+                  </button>
+
+                  <Transition name="menu-pop">
+                    <div
+                      v-if="profileMenuOpen"
+                      class="menu-panel absolute right-0 top-[calc(100%+10px)] z-[1200] w-56 overflow-hidden rounded-2xl border border-stone-200 bg-white/95 p-2 text-stone-700 shadow-2xl backdrop-blur-md"
+                    >
+                      <div class="menu-user mb-1.5 flex items-center gap-2 rounded-xl border border-stone-200/80 bg-gradient-to-br from-stone-50 to-stone-100/70 p-2">
+                        <img
+                          v-if="avatarUrl"
+                          :src="avatarUrl"
+                          alt="用户头像"
+                          class="size-8 rounded-full object-cover"
+                        />
+                        <span v-else class="search-avatar-fallback size-8 text-[11px]">我</span>
+                        <div class="min-w-0 flex-1">
+                          <p class="truncate text-xs font-semibold text-stone-800">{{ userNickname || '已登录用户' }}</p>
+                          <p class="truncate text-[10px] text-stone-500">消息中心与账户入口</p>
+                        </div>
+                      </div>
+
+                      <button
+                        class="menu-item"
+                        type="button"
+                        @click="openMessageCenter('notice')"
+                      >
+                        <span class="menu-item-left">
+                          <BellIcon class="size-4" />
+                          <span>通知</span>
+                        </span>
+                        <span v-if="noticeBadgeCount > 0" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
+                        </span>
+                      </button>
+                      <button
+                        class="menu-item"
+                        type="button"
+                        @click="openMessageCenter('private')"
+                      >
+                        <span class="menu-item-left">
+                          <ChatBubbleLeftRightIcon class="size-4" />
+                          <span>私信</span>
+                        </span>
+                        <span v-if="privateBadgeCount > 0" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
+                        </span>
+                      </button>
+                      <button
+                        class="menu-item"
+                        type="button"
+                        @click="openProfile"
+                      >
+                        <span class="menu-item-left">
+                          <UserCircleIcon class="size-4" />
+                          <span>个人中心</span>
+                        </span>
+                      </button>
+                      <div class="my-1 h-px bg-stone-200/90" />
+                      <button
+                        class="menu-item text-rose-600 hover:bg-rose-50"
+                        type="button"
+                        @click="logout"
+                      >
+                        <span class="menu-item-left">
+                          <ArrowRightOnRectangleIcon class="size-4" />
+                          <span>退出登录</span>
+                        </span>
+                      </button>
+                    </div>
+                  </Transition>
+                </div>
+
                 <button
                   :class="chipGhostToneClass"
-                  class="hidden sm:block rounded-full px-2 py-0.5 text-[11px] transition"
+                  class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] transition"
                   type="button"
-                  @click="logout"
+                  @click="openReleaseNotesPage"
                 >
-                  退出
+                  <DocumentTextIcon class="size-3.5" />
+                  <span class="hidden sm:inline">更新日志</span>
                 </button>
+
               </div>
             </div>
           </div>
@@ -388,232 +438,217 @@
   </Dialog>
 
   <Dialog :open="messageDialogOpen" @close="setMessageDialogOpen">
-    <div class="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm" aria-hidden="true"></div>
-    <div class="fixed inset-0 z-[61] flex items-center justify-center sm:p-4">
+    <div class="fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
+
+    <div class="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-6">
+
       <DialogPanel
-        class="flex flex-col h-[90vh] sm:h-auto w-full max-w-3xl sm:rounded-2xl rounded-t-2xl mt-auto sm:mt-0 border border-amber-200/80 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 p-4 sm:p-5 text-stone-800 shadow-2xl overflow-hidden">
-        <div class="mb-3 sm:mb-4 flex items-center justify-between shrink-0">
-          <DialogTitle class="text-lg font-bold text-amber-900 tracking-tight">消息中心
-          </DialogTitle>
-          <button
-            class="rounded-full bg-white/60 p-1.5 text-stone-500 hover:bg-white transition-colors"
-            type="button" @click="setMessageDialogOpen(false)">
-            <XMarkIcon class="size-5 sm:size-4"/>
-          </button>
-        </div>
-        <div class="mb-3 sm:mb-4 flex items-center gap-2 shrink-0">
-          <button
-            :class="messageTab === 'notice' ? 'border-amber-400 bg-amber-100 text-amber-900 shadow-sm' : 'border-amber-200/60 bg-white/60 text-stone-500 hover:bg-white'"
-            class="rounded-full border px-4 py-1.5 text-xs font-medium transition-all" type="button"
-            @click="switchMessageTab('notice')">通知
-          </button>
-          <button
-            :class="messageTab === 'private' ? 'border-amber-400 bg-amber-100 text-amber-900 shadow-sm' : 'border-amber-200/60 bg-white/60 text-stone-500 hover:bg-white'"
-            class="rounded-full border px-4 py-1.5 text-xs font-medium transition-all" type="button"
-            @click="switchMessageTab('private')">私信
-          </button>
-        </div>
-        <div class="flex-1 min-h-0 relative">
-          <section v-if="messageTab === 'notice'" class="h-full flex flex-col">
-            <p v-if="noticeLoading" class="text-sm text-stone-500 py-4 text-center">
-              通知加载中...</p>
-            <p v-else-if="noticeError" class="text-sm text-red-500 py-4 text-center">{{
-                noticeError
-              }}</p>
-            <div v-else
-                 class="flex-1 space-y-3 overflow-y-auto rounded-xl border border-amber-200/70 bg-white/70 p-3 pr-1 backdrop-blur-sm">
-              <div v-for="item in noticeList" :key="item.id" class="flex items-start gap-2.5">
-                <img
-                  :src="item.avatarUrl || 'https://p1.music.126.net/4M6T2Bq8QJz7B4JrQJw8hA==/109951168123456789.jpg'"
-                  alt="通知头像"
-                  class="mt-0.5 size-9 sm:size-8 rounded-full object-cover shrink-0 shadow-sm"/>
-                <div
-                  class="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-amber-100/50 bg-white px-3.5 py-2.5 shadow-sm">
-                  <div class="mb-1.5 flex items-center justify-between gap-3">
-                    <p class="truncate text-xs font-bold text-stone-700">{{ item.senderName }}</p>
-                    <span class="shrink-0 text-[10px] text-stone-400">{{
-                        formatTime(item.time)
-                      }}</span>
-                  </div>
-                  <p class="mb-1 truncate text-xs text-amber-600/80 font-medium">{{
-                      item.title
-                    }}</p>
-                  <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-600">
-                    {{ item.content }}</p>
-                  <a v-if="item.webUrl" :href="item.webUrl"
-                     class="mt-2 inline-block text-[11px] font-medium text-amber-600 underline-offset-2 hover:underline"
-                     target="_blank" rel="noreferrer">查看详情 &rarr;</a>
-                </div>
-              </div>
-              <div v-if="!noticeList.length"
-                   class="flex flex-col items-center justify-center h-32 opacity-50"><p
-                class="text-sm text-stone-500">暂无通知</p></div>
-              <button v-if="noticeHasMore"
-                      class="w-full rounded-xl border border-amber-200/80 bg-gradient-to-b from-amber-50 to-white px-3 py-2.5 text-xs font-medium text-amber-800 hover:from-amber-100 disabled:opacity-50 transition-colors mt-2"
-                      type="button" :disabled="noticeLoadingMore" @click="loadMoreNotices">
-                {{ noticeLoadingMore ? '加载中...' : '查看更多通知' }}
+        class="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[85vh] sm:max-h-[800px] sm:max-w-[1024px] sm:rounded-2xl sm:ring-1 sm:ring-slate-200/50">
+
+        <header class="flex h-14 shrink-0 items-center justify-between border-b border-slate-100 bg-white/80 px-4 backdrop-blur-md sm:h-16 sm:px-6">
+          <div class="flex items-center gap-4 sm:gap-6">
+            <DialogTitle class="text-lg font-bold tracking-tight text-slate-800 sm:text-xl">消息中心</DialogTitle>
+
+            <div class="flex items-center rounded-lg bg-slate-100/80 p-1">
+              <button
+                :class="messageTab === 'notice' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                class="relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:px-4"
+                type="button" @click="switchMessageTab('notice')">
+                通知
+                <span v-if="noticeBadgeCount > 0" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
+                {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
+              </span>
+              </button>
+              <button
+                :class="messageTab === 'private' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                class="relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:px-4"
+                type="button" @click="switchMessageTab('private')">
+                私信
+                <span v-if="privateBadgeCount > 0" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
+                {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
+              </span>
               </button>
             </div>
-          </section>
-          <section v-else class="h-full flex flex-col">
-            <div class="flex h-full gap-3 md:grid md:grid-cols-[280px_1fr]">
-              <aside
-                :class="['min-h-0 flex-col rounded-xl border border-amber-200/70 bg-white/80 p-2 sm:p-2.5 shadow-sm backdrop-blur-sm', selectedPrivateTarget ? 'hidden md:flex' : 'flex w-full md:w-auto']">
-                <div class="relative mb-2 shrink-0" data-private-receiver>
-                  <input v-model.trim="privateTargetKeyword"
-                         class="w-full rounded-lg border border-amber-200 bg-white/90 px-3 py-2 text-sm outline-none placeholder:text-stone-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 transition-shadow"
-                         type="text" placeholder="搜索昵称，新建会话"
-                         @focus="privateReceiverFocused = true" @blur="handlePrivateReceiverBlur"/>
-                  <div v-if="privateReceiverDropdownVisible"
-                       class="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-amber-200 bg-white/95 p-1 shadow-xl backdrop-blur-md">
-                    <p v-if="privateReceiverLoading" class="px-2 py-2 text-xs text-stone-500">
-                      搜索中...</p>
-                    <p v-else-if="privateReceiverError" class="px-2 py-2 text-xs text-red-500">
-                      {{ privateReceiverError }}</p>
-                    <button v-for="user in privateReceiverResults" :key="user.userId"
-                            class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-amber-50 active:bg-amber-100 transition-colors"
-                            type="button" @mousedown.prevent="selectPrivateTarget(user)">
-                      <img v-if="user.avatarUrl" :src="user.avatarUrl" alt="用户头像"
-                           class="size-7 rounded-full object-cover shrink-0"/>
-                      <div class="min-w-0">
-                        <p class="truncate text-xs font-medium text-stone-700">
-                          {{ user.nickname || `用户 ${user.userId}` }}</p>
-                        <p class="truncate text-[10px] text-stone-400 mt-0.5">uid: {{
-                            user.userId
-                          }}</p>
-                      </div>
-                    </button>
-                    <p
-                      v-if="!privateReceiverLoading && !privateReceiverError && !privateReceiverResults.length"
-                      class="px-2 py-2 text-xs text-stone-400">没有搜索到用户</p>
-                  </div>
-                </div>
-                <div class="mb-2 shrink-0">
-                  <input v-model.trim="privateConversationKeyword"
-                         class="w-full rounded-lg border border-amber-200/60 bg-stone-50/50 px-3 py-1.5 text-xs outline-none placeholder:text-stone-400 focus:bg-white focus:border-amber-300 transition-colors"
-                         type="text" placeholder="搜索会话（昵称或内容）"/>
-                </div>
-                <div class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                  <p v-if="privateLoading" class="px-2 py-4 text-center text-sm text-stone-500">
-                    私信加载中...</p>
-                  <p v-else-if="privateError" class="px-2 py-4 text-center text-sm text-red-500">
-                    {{ privateError }}</p>
-                  <template v-else>
-                    <button v-for="item in filteredPrivateList" :key="item.id"
-                            :class="activePrivateId === item.counterpartId ? 'bg-gradient-to-r from-amber-100 to-amber-50/50 border-amber-300 shadow-sm' : 'bg-white border-transparent hover:bg-amber-50/50'"
-                            class="w-full rounded-xl border px-2.5 py-2.5 text-left transition-all group"
-                            type="button" @click="openPrivateConversation(item)">
-                      <div class="mb-1 flex items-center justify-between gap-2">
-                        <div class="flex min-w-0 items-center gap-2">
-                          <img v-if="item.avatarUrl" :src="item.avatarUrl" alt="私信头像"
-                               class="size-8 sm:size-7 rounded-full object-cover shrink-0 shadow-sm"/>
-                          <p
-                            class="truncate text-sm sm:text-xs font-bold text-stone-700 group-hover:text-amber-900 transition-colors">
-                            {{ item.counterpartName }}</p>
-                          <span v-if="item.unreadCount > 0"
-                                class="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">{{
-                              item.unreadCount > 99 ? '99+' : item.unreadCount
-                            }}</span>
-                        </div>
-                        <span class="shrink-0 text-[10px] text-stone-400">{{
-                            formatTime(item.time)
-                          }}</span>
-                      </div>
-                      <p class="truncate text-xs sm:text-[11px] text-stone-500 pl-10 sm:pl-9">
-                        {{ item.content }}</p>
-                    </button>
-                    <div v-if="!filteredPrivateList.length"
-                         class="py-8 text-center text-sm text-stone-400">暂无会话
+          </div>
+          <button
+            class="flex size-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+            type="button" @click="setMessageDialogOpen(false)">
+            <XMarkIcon class="size-5" />
+          </button>
+        </header>
+
+        <div class="flex flex-1 min-h-0 min-w-0 w-full bg-slate-50/50">
+
+          <section v-if="messageTab === 'notice'" class="flex flex-1 min-h-0 flex-col overflow-y-auto p-4 sm:p-6">
+            <div class="mx-auto flex w-full max-w-3xl flex-col rounded-xl border border-slate-100 bg-white shadow-sm">
+              <p v-if="noticeLoading" class="py-12 text-center text-sm text-slate-400">正在加载通知...</p>
+              <p v-else-if="noticeError" class="py-12 text-center text-sm text-red-500">{{ noticeError }}</p>
+
+              <div v-else class="flex flex-col">
+                <div v-for="item in noticeList" :key="item.id" class="group flex gap-4 border-b border-slate-100 p-4 transition-colors last:border-0 hover:bg-slate-50 sm:p-5">
+                  <img
+                    :src="item.avatarUrl || 'https://p1.music.126.net/4M6T2Bq8QJz7B4JrQJw8hA==/109951168123456789.jpg'"
+                    alt="头像"
+                    class="mt-0.5 size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-100" />
+                  <div class="min-w-0 flex-1">
+                    <div class="mb-1 flex items-baseline justify-between gap-3">
+                      <p class="truncate text-sm font-bold text-slate-800">{{ item.senderName }}</p>
+                      <span class="shrink-0 text-xs text-slate-400">{{ formatTime(item.time) }}</span>
                     </div>
-                    <button v-if="privateHasMore"
-                            class="mt-2 w-full rounded-lg border border-amber-200/50 bg-amber-50/50 px-3 py-2 text-xs text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
-                            type="button" :disabled="privateLoadingMore"
-                            @click="loadMorePrivateMessages">
-                      {{ privateLoadingMore ? '加载中...' : '查看更早会话' }}
-                    </button>
-                  </template>
-                </div>
-              </aside>
-              <div
-                :class="['min-h-0 flex-col rounded-xl border border-amber-200/80 bg-white/95 shadow-sm overflow-hidden', !selectedPrivateTarget ? 'hidden md:flex md:w-auto' : 'flex w-full md:w-auto']">
-                <div
-                  class="flex shrink-0 items-center border-b border-amber-100 bg-gradient-to-r from-stone-50 to-white px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm z-10">
-                  <button
-                    class="md:hidden mr-2 p-1.5 -ml-1.5 rounded-full text-amber-600 hover:bg-amber-100 transition-colors"
-                    @click="selectedPrivateTarget = null">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none"
-                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                  </button>
-                  <p class="text-sm font-bold text-stone-800 flex-1 truncate">
-                    {{ selectedPrivateTarget?.nickname || '选择或新建一个会话' }}</p>
-                  <span v-if="selectedPrivateTarget?.userId"
-                        class="text-[10px] text-stone-400 font-medium bg-stone-100 px-2 py-0.5 rounded-full">uid: {{
-                      selectedPrivateTarget.userId
-                    }}</span>
-                </div>
-                <div ref="privateHistoryScroller"
-                     class="chat-panel min-h-0 flex-1 overflow-y-auto px-3 sm:px-4 py-4 overscroll-contain relative">
-                  <div
-                    class="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:20px_20px]"></div>
-                  <div class="relative z-10">
-                    <button v-if="privateHistoryHasMore"
-                            class="mx-auto mb-4 block rounded-full border border-amber-200/70 bg-white/80 px-4 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 shadow-sm backdrop-blur-sm transition-colors"
-                            type="button" :disabled="privateHistoryLoadingMore"
-                            @click="loadMorePrivateHistory">
-                      {{ privateHistoryLoadingMore ? '加载中...' : '加载更早消息' }}
-                    </button>
-                    <p v-if="privateHistoryLoading" class="text-center text-xs text-stone-400 my-4">
-                      会话加载中...</p>
-                    <p v-else-if="privateHistoryError"
-                       class="text-center text-xs text-red-500 my-4">{{ privateHistoryError }}</p>
-                    <div v-else class="space-y-4">
-                      <div v-for="item in privateHistory" :key="item.id"
-                           :class="item.isSelf ? 'justify-end' : 'justify-start'"
-                           class="flex w-full">
-                        <div
-                          :class="[item.isSelf ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white rounded-br-sm shadow-md' : 'bg-white border border-stone-200 text-stone-800 rounded-bl-sm shadow-sm', highlightedMessageIds[item.id] ? 'message-highlight' : '']"
-                          class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 relative group">
-                          <p class="whitespace-pre-wrap break-words text-sm leading-relaxed"
-                             :class="item.isSelf ? 'text-amber-50 font-medium' : ''">
-                            {{ item.content || '（空消息）' }}</p>
-                          <p class="mt-1 text-right text-[9px] opacity-70"
-                             :class="item.isSelf ? 'text-amber-100' : 'text-stone-400'">
-                            {{ formatTime(item.time) }}</p>
-                        </div>
-                      </div>
-                      <div v-if="!privateHistory.length && selectedPrivateTarget"
-                           class="py-10 text-center opacity-60">
-                        <div
-                          class="inline-flex size-12 rounded-full bg-amber-100 text-amber-500 items-center justify-center mb-2">
-                          👋
-                        </div>
-                        <p class="text-xs text-stone-500">打个招呼吧</p></div>
-                    </div>
+                    <p class="mb-1 truncate text-sm font-medium text-blue-600">{{ item.title }}</p>
+                    <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">{{ item.content }}</p>
+                    <a v-if="item.webUrl" :href="item.webUrl" class="mt-3 inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-100" target="_blank" rel="noreferrer">
+                      查看详情
+                      <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                    </a>
                   </div>
                 </div>
-                <div class="shrink-0 border-t border-amber-100 bg-stone-50/50 p-2 sm:p-3">
-                  <div class="flex gap-2">
-                    <input v-model.trim="privateContent"
-                           class="flex-1 rounded-xl border border-amber-200/80 bg-white px-4 py-2 text-sm outline-none placeholder:text-stone-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all"
-                           type="text" maxlength="300" placeholder="发消息..."
-                           @keydown.enter="submitPrivateMessage"
-                           :disabled="!selectedPrivateTarget"/>
-                    <button
-                      class="shrink-0 rounded-xl bg-gradient-to-b from-amber-400 to-amber-500 px-5 py-2 text-sm font-bold text-white shadow-md transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
-                      type="button" :disabled="sendingPrivate || !selectedPrivateTarget"
-                      @click="submitPrivateMessage">{{ sendingPrivate ? '发送中' : '发送' }}
-                    </button>
-                  </div>
-                  <p v-if="privateFeedback"
-                     class="absolute bottom-16 right-4 rounded-md bg-stone-800/80 px-2 py-1 text-[10px] text-white shadow-lg backdrop-blur-sm"
-                     :class="privateFeedbackIsError ? 'bg-red-500/90' : ''">{{
-                      privateFeedback
-                    }}</p>
+
+                <div v-if="!noticeList.length" class="py-20 text-center opacity-60">
+                  <p class="text-sm text-slate-500">暂无任何通知</p>
                 </div>
+
+                <button v-if="noticeHasMore" class="w-full border-t border-slate-50 bg-slate-50/50 py-4 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50" type="button" :disabled="noticeLoadingMore" @click="loadMoreNotices">
+                  {{ noticeLoadingMore ? '正在加载...' : '加载更多通知' }}
+                </button>
               </div>
             </div>
+          </section>
+
+          <section v-else class="flex flex-1 min-h-0 min-w-0 w-full">
+            <aside
+              :class="['flex shrink-0 flex-col border-r border-slate-100 bg-white min-h-0 w-full sm:w-[320px] md:w-[340px]', selectedPrivateTarget ? 'hidden sm:flex' : 'flex']">
+
+              <div class="shrink-0 border-b border-slate-50 p-3 sm:p-4">
+                <div class="relative" data-private-receiver>
+                  <svg class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                  <input v-model.trim="privateTargetKeyword" class="w-full rounded-xl border border-slate-100 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20" type="text" placeholder="搜索或发起新聊天..." @focus="privateReceiverFocused = true" @blur="handlePrivateReceiverBlur"/>
+
+                  <div v-if="privateReceiverDropdownVisible" class="absolute left-0 right-0 top-full z-20 mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-100 bg-white p-1 shadow-lg">
+                    <p v-if="privateReceiverLoading" class="p-4 text-center text-xs text-slate-500">搜索中...</p>
+                    <p v-else-if="privateReceiverError" class="p-4 text-center text-xs text-red-500">{{ privateReceiverError }}</p>
+                    <button v-for="user in privateReceiverResults" :key="user.userId" class="flex w-full items-center gap-3 rounded-lg p-2.5 transition-colors hover:bg-slate-50" @mousedown.prevent="selectPrivateTarget(user)">
+                      <img v-if="user.avatarUrl" :src="user.avatarUrl" class="size-8 shrink-0 rounded-full object-cover bg-slate-100"/>
+                      <div class="min-w-0 flex-1 text-left">
+                        <p class="truncate text-sm font-semibold text-slate-800">{{ user.nickname || `用户 ${user.userId}` }}</p>
+                        <p class="truncate text-xs text-slate-400">UID: {{ user.userId }}</p>
+                      </div>
+                    </button>
+                    <p v-if="!privateReceiverLoading && !privateReceiverError && !privateReceiverResults.length" class="p-4 text-center text-xs text-slate-400">未找到相关用户</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+                <p v-if="privateLoading" class="py-10 text-center text-sm text-slate-400">加载会话中...</p>
+                <p v-else-if="privateError" class="py-10 text-center text-sm text-red-500">{{ privateError }}</p>
+
+                <template v-else>
+                  <button
+                    v-for="item in filteredPrivateList" :key="item.id"
+                    :class="activePrivateId === item.counterpartId ? 'bg-blue-50/80' : 'hover:bg-slate-50'"
+                    class="group flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
+                    type="button" @click="openPrivateConversation(item)">
+
+                    <div class="relative shrink-0">
+                      <img :src="item.avatarUrl || 'https://via.placeholder.com/40'" class="size-11 rounded-full object-cover bg-slate-200"/>
+                      <span v-if="item.unreadCount > 0" class="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                      {{ item.unreadCount > 99 ? '99+' : item.unreadCount }}
+                    </span>
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                      <div class="mb-0.5 flex items-center justify-between">
+                        <p class="truncate text-sm font-medium text-slate-800">{{ item.counterpartName }}</p>
+                        <span class="shrink-0 pl-2 text-[11px] text-slate-400">{{ formatTime(item.time) }}</span>
+                      </div>
+                      <p class="truncate text-xs text-slate-500">{{ item.content }}</p>
+                    </div>
+                  </button>
+
+                  <div v-if="!filteredPrivateList.length" class="py-12 text-center text-sm text-slate-400">暂无聊天记录</div>
+                  <button v-if="privateHasMore" class="mt-2 w-full py-3 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700 disabled:opacity-50" type="button" :disabled="privateLoadingMore" @click="loadMorePrivateMessages">
+                    {{ privateLoadingMore ? '加载中...' : '加载更多会话' }}
+                  </button>
+                </template>
+              </div>
+            </aside>
+
+            <main :class="['flex flex-1 min-w-0 min-h-0 flex-col bg-white', !selectedPrivateTarget ? 'hidden sm:flex' : 'flex']">
+
+              <header class="flex h-14 shrink-0 items-center gap-3 border-b border-slate-100 bg-white/95 px-3 sm:h-16 sm:px-6">
+                <button class="-ml-1 flex size-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 sm:hidden" @click="selectedPrivateTarget = null">
+                  <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+
+                <div v-if="selectedPrivateTarget" class="flex min-w-0 flex-1 items-center gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-bold text-slate-800">{{ selectedPrivateTarget.nickname }}</p>
+                    <p class="truncate text-[11px] text-slate-400">UID: {{ selectedPrivateTarget.userId }}</p>
+                  </div>
+                </div>
+                <div v-else class="text-sm font-medium text-slate-400 sm:block hidden">未选择任何会话</div>
+              </header>
+
+              <div ref="privateHistoryScroller" class="flex-1 min-h-0 overflow-y-auto bg-slate-50/50 p-4 sm:p-6">
+
+                <div v-if="!selectedPrivateTarget" class="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
+                  <div class="flex size-16 items-center justify-center rounded-full bg-slate-100 shadow-inner">
+                    <svg class="size-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                  </div>
+                  <p class="text-sm font-medium">在左侧选择会话或发起聊天</p>
+                </div>
+
+                <template v-else>
+                  <button v-if="privateHistoryHasMore" class="mx-auto mb-6 block rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50" type="button" :disabled="privateHistoryLoadingMore" @click="loadMorePrivateHistory">
+                    {{ privateHistoryLoadingMore ? '正在加载...' : '查看历史消息' }}
+                  </button>
+                  <p v-if="privateHistoryLoading" class="py-4 text-center text-xs text-slate-400">消息加载中...</p>
+
+                  <div v-else class="flex flex-col space-y-5">
+                    <div v-for="item in privateHistory" :key="item.id" :class="item.isSelf ? 'justify-end' : 'justify-start'" class="flex w-full">
+                      <div class="flex max-w-[85%] flex-col gap-1 sm:max-w-[70%]">
+                        <div
+                          :class="[
+                          item.isSelf ? 'bg-blue-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-white text-slate-800 ring-1 ring-slate-200/60 rounded-r-2xl rounded-tl-2xl shadow-sm',
+                          highlightedMessageIds[item.id] ? 'ring-2 ring-blue-400' : ''
+                        ]"
+                          class="px-4 py-2.5">
+                          <p class="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed">{{ item.content }}</p>
+                        </div>
+                        <span :class="item.isSelf ? 'text-right' : 'text-left'" class="px-1 text-[11px] text-slate-400">
+                        {{ formatTime(item.time) }}
+                      </span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4">
+                <div class="relative flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 transition-all focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20">
+                <textarea
+                  v-model.trim="privateContent"
+                  class="block max-h-[120px] min-h-[38px] w-full flex-1 resize-none border-0 bg-transparent py-2 pl-3 pr-1 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-0"
+                  rows="1" placeholder="发送消息 (按 Enter 发送)..."
+                  @keydown.enter.prevent="submitPrivateMessage"
+                  :disabled="!selectedPrivateTarget"></textarea>
+
+                  <button
+                    class="flex size-9 shrink-0 items-center justify-center self-end rounded-xl bg-blue-600 text-white shadow-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:active:scale-100"
+                    type="button" :disabled="sendingPrivate || !selectedPrivateTarget || !privateContent"
+                    @click="submitPrivateMessage"
+                    title="发送">
+                    <svg v-if="!sendingPrivate" class="ml-0.5 size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z"/></svg>
+                    <svg v-else class="size-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  </button>
+                </div>
+                <div v-if="privateFeedback" class="mt-1.5 px-2">
+                  <p :class="privateFeedbackIsError ? 'text-red-500' : 'text-green-600'" class="text-[11px] font-medium">{{ privateFeedback }}</p>
+                </div>
+              </div>
+
+            </main>
           </section>
         </div>
       </DialogPanel>
@@ -624,7 +659,17 @@
 <script setup>
 import {ref, onMounted, onBeforeUnmount, watch, nextTick, defineExpose, computed} from 'vue'
 import gsap from 'gsap'
-import {XMarkIcon, Bars3Icon, ChevronLeftIcon} from '@heroicons/vue/24/outline'
+import {
+  XMarkIcon,
+  Bars3Icon,
+  ChevronLeftIcon,
+  ChevronDownIcon,
+  BellIcon,
+  ChatBubbleLeftRightIcon,
+  UserCircleIcon,
+  ArrowRightOnRectangleIcon,
+  DocumentTextIcon,
+} from '@heroicons/vue/24/outline'
 import {Dialog, DialogPanel, DialogTitle, DialogDescription} from '@headlessui/vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
@@ -649,6 +694,7 @@ const shell = ref(null)
 const content = ref(null)
 const btn = ref(null)
 const input = ref(null)
+const profileMenuRootRef = ref(null)
 const dialogOverlay = ref(null)
 const dialogPanel = ref(null)
 const closeBtn = ref(null)
@@ -695,6 +741,7 @@ const userNickname = computed(() => userStore.nickname)
 
 const messageDialogOpen = ref(false)
 const messageTab = ref('notice')
+const profileMenuOpen = ref(false)
 const noticeBadgeCount = ref(0)
 const privateBadgeCount = ref(0)
 const noticeLoading = ref(false)
@@ -747,9 +794,9 @@ const btnToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text
 const inputToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text-white placeholder-white/65' : 'text-stone-800 placeholder-stone-500')
 const signInToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text-white/90 hover:text-white' : 'text-stone-700 hover:text-stone-900')
 const authTextToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text-white/90' : 'text-stone-700')
-const chipToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'border-white/35 bg-white/10 hover:bg-white/20' : 'border-stone-300 bg-white/60 hover:bg-white/80')
 const chipSoftToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'bg-white/20 hover:bg-white/28' : 'bg-white/70 hover:bg-white/90')
 const chipGhostToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'bg-white/25 hover:bg-white/35' : 'bg-white/78 hover:bg-white')
+const totalMessageBadgeCount = computed(() => Number(noticeBadgeCount.value || 0) + Number(privateBadgeCount.value || 0))
 
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
@@ -768,10 +815,14 @@ watch(expanded, (value) => {
   if (!value) {
     inputValue.value = '';
     clearSearchState()
+    profileMenuOpen.value = false
   }
   scheduleContrastUpdate()
 })
 watch(() => router.currentRoute.value.fullPath, () => scheduleContrastUpdate())
+watch(() => router.currentRoute.value.fullPath, () => {
+  profileMenuOpen.value = false
+})
 
 // 监听返回按钮状态变化，如果展开中，需要重新测算宽度以避免挤压
 watch(showBackButton, () => {
@@ -1175,16 +1226,41 @@ function openPlaylist(playlist) {
 }
 
 function openProfile() {
+  profileMenuOpen.value = false
   router.push({path: '/profile'});
+  collapse()
+}
+
+function openReleaseNotesPage() {
+  profileMenuOpen.value = false
+  router.push({path: '/release-notes'})
   collapse()
 }
 
 function openMessageCenter(tab = 'notice') {
   if (!isLoggedIn.value) return;
+  profileMenuOpen.value = false
   messageTab.value = tab;
   if (tab === 'notice') noticeBadgeCount.value = 0;
   if (tab === 'private') privateBadgeCount.value = 0;
   setMessageDialogOpen(true)
+}
+
+function toggleProfileMenu() {
+  if (!isLoggedIn.value) return
+  profileMenuOpen.value = !profileMenuOpen.value
+}
+
+function closeProfileMenu() {
+  profileMenuOpen.value = false
+}
+
+function handleOutsidePointerDown(event) {
+  if (!profileMenuOpen.value) return
+  const root = profileMenuRootRef.value
+  const target = event?.target
+  if (!root || !(target instanceof Node) || root.contains(target)) return
+  closeProfileMenu()
 }
 
 async function setMessageDialogOpen(value) {
@@ -1765,6 +1841,7 @@ onMounted(async () => {
   updateFabContrast();
   window.addEventListener('scroll', onScroll, {passive: true});
   window.addEventListener('resize', onResize)
+  window.addEventListener('pointerdown', handleOutsidePointerDown)
 })
 
 function onResize() {
@@ -1777,6 +1854,7 @@ onBeforeUnmount(() => {
   navTl?.kill();
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('pointerdown', handleOutsidePointerDown);
   if (contrastRaf) {
     cancelAnimationFrame(contrastRaf);
     contrastRaf = 0
@@ -1919,6 +1997,7 @@ function refreshQr() {
 }
 
 async function logout() {
+  profileMenuOpen.value = false
   try {
     await userApi.logout()
   } catch (e) {
@@ -2005,6 +2084,45 @@ button, svg {
 .pop-enter-from, .pop-leave-to {
   opacity: 0;
   transform: scale(0.6) translateX(-15px);
+}
+
+.menu-pop-enter-active,
+.menu-pop-leave-active {
+  transition: opacity 180ms ease, transform 200ms ease;
+  transform-origin: top right;
+}
+
+.menu-pop-enter-from,
+.menu-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+}
+
+.menu-panel {
+  box-shadow: 0 24px 48px -24px rgba(15, 23, 42, 0.45), 0 10px 20px -12px rgba(15, 23, 42, 0.25);
+}
+
+.menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: rgb(63, 63, 70);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.menu-item:hover {
+  background: rgb(245, 245, 244);
+  color: rgb(28, 25, 23);
+}
+
+.menu-item-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .search-panel-surface {

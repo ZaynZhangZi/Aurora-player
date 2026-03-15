@@ -1,252 +1,136 @@
 <template>
-  <div class="min-h-full overflow-y-auto text-[#161616]" :style="pageStyle">
-    <section class="relative overflow-hidden px-4 pb-8 pt-4 text-white sm:px-8 sm:pb-10">
+  <div class="min-h-full overflow-y-auto text-stone-900 transition-colors duration-700" :style="pageStyle">
+    <section class="relative flex min-h-[45vh] flex-col justify-end overflow-hidden px-6 pb-12 pt-24 sm:min-h-[55vh] sm:px-12 sm:pb-16">
       <div class="artist-hero-base absolute inset-0" />
-      <canvas ref="heroCanvasRef" class="artist-hero-canvas absolute inset-0" />
+      <canvas ref="heroCanvasRef" class="artist-hero-canvas absolute inset-0 mix-blend-screen" />
+
       <template v-if="hasHeroVideo">
         <video
-          class="artist-hero-video absolute inset-0"
+          class="artist-hero-video absolute inset-0 object-cover"
           :class="heroVideoReady ? 'artist-hero-video-ready' : 'artist-hero-video-pending'"
           :src="heroBannerVideo"
           :poster="heroBannerPoster || artistAvatar"
-          autoplay
-          muted
-          loop
-          playsinline
-          preload="metadata"
+          autoplay muted loop playsinline preload="metadata"
           @loadeddata="onHeroVideoLoaded"
           @error="onHeroVideoError"
         />
         <div
-          class="artist-hero-video-mask absolute inset-0 transition-opacity duration-500"
+          class="artist-hero-video-mask absolute inset-0 transition-opacity duration-700"
           :class="heroVideoReady ? 'opacity-100' : 'opacity-0'"
         />
       </template>
-      <div class="mx-auto flex max-w-7xl justify-end">
 
+      <div v-if="!hasHeroVideo || !heroVideoReady" class="absolute inset-0 z-10 flex items-center justify-center opacity-30 blur-[60px]">
+        <img :src="artistAvatar" alt="" class="h-96 w-96 rounded-full object-cover" @error="onAvatarError" />
       </div>
 
-      <div v-if="!hasHeroVideo || !heroVideoReady" class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-        <div class="h-32 w-32 overflow-hidden rounded-full border border-white/30 bg-white/10 shadow-xl sm:h-52 sm:w-52">
-          <img
-            :src="artistAvatar"
-            alt="artist-avatar"
-            class="h-full w-full object-cover"
-            @error="onAvatarError"
-          />
+      <div class="relative z-20 mx-auto w-full max-w-6xl">
+        <div v-if="!hasHeroVideo || !heroVideoReady" class="mb-6 h-32 w-32 overflow-hidden rounded-full border-4 border-white/20 shadow-2xl sm:h-48 sm:w-48">
+          <img :src="artistAvatar" alt="artist-avatar" class="h-full w-full object-cover" @error="onAvatarError" />
         </div>
+        <h1 class="text-5xl font-black tracking-tighter text-white drop-shadow-2xl sm:text-7xl lg:text-8xl">
+          {{ artistName || '歌手详情' }}
+        </h1>
       </div>
 
-      <div class="relative z-20 mx-auto mt-8 flex max-w-7xl min-h-[340px] flex-col pb-2 sm:min-h-[520px]">
-        <h1 class="mt-auto text-left text-3xl font-black tracking-tight sm:text-5xl" :class="hasHeroVideo ? 'artist-hero-title-video' : ''">{{ artistName || '歌手详情' }}</h1>
-      </div>
+      <div class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/20 to-transparent mix-blend-overlay" />
     </section>
 
-    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-      <p v-if="loading" class="text-sm text-stone-500">正在加载歌手信息...</p>
-      <p v-else-if="error" class="text-sm text-red-500">{{ error }}</p>
+    <main class="relative z-30 mx-auto max-w-6xl px-6 py-12 sm:px-12">
+      <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">正在加载歌手信息...</p>
+      <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
 
       <template v-else>
-        <section class="mb-6 grid gap-4 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm lg:grid-cols-[280px_1fr]">
-          <article class="rounded-2xl bg-stone-50 p-4">
-            <p class="text-xs uppercase tracking-[0.18em] text-stone-500">最新发布</p>
-            <div class="mt-3 overflow-hidden rounded-xl bg-stone-200">
-              <img
-                :src="latestAlbum?.picUrl || artistAvatar"
-                alt="latest-album"
-                class="aspect-square w-full object-cover"
-                @error="onBlockImageError"
-              />
-            </div>
-            <p class="mt-3 truncate text-sm font-semibold">{{ latestAlbum?.name || '暂无专辑信息' }}</p>
-            <p class="mt-1 text-xs text-stone-500">{{ latestAlbum ? formatDate(latestAlbum.publishTime) : '-' }}</p>
-          </article>
-
-          <article class="rounded-2xl bg-stone-50 p-4">
-            <div class="mb-3 flex items-center justify-between">
-              <p class="text-xs uppercase tracking-[0.18em] text-stone-500">歌曲</p>
-              <span class="text-xs text-stone-500">{{ songSectionLabel }}</span>
-            </div>
-            <div class="mb-3 flex items-center gap-2">
-              <button
-                class="rounded-full border px-3 py-1 text-xs font-medium transition"
-                :class="songViewMode === 'top50' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
-                type="button"
-                @click="switchSongViewMode('top50')"
-              >
-                前50首
-              </button>
-              <button
-                class="rounded-full border px-3 py-1 text-xs font-medium transition"
-                :class="songViewMode === 'all' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
-                type="button"
-                @click="switchSongViewMode('all')"
-              >
-                全部歌曲
-              </button>
-            </div>
-            <Transition name="song-page" mode="out-in">
-              <div :key="`${songViewMode}-${currentSongPage}`" class="space-y-1.5" :style="songListStyle">
-                <div
-                  v-for="(song, index) in visibleSongs"
-                  :key="song.id"
-                  class="group flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-stone-300 hover:bg-stone-50"
-                  role="button"
-                  tabindex="0"
-                  @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
-                  @keydown.enter.prevent="openSong(song, getSongQueueIndex(index), getSongQueue())"
-                  @keydown.space.prevent="openSong(song, getSongQueueIndex(index), getSongQueue())"
-                >
-                  <span class="w-6 shrink-0 text-xs text-stone-500">{{ getSongDisplayIndex(index) }}</span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate text-sm font-medium">{{ song.name }}</span>
-                    <div class="relative mt-0.5 flex min-w-0 items-center gap-1 text-xs text-stone-500">
-                      <ArtistLinks
-                        :artists="getSongArtistsPreview(song)"
-                        container-class="truncate"
-                        link-class="hover:text-stone-700 hover:underline"
-                        separator-class="text-stone-400"
-                        fallback-class="text-stone-400"
-                      />
-                      <span v-if="getSongArtistsOmittedCount(song) > 0" class="shrink-0 text-stone-400">等{{ getSongArtistsOmittedCount(song) }}位</span>
-                      <span
-                        v-if="shouldShowArtistsTooltip(song)"
-                        class="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden max-w-[520px] rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-700 shadow-lg group-hover:block"
-                      >
-                        {{ getSongArtistsFullText(song) }}
-                      </span>
-                    </div>
-                  </span>
-                  <span class="text-xs text-stone-500">{{ formatDuration(song.dt) }}</span>
-                </div>
-              </div>
-            </Transition>
-            <p v-if="songViewMode === 'all' && songLoadingMore" class="mt-2 text-right text-xs text-stone-500">正在加载更多歌曲...</p>
-            <div class="mt-3 flex items-center justify-end gap-2 text-xs text-stone-600">
-              <button
-                class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-                type="button"
-                :disabled="currentSongPage <= 1"
-                @click="prevSongPage"
-              >
-                上一页
-              </button>
-              <span v-if="songViewMode === 'all'">第 {{ currentSongPage }} 页</span>
-              <span v-else>第 {{ currentSongPage }} / {{ currentSongLoadedPages }} 页</span>
-              <div v-if="songViewMode === 'all'" class="flex items-center gap-1">
-                <input
-                  v-model.trim="allSongJumpInput"
-                  type="number"
-                  min="1"
-                  inputmode="numeric"
-                  class="w-16 rounded-full border border-stone-300 bg-white px-2 py-1 text-center text-xs text-stone-700 outline-none transition focus:border-stone-500"
-                  placeholder="页码"
-                  @keyup.enter="jumpToAllSongPage"
-                />
+        <section class="mb-16">
+          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+            <div class="flex items-center gap-4">
+              <h2 class="text-3xl font-bold tracking-tight text-stone-900">歌曲</h2>
+              <div class="flex items-center rounded-full bg-stone-900/5 p-1">
                 <button
-                  class="rounded-full border border-stone-300 px-2.5 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-                  type="button"
-                  :disabled="allSongJumping"
-                  @click="jumpToAllSongPage"
-                >
-                  跳转
-                </button>
+                  class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+                  :class="songViewMode === 'top50' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
+                  @click="switchSongViewMode('top50')"
+                >前50首</button>
+                <button
+                  class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+                  :class="songViewMode === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
+                  @click="switchSongViewMode('all')"
+                >全部</button>
               </div>
-              <button
-                class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-                type="button"
-                :disabled="!canNextSongPage"
-                @click="nextSongPage"
-              >
-                下一页
-              </button>
             </div>
-          </article>
-        </section>
-
-        <section class="mb-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-bold">代表专辑</h2>
-            <span class="text-xs uppercase tracking-[0.18em] text-stone-500">Albums</span>
           </div>
 
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <Transition name="song-page" mode="out-in">
+            <div :key="`${songViewMode}-${currentSongPage}`" class="space-y-1" :style="songListStyle">
+              <div
+                v-for="(song, index) in visibleSongs"
+                :key="song.id"
+                class="group flex cursor-pointer items-center gap-4 rounded-xl px-3 py-2.5 transition-all hover:bg-white/60 hover:shadow-sm"
+                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
+              >
+                <div class="flex w-8 justify-center">
+                  <span class="text-sm font-medium tabular-nums text-stone-400 group-hover:hidden">{{ getSongDisplayIndex(index) }}</span>
+                  <svg class="hidden text-stone-900 group-hover:block" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+
+                <div class="flex min-w-0 flex-1 flex-col">
+                  <span class="truncate text-base font-semibold text-stone-800">{{ song.name }}</span>
+                  <ArtistLinks :artists="getSongArtistsPreview(song)" class="mt-0.5 truncate text-xs text-stone-500" />
+                </div>
+
+                <span class="text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(song.dt) }}</span>
+              </div>
+            </div>
+          </Transition>
+
+          <div class="mt-6 flex items-center justify-end gap-3 text-sm">
+            <span class="text-xs font-medium text-stone-400">第 {{ currentSongPage }} / {{ currentSongLoadedPages }} 页</span>
+            <div class="flex items-center gap-1">
+              <button
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/50 text-stone-700 shadow-sm backdrop-blur-md ring-1 ring-stone-900/5 transition hover:bg-white disabled:opacity-40"
+                :disabled="currentSongPage <= 1" @click="prevSongPage"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/50 text-stone-700 shadow-sm backdrop-blur-md ring-1 ring-stone-900/5 transition hover:bg-white disabled:opacity-40"
+                :disabled="!canNextSongPage" @click="nextSongPage"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="mb-16">
+          <div class="mb-6 border-b border-stone-900/10 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight text-stone-900">代表专辑</h2>
+          </div>
+          <div class="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-6">
             <button
-              v-for="album in featuredAlbums"
+              v-for="(album, index) in featuredAlbums"
               :key="album.id"
               class="group text-left"
-              type="button"
               @click="openAlbum(album)"
             >
-              <div class="overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
-                <img
-                  :src="album.picUrl"
-                  :alt="album.name"
-                  class="aspect-square w-full object-cover transition duration-300 group-hover:scale-105"
-                  @error="onBlockImageError"
-                />
+              <div class="relative overflow-hidden rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+                <div v-if="index === 0" class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-stone-900 backdrop-blur-md">Latest</div>
+                <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
+                <div class="absolute inset-0 rounded-[20px] ring-1 ring-inset ring-black/5" />
               </div>
-              <p class="mt-2 truncate text-sm font-medium">{{ album.name }}</p>
-              <p class="text-xs text-stone-500">{{ formatDate(album.publishTime) }}</p>
+              <p class="mt-3 truncate text-sm font-bold text-stone-800">{{ album.name }}</p>
+              <p class="text-xs font-medium text-stone-500">{{ formatDate(album.publishTime) }}</p>
             </button>
           </div>
         </section>
 
-        <section class="mb-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-bold">音乐视频</h2>
-            <span class="text-xs uppercase tracking-[0.18em] text-stone-500">Videos</span>
+        <section class="mb-16">
+          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight text-stone-900">全部专辑</h2>
+            <span class="text-xs font-medium uppercase tracking-[0.2em] text-stone-500">Discography</span>
           </div>
 
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <article v-for="mv in pagedMvs" :key="mv.id" class="flex h-full flex-col rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <div class="overflow-hidden rounded-lg bg-stone-200">
-                <img
-                  :src="getMvCover(mv)"
-                  :alt="mv.name"
-                  class="aspect-video w-full object-cover transition duration-300 hover:scale-105"
-                  @error="onBlockImageError"
-                />
-              </div>
-              <p class="mt-2 line-clamp-1 text-sm font-semibold" :title="mv.name">{{ mv.name }}</p>
-              <p class="mt-1 text-xs text-stone-500">播放 {{ (mv.playCount || 0).toLocaleString() }}</p>
-              <button
-                class="mt-auto self-start rounded-full border border-stone-300 px-3 py-1 text-xs text-stone-700 transition hover:bg-stone-100"
-                type="button"
-                @click="openMv(mv)"
-              >
-                播放 MV
-              </button>
-            </article>
-          </div>
-          <div v-if="mvs.length" class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="mvPage <= 1"
-              @click="prevMvPage"
-            >
-              上一页
-            </button>
-            <span>第 {{ mvPage }} 页</span>
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="mvPage >= mvLoadedPages && !mvHasMore"
-              @click="nextMvPage"
-            >
-              下一页
-            </button>
-          </div>
-        </section>
-
-        <section class="mb-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-bold">全部专辑</h2>
-            <span class="text-xs uppercase tracking-[0.18em] text-stone-500">Discography</span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
             <button
               v-for="album in pagedAlbums"
               :key="`all-${album.id}`"
@@ -254,65 +138,77 @@
               type="button"
               @click="openAlbum(album)"
             >
-              <div class="overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
-                <img
-                  :src="album.picUrl"
-                  :alt="album.name"
-                  class="aspect-square w-full object-cover transition duration-300 group-hover:scale-105"
-                  @error="onBlockImageError"
-                />
+              <div class="relative overflow-hidden rounded-2xl transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg">
+                <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
+                <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
               </div>
-              <p class="mt-2 truncate text-xs font-medium">{{ album.name }}</p>
+              <p class="mt-2.5 truncate text-sm font-semibold text-stone-800">{{ album.name }}</p>
             </button>
           </div>
 
-          <p v-if="albumLoadingMore" class="mt-3 text-right text-xs text-stone-500">正在加载更多专辑...</p>
-          <div class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="albumPage <= 1"
-              @click="prevAlbumPage"
-            >
-              上一页
-            </button>
-            <span>第 {{ albumPage }} 页</span>
-            <div class="flex items-center gap-1">
-              <input
-                v-model.trim="albumJumpInput"
-                type="number"
-                min="1"
-                inputmode="numeric"
-                class="w-16 rounded-full border border-stone-300 bg-white px-2 py-1 text-center text-xs text-stone-700 outline-none transition focus:border-stone-500"
-                placeholder="页码"
-                @keyup.enter="jumpToAlbumPage"
-              />
+          <div class="mt-8 flex items-center justify-end gap-4">
+            <p v-if="albumLoadingMore" class="animate-pulse text-xs font-medium text-stone-500">正在加载更多...</p>
+            <span class="text-xs font-medium text-stone-400">第 {{ albumPage }} 页</span>
+
+            <div class="flex items-center gap-2">
+              <div class="flex items-center overflow-hidden rounded-full bg-white/40 ring-1 ring-stone-900/5 backdrop-blur-md transition-all focus-within:bg-white/70 focus-within:ring-stone-900/20">
+                <input
+                  v-model.trim="albumJumpInput"
+                  type="number"
+                  min="1"
+                  placeholder="页码"
+                  class="w-14 bg-transparent px-3 py-1.5 text-center text-xs font-medium text-stone-800 outline-none placeholder:text-stone-400"
+                  @keyup.enter="jumpToAlbumPage"
+                />
+                <button
+                  class="border-l border-stone-900/10 px-3 py-1.5 text-xs font-bold text-stone-600 transition hover:bg-white/50 hover:text-stone-900 disabled:opacity-40"
+                  type="button"
+                  :disabled="albumJumping"
+                  @click="jumpToAlbumPage"
+                >
+                  跳转
+                </button>
+              </div>
+
               <button
-                class="rounded-full border border-stone-300 px-2.5 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/40 text-stone-700 ring-1 ring-stone-900/5 backdrop-blur-md transition hover:bg-white hover:shadow-sm disabled:opacity-40"
                 type="button"
-                :disabled="albumJumping"
-                @click="jumpToAlbumPage"
+                :disabled="albumPage <= 1"
+                @click="prevAlbumPage"
               >
-                跳转
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/40 text-stone-700 ring-1 ring-stone-900/5 backdrop-blur-md transition hover:bg-white hover:shadow-sm disabled:opacity-40"
+                type="button"
+                :disabled="!canNextAlbumPage"
+                @click="nextAlbumPage"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </button>
             </div>
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="!canNextAlbumPage"
-              @click="nextAlbumPage"
-            >
-              下一页
-            </button>
           </div>
         </section>
 
-        <section class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-lg font-bold">艺人简介</h2>
-            <span class="text-xs uppercase tracking-[0.18em] text-stone-500">Biography</span>
+        <section v-if="pagedMvs.length" class="mb-16">
+          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight text-stone-900">音乐视频</h2>
           </div>
-          <p class="whitespace-pre-line text-sm leading-7 text-stone-700">{{ artistDescription }}</p>
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <article v-for="mv in pagedMvs" :key="mv.id" class="group cursor-pointer" @click="openMv(mv)">
+              <div class="relative overflow-hidden rounded-2xl shadow-md transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-xl">
+                <img :src="getMvCover(mv)" :alt="mv.name" class="aspect-video w-full object-cover transition-transform duration-700 group-hover:scale-105" @error="onBlockImageError" />
+                <div class="absolute inset-0 bg-black/10 transition-colors group-hover:bg-black/0" />
+                <div class="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-md">MV</div>
+              </div>
+              <p class="mt-3 line-clamp-2 text-sm font-bold text-stone-800">{{ mv.name }}</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="rounded-[32px] bg-white/40 p-8 shadow-sm ring-1 ring-white/60 backdrop-blur-xl sm:p-10">
+          <h2 class="mb-6 text-xl font-bold tracking-tight text-stone-900">关于 {{ artistName }}</h2>
+          <p class="whitespace-pre-line text-sm leading-relaxed text-stone-700 opacity-90">{{ artistDescription }}</p>
         </section>
       </template>
     </main>
@@ -320,23 +216,23 @@
     <Teleport to="body">
       <div
         v-if="mvPlayerOpen"
-        class="fixed inset-0 z-[1002] bg-black/70 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[1002] bg-black/60 p-4 backdrop-blur-xl"
         @click.self="closeMvPlayer"
       >
-        <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl">
-          <div class="flex items-center justify-between gap-3 border-b border-white/15 px-4 py-3 text-white">
+        <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+          <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
             <p class="truncate text-sm font-medium">{{ currentMv?.name || 'MV 播放' }}</p>
             <div class="flex items-center gap-2">
               <select
                 v-if="mvResolutions.length"
                 v-model="selectedMvResolution"
-                class="rounded-full border border-white/30 bg-black/45 px-2 py-1 text-xs text-white"
+                class="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs text-white outline-none backdrop-blur-md"
                 @change="changeMvResolution"
               >
-                <option v-for="r in mvResolutions" :key="r" :value="r">{{ r }}P</option>
+                <option v-for="r in mvResolutions" :key="r" :value="r" class="bg-stone-900">{{ r }}P</option>
               </select>
               <button
-                class="rounded-full border border-white/30 px-3 py-1 text-xs transition hover:bg-white/10"
+                class="rounded-full border border-white/20 px-3 py-1 text-xs transition hover:bg-white/20"
                 type="button"
                 @click="closeMvPlayer"
               >
@@ -347,7 +243,7 @@
 
           <div class="aspect-video w-full bg-black">
             <div v-if="mvPlayerLoading" class="grid h-full place-items-center text-sm text-white/70">MV 加载中...</div>
-            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm text-red-300">{{ mvPlayerError }}</div>
+            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm text-red-400">{{ mvPlayerError }}</div>
             <video
               v-else-if="currentMvUrl"
               :src="currentMvUrl"
@@ -495,7 +391,7 @@ const pageStyle = computed(() => {
   const softG = Math.min(245, Math.round((g + 242) / 2))
   const softB = Math.min(245, Math.round((b + 242) / 2))
   return {
-    background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 280px, rgba(244,244,246,1) 620px)`,
+    background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 280px, rgba(250,250,250,1) 620px)`,
   }
 })
 
@@ -1501,10 +1397,6 @@ watch(
   background:
     radial-gradient(130% 90% at 50% 0%, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.22) 70%),
     linear-gradient(180deg, rgba(8, 12, 18, 0.2) 0%, rgba(8, 12, 18, 0.5) 100%);
-}
-
-.artist-hero-title-video {
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 .artist-hero-canvas {

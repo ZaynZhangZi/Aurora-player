@@ -46,6 +46,11 @@ const router = createRouter({
         },
       ],
     },
+    {
+      path: '/release-notes',
+      name: 'releaseNotes',
+      component: () => import('@/view/releaseNotes/releaseNotes.vue'),
+    },
   ],
 })
 

@@ -1,129 +1,140 @@
 <template>
-  <div class="relative min-h-screen w-full overflow-y-auto text-white transition-colors duration-500" :style="pageStyle">
-    <button
-      class="absolute right-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-full border border-white/35 bg-black/20 text-white backdrop-blur-md transition hover:bg-black/35"
-      type="button"
-      @click="goBack"
-    >
-      <XMarkIcon class="h-5 w-5" />
-    </button>
+  <div class="relative min-h-screen w-full overflow-y-auto text-stone-900 transition-colors duration-700" :style="pageStyle">
+    <nav class="sticky top-0 z-50 flex items-center px-6 py-4">
 
-    <div class="mx-auto max-w-6xl px-4 py-8 sm:px-8">
-      <div class="mb-8 grid gap-5 rounded-3xl border border-white/10 bg-white/5 p-5 sm:grid-cols-[220px_1fr]" :style="playlistCardTransitionStyle">
-        <div class="aspect-square overflow-hidden rounded-2xl bg-white/10" :style="playlistCoverTransitionStyle">
-          <img v-if="playlist.coverImgUrl" :src="playlist.coverImgUrl" alt="playlist-cover" class="h-full w-full object-cover" />
+    </nav>
+
+    <main class="mx-auto max-w-6xl px-6 pb-24 pt-4 sm:px-10">
+
+      <header class="flex flex-col items-center gap-8 md:flex-row md:items-end md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
+        <div class="group relative shrink-0">
+          <div
+            class="absolute -inset-12 z-0 rounded-full blur-[70px] opacity-40 mix-blend-multiply transition-all duration-700 group-hover:scale-110 group-hover:opacity-50"
+            :style="{ backgroundColor: `rgb(${animatedThemeRgb})` }"
+          />
+
+          <div class="relative z-10 h-64 w-64 overflow-hidden rounded-[24px] shadow-[0_24px_50px_rgba(0,0,0,0.15)] md:h-72 md:w-72 lg:h-80 lg:w-80" :style="playlistCoverTransitionStyle">
+            <img v-if="playlist.coverImgUrl" :src="playlist.coverImgUrl" alt="playlist-cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <div class="absolute inset-0 rounded-[24px] ring-1 ring-inset ring-black/5" />
+          </div>
         </div>
 
-        <div class="min-w-0">
-          <p class="mb-2 text-xs uppercase tracking-[0.2em] text-white/60">Playlist</p>
-          <h2 class="truncate text-3xl font-black">{{ playlist.name || '歌单详情' }}</h2>
-          <p class="mt-2 text-sm text-white/70">
-            {{ playlist.creatorName ? `by ${playlist.creatorName}` : '来自网易云音乐' }}
-          </p>
+        <div class="relative z-10 flex-1 text-center md:text-left">
+          <p class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-stone-500">Playlist</p>
+          <h1 class="text-4xl font-black tracking-tight text-stone-900 sm:text-6xl lg:text-7xl">{{ playlist.name || '歌单详情' }}</h1>
 
-          <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/70">
-            <span class="rounded-full border border-white/20 px-3 py-1">{{ playlist.trackCount || tracks.length }} 首歌曲</span>
-            <span class="rounded-full border border-white/20 px-3 py-1">播放 {{ formatCount(playlist.playCount) }}</span>
-            <span class="rounded-full border border-white/20 px-3 py-1">收藏 {{ formatCount(playlist.subscribedCount) }}</span>
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-stone-600 md:justify-start">
+            <span class="font-bold text-stone-900">{{ playlist.creatorName ? `${playlist.creatorName}` : '网易云音乐' }}</span>
+            <span class="opacity-40">•</span>
+            <span>{{ playlist.trackCount || tracks.length }} 首歌曲</span>
+            <span class="opacity-40">•</span>
+            <span>{{ formatCount(playlist.playCount) }} 次播放</span>
           </div>
 
-          <p v-if="playlist.description" class="mt-4 line-clamp-3 text-sm leading-relaxed text-white/80">
+          <p v-if="playlist.description" class="mt-5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-stone-600">
             {{ playlist.description }}
           </p>
 
-          <div class="mt-4 flex flex-wrap items-center gap-2">
+          <div class="mt-8 flex flex-wrap items-center justify-center gap-4 md:justify-start">
             <button
-              class="rounded-full border border-white/35 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              class="flex items-center gap-2 rounded-full bg-stone-900 px-8 py-3.5 text-base font-bold text-white shadow-xl shadow-stone-900/10 transition-all hover:scale-105 hover:bg-black active:scale-95 disabled:pointer-events-none disabled:opacity-60"
               type="button"
               :disabled="!tracks.length"
               @click="playAllTracks"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               全部播放
             </button>
+
             <button
-              class="rounded-full border border-white/35 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-white/50 backdrop-blur-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ring-1 ring-stone-900/5 shadow-sm"
               type="button"
               :disabled="subscribing"
+              :title="playlist.subscribed ? '取消收藏' : '收藏歌单'"
               @click="toggleSubscribePlaylist"
             >
-              {{ playlist.subscribed ? '取消收藏' : '收藏歌单' }}
+              <HeartSolidIcon v-if="playlist.subscribed" class="h-6 w-6 text-rose-500" />
+              <HeartOutlineIcon v-else class="h-6 w-6 text-stone-700" />
             </button>
           </div>
-
-          <p v-if="actionFeedback" class="mt-3 text-xs text-white/80">{{ actionFeedback }}</p>
-
+          <p v-if="actionFeedback" class="mt-3 text-xs font-medium text-amber-600">{{ actionFeedback }}</p>
         </div>
-      </div>
+      </header>
 
-      <p v-if="loading" class="text-sm text-white/60">正在加载歌单...</p>
-      <p v-else-if="error" class="text-sm text-red-300">{{ error }}</p>
+      <div class="my-8 h-px w-full bg-stone-900/5" />
 
-      <section v-else class="rounded-3xl border border-white/10 bg-white/5 p-4">
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-lg font-semibold">歌曲列表</h3>
-          <span class="text-xs text-white/60">共 {{ tracks.length }} 首</span>
+      <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">正在加载歌单...</p>
+      <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
+
+      <section v-else class="relative z-10">
+        <div class="mb-4 flex items-center justify-between px-4">
+          <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
         </div>
 
-        <TransitionGroup name="track-item" tag="div" class="space-y-2" appear>
+        <TransitionGroup name="track-item" tag="div" class="space-y-1" appear>
           <div
             v-for="(track, index) in tracks"
             :key="track.id"
             :style="getTrackItemStyle(index)"
-            class="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-left transition hover:bg-black/40"
+            class="group flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-white/60 hover:shadow-sm focus:outline-none"
             @click="openSong(track, index)"
           >
-            <div class="flex min-w-0 flex-1 items-center">
-              <span class="mr-3 w-7 shrink-0 text-xs text-white/60">{{ index + 1 }}</span>
+            <div class="flex min-w-0 flex-1 items-center gap-4">
+              <div class="flex w-8 justify-center">
+                <span class="text-sm font-medium tabular-nums text-stone-400 group-hover:hidden">{{ index + 1 }}</span>
+                <svg class="hidden text-stone-900 group-hover:block" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium" :title="track.name || '未知歌曲'">{{ track.name || '未知歌曲' }}</p>
-                <div class="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-white/70" :title="getTrackArtistsFullText(track)">
+                <p class="truncate text-base font-bold text-stone-800" :title="track.name || '未知歌曲'">{{ track.name || '未知歌曲' }}</p>
+                <div class="mt-0.5 flex min-w-0 items-center gap-1 text-sm font-medium text-stone-500" :title="getTrackArtistsFullText(track)">
                   <ArtistLinks
                     :artists="getTrackArtistsPreview(track)"
                     container-class="min-w-0 truncate"
-                    link-class="hover:text-white hover:underline"
-                    separator-class="text-white/55"
-                    fallback-class="text-white/60"
+                    link-class="hover:text-stone-900 hover:underline"
+                    separator-class="text-stone-300"
+                    fallback-class="text-stone-500"
                   />
-                  <span v-if="getTrackArtistsOmittedCount(track) > 0" class="shrink-0 text-white/60">等{{ getTrackArtistsOmittedCount(track) }}位</span>
+                  <span v-if="getTrackArtistsOmittedCount(track) > 0" class="shrink-0 text-stone-400">等{{ getTrackArtistsOmittedCount(track) }}位</span>
                 </div>
               </div>
             </div>
-            <div class="ml-4 flex shrink-0 items-center gap-3">
+
+            <div class="ml-4 flex shrink-0 items-center gap-6">
               <button
-                class="inline-flex items-center rounded-full border p-1.5 text-xs transition"
-                :class="isSongLiked(track.id) ? 'border-rose-300 bg-rose-500/30 text-rose-100 hover:bg-rose-500/40' : 'border-white/20 text-white/80 hover:bg-white/10'"
+                class="flex items-center justify-center p-1 transition"
                 type="button"
                 :disabled="likeLoadingSongId === track.id"
-                :aria-label="isSongLiked(track.id) ? '取消喜欢' : '喜欢歌曲'"
+                :title="isSongLiked(track.id) ? '取消喜欢' : '喜欢歌曲'"
                 @click.stop="toggleSongLike(track)"
               >
-                <HeartSolidIcon v-if="isSongLiked(track.id)" class="h-3.5 w-3.5" />
-                <HeartOutlineIcon v-else class="h-3.5 w-3.5" />
+                <HeartSolidIcon v-if="isSongLiked(track.id)" class="h-5 w-5 text-rose-500 transition-transform hover:scale-110" />
+                <HeartOutlineIcon v-else class="h-5 w-5 text-stone-300 opacity-0 transition-all hover:scale-110 hover:text-stone-600 group-hover:opacity-100" />
               </button>
-              <span class="w-12 text-right text-xs text-white/50">{{ formatDuration(track.dt) }}</span>
+              <span class="w-10 text-right text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(track.dt) }}</span>
             </div>
           </div>
         </TransitionGroup>
       </section>
-    </div>
+    </main>
   </div>
 </template>
 
 <script setup>
-import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
-import {HeartIcon as HeartOutlineIcon, XMarkIcon} from '@heroicons/vue/24/outline'
-import {HeartIcon as HeartSolidIcon} from '@heroicons/vue/24/solid'
-import {playListsApi} from '@/api/playListsApi/playListsApi.js'
-import {songsApi} from '@/api/songsApi/songsApi.js'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { HeartIcon as HeartOutlineIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
+import { playListsApi } from '@/api/playListsApi/playListsApi.js'
+import { songsApi } from '@/api/songsApi/songsApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {
   buildPlaylistTransitionName,
   runViewTransition,
   setActivePlaylistTransitionId,
 } from '@/utils/viewTransition.js'
-import {playSongWithQueue} from '@/utils/globalPlayer.js'
-import {useCounterStore} from '@/stores/userStores.js'
+import { playSongWithQueue } from '@/utils/globalPlayer.js'
+import { useCounterStore } from '@/stores/userStores.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,13 +158,22 @@ const actionFeedback = ref('')
 const subscribing = ref(false)
 const likedSongIdSet = ref(new Set())
 const likeLoadingSongId = ref(null)
-const themeRgb = ref('92, 107, 192')
+const themeRgb = ref('178, 154, 122') // 默认色调回到偏暖的灰色
 const animatedThemeRgb = ref(themeRgb.value)
 let themeTweenFrame = 0
 
-const pageStyle = computed(() => ({
-  background: buildPageGradient(animatedThemeRgb.value),
-}))
+// 【核心修改点】明亮模式渐变背景
+const pageStyle = computed(() => {
+  const [r, g, b] = parseRgb(animatedThemeRgb.value)
+  // 基底颜色使用通透的浅白 #FAFAFA
+  const baseColor = '#FAFAFA'
+
+  return {
+    backgroundColor: baseColor,
+    // 顶部用 0.35 透明度起手，往下平滑消散，不影响文字阅读
+    backgroundImage: `linear-gradient(180deg, rgba(${r},${g},${b},0.35) 0%, rgba(${r},${g},${b},0.08) 350px, ${baseColor} 700px)`,
+  }
+})
 
 const playlistTransitionId = computed(() => Number(route.query.id || playlist.value.id || 0))
 
@@ -174,24 +194,10 @@ function parseRgb(rgbString) {
     .split(',')
     .map(v => Number(v.trim()))
   return [
-    Number.isFinite(parts[0]) ? parts[0] : 92,
-    Number.isFinite(parts[1]) ? parts[1] : 107,
-    Number.isFinite(parts[2]) ? parts[2] : 192,
+    Number.isFinite(parts[0]) ? parts[0] : 178,
+    Number.isFinite(parts[1]) ? parts[1] : 154,
+    Number.isFinite(parts[2]) ? parts[2] : 122,
   ]
-}
-
-function buildPageGradient(rgbString) {
-  const [r, g, b] = parseRgb(rgbString)
-
-  const deepR = Math.max(34, Math.round(r * 0.44))
-  const deepG = Math.max(40, Math.round(g * 0.42))
-  const deepB = Math.max(64, Math.round(b * 0.52))
-
-  const midR = Math.max(54, Math.round((r + deepR) / 2))
-  const midG = Math.max(62, Math.round((g + deepG) / 2))
-  const midB = Math.max(90, Math.round((b + deepB) / 2))
-
-  return `linear-gradient(180deg, rgba(${r},${g},${b},0.44) 0%, rgba(${midR},${midG},${midB},0.92) 42%, rgba(${deepR},${deepG},${deepB},1) 100%)`
 }
 
 function easeOutCubic(t) {
@@ -422,9 +428,9 @@ function colorFromString(seed) {
   for (let i = 0; i < text.length; i += 1) {
     hash = text.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const r = 80 + (Math.abs(hash) % 120)
-  const g = 70 + (Math.abs(hash >> 8) % 110)
-  const b = 90 + (Math.abs(hash >> 16) % 120)
+  const r = 160 + (Math.abs(hash) % 40)
+  const g = 150 + (Math.abs(hash >> 8) % 50)
+  const b = 140 + (Math.abs(hash >> 16) % 60)
   return `${r}, ${g}, ${b}`
 }
 
@@ -456,10 +462,7 @@ async function pickThemeColor(coverUrl, seedName) {
     ctx.drawImage(img, 0, 0, sampleSize, sampleSize)
 
     const {data} = ctx.getImageData(0, 0, sampleSize, sampleSize)
-    let r = 0
-    let g = 0
-    let b = 0
-    let count = 0
+    let r = 0, g = 0, b = 0, count = 0
 
     for (let i = 0; i < data.length; i += 16) {
       r += data[i]
@@ -470,9 +473,10 @@ async function pickThemeColor(coverUrl, seedName) {
 
     if (!count) throw new Error('no sampled pixels')
 
-    const rr = Math.min(220, Math.round(r / count))
-    const gg = Math.min(220, Math.round(g / count))
-    const bb = Math.min(220, Math.round(b / count))
+    // 明亮模式下，放宽色彩上限，避免过于暗沉
+    const rr = Math.min(240, Math.max(60, Math.round(r / count)))
+    const gg = Math.min(240, Math.max(60, Math.round(g / count)))
+    const bb = Math.min(240, Math.max(60, Math.round(b / count)))
 
     themeRgb.value = `${rr}, ${gg}, ${bb}`
   } catch {
@@ -560,22 +564,19 @@ watch(
 
 <style scoped>
 .track-item-enter-active {
-  transition: opacity 260ms ease, transform 260ms ease, filter 260ms ease;
+  transition: opacity 300ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 300ms ease;
   transition-delay: var(--item-delay, 0ms);
 }
-
 .track-item-leave-active {
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: opacity 150ms ease, transform 150ms ease;
 }
-
 .track-item-enter-from,
 .track-item-leave-to {
   opacity: 0;
-  transform: translateY(6px) scale(0.99);
-  filter: blur(5px);
+  transform: translateY(12px) scale(0.99);
+  filter: blur(4px);
 }
-
 .track-item-move {
-  transition: transform 220ms ease;
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 </style>

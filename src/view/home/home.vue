@@ -1,31 +1,33 @@
 <template>
-  <div class="min-h-screen bg-stone-50 text-stone-900">
-    <section class="relative h-[56vh] min-h-[360px] overflow-hidden sm:h-[84vh]">
+  <div class="min-h-screen bg-[#FAFAFA] text-stone-900 selection:bg-stone-900 selection:text-white">
+    <section class="relative h-[60vh] min-h-[420px] overflow-hidden sm:h-[75vh]">
       <SmartMedia
-        class="absolute inset-0 h-full w-full"
+        class="absolute inset-0 h-full w-full object-cover"
         :src="hero.media"
         :title="hero.title"
         :content="hero.subtitle"
         :lock-muted="true"
       />
-      <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-black/40" />
-      <div class="relative mx-auto flex h-full max-w-7xl items-end px-4 pb-8 sm:px-6 sm:pb-10 lg:px-8">
-        <div class="max-w-2xl rounded-2xl border border-white/30 bg-black/20 px-5 py-4 text-white backdrop-blur-md sm:px-6 sm:py-5">
-          <p class="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/80 sm:text-xs">My Music Demo</p>
-          <h1 class="text-3xl font-black leading-[1.1] sm:max-w-[12ch] sm:text-5xl">今天听点什么</h1>
-          <p class="mt-3 max-w-[34ch] text-sm leading-relaxed text-white/90 sm:text-base">{{ hero.subtitle }}</p>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#FAFAFA] via-black/40 to-black/10 mix-blend-normal" />
+
+      <div class="relative mx-auto flex h-full max-w-7xl items-end px-6 pb-12 sm:px-10 sm:pb-20">
+        <div class="motion-section max-w-2xl text-white">
+          <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-white/70 sm:text-xs">My Music Demo</p>
+          <h1 class="text-5xl font-black tracking-tighter sm:text-7xl lg:text-8xl drop-shadow-lg">今天听点什么</h1>
+          <p class="mt-4 max-w-md text-sm font-medium leading-relaxed text-white/80 sm:text-base drop-shadow-md">{{ hero.subtitle }}</p>
         </div>
       </div>
     </section>
 
-    <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <section class="motion-section mb-10">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">推荐歌单</h2>
+    <main class="relative z-10 mx-auto -mt-6 max-w-7xl px-6 pb-24 sm:px-10">
+
+      <section class="motion-section mb-20">
+        <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">推荐歌单</h2>
         </div>
-        <p v-if="loading.recommend" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.recommend" class="text-sm text-red-500">{{ errors.recommend }}</p>
-        <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <p v-if="loading.recommend" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.recommend" class="text-sm font-medium text-red-500">{{ errors.recommend }}</p>
+        <div v-else class="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
           <article
             v-for="item in recommendPlaylists"
             :key="item.id"
@@ -33,156 +35,171 @@
             :style="getPlaylistCardTransitionStyle(item)"
             @click="openPlaylist(item)"
           >
-            <div class="relative aspect-square overflow-hidden rounded-2xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+            <div class="relative aspect-square overflow-hidden rounded-[24px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]" :style="getPlaylistCoverTransitionStyle(item)">
+              <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div class="absolute inset-0 rounded-[24px] ring-1 ring-inset ring-black/5" />
             </div>
-            <p class="mt-2 truncate text-sm font-medium">{{ item.name }}</p>
+            <p class="mt-4 line-clamp-2 text-sm font-bold text-stone-800">{{ item.name }}</p>
           </article>
         </div>
       </section>
 
-      <section class="motion-section mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">网友精选碟</h2>
-          <span class="text-xs uppercase tracking-[0.2em] text-stone-400">Top Playlist</span>
+      <section class="motion-section mb-20">
+        <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">网友精选碟</h2>
+          <div class="flex flex-wrap items-center gap-2 rounded-full bg-stone-200/50 p-1">
+            <button
+              v-for="tag in playlistTags"
+              :key="tag"
+              :class="activePlaylistTag === tag ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
+              class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+              type="button"
+              @click="changePlaylistTag(tag)"
+            >
+              {{ tag }}
+            </button>
+          </div>
         </div>
-        <div class="mb-4 flex flex-wrap gap-2">
-          <button
-            v-for="tag in playlistTags"
-            :key="tag"
-            :class="activePlaylistTag === tag ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
-            class="rounded-full border px-3 py-1 text-xs font-medium transition"
-            type="button"
-            @click="changePlaylistTag(tag)"
-          >
-            {{ tag }}
-          </button>
-        </div>
-        <p v-if="loading.top" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.top" class="text-sm text-red-500">{{ errors.top }}</p>
+        <p v-if="loading.top" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.top" class="text-sm font-medium text-red-500">{{ errors.top }}</p>
         <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <article
             v-for="item in topPlaylists"
             :key="item.id"
-            class="motion-card group flex cursor-pointer gap-3 rounded-2xl border border-stone-100 p-3 transition hover:border-stone-300 hover:bg-stone-50"
+            class="motion-card group flex cursor-pointer items-center gap-4 rounded-2xl p-2 transition-all hover:bg-white hover:shadow-md"
             :style="getPlaylistCardTransitionStyle(item)"
             @click="openPlaylist(item)"
           >
-            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-[16px] shadow-sm transition-transform duration-500 group-hover:scale-105" :style="getPlaylistCoverTransitionStyle(item)">
+              <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover" />
             </div>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold">{{ item.name }}</p>
-              <p class="mt-1 line-clamp-2 text-xs text-stone-500">{{ item.copywriter || item.description || '精选音乐集合' }}</p>
+            <div class="min-w-0 pr-4">
+              <p class="truncate text-base font-bold text-stone-800">{{ item.name }}</p>
+              <p class="mt-1 line-clamp-2 text-xs font-medium text-stone-500 opacity-80">{{ item.copywriter || item.description || '精选音乐集合' }}</p>
             </div>
           </article>
         </div>
       </section>
 
-      <section class="motion-section mb-10">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">推荐新音乐</h2>
+      <section class="motion-section mb-20">
+        <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">推荐新音乐</h2>
         </div>
-        <p v-if="loading.songs" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.songs" class="text-sm text-red-500">{{ errors.songs }}</p>
-        <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <button
-              v-for="(song, index) in newSongs"
-              :key="song.id"
-              class="flex items-center justify-between rounded-2xl border border-stone-200 bg-white px-4 py-3 text-left transition hover:border-stone-400"
-              type="button"
-              @click="openSong(song, index)"
-            >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold">{{ song.name }}</p>
-              <ArtistLinks
-                :artists="getSongArtists(song)"
-                container-class="text-xs text-stone-500"
-                link-class="hover:text-stone-800 hover:underline"
-                separator-class="text-stone-400"
-                fallback-class="text-stone-500"
-              />
+        <p v-if="loading.songs" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.songs" class="text-sm font-medium text-red-500">{{ errors.songs }}</p>
+        <div v-else class="grid grid-cols-1 gap-x-8 gap-y-2 lg:grid-cols-2">
+          <button
+            v-for="(song, index) in newSongs"
+            :key="song.id"
+            class="group flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-colors hover:bg-white hover:shadow-sm focus:outline-none"
+            type="button"
+            @click="openSong(song, index)"
+          >
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-500 transition-colors group-hover:bg-stone-900 group-hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-base font-bold text-stone-800">{{ song.name }}</p>
+                <ArtistLinks :artists="getSongArtists(song)" class="mt-0.5 truncate text-xs font-medium text-stone-500" />
+              </div>
             </div>
-            <span class="ml-4 text-xs text-stone-400">播放</span>
           </button>
         </div>
       </section>
 
-      <section class="motion-section mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">热门榜单</h2>
-          <span class="text-xs uppercase tracking-[0.2em] text-stone-400">Top Charts</span>
+      <section class="motion-section mb-20">
+        <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">热门榜单</h2>
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-stone-400">Top Charts</span>
         </div>
-        <p v-if="loading.rank" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.rank" class="text-sm text-red-500">{{ errors.rank }}</p>
-        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <p v-if="loading.rank" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.rank" class="text-sm font-medium text-red-500">{{ errors.rank }}</p>
+        <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           <article
             v-for="rank in topRanks"
             :key="rank.id"
-            class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            class="group cursor-pointer rounded-[24px] bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.08)]"
             :style="getPlaylistCardTransitionStyle(rank)"
             @click="openPlaylist(rank)"
           >
-            <div class="flex gap-3 p-3">
-              <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-200" :style="getPlaylistCoverTransitionStyle(rank)">
+            <div class="mb-4 flex items-center gap-4">
+              <div class="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] shadow-sm" :style="getPlaylistCoverTransitionStyle(rank)">
                 <SmartMedia :src="rank.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
               </div>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold">{{ rank.name }}</p>
-                <p class="mt-1 text-xs text-stone-500">{{ rank.updateFrequency || '实时更新' }}</p>
-                <div class="mt-2 space-y-1">
-                  <p
-                    v-for="(item, idx) in rank.tracks || []"
-                    :key="`${rank.id}-${idx}`"
-                    class="truncate text-xs text-stone-600"
-                  >
-                    {{ idx + 1 }}. {{ item.first }} - {{ item.second }}
-                  </p>
-                </div>
+              <div>
+                <p class="text-lg font-black text-stone-900">{{ rank.name }}</p>
+                <p class="mt-0.5 text-xs font-medium text-stone-400">{{ rank.updateFrequency || '实时更新' }}</p>
               </div>
             </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">精选播客</h2>
-          <span class="text-xs uppercase tracking-[0.2em] text-stone-400">Podcast</span>
-        </div>
-        <p v-if="loading.podcast" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.podcast" class="text-sm text-red-500">{{ errors.podcast }}</p>
-        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="item in podcastPrograms"
-            :key="item.id"
-            class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
-            @click="openPodcast(item)"
-          >
-            <div class="aspect-[16/10] overflow-hidden bg-stone-200">
-              <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-            </div>
-            <div class="p-3">
-              <p class="line-clamp-2 text-sm font-semibold">{{ item.name }}</p>
-              <p class="mt-1 truncate text-xs text-stone-500">{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</p>
-              <p class="mt-1 text-xs text-stone-500">{{ formatPodcastDuration(item.program?.duration) }}</p>
+            <div class="space-y-2 rounded-xl bg-[#FAFAFA] p-3">
+              <p v-for="(item, idx) in rank.tracks || []" :key="`${rank.id}-${idx}`" class="truncate text-xs font-medium text-stone-600">
+                <span class="mr-2 text-stone-400">{{ idx + 1 }}</span> {{ item.first }} - {{ item.second }}
+              </p>
             </div>
           </article>
         </div>
       </section>
 
-      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 class="text-2xl font-bold">MV 专区</h2>
-            <p class="mt-1 text-xs text-stone-500">全部 MV / 最新 MV / 网易出品 / 推荐 MV</p>
+      <div class="mb-20 grid gap-16 lg:grid-cols-2">
+        <section>
+          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight text-stone-900">精选播客</h2>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <article
+              v-for="item in podcastPrograms"
+              :key="item.id"
+              class="group cursor-pointer overflow-hidden rounded-[20px] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+              @click="openPodcast(item)"
+            >
+              <div class="aspect-[16/10] overflow-hidden">
+                <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              </div>
+              <div class="p-4">
+                <p class="line-clamp-2 text-sm font-bold text-stone-800">{{ item.name }}</p>
+                <div class="mt-2 flex items-center justify-between">
+                  <p class="truncate text-xs font-medium text-stone-500">{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</p>
+                  <p class="text-xs font-bold text-stone-400">{{ formatPodcastDuration(item.program?.duration) }}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+            <h2 class="text-2xl font-bold tracking-tight text-stone-900">高品质甄选</h2>
+          </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <article
+              v-for="item in highQualityPlaylists"
+              :key="item.id"
+              class="group cursor-pointer overflow-hidden rounded-[20px] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+              :style="getPlaylistCardTransitionStyle(item)"
+              @click="openPlaylist(item)"
+            >
+              <div class="aspect-[4/3] overflow-hidden" :style="getPlaylistCoverTransitionStyle(item)">
+                <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              </div>
+              <div class="p-4">
+                <p class="truncate text-sm font-bold text-stone-800">{{ item.name }}</p>
+                <p class="mt-1 line-clamp-1 text-xs font-medium text-stone-500">{{ item.copywriter || item.description || '高品质歌单推荐' }}</p>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <section class="mb-20">
+        <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">MV 专区</h2>
+          <div class="flex flex-wrap items-center gap-2 rounded-full bg-stone-200/50 p-1">
             <button
               v-for="source in mvSourceOptions"
               :key="source.value"
-              class="rounded-full border px-3 py-1 text-xs font-medium transition"
-              :class="activeMvSource === source.value ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-stone-500'"
+              class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+              :class="activeMvSource === source.value ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
               type="button"
               @click="switchMvSource(source.value)"
             >
@@ -191,157 +208,115 @@
           </div>
         </div>
 
-        <div class="mb-4 flex flex-wrap items-center gap-2" v-if="activeMvSource === 'all' || activeMvSource === 'latest'">
-          <select v-model="mvArea" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
-            <option v-for="area in mvAreas" :key="area" :value="area">地区：{{ area }}</option>
+        <div class="mb-6 flex flex-wrap items-center gap-3" v-if="activeMvSource === 'all' || activeMvSource === 'latest'">
+          <select v-model="mvArea" class="cursor-pointer appearance-none rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm outline-none ring-1 ring-stone-900/5 transition hover:bg-stone-50">
+            <option v-for="area in mvAreas" :key="area" :value="area">地区: {{ area }}</option>
           </select>
-          <select v-if="activeMvSource === 'all'" v-model="mvType" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
-            <option v-for="type in mvTypes" :key="type" :value="type">类型：{{ type }}</option>
+          <select v-if="activeMvSource === 'all'" v-model="mvType" class="cursor-pointer appearance-none rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm outline-none ring-1 ring-stone-900/5 transition hover:bg-stone-50">
+            <option v-for="type in mvTypes" :key="type" :value="type">类型: {{ type }}</option>
           </select>
-          <select v-if="activeMvSource === 'all'" v-model="mvOrder" class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700">
-            <option v-for="order in mvOrders" :key="order" :value="order">排序：{{ order }}</option>
+          <select v-if="activeMvSource === 'all'" v-model="mvOrder" class="cursor-pointer appearance-none rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm outline-none ring-1 ring-stone-900/5 transition hover:bg-stone-50">
+            <option v-for="order in mvOrders" :key="order" :value="order">排序: {{ order }}</option>
           </select>
           <button
-            class="rounded-full border border-stone-300 px-3 py-1 text-xs font-medium transition hover:bg-stone-100"
+            class="flex items-center justify-center rounded-full bg-white p-2 text-stone-500 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 hover:text-stone-900"
             type="button"
             @click="loadMvList({reset: true})"
+            title="刷新"
           >
-            刷新
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           </button>
         </div>
 
-        <p v-if="loading.mv" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.mv" class="text-sm text-red-500">{{ errors.mv }}</p>
-        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <p v-if="loading.mv" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.mv" class="text-sm font-medium text-red-500">{{ errors.mv }}</p>
+        <div v-else class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <article
             v-for="item in mvList"
             :key="item.id"
-            class="motion-card group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
+            class="motion-card group cursor-pointer"
             @click="openMv(item)"
           >
-            <div class="aspect-video overflow-hidden bg-stone-200">
-              <SmartMedia :src="item.cover" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+            <div class="relative aspect-video overflow-hidden rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+              <SmartMedia :src="item.cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div class="absolute inset-0 rounded-[20px] ring-1 ring-inset ring-black/5" />
+              <div class="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-md">MV</div>
             </div>
-            <div class="p-3">
-              <p class="truncate text-sm font-semibold">{{ item.name }}</p>
-              <p class="mt-1 truncate text-xs text-stone-500">{{ item.artistName || '未知歌手' }}</p>
-              <p class="mt-1 text-xs text-stone-500">播放 {{ Number(item.playCount || 0).toLocaleString() }}</p>
+            <div class="mt-3 px-1">
+              <p class="truncate text-sm font-bold text-stone-800">{{ item.name }}</p>
+              <div class="mt-1 flex items-center justify-between">
+                <p class="truncate text-xs font-medium text-stone-500">{{ item.artistName || '未知歌手' }}</p>
+                <p class="text-[10px] font-bold text-stone-400">{{ Number(item.playCount || 0).toLocaleString() }} 播放</p>
+              </div>
             </div>
           </article>
-          <p v-if="!mvList.length" class="text-sm text-stone-500">暂无 MV 数据</p>
+          <p v-if="!mvList.length" class="text-sm font-medium text-stone-500">暂无 MV 数据</p>
         </div>
 
-        <div
-          v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'"
-          class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600"
-        >
+        <div v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'" class="mt-8 flex items-center justify-end gap-3 text-sm">
           <button
-            class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
             type="button"
             :disabled="mvOffset <= 0 || loading.mv"
             @click="prevMvPage"
           >
-            上一页
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
-          <span>第 {{ Math.floor(mvOffset / mvLimit) + 1 }} 页</span>
+          <span class="text-xs font-medium text-stone-400">Page {{ Math.floor(mvOffset / mvLimit) + 1 }}</span>
           <button
-            class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
             type="button"
             :disabled="!mvHasMore || loading.mv"
             @click="nextMvPage"
           >
-            下一页
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         </div>
       </section>
 
       <section class="mb-10">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">热门歌手</h2>
+        <div class="mb-8 flex items-end justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">热门艺人</h2>
         </div>
-        <p v-if="loading.artist" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.artist" class="text-sm text-red-500">{{ errors.artist }}</p>
-        <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <p v-if="loading.artist" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.artist" class="text-sm font-medium text-red-500">{{ errors.artist }}</p>
+        <div v-else class="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
           <article
             v-for="artist in hotArtists"
             :key="artist.id"
             class="group cursor-pointer text-center"
             @click="openArtist(artist)"
           >
-            <div class="mx-auto aspect-square w-full max-w-[170px] overflow-hidden rounded-full border border-stone-200 bg-stone-200">
-              <SmartMedia :src="artist.picUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+            <div class="mx-auto aspect-square w-full max-w-[160px] overflow-hidden rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+              <SmartMedia :src="artist.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             </div>
-            <p class="mt-2 truncate text-sm font-medium">{{ artist.name }}</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="mb-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">高品质歌单</h2>
-          <span class="text-xs uppercase tracking-[0.2em] text-stone-400">High Quality</span>
-        </div>
-        <p v-if="loading.hq" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="errors.hq" class="text-sm text-red-500">{{ errors.hq }}</p>
-        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <article
-            v-for="item in highQualityPlaylists"
-            :key="item.id"
-            class="group cursor-pointer overflow-hidden rounded-2xl border border-stone-100 bg-stone-50"
-            :style="getPlaylistCardTransitionStyle(item)"
-            @click="openPlaylist(item)"
-          >
-            <div class="aspect-[4/3] overflow-hidden bg-stone-200" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-            </div>
-            <div class="p-3">
-              <p class="truncate text-sm font-semibold">{{ item.name }}</p>
-              <p class="mt-1 line-clamp-2 text-xs text-stone-500">{{ item.copywriter || item.description || '高品质歌单推荐' }}</p>
-            </div>
+            <p class="mt-4 truncate text-sm font-bold text-stone-800">{{ artist.name }}</p>
           </article>
         </div>
       </section>
 
     </main>
 
-    <button
-      ref="releaseNotesFabRef"
-      class="motion-fab fixed bottom-[calc(var(--global-player-space,96px)+12px)] right-4 z-[1000] grid h-12 w-12 place-items-center rounded-full border border-stone-300 bg-white/95 text-stone-700 shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white"
-      type="button"
-      aria-label="打开更新日志"
-      @click="openReleaseNotesPanel"
-    >
-      <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M7 4h8l4 4v11a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
-        <path d="M15 4v5h5" />
-        <path d="M9 13h6" />
-        <path d="M9 17h4" />
-      </svg>
-      <span class="absolute -right-1 -top-1 max-w-[72px] truncate rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-        {{ latestReleaseTag }}
-      </span>
-    </button>
-
     <Teleport to="body">
       <div
         v-if="mvPlayerOpen"
-        class="fixed inset-0 z-[1002] bg-black/65 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[1002] bg-black/80 p-4 backdrop-blur-xl"
         @click.self="closeMvPlayer"
       >
-        <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl">
-          <div class="flex items-center justify-between gap-3 border-b border-white/15 px-4 py-3 text-white">
-            <p class="truncate text-sm font-medium">{{ currentMv?.name || 'MV 播放' }}</p>
-            <div class="flex items-center gap-2">
+        <div class="mx-auto mt-[8vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+          <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
+            <p class="truncate text-sm font-bold">{{ currentMv?.name || 'MV 播放' }}</p>
+            <div class="flex items-center gap-3">
               <select
                 v-if="mvResolutions.length"
                 v-model="selectedMvResolution"
-                class="rounded-full border border-white/30 bg-black/45 px-2 py-1 text-xs text-white"
+                class="appearance-none rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white outline-none backdrop-blur-md transition hover:bg-white/20 cursor-pointer"
                 @change="changeMvResolution"
               >
-                <option v-for="r in mvResolutions" :key="r" :value="r">{{ r }}P</option>
+                <option v-for="r in mvResolutions" :key="r" :value="r" class="bg-stone-900">{{ r }}P</option>
               </select>
               <button
-                class="rounded-full border border-white/30 px-3 py-1 text-xs transition hover:bg-white/10"
+                class="rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold transition hover:bg-white/20"
                 type="button"
                 @click="closeMvPlayer"
               >
@@ -351,8 +326,8 @@
           </div>
 
           <div class="aspect-video w-full bg-black">
-            <div v-if="mvPlayerLoading" class="grid h-full place-items-center text-sm text-white/70">MV 加载中...</div>
-            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm text-red-300">{{ mvPlayerError }}</div>
+            <div v-if="mvPlayerLoading" class="grid h-full place-items-center text-sm font-medium text-white/70">MV 加载中...</div>
+            <div v-else-if="mvPlayerError" class="grid h-full place-items-center px-6 text-center text-sm font-bold text-red-400">{{ mvPlayerError }}</div>
             <video
               v-else-if="currentMvUrl"
               :src="currentMvUrl"
@@ -369,82 +344,66 @@
       <Transition name="release-notes">
         <div
           v-if="releaseNotesOpen"
-          class="fixed inset-0 z-[1003] bg-black/45 p-4 backdrop-blur-sm"
+          class="fixed inset-0 z-[1003] bg-stone-900/40 p-4 backdrop-blur-md"
           @click.self="releaseNotesOpen = false"
         >
-          <div class="release-notes-panel ml-auto h-full w-full max-w-2xl overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-cyan-50 to-white shadow-2xl">
-            <div class="border-b border-sky-100 px-4 py-3 sm:px-5">
+          <div class="release-notes-panel ml-auto h-full w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
+            <div class="border-b border-stone-100 px-6 py-5">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-lg font-semibold text-slate-900">版本更新日志</p>
-                  <p class="text-xs text-slate-500">展示每个版本的更新亮点、已知问题和 Bug 修复记录</p>
+                  <p class="text-2xl font-black text-stone-900">版本更新</p>
+                  <p class="mt-1 text-xs font-medium text-stone-500">展示每个版本的更新亮点与修复记录</p>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-slate-700 ring-1 ring-slate-200">
-                    最新版本 {{ latestReleaseTag }}
-                  </span>
-                </div>
+                <span class="inline-flex items-center rounded-full bg-stone-100 px-3 py-1.5 text-xs font-bold text-stone-700">
+                  最新版本 {{ latestReleaseTag }}
+                </span>
               </div>
             </div>
 
-            <div class="h-[calc(100%-82px)] overflow-y-auto p-4 sm:p-5">
-              <p v-if="loading.releaseNotes" class="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">正在加载版本日志...</p>
-              <p v-else-if="errors.releaseNotes" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-500">{{ errors.releaseNotes }}</p>
-              <div v-else-if="releaseNotes.length" class="space-y-4">
+            <div class="custom-scrollbar h-[calc(100%-88px)] overflow-y-auto p-6">
+              <p v-if="loading.releaseNotes" class="animate-pulse text-center text-sm font-medium text-stone-500">正在加载版本日志...</p>
+              <p v-else-if="errors.releaseNotes" class="text-center text-sm font-medium text-red-500">{{ errors.releaseNotes }}</p>
+              <div v-else-if="releaseNotes.length" class="space-y-6">
                 <article
                   v-for="item in releaseNotes"
                   :key="item.id"
-                  class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  class="rounded-2xl bg-[#FAFAFA] p-5 ring-1 ring-stone-900/5"
                 >
-                  <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-start justify-between gap-3 border-b border-stone-200/60 pb-4">
                     <div>
-                      <div class="inline-flex items-center rounded-md bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
+                      <div class="inline-flex items-center rounded-md bg-stone-200/60 px-2 py-1 text-[10px] font-black tracking-widest text-stone-700">
                         v{{ item.version || '0.0.0' }}
                       </div>
-                      <p class="mt-2 text-sm font-semibold text-slate-900">{{ item.title }}</p>
+                      <p class="mt-2 text-base font-bold text-stone-900">{{ item.title }}</p>
                     </div>
-                    <span class="shrink-0 text-xs text-slate-500">{{ item.dateText }}</span>
+                    <span class="shrink-0 text-xs font-medium text-stone-400">{{ item.dateText }}</span>
                   </div>
 
-                  <div class="mt-3 grid grid-cols-1 gap-3">
-                    <section class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-                      <h4 class="text-xs font-semibold text-emerald-800">更新亮点</h4>
-                      <ul class="mt-1 space-y-1 text-xs text-emerald-900 sm:text-sm">
+                  <div class="mt-4 grid grid-cols-1 gap-3">
+                    <section v-if="asList(item.highlights).length > 0" class="rounded-xl bg-white p-3 ring-1 ring-stone-900/5">
+                      <h4 class="text-xs font-bold text-emerald-600">✨ 更新亮点</h4>
+                      <ul class="mt-2 space-y-1.5 text-xs font-medium text-stone-600">
                         <li v-for="(text, idx) in asList(item.highlights)" :key="`h-${item.id}-${idx}`">- {{ text }}</li>
-                        <li v-if="asList(item.highlights).length === 0" class="text-emerald-700/70">暂无</li>
                       </ul>
                     </section>
 
-                    <section class="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                      <h4 class="text-xs font-semibold text-amber-800">已知问题</h4>
-                      <ul class="mt-1 space-y-1 text-xs text-amber-900 sm:text-sm">
+                    <section v-if="asList(item.knownIssues).length > 0" class="rounded-xl bg-white p-3 ring-1 ring-stone-900/5">
+                      <h4 class="text-xs font-bold text-amber-600">⚠️ 已知问题</h4>
+                      <ul class="mt-2 space-y-1.5 text-xs font-medium text-stone-600">
                         <li v-for="(text, idx) in asList(item.knownIssues)" :key="`k-${item.id}-${idx}`">- {{ text }}</li>
-                        <li v-if="asList(item.knownIssues).length === 0" class="text-amber-700/70">暂无</li>
                       </ul>
                     </section>
 
-                    <section class="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
-                      <h4 class="text-xs font-semibold text-rose-800">Bug 修复</h4>
-                      <ul class="mt-1 space-y-1 text-xs text-rose-900 sm:text-sm">
+                    <section v-if="asList(item.bugFixes).length > 0" class="rounded-xl bg-white p-3 ring-1 ring-stone-900/5">
+                      <h4 class="text-xs font-bold text-rose-600">🐛 Bug 修复</h4>
+                      <ul class="mt-2 space-y-1.5 text-xs font-medium text-stone-600">
                         <li v-for="(text, idx) in asList(item.bugFixes)" :key="`b-${item.id}-${idx}`">- {{ text }}</li>
-                        <li v-if="asList(item.bugFixes).length === 0" class="text-rose-700/70">暂无</li>
                       </ul>
                     </section>
                   </div>
-
                 </article>
               </div>
-              <p v-else class="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">暂无更新日志</p>
-            </div>
-
-            <div class="border-t border-slate-200 bg-white/70 px-4 py-3 sm:px-5">
-              <button
-                class="rounded-full border border-stone-300 px-3 py-1 text-xs text-stone-600 transition hover:bg-stone-100"
-                type="button"
-                @click="releaseNotesOpen = false"
-              >
-                关闭
-              </button>
+              <p v-else class="text-center text-sm font-medium text-stone-500">暂无更新日志</p>
             </div>
           </div>
         </div>
@@ -478,7 +437,6 @@ import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 const router = useRouter()
 const route = useRoute()
 const playerStore = usePlayerStore()
-const releaseNotesFabRef = ref(null)
 const motionCleanups = []
 
 const hero = ref({
@@ -542,11 +500,11 @@ const loading = ref({
   top: true,
   songs: true,
   rank: true,
-    podcast: true,
-    artist: true,
-    hq: true,
-    mv: true,
-  })
+  podcast: true,
+  artist: true,
+  hq: true,
+  mv: true,
+})
 
 const errors = ref({
   banner: '',
@@ -555,11 +513,11 @@ const errors = ref({
   top: '',
   songs: '',
   rank: '',
-    podcast: '',
-    artist: '',
-    hq: '',
-    mv: '',
-  })
+  podcast: '',
+  artist: '',
+  hq: '',
+  mv: '',
+})
 
 function openArtist(artist) {
   router.push({
@@ -826,6 +784,7 @@ function normalizeReleaseNoteItem(item, index = 0) {
     content,
     version: item?.version || item?.tag || item?.release || '',
     highlights,
+    highlights,
     bugFixes,
     knownIssues,
     dateText: Number.isFinite(ts) && ts > 0 ? new Date(ts).toLocaleDateString() : '-',
@@ -882,21 +841,6 @@ function setupMotionEffects() {
     motionCleanups.push(stopPress)
   })
 
-  if (releaseNotesFabRef.value) {
-    const stopHover = hover(releaseNotesFabRef.value, () => {
-      const ctrl = animate(releaseNotesFabRef.value, {scale: 1.06, y: -1}, {type: 'spring', stiffness: 520, damping: 30, mass: 0.28})
-      return () => ctrl.stop()
-    })
-    const stopPress = press(releaseNotesFabRef.value, () => {
-      const down = animate(releaseNotesFabRef.value, {scale: 0.92, y: 0}, {duration: 0.1})
-      return () => {
-        down.stop()
-        animate(releaseNotesFabRef.value, {scale: 1, y: 0}, {duration: 0.16, easing: [0.22, 1, 0.36, 1]})
-      }
-    })
-    motionCleanups.push(stopHover)
-    motionCleanups.push(stopPress)
-  }
 }
 
 async function loadHomeBanner() {
@@ -1060,13 +1004,13 @@ onBeforeUnmount(() => {
 
 .release-notes-enter-active .release-notes-panel,
 .release-notes-leave-active .release-notes-panel {
-  transition: transform 240ms ease, opacity 220ms ease;
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
 }
 
 .release-notes-enter-from .release-notes-panel,
 .release-notes-leave-to .release-notes-panel {
   opacity: 0;
-  transform: translateX(24px) scale(0.985);
+  transform: translateX(32px) scale(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1076,5 +1020,20 @@ onBeforeUnmount(() => {
   .release-notes-leave-active .release-notes-panel {
     transition-duration: 0ms !important;
   }
+}
+
+/* 自定义轻量级滚动条 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #e7e5e4;
+  border-radius: 20px;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: #d6d3d1;
 }
 </style>

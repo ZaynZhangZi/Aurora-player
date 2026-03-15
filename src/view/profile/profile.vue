@@ -1,40 +1,40 @@
 <template>
-  <div class="min-h-screen bg-stone-100 text-stone-900">
-    <section class="relative overflow-hidden border-b border-stone-200 bg-white">
+  <div class="min-h-screen bg-[#FAFAFA] text-stone-900 selection:bg-stone-900 selection:text-white">
+    <section class="relative overflow-hidden pt-16 pb-12 sm:pt-24 sm:pb-20">
       <div class="profile-hero-flow absolute inset-0" />
-      <canvas ref="heroCanvasRef" class="profile-hero-canvas absolute inset-0" />
-      <div class="pointer-events-none absolute -left-16 top-10 h-44 w-44 rounded-full bg-white/25 blur-2xl" />
-      <div class="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-stone-100/40 blur-2xl" />
-      <div class="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-8">
-        <div class="mb-4 flex justify-end">
+      <canvas ref="heroCanvasRef" class="profile-hero-canvas absolute inset-0 mix-blend-multiply opacity-60" />
 
-        </div>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA]/60 to-transparent z-10" />
 
-        <div class="grid gap-6 lg:grid-cols-[140px_1fr] lg:items-center">
-          <img
-            v-if="profile.avatarUrl"
-            :src="profile.avatarUrl"
-            alt="avatar"
-            class="h-32 w-32 rounded-3xl border border-white/70 object-cover shadow-xl shadow-stone-300/40"
-          />
+      <div class="relative z-20 mx-auto max-w-5xl px-6 sm:px-10">
+        <div class="flex flex-col items-center text-center md:flex-row md:text-left md:gap-10">
+          <div class="relative group shrink-0 mb-6 md:mb-0">
+            <div class="absolute -inset-4 rounded-full bg-white/20 blur-2xl transition-all duration-700 group-hover:bg-white/40" />
+            <img
+              v-if="profile.avatarUrl"
+              :src="profile.avatarUrl"
+              alt="avatar"
+              class="relative z-10 h-32 w-32 md:h-40 md:w-40 rounded-full border-4 border-white/60 object-cover shadow-[0_16px_40px_rgba(0,0,0,0.12)] transition-transform duration-500 group-hover:scale-105"
+            />
+          </div>
 
-          <div>
-            <p class="text-xs uppercase tracking-[0.22em] text-stone-600">Personal Center</p>
-            <h1 class="mt-2 text-4xl font-black leading-tight text-stone-900">{{ profile.nickname || '我的主页' }}</h1>
+          <div class="flex-1">
+            <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-stone-500">Personal Center</p>
+            <h1 class="mt-1 text-4xl font-black tracking-tight text-stone-900 sm:text-5xl md:text-6xl">{{ profile.nickname || '我的主页' }}</h1>
 
-            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
-              <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">UID {{ profile.userId || '-' }}</span>
-              <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">{{ certificationText }}</span>
-              <span class="rounded-full border border-stone-300 bg-white/85 px-3 py-1">地区 {{ locationText }}</span>
+            <div class="mt-5 flex flex-wrap justify-center md:justify-start items-center gap-2 text-xs font-bold text-stone-700">
+              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">UID {{ profile.userId || '-' }}</span>
+              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">{{ certificationText }}</span>
+              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">{{ locationText }}</span>
             </div>
 
-            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
-              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">关注 {{ formatCount(profile.follows) }}</span>
-              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">粉丝 {{ formatCount(profile.followeds) }}</span>
-              <span class="profile-kpi-pill rounded-full border border-stone-300 bg-white/85 px-3 py-1">等级 Lv.{{ level.level || 0 }}</span>
+            <div class="mt-3 flex flex-wrap justify-center md:justify-start items-center gap-2 text-xs font-bold text-stone-700">
+              <span class="profile-kpi-pill rounded-full bg-stone-900 text-white px-4 py-1.5 shadow-md">关注 {{ formatCount(profile.follows) }}</span>
+              <span class="profile-kpi-pill rounded-full bg-white/60 backdrop-blur-md px-4 py-1.5 shadow-sm ring-1 ring-stone-900/5">粉丝 {{ formatCount(profile.followeds) }}</span>
+              <span class="profile-kpi-pill rounded-full bg-white/60 backdrop-blur-md px-4 py-1.5 shadow-sm ring-1 ring-stone-900/5">等级 Lv.{{ level.level || 0 }}</span>
             </div>
 
-            <p class="mt-4 max-w-3xl rounded-2xl border border-stone-200 bg-white/80 px-4 py-3 text-sm leading-relaxed text-stone-700">
+            <p class="mt-5 max-w-2xl text-sm font-medium leading-relaxed text-stone-600 opacity-90">
               {{ profile.signature || profile.description || '这个人很神秘，还没有留下简介。' }}
             </p>
           </div>
@@ -42,28 +42,29 @@
       </div>
     </section>
 
-    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-      <section class="mb-5 flex items-center gap-5 border-b border-stone-200">
-        <div class="flex items-center gap-4">
+    <main class="relative z-30 mx-auto max-w-5xl px-6 pb-24 sm:px-10">
+
+      <section class="mb-12 flex justify-center">
+        <div class="inline-flex items-center rounded-full bg-stone-200/50 p-1.5 backdrop-blur-md shadow-inner">
           <button
-            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
-            :class="activeTab === 'playlist' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
+            :class="activeTab === 'playlist' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
             type="button"
             @click="switchTab('playlist')"
           >
             歌单总览
           </button>
           <button
-            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
-            :class="activeTab === 'cloud' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
+            :class="activeTab === 'cloud' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
             type="button"
             @click="switchTab('cloud')"
           >
             云盘管理
           </button>
           <button
-            class="-mb-px border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition"
-            :class="activeTab === 'listening' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-700'"
+            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
+            :class="activeTab === 'listening' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
             type="button"
             @click="switchTab('listening')"
           >
@@ -73,226 +74,241 @@
       </section>
 
       <transition name="tab-panel" mode="out-in">
-        <section v-if="activeTab === 'playlist'" key="playlist" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-        <div class="mb-5 flex items-center justify-between">
-          <h2 class="text-2xl font-bold">我的歌单</h2>
-          <span class="text-xs text-stone-500">创建 {{ createdPlaylists.length }} · 收藏 {{ subscribedPlaylists.length }}</span>
-        </div>
 
-        <p v-if="loading" class="text-sm text-stone-500">加载中...</p>
-        <p v-else-if="error" class="text-sm text-red-500">{{ error }}</p>
-
-        <template v-else>
-          <div class="mb-6">
-            <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">我创建的歌单</h3>
-            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <article
-                v-for="item in createdPlaylists"
-                :key="`created-${item.id}`"
-                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
-                @click="openPlaylist(item)"
-              >
-                <div class="h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-stone-200">
-                  <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-base font-semibold">{{ item.name }}</p>
-                  <p class="mt-1 text-xs text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
-                  <p class="mt-3 line-clamp-2 text-xs text-stone-600">{{ item.description || '还没有写歌单简介。' }}</p>
-                </div>
-              </article>
-            </div>
-            <p v-if="!createdPlaylists.length" class="text-sm text-stone-500">还没有创建歌单。</p>
+        <section v-if="activeTab === 'playlist'" key="playlist" class="w-full">
+          <div class="mb-8 flex items-end justify-between">
+            <h2 class="text-3xl font-bold tracking-tight text-stone-900">我的歌单</h2>
+            <span class="text-xs font-bold text-stone-500">创建 {{ createdPlaylists.length }} · 收藏 {{ subscribedPlaylists.length }}</span>
           </div>
 
-          <div>
-            <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">我收藏的歌单</h3>
-            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <article
-                v-for="item in subscribedPlaylists"
-                :key="`sub-${item.id}`"
-                class="group flex cursor-pointer gap-4 rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
-                @click="openPlaylist(item)"
-              >
-                <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-200">
-                  <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-semibold">{{ item.name }}</p>
-                  <p class="mt-1 text-xs text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
-                </div>
-              </article>
-            </div>
-            <p v-if="!subscribedPlaylists.length" class="text-sm text-stone-500">还没有收藏歌单。</p>
-          </div>
-        </template>
-        </section>
+          <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+          <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
 
-        <section v-else-if="activeTab === 'cloud'" key="cloud" class="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-2xl font-bold">云盘</h2>
-          <button
-            class="rounded-full border border-stone-300 bg-white px-4 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-50"
-            type="button"
-            :disabled="cloudLoading"
-            @click="loadCloudSongs(cloudPage)"
-          >
-            刷新
-          </button>
-        </div>
-
-        <div class="mb-4 rounded-2xl border border-stone-200 bg-stone-50 p-3">
-          <p class="mb-2 text-xs uppercase tracking-wide text-stone-500">云盘上传</p>
-          <div class="flex flex-wrap items-center gap-2">
-            <input
-              :key="cloudFileInputKey"
-              type="file"
-              accept=".mp3,.flac,.wav,.m4a,.aac"
-              class="max-w-[260px] rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs"
-              @change="onCloudFileChange"
-            />
-            <button
-              class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="cloudUploading || !cloudUploadFile"
-              @click="uploadCloudSong"
-            >
-              {{ cloudUploading ? '上传中...' : '上传到云盘' }}
-            </button>
-            <span v-if="cloudUploadMessage" class="text-xs text-stone-600">{{ cloudUploadMessage }}</span>
-          </div>
-        </div>
-
-        <p v-if="cloudLoading" class="text-sm text-stone-500">云盘加载中...</p>
-        <p v-else-if="cloudError" class="text-sm text-red-500">{{ cloudError }}</p>
-
-        <template v-else>
-          <div v-if="cloudSongs.length" class="space-y-2">
-            <article
-              v-for="item in cloudSongs"
-              :key="`cloud-${item.songId}`"
-              class="cursor-pointer rounded-2xl border border-stone-100 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white"
-              @click="playCloudSong(item)"
-            >
-              <div class="flex flex-wrap items-start gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-semibold">{{ item.songName }}</p>
-                  <p class="mt-1 truncate text-xs text-stone-500">{{ item.artistName }} · {{ item.albumName }}</p>
-                  <p class="mt-1 text-xs text-stone-500">ID {{ item.songId }} · {{ formatFileSize(item.fileSize) }} · {{ formatDateTime(item.addTime) }}</p>
-                </div>
-                <div class="flex shrink-0 items-center gap-2">
-                  <button
-                    class="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs transition hover:bg-stone-100 disabled:opacity-40"
-                    type="button"
-                    :disabled="cloudDetailLoadingId === item.songId"
-                    @click.stop="toggleCloudDetail(item)"
-                  >
-                    {{ activeCloudDetailId === item.songId ? '收起详情' : '云盘数据详情' }}
-                  </button>
-                  <button
-                    class="rounded-full border border-red-300 bg-white px-3 py-1 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-40"
-                    type="button"
-                    :disabled="cloudDeletingId === item.songId"
-                    @click.stop="deleteCloudSong(item)"
-                  >
-                    {{ cloudDeletingId === item.songId ? '删除中...' : '云盘歌曲删除' }}
-                  </button>
-                </div>
+          <template v-else>
+            <div class="mb-12">
+              <h3 class="mb-6 text-xs font-bold uppercase tracking-[0.2em] text-stone-400">我创建的</h3>
+              <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <article
+                  v-for="item in createdPlaylists"
+                  :key="`created-${item.id}`"
+                  class="group flex cursor-pointer items-center gap-5 rounded-[24px] bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)]"
+                  @click="openPlaylist(item)"
+                >
+                  <div class="h-24 w-24 shrink-0 overflow-hidden rounded-[16px] shadow-sm">
+                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  </div>
+                  <div class="min-w-0 flex-1 pr-4">
+                    <p class="truncate text-base font-bold text-stone-900">{{ item.name }}</p>
+                    <p class="mt-1 text-xs font-medium text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
+                    <p class="mt-2 line-clamp-1 text-xs font-medium text-stone-400">{{ item.description || '暂无简介' }}</p>
+                  </div>
+                </article>
               </div>
+              <p v-if="!createdPlaylists.length" class="mt-4 text-sm font-medium text-stone-500">还没有创建歌单。</p>
+            </div>
 
-              <div v-if="activeCloudDetailId === item.songId" class="mt-3 rounded-xl border border-stone-200 bg-white p-3 text-xs text-stone-600">
-                <p v-if="cloudDetailLoadingId === item.songId">详情加载中...</p>
-                <template v-else>
-                  <p>文件名：{{ cloudDetails[item.songId]?.fileName || item.fileName || '-' }}</p>
-                  <p class="mt-1">比特率：{{ cloudDetails[item.songId]?.bitrate || item.bitrate || '-' }}</p>
-                  <p class="mt-1">时长：{{ formatDuration(cloudDetails[item.songId]?.simpleSong?.dt || item.duration) }}</p>
-                  <p class="mt-1">歌曲 ID：{{ cloudDetails[item.songId]?.songId || item.songId }}</p>
-                </template>
-              </div>
-            </article>
-          </div>
-
-          <p v-else class="text-sm text-stone-500">云盘还没有歌曲。</p>
-
-          <div class="mt-4 flex items-center justify-end gap-2 text-xs text-stone-600">
-            <span class="mr-2">每页 10 首</span>
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="cloudPage <= 1 || cloudLoading"
-              @click="prevCloudPage"
-            >
-              上一页
-            </button>
-            <span>第 {{ cloudPage }} 页</span>
-            <button
-              class="rounded-full border border-stone-300 px-3 py-1 transition hover:bg-stone-100 disabled:opacity-40"
-              type="button"
-              :disabled="!cloudCanNextPage || cloudLoading"
-              @click="nextCloudPage"
-            >
-              下一页
-            </button>
-          </div>
-        </template>
-        </section>
-
-        <section v-else-if="activeTab === 'listening'" key="listening" class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 class="text-2xl font-bold">听歌风格画像</h2>
+              <h3 class="mb-6 text-xs font-bold uppercase tracking-[0.2em] text-stone-400">我收藏的</h3>
+              <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <article
+                  v-for="item in subscribedPlaylists"
+                  :key="`sub-${item.id}`"
+                  class="group flex cursor-pointer items-center gap-4 rounded-[20px] bg-white/60 p-2.5 shadow-sm ring-1 ring-stone-900/5 transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-md"
+                  @click="openPlaylist(item)"
+                >
+                  <div class="h-16 w-16 shrink-0 overflow-hidden rounded-[12px]">
+                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  </div>
+                  <div class="min-w-0 flex-1 pr-4">
+                    <p class="truncate text-sm font-bold text-stone-900">{{ item.name }}</p>
+                    <p class="mt-0.5 text-xs font-medium text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
+                  </div>
+                </article>
+              </div>
+              <p v-if="!subscribedPlaylists.length" class="mt-4 text-sm font-medium text-stone-500">还没有收藏歌单。</p>
             </div>
-            <div class="inline-flex rounded-xl border border-stone-300 bg-stone-50 p-1 text-xs">
+          </template>
+        </section>
+
+        <section v-else-if="activeTab === 'cloud'" key="cloud" class="w-full">
+          <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <h2 class="text-3xl font-bold tracking-tight text-stone-900">音乐云盘</h2>
+            <button
+              class="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 hover:text-stone-900 disabled:opacity-50"
+              type="button"
+              :disabled="cloudLoading"
+              @click="loadCloudSongs(cloudPage)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              刷新状态
+            </button>
+          </div>
+
+          <div class="mb-10 flex flex-col items-center justify-center rounded-[24px] border border-dashed border-stone-300 bg-stone-100/50 p-8 text-center transition-colors hover:border-stone-400 hover:bg-stone-100">
+            <div class="mb-3 rounded-full bg-stone-200/50 p-3 text-stone-600">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            </div>
+            <p class="text-sm font-bold text-stone-900">将本地音乐上传至云盘</p>
+            <p class="mt-1 text-xs font-medium text-stone-500">支持 mp3, flac, wav, m4a, aac 格式</p>
+
+            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <label class="cursor-pointer rounded-full bg-stone-900 px-6 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-black hover:shadow-lg">
+                选择文件
+                <input
+                  :key="cloudFileInputKey"
+                  type="file"
+                  accept=".mp3,.flac,.wav,.m4a,.aac"
+                  class="hidden"
+                  @change="onCloudFileChange"
+                />
+              </label>
+
               <button
-                class="rounded-lg px-3 py-1 transition"
-                :class="listeningRange === 'week' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-white'"
+                v-if="cloudUploadFile"
+                class="rounded-full bg-white px-6 py-2.5 text-xs font-bold text-stone-800 shadow-sm ring-1 ring-stone-900/10 transition hover:bg-stone-50 disabled:opacity-50"
+                type="button"
+                :disabled="cloudUploading"
+                @click="uploadCloudSong"
+              >
+                {{ cloudUploading ? '正在上传...' : '开始上传' }}
+              </button>
+            </div>
+            <p v-if="cloudUploadMessage" class="mt-4 text-xs font-bold text-emerald-600">{{ cloudUploadMessage }}</p>
+          </div>
+
+          <p v-if="cloudLoading" class="animate-pulse text-sm font-medium text-stone-500">云盘加载中...</p>
+          <p v-else-if="cloudError" class="text-sm font-medium text-red-500">{{ cloudError }}</p>
+
+          <template v-else>
+            <div v-if="cloudSongs.length" class="space-y-1">
+              <article
+                v-for="(item, index) in cloudSongs"
+                :key="`cloud-${item.songId}`"
+                class="group flex flex-col rounded-xl px-4 py-3 transition-colors hover:bg-white hover:shadow-sm"
+              >
+                <div class="flex items-center justify-between gap-4 cursor-pointer" @click="playCloudSong(item)">
+                  <div class="flex items-center gap-4 min-w-0">
+                    <div class="flex w-6 justify-center text-xs font-bold text-stone-400 group-hover:text-stone-900">
+                      <span class="group-hover:hidden">{{ index + 1 + (cloudPage - 1) * cloudLimit }}</span>
+                      <svg class="hidden group-hover:block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-bold text-stone-900">{{ item.songName }}</p>
+                      <p class="mt-0.5 truncate text-xs font-medium text-stone-500">{{ item.artistName }} · {{ item.albumName }}</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-6 shrink-0">
+                    <span class="hidden text-xs font-medium text-stone-400 sm:block">{{ formatFileSize(item.fileSize) }}</span>
+                    <span class="hidden text-xs font-medium text-stone-400 sm:block">{{ formatDateTime(item.addTime).split(' ')[0] }}</span>
+
+                    <div class="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        class="rounded-full bg-white p-2 text-stone-500 shadow-sm ring-1 ring-stone-900/5 transition hover:text-stone-900 hover:bg-stone-50"
+                        title="查看详情"
+                        @click.stop="toggleCloudDetail(item)"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                      </button>
+                      <button
+                        class="rounded-full bg-white p-2 text-red-500 shadow-sm ring-1 ring-stone-900/5 transition hover:text-red-700 hover:bg-red-50"
+                        title="删除歌曲"
+                        @click.stop="deleteCloudSong(item)"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="activeCloudDetailId === item.songId" class="mt-3 ml-10 rounded-xl bg-stone-100/60 p-4 text-xs font-medium text-stone-600 cursor-default">
+                  <p v-if="cloudDetailLoadingId === item.songId" class="animate-pulse">数据加载中...</p>
+                  <div v-else class="grid grid-cols-2 gap-y-2">
+                    <p><span class="text-stone-400 mr-2">文件名</span> {{ cloudDetails[item.songId]?.fileName || item.fileName || '-' }}</p>
+                    <p><span class="text-stone-400 mr-2">比特率</span> {{ cloudDetails[item.songId]?.bitrate || item.bitrate || '-' }} kbps</p>
+                    <p><span class="text-stone-400 mr-2">音乐时长</span> {{ formatDuration(cloudDetails[item.songId]?.simpleSong?.dt || item.duration) }}</p>
+                    <p><span class="text-stone-400 mr-2">平台 ID</span> {{ cloudDetails[item.songId]?.songId || item.songId }}</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <p v-else class="text-sm font-medium text-stone-500">云盘还没有歌曲。</p>
+
+            <div class="mt-8 flex items-center justify-end gap-4 text-sm">
+              <span class="text-xs font-medium text-stone-400">Page {{ cloudPage }}</span>
+              <div class="flex items-center gap-2">
+                <button
+                  class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
+                  type="button"
+                  :disabled="cloudPage <= 1 || cloudLoading"
+                  @click="prevCloudPage"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button
+                  class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
+                  type="button"
+                  :disabled="!cloudCanNextPage || cloudLoading"
+                  @click="nextCloudPage"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+            </div>
+          </template>
+        </section>
+
+        <section v-else-if="activeTab === 'listening'" key="listening" class="w-full">
+          <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2 class="text-3xl font-bold tracking-tight text-stone-900">听歌画像</h2>
+            <div class="inline-flex rounded-full bg-stone-200/50 p-1">
+              <button
+                class="rounded-full px-5 py-1.5 text-xs font-bold transition-all"
+                :class="listeningRange === 'week' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
                 type="button"
                 @click="setListeningRange('week')"
-              >
-                本周
-              </button>
+              >本周</button>
               <button
-                class="rounded-lg px-3 py-1 transition"
-                :class="listeningRange === 'all' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-white'"
+                class="rounded-full px-5 py-1.5 text-xs font-bold transition-all"
+                :class="listeningRange === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
                 type="button"
                 @click="setListeningRange('all')"
-              >
-                全时段
-              </button>
+              >全时段</button>
             </div>
           </div>
 
-          <p v-if="listeningLoading" class="text-sm text-stone-500">正在分析你的听歌分布...</p>
-          <p v-else-if="listeningError" class="text-sm text-red-500">{{ listeningError }}</p>
+          <p v-if="listeningLoading" class="animate-pulse text-sm font-medium text-stone-500">正在分析你的听歌分布...</p>
+          <p v-else-if="listeningError" class="text-sm font-medium text-red-500">{{ listeningError }}</p>
 
-          <div v-else class="grid gap-4">
-              <div class="listening-gradient-stage listening-gradient-stage-large" :style="listeningMeshStyle">
-                <div class="pointer-events-none absolute inset-0 rounded-2xl border border-white/30" />
-                <div
-                  v-if="!listeningBuckets.length"
-                  class="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl border border-white/35 bg-black/25 px-3 py-2 text-xs text-white/90 backdrop-blur-sm"
-                >
-                  暂无可分析的听歌记录，先播放几首歌再回来看看。
-                </div>
+          <div v-else class="flex flex-col gap-8">
+            <div class="listening-gradient-stage listening-gradient-stage-large shadow-[0_24px_50px_rgba(0,0,0,0.1)]" :style="listeningMeshStyle">
+              <div class="pointer-events-none absolute inset-0 rounded-[24px] ring-1 ring-inset ring-white/20" />
+              <div
+                v-if="!listeningBuckets.length"
+                class="absolute bottom-6 left-6 rounded-2xl bg-black/30 backdrop-blur-md px-5 py-3 text-xs font-medium text-white/90 ring-1 ring-white/10"
+              >
+                暂无可分析的听歌记录，先播放几首歌再回来看看。
               </div>
+            </div>
 
-              <div v-if="listeningBuckets.length" class="flex flex-wrap gap-2">
-                <span
-                  v-for="item in listeningBuckets.slice(0, 4)"
-                  :key="item.key"
-                  class="inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white px-2.5 py-1 text-[11px] text-stone-700"
-                >
-                  <span class="inline-block h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
-                  {{ item.label }} {{ item.percent }}%
-                </span>
-              </div>
-              <p v-else class="text-xs text-stone-500">当前暂无分布标签，系统会在有足够播放记录后自动生成。</p>
+            <div v-if="listeningBuckets.length" class="flex flex-wrap items-center justify-center gap-3 pt-4">
+              <span
+                v-for="item in listeningBuckets.slice(0, 5)"
+                :key="item.key"
+                class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition-transform hover:scale-105"
+              >
+                <span class="inline-block h-2.5 w-2.5 rounded-full shadow-inner" :style="{ backgroundColor: item.color }" />
+                {{ item.label }}
+                <span class="text-stone-400 ml-1">{{ item.percent }}%</span>
+              </span>
+            </div>
+            <p v-else class="text-center text-xs font-medium text-stone-400">当前暂无分布标签，系统会在有足够播放记录后自动生成。</p>
           </div>
         </section>
       </transition>
     </main>
 
-    <ModalRouterView content-width="90vw" content-height="90vh" content-radius="16px" />
+    <ModalRouterView content-width="90vw" content-height="90vh" content-radius="24px" />
   </div>
 </template>
 
@@ -1313,7 +1329,6 @@ watch(
 .profile-hero-canvas {
   z-index: 1;
   pointer-events: none;
-  opacity: 0.96;
   display: block;
   width: 100%;
   height: 100%;
@@ -1326,27 +1341,25 @@ watch(
 
 .profile-kpi-pill:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(28, 25, 23, 0.08);
 }
 
 .listening-gradient-stage {
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(100, 116, 139, 0.34);
+  border-radius: 24px;
   background:
     radial-gradient(circle at 18% 22%, rgba(59, 130, 246, 0.44), transparent 44%),
     radial-gradient(circle at 82% 18%, rgba(168, 85, 247, 0.4), transparent 46%),
     radial-gradient(circle at 60% 80%, rgba(34, 197, 94, 0.34), transparent 48%),
-    #334155;
+    #292929;
   min-height: 190px;
   background-size: cover;
   background-repeat: no-repeat;
 }
 
 .listening-gradient-stage-large {
-  height: 240px;
-  min-height: 240px;
+  height: 280px;
+  min-height: 280px;
 }
 
 @keyframes kpi-rise {
