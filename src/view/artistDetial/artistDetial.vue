@@ -28,7 +28,7 @@
         <div v-if="!hasHeroVideo || !heroVideoReady" class="mb-6 h-32 w-32 overflow-hidden rounded-full border-4 border-white/20 shadow-2xl sm:h-48 sm:w-48">
           <img :src="artistAvatar" alt="artist-avatar" class="h-full w-full object-cover" @error="onAvatarError" />
         </div>
-        <h1 class="text-5xl font-black tracking-tighter text-white drop-shadow-2xl sm:text-7xl lg:text-8xl">
+        <h1 class="text-5xl font-black tracking-widest  text-white drop-shadow-2xl sm:text-7xl lg:text-8xl">
           {{ artistName || '歌手详情' }}
         </h1>
       </div>

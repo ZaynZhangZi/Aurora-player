@@ -5,6 +5,7 @@
 import apiClient from "@/axios/apiClient";
 
 export const userApi={
+
     //二维码 key 生成接口
     getQrKey(){
         return apiClient.get('/login/qr/key', {

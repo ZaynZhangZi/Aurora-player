@@ -15,7 +15,7 @@
     "lint": "run-s lint:*"
   },
   "dependencies": {
-    "@applemusic-like-lyrics/core": "^0.2.0-alpha.5",
+    "@applemusic-like-lyrics/core": "file:applemusic-like-lyrics-core-0.2.1.tgz",
     "@applemusic-like-lyrics/vue": "file:applemusic-like-lyrics-vue-0.2.2.tgz",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
