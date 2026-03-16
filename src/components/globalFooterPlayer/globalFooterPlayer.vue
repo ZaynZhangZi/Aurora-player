@@ -1071,9 +1071,12 @@ function updateMediaSessionPositionState() {
 	}
 }
 
-function setupMediaSessionHandlers() {
+function setupMediaSessionHandlers({ force = false } = {}) {
 	if (typeof navigator === "undefined") return;
 	if (!("mediaSession" in navigator)) return;
+	if (force && mediaSessionHandlersBound) {
+		clearMediaSessionHandlers();
+	}
 	if (mediaSessionHandlersBound) return;
 
 	const setHandler = (action, handler) => {
@@ -1082,6 +1085,18 @@ function setupMediaSessionHandlers() {
 		} catch {
 			// noop
 		}
+	};
+
+	const handlePrevTrack = async () => {
+		if (!playQueue.value.length) return;
+		if (!canPlayPrev.value) return;
+		await playQueueByDirection("prev", { trigger: "manual" });
+	};
+
+	const handleNextTrack = async () => {
+		if (!playQueue.value.length) return;
+		if (!canPlayNext.value) return;
+		await playQueueByDirection("next", { trigger: "manual" });
 	};
 
 	setHandler("play", async () => {
@@ -1095,12 +1110,8 @@ function setupMediaSessionHandlers() {
 	setHandler("pause", () => {
 		audioRef.value?.pause();
 	});
-	setHandler("previoustrack", () => {
-		playQueueByDirection("prev", { trigger: "manual" });
-	});
-	setHandler("nexttrack", () => {
-		playQueueByDirection("next", { trigger: "manual" });
-	});
+	setHandler("previoustrack", canPlayPrev.value ? handlePrevTrack : null);
+	setHandler("nexttrack", canPlayNext.value ? handleNextTrack : null);
 	setHandler("seekbackward", null);
 	setHandler("seekforward", null);
 	setHandler("seekto", (details = {}) => {
@@ -1411,6 +1422,7 @@ function onTimeUpdate() {
 
 function onPlay() {
 	playerStore.setPlaying(true);
+	setupMediaSessionHandlers({ force: isIOSDevice.value });
 	startRhythmLoop();
 	updateMediaSessionPlaybackState();
 }
@@ -1478,6 +1490,7 @@ watch(
 watch(
 	() => playerStore.currentSong?.id,
 	async (songId) => {
+		setupMediaSessionHandlers({ force: isIOSDevice.value });
 		await loadDynamicCover(songId);
 		await loadCurrentSongLyric(songId);
 		amllAlbum.value = "";
@@ -1504,11 +1517,23 @@ watch(
 watch(
 	() => playerStore.isPlaying,
 	() => {
+		setupMediaSessionHandlers({ force: isIOSDevice.value });
 		ensurePlaybackState();
 		updateMediaSessionPlaybackState();
 		if (playerStore.isPlaying) {
 			startRhythmLoop();
 		}
+	},
+);
+
+watch(
+	[
+		() => playerStore.playQueue.length,
+		currentQueueIndex,
+		() => playerStore.playMode,
+	],
+	() => {
+		setupMediaSessionHandlers({ force: isIOSDevice.value });
 	},
 );
 
