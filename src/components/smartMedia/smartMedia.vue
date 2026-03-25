@@ -169,6 +169,7 @@ const transitionMs = 1000
 const scrollIndex = ref(0)
 const scrollNoTransition = ref(false)
 let textTimer = null
+let scrollResetTimer = null
 
 const contentList = computed(() => {
   if (Array.isArray(props.content)) return props.content.filter(Boolean).map(v => String(v))
@@ -197,7 +198,7 @@ function startTextScroll() {
 
     // 到达“复制的第一条”后：等待过渡结束，瞬间跳回 0
     if (scrollIndex.value >= arr.length) {
-      window.setTimeout(() => {
+      scrollResetTimer = window.setTimeout(() => {
         scrollNoTransition.value = true
         scrollIndex.value = 0
         window.requestAnimationFrame(() => {
@@ -215,13 +216,17 @@ function stopTextScroll() {
     clearInterval(textTimer)
     textTimer = null
   }
+  if (scrollResetTimer) {
+    clearTimeout(scrollResetTimer)
+    scrollResetTimer = null
+  }
   scrollIndex.value = 0
   scrollNoTransition.value = false
 }
 
-watch([() => props.content, shouldScroll], () => {
+watch(contentList, () => {
   startTextScroll()
-}, { deep: true })
+})
 
 onMounted(() => {
   startTextScroll()
@@ -292,9 +297,13 @@ const mediaType = computed(() => {
  * createObjectURL 管理，避免内存泄漏
  */
 const createdUrls = new Set()
+const blobUrlCache = new WeakMap()
 function toUrl(s) {
   if (isBlobLike(s)) {
+    const cached = blobUrlCache.get(s)
+    if (cached) return cached
     const url = URL.createObjectURL(s)
+    blobUrlCache.set(s, url)
     createdUrls.add(url)
     return url
   }
@@ -407,7 +416,7 @@ function handleVideoVolumeChange() {
 /**
  * src 变化：重置状态 & 回收旧 URL
  */
-watch(() => props.src, () => {
+watch(srcList, () => {
   loading.value = true
   error.value = false
   revokeAll()

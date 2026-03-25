@@ -824,6 +824,9 @@ function setupMotionEffects() {
     motionCleanups.push(stop)
   })
 
+  const canUsePointerMotion = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  if (!canUsePointerMotion) return
+
   const cards = document.querySelectorAll('.motion-card')
   cards.forEach((el) => {
     const stopHover = hover(el, () => {
@@ -970,7 +973,9 @@ async function loadHighQualityPlaylists() {
 }
 
 onMounted(() => {
-  setupMotionEffects()
+  requestAnimationFrame(() => {
+    setupMotionEffects()
+  })
   loadHomeBanner()
   loadReleaseNotes()
   loadRecommendPlaylists()
@@ -1035,5 +1040,12 @@ onBeforeUnmount(() => {
 }
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: #d6d3d1;
+}
+
+@supports (content-visibility: auto) {
+  .motion-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 760px;
+  }
 }
 </style>

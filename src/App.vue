@@ -1,5 +1,6 @@
 <template>
 	<div class="app-shell">
+		<div class="top-blur-gradient" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
 			<router-view />
@@ -9,11 +10,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
-import FloatingSearchFab from "@/components/floatingSearchFab/floatingSearchFab.vue";
-import GlobalFooterPlayer from "@/components/globalFooterPlayer/globalFooterPlayer.vue";
+
+const FloatingSearchFab = defineAsyncComponent(() => import("@/components/floatingSearchFab/floatingSearchFab.vue"));
+const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 
 const route = useRoute();
 const router = useRouter();
@@ -162,11 +164,42 @@ watch(
 
 .app-shell {
 	min-height: 100vh;
+	position: relative;
 }
 
 .app-content {
 	padding-bottom: 0;
 	background: transparent;
+	position: relative;
+	z-index: 1;
+}
+
+.top-blur-gradient {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: clamp(84px, 18vh, 180px);
+	backdrop-filter: blur(22px);
+	-webkit-backdrop-filter: blur(22px);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0) 100%);
+	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
+	-webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
+	pointer-events: none;
+	z-index: 2;
+}
+
+@media (max-width: 768px) {
+	.top-blur-gradient {
+		backdrop-filter: blur(14px);
+		-webkit-backdrop-filter: blur(14px);
+	}
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+	.top-blur-gradient {
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%);
+	}
 }
 
 ::view-transition-old(root),

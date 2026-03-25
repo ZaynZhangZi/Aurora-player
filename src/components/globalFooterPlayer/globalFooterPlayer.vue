@@ -7,6 +7,7 @@
 	>
 		<div
 			class="player-shell mx-auto max-w-6xl rounded-2xl"
+			:class="{ 'player-shell-idle': !isPlaying }"
 			:style="playerStyle"
 		>
 			<div
@@ -381,6 +382,7 @@
 							<button
 								v-for="(song, index) in playQueue"
 								:key="song.id || index"
+								v-memo="[song.id, song.name, index === currentQueueIndex]"
 								class="mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition"
 								:class="index === currentQueueIndex ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'"
 								type="button"
@@ -415,7 +417,6 @@
 </template>
 
 <script setup>
-import { AMLLWrapper } from "@applemusic-like-lyrics/vue";
 import { XMarkIcon } from "@heroicons/vue/24/outline";
 import {
 	BackwardIcon,
@@ -426,6 +427,7 @@ import {
 } from "@heroicons/vue/24/solid";
 import {
 	computed,
+	defineAsyncComponent,
 	nextTick,
 	onBeforeUnmount,
 	onMounted,
@@ -441,6 +443,12 @@ import {
 	playQueueByIndex,
 } from "@/utils/globalPlayer.js";
 import { normalizeLyricPayloadToAmll } from "@/utils/lyricAdapter.js";
+
+const AMLLWrapper = defineAsyncComponent({
+	loader: () =>
+		import("@applemusic-like-lyrics/vue").then((module) => module.AMLLWrapper),
+	suspensible: false,
+});
 
 const playerStore = usePlayerStore();
 const router = useRouter();
@@ -468,11 +476,13 @@ let analyserFrame = 0;
 let analyserData = null;
 let analyserPrevData = null;
 let analyserLastTs = 0;
+let lastStoreTimeSyncTs = 0;
 let rhythmEnergyEma = 0;
 let rhythmFluxEma = 0;
 let lowBandEma = 0;
 let rhythmGain = 1;
 let mediaSessionHandlersBound = false;
+let mediaSessionPositionUpdateTimer = 0;
 
 const amllOpened = ref(false);
 const amllMounted = ref(false);
@@ -854,10 +864,15 @@ function stopRhythmLoop() {
 }
 
 function tickRhythm(now) {
-	if (audioRef.value && !audioRef.value.paused) {
+	if (
+		audioRef.value &&
+		!audioRef.value.paused &&
+		(now - lastStoreTimeSyncTs > 120 || !lastStoreTimeSyncTs)
+	) {
 		playerStore.setCurrentTimeMs(
 			Math.floor((audioRef.value.currentTime || 0) * 1000),
 		);
+		lastStoreTimeSyncTs = now;
 	}
 
 	if (!analyserNode || !analyserData || !analyserPrevData) {
@@ -865,7 +880,7 @@ function tickRhythm(now) {
 		return;
 	}
 
-	if (now - analyserLastTs > 20) {
+	if (now - analyserLastTs > 34) {
 		analyserNode.getByteFrequencyData(analyserData);
 		let low = 0;
 		let mid = 0;
@@ -964,17 +979,12 @@ function tickRhythm(now) {
 		analyserLastTs = now;
 	}
 
-	if (!playerStore.isPlaying) {
-		rhythmLevel.value *= 0.88;
-		beatLevel.value *= 0.66;
-		visualPulse.value *= 0.92;
-	}
-
 	analyserFrame = requestAnimationFrame(tickRhythm);
 }
 
 async function startRhythmLoop() {
 	if (!hasSong.value) return;
+	if (!playerStore.isPlaying) return;
 	if (prefersReducedMotion.value) return;
 	if (!ensureAnalyser()) return;
 
@@ -1069,6 +1079,14 @@ function updateMediaSessionPositionState() {
 	} catch {
 		// noop
 	}
+}
+
+function scheduleMediaSessionPositionStateUpdate() {
+	if (mediaSessionPositionUpdateTimer) return;
+	mediaSessionPositionUpdateTimer = window.setTimeout(() => {
+		mediaSessionPositionUpdateTimer = 0;
+		updateMediaSessionPositionState();
+	}, 800);
 }
 
 function setupMediaSessionHandlers({ force = false } = {}) {
@@ -1403,12 +1421,12 @@ function onLoadedMetadata() {
 	if (!audioRef.value) return;
 	syncDurationFromAudio();
 	syncAudioVolume();
-	updateMediaSessionPositionState();
+	scheduleMediaSessionPositionStateUpdate();
 }
 
 function onDurationChange() {
 	syncDurationFromAudio();
-	updateMediaSessionPositionState();
+	scheduleMediaSessionPositionStateUpdate();
 }
 
 function onTimeUpdate() {
@@ -1417,7 +1435,7 @@ function onTimeUpdate() {
 	playerStore.setCurrentTimeMs(
 		Math.floor((audioRef.value.currentTime || 0) * 1000),
 	);
-	updateMediaSessionPositionState();
+	scheduleMediaSessionPositionStateUpdate();
 }
 
 function onPlay() {
@@ -1429,12 +1447,11 @@ function onPlay() {
 
 function onPause() {
 	playerStore.setPlaying(false);
+	stopRhythmLoop();
 	updateMediaSessionPlaybackState();
-	if (!playerStore.isPlaying) {
-		rhythmLevel.value *= 0.72;
-		beatLevel.value *= 0.52;
-		visualPulse.value *= 0.85;
-	}
+	rhythmLevel.value = 0;
+	beatLevel.value = 0;
+	visualPulse.value = 0;
 }
 
 function updatePlayerSpaceVar() {
@@ -1470,6 +1487,7 @@ watch(
 		rhythmLevel.value = 0;
 		beatLevel.value = 0;
 		visualPulse.value = 0;
+		lastStoreTimeSyncTs = 0;
 		rhythmEnergyEma = 0;
 		rhythmFluxEma = 0;
 		lowBandEma = 0;
@@ -1522,6 +1540,11 @@ watch(
 		updateMediaSessionPlaybackState();
 		if (playerStore.isPlaying) {
 			startRhythmLoop();
+		} else {
+			stopRhythmLoop();
+			rhythmLevel.value = 0;
+			beatLevel.value = 0;
+			visualPulse.value = 0;
 		}
 	},
 );
@@ -1538,7 +1561,7 @@ watch(
 );
 
 watch([currentTimeMs, durationMs], () => {
-	updateMediaSessionPositionState();
+	scheduleMediaSessionPositionStateUpdate();
 });
 
 onMounted(() => {
@@ -1592,6 +1615,10 @@ onBeforeUnmount(() => {
 	if (amllUnmountTimer) {
 		window.clearTimeout(amllUnmountTimer);
 		amllUnmountTimer = 0;
+	}
+	if (mediaSessionPositionUpdateTimer) {
+		window.clearTimeout(mediaSessionPositionUpdateTimer);
+		mediaSessionPositionUpdateTimer = 0;
 	}
 
 	if (mediaQueryMotion) {
@@ -1669,6 +1696,16 @@ onBeforeUnmount(() => {
 		filter 180ms ease,
 		box-shadow 200ms ease;
 	animation: player-shell-drift 18s ease-in-out infinite alternate;
+}
+
+.player-shell-idle {
+	animation-play-state: paused;
+}
+
+@media (max-width: 768px) {
+	.player-shell {
+		animation: none;
+	}
 }
 
 .player-shell::before,

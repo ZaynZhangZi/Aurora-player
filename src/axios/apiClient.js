@@ -1,6 +1,54 @@
 import axios from 'axios';
 import {useCounterStore} from "@/stores/userStores.js";
 
+const COOKIE_ATTR_KEYS = new Set([
+    'path',
+    'expires',
+    'max-age',
+    'domain',
+    'secure',
+    'httponly',
+    'samesite',
+    'priority',
+]);
+
+function normalizeCookieString(rawCookie) {
+    const raw = String(rawCookie || '').trim();
+    if (!raw) return '';
+
+    const entries = raw
+        .split(';')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .map((item) => {
+            const index = item.indexOf('=');
+            if (index < 0) return null;
+            const key = item.slice(0, index).trim();
+            const value = item.slice(index + 1).trim();
+            if (!key || !value) return null;
+            return {key, value};
+        })
+        .filter(Boolean)
+        .filter(({key}) => !COOKIE_ATTR_KEYS.has(String(key).toLowerCase()));
+
+    if (!entries.length) return '';
+
+    const map = new Map();
+    entries.forEach(({key, value}) => {
+        if (!map.has(key)) map.set(key, value);
+    });
+
+    return Array.from(map.entries()).map(([key, value]) => `${key}=${value}`).join('; ');
+}
+
+function readStoredCookieFallback() {
+    try {
+        return normalizeCookieString(localStorage.getItem('usermasgcookie') || '');
+    } catch {
+        return '';
+    }
+}
+
 // 创建一个封装的 Axios 实例
 const axiosInstance = axios.create({
     withCredentials: true, // 自动发送和接收 Cookie
@@ -14,7 +62,7 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
     (config) => {
         const store = useCounterStore();
-        const loginCookie = store.getUserCookie;
+        const loginCookie = normalizeCookieString(store.getUserCookie || readStoredCookieFallback());
         const noCookie = Boolean(config.params?.noCookie);
 
         // 添加时间戳参数

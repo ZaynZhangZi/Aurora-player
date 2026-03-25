@@ -15,7 +15,16 @@ export const songsApi = {
 		return apiClient.get(`/song/detail?ids=${id}`);
 	},
 
-	getSongUrl(id) {
+	getSongUrl(id, { level = 'exhigh' } = {}) {
+		return apiClient.get('/song/url/v1', {
+			params: {
+				id,
+				level,
+			},
+		});
+	},
+
+	getSongUrlLegacy(id) {
 		return apiClient.get(`/song/url?id=${id}`);
 	},
 

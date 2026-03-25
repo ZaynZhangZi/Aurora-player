@@ -237,7 +237,9 @@
                 <p v-if="sectionError.artist" class="px-1 pb-1 text-[11px] text-red-500">
                   {{ sectionError.artist }}</p>
                 <div>
-                  <button v-for="artist in artistEntries" :key="`artist-${artist.id}`"
+                  <button
+                          v-for="artist in artistEntries" :key="`artist-${artist.id}`"
+                          v-memo="[artist.id, artist.name, artist.globalIndex === activeEntryIndex]"
                           :class="isActiveEntry(artist.globalIndex) ? 'search-row-active' : 'search-row-idle'"
                           class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2.5 sm:py-2 text-left"
                           type="button" @click="openArtist(artist)">
@@ -283,7 +285,9 @@
                 <p v-if="sectionError.song" class="px-1 pb-1 text-[11px] text-red-500">
                   {{ sectionError.song }}</p>
                 <div>
-                  <button v-for="song in songEntries" :key="`song-${song.id}`"
+                  <button
+                          v-for="song in songEntries" :key="`song-${song.id}`"
+                          v-memo="[song.id, song.name, song.globalIndex === activeEntryIndex]"
                           :class="isActiveEntry(song.globalIndex) ? 'search-row-active' : 'search-row-idle'"
                           class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2.5 sm:py-2 text-left"
                           type="button" @click="openSong(song)">
@@ -334,7 +338,9 @@
                 <p v-if="sectionError.playlist" class="px-1 pb-1 text-[11px] text-red-500">
                   {{ sectionError.playlist }}</p>
                 <div>
-                  <button v-for="playlist in playlistEntries" :key="`playlist-${playlist.id}`"
+                  <button
+                          v-for="playlist in playlistEntries" :key="`playlist-${playlist.id}`"
+                          v-memo="[playlist.id, playlist.name, playlist.globalIndex === activeEntryIndex]"
                           :class="isActiveEntry(playlist.globalIndex) ? 'search-row-active' : 'search-row-idle'"
                           class="search-row flex w-full items-center justify-between rounded-xl px-2 py-2.5 sm:py-2 text-left"
                           type="button" @click="openPlaylist(playlist)">
@@ -375,10 +381,10 @@
     </div>
   </div>
 
-  <Dialog :open="isOpen" @close="setIsOpen">
-    <div ref="dialogOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"
-         aria-hidden="true"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
+  <Dialog v-if="isOpen || isClosing" :open="isOpen" @close="() => setIsOpen(false)">
+    <div ref="dialogOverlay" class="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm"
+          aria-hidden="true"></div>
+    <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <DialogPanel ref="dialogPanel"
                    class="panel-anim relative w-full max-w-[95vw] sm:max-w-sm rounded-2xl bg-white p-5 sm:p-6 shadow-2xl">
         <button ref="closeBtn"
@@ -437,7 +443,7 @@
     </div>
   </Dialog>
 
-  <Dialog :open="messageDialogOpen" @close="setMessageDialogOpen">
+  <Dialog v-if="messageDialogOpen" :open="messageDialogOpen" @close="setMessageDialogOpen">
     <div class="fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
 
     <div class="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-6">
@@ -484,8 +490,13 @@
               <p v-if="noticeLoading" class="py-12 text-center text-sm text-slate-400">正在加载通知...</p>
               <p v-else-if="noticeError" class="py-12 text-center text-sm text-red-500">{{ noticeError }}</p>
 
-              <div v-else class="flex flex-col">
-                <div v-for="item in noticeList" :key="item.id" class="group flex gap-4 border-b border-slate-100 p-4 transition-colors last:border-0 hover:bg-slate-50 sm:p-5">
+                <div v-else class="flex flex-col">
+                <div
+                  v-for="item in noticeList"
+                  :key="item.id"
+                  v-memo="[item.id, item.time, item.title, item.content]"
+                  class="group flex gap-4 border-b border-slate-100 p-4 transition-colors last:border-0 hover:bg-slate-50 sm:p-5"
+                >
                   <img
                     :src="item.avatarUrl || 'https://p1.music.126.net/4M6T2Bq8QJz7B4JrQJw8hA==/109951168123456789.jpg'"
                     alt="头像"
@@ -546,6 +557,7 @@
                 <template v-else>
                   <button
                     v-for="item in filteredPrivateList" :key="item.id"
+                    v-memo="[item.id, item.unreadCount, item.time, activePrivateId === item.counterpartId]"
                     :class="activePrivateId === item.counterpartId ? 'bg-blue-50/80' : 'hover:bg-slate-50'"
                     class="group flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors"
                     type="button" @click="openPrivateConversation(item)">
@@ -606,7 +618,13 @@
                   <p v-if="privateHistoryLoading" class="py-4 text-center text-xs text-slate-400">消息加载中...</p>
 
                   <div v-else class="flex flex-col space-y-5">
-                    <div v-for="item in privateHistory" :key="item.id" :class="item.isSelf ? 'justify-end' : 'justify-start'" class="flex w-full">
+                    <div
+                      v-for="item in visiblePrivateHistory"
+                      :key="item.id"
+                      v-memo="[item.id, item.content, item.time, item.isSelf, Boolean(highlightedMessageIds[item.id])]"
+                      :class="item.isSelf ? 'justify-end' : 'justify-start'"
+                      class="flex w-full"
+                    >
                       <div class="flex max-w-[85%] flex-col gap-1 sm:max-w-[70%]">
                         <div
                           :class="[
@@ -764,6 +782,7 @@ const privateHistoryHasMore = ref(false)
 const privateHistoryBefore = ref(0)
 const privateHistoryLoadingMore = ref(false)
 const privateHistoryScroller = ref(null)
+const privateHistoryRenderLimit = ref(180)
 const privateConversationKeyword = ref('')
 const privateTargetKeyword = ref('')
 const privateReceiverLoading = ref(false)
@@ -788,6 +807,8 @@ let privateReceiverSearchTimer = null
 let privateReceiverSearchRequestId = 0
 let privateHistoryRequestId = 0
 let contrastRaf = 0
+let lastContrastUpdateTs = 0
+const CONTRAST_UPDATE_MIN_INTERVAL = 140
 
 const shellToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'border-stone-800/45 ring-stone-900/20 bg-stone-900/58 text-white' : 'border-white/30 ring-white/20 bg-white/38 text-stone-900')
 const btnToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text-white/90 hover:text-white' : 'text-stone-800 hover:text-black')
@@ -819,8 +840,8 @@ watch(expanded, (value) => {
   }
   scheduleContrastUpdate()
 })
-watch(() => router.currentRoute.value.fullPath, () => scheduleContrastUpdate())
 watch(() => router.currentRoute.value.fullPath, () => {
+  scheduleContrastUpdate()
   profileMenuOpen.value = false
 })
 
@@ -836,6 +857,7 @@ watch(isOpen, (open) => {
 })
 watch(messageDialogOpen, (open) => {
   if (!open) {
+    privateHistoryRenderLimit.value = 180;
     privateReceiverFocused.value = false;
     privateReceiverResults.value = [];
     privateReceiverError.value = '';
@@ -991,7 +1013,7 @@ const playlistEntries = computed(() => playlists.value.map((item, index) => ({
 const flatEntries = computed(() => [...artistEntries.value, ...songEntries.value, ...playlistEntries.value])
 
 function normalizeIntentText(value) {
-  return String(value || '').toLowerCase().replace(/\s+/g, '').replace(/[\u3000-\u303f`~!@#$%^&*()_+\-=\[\]{};:'"\\|,.<>/?，。！？、；：“”‘’【】（）《》]/g, '')
+  return String(value || '').toLowerCase().replace(/\s+/g, '').replace(/[\u3000-\u303f`~!@#$%^&*()_+\-=[\]{};:'"\\|,.<>/?，。！？、；：“”‘’【】（）《》]/g, '')
 }
 
 function charOverlapScore(a, b) {
@@ -1084,6 +1106,12 @@ const filteredPrivateList = computed(() => {
   const keyword = privateConversationKeyword.value.trim().toLowerCase();
   if (!keyword) return privateList.value;
   return privateList.value.filter((item) => String(item.counterpartName || '').toLowerCase().includes(keyword) || String(item.content || '').toLowerCase().includes(keyword))
+})
+const visiblePrivateHistory = computed(() => {
+  const list = privateHistory.value
+  const limit = Math.max(60, Number(privateHistoryRenderLimit.value || 0))
+  if (list.length <= limit) return list
+  return list.slice(-limit)
 })
 
 function scrollPrivateHistoryToBottom({smooth = false} = {}) {
@@ -1540,6 +1568,7 @@ async function fetchPrivateHistory(targetId, {reset = false} = {}) {
   if (!targetId) return
   const currentId = ++privateHistoryRequestId
   if (reset) {
+    privateHistoryRenderLimit.value = 180
     privateHistoryLoading.value = true;
     privateHistoryError.value = '';
     privateHistory.value = [];
@@ -1574,7 +1603,9 @@ async function fetchPrivateHistory(targetId, {reset = false} = {}) {
 }
 
 function loadMorePrivateHistory() {
-  if (privateHistoryHasMore.value && !privateHistoryLoadingMore.value && selectedPrivateTarget.value?.userId) fetchPrivateHistory(String(selectedPrivateTarget.value.userId), {reset: false})
+  if (!privateHistoryHasMore.value || privateHistoryLoadingMore.value || !selectedPrivateTarget.value?.userId) return
+  privateHistoryRenderLimit.value += 120
+  fetchPrivateHistory(String(selectedPrivateTarget.value.userId), {reset: false})
 }
 
 function selectPrivateTarget(user) {
@@ -1822,9 +1853,12 @@ function updateFabContrast() {
 }
 
 function scheduleContrastUpdate() {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastContrastUpdateTs < CONTRAST_UPDATE_MIN_INTERVAL) return;
   if (contrastRaf) return;
   contrastRaf = requestAnimationFrame(() => {
     contrastRaf = 0;
+    lastContrastUpdateTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
     updateFabContrast()
   })
 }
@@ -1883,19 +1917,28 @@ const qrStatusText = computed(() => {
 })
 
 function openLoginDialog() {
-  setIsOpen(true)
+  profileMenuOpen.value = false
+  void setIsOpen(true)
 }
 
 async function setIsOpen(value) {
-  if (value) {
+  const shouldOpen = value === true
+  if (shouldOpen) {
     if (isOpen.value) return;
     isOpen.value = true;
     await nextTick();
-    animateDialogIn();
+    try {
+      animateDialogIn();
+    } catch {
+    }
     return
   }
   if (!isOpen.value) return;
-  await animateDialogOut();
+  try {
+    await animateDialogOut();
+  } catch {
+    isClosing.value = false
+  }
   isOpen.value = false
 }
 

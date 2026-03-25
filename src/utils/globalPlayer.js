@@ -13,6 +13,34 @@ function resolveName(song, detail) {
   return song?.name || detail?.name || ''
 }
 
+function getUrlEntry(response) {
+  return response?.data?.data?.[0] || null
+}
+
+async function resolveSongPlayableUrl(id) {
+  const levels = ['exhigh', 'higher', 'standard']
+
+  for (const level of levels) {
+    try {
+      const res = await songsApi.getSongUrl(id, {level})
+      const entry = getUrlEntry(res)
+      const url = entry?.url || ''
+      if (!url) continue
+      return url
+    } catch {
+      // ignore and fallback to next level
+    }
+  }
+
+  try {
+    const legacyRes = await songsApi.getSongUrlLegacy(id)
+    const entry = getUrlEntry(legacyRes)
+    return entry?.url || ''
+  } catch {
+    return ''
+  }
+}
+
 export async function playSongById(songInput, {autoplay = true} = {}) {
   const id = Number(songInput?.id || songInput)
   if (!Number.isFinite(id) || id <= 0) return false
@@ -20,12 +48,11 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   const playerStore = usePlayerStore()
 
   try {
-    const [urlRes, detailRes] = await Promise.all([
-      songsApi.getSongUrl(id),
+    const [url, detailRes] = await Promise.all([
+      resolveSongPlayableUrl(id),
       songsApi.getSongDetail(id),
     ])
 
-    const url = urlRes?.data?.data?.[0]?.url || ''
     if (!url) return false
 
     const detail = detailRes?.data?.songs?.[0] || null
