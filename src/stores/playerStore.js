@@ -7,12 +7,34 @@ export const PLAY_MODE = {
 }
 
 function normalizeQueueItem(song) {
+  const songDurationSec = Number(song?.dt) / 1000
+  const durationCandidate = song?.mixProfile?.duration ?? song?.duration ?? songDurationSec
+  const durationSecRaw = Number(durationCandidate)
+  const durationSec = Number.isFinite(durationSecRaw) ? Math.max(0, durationSecRaw) : 0
+  const introEndRaw = Number(song?.mixProfile?.intro_end ?? song?.intro_end)
+  const outroStartRaw = Number(song?.mixProfile?.outro_start ?? song?.outro_start)
+
+  const mixProfile = {
+    bpm: Number(song?.mixProfile?.bpm ?? song?.bpm ?? song?.audioFeatures?.bpm),
+    key: {
+      tonic: Number(song?.mixProfile?.key?.tonic ?? song?.key?.tonic ?? song?.audioFeatures?.key?.tonic),
+      mode: String((song?.mixProfile?.key?.mode ?? song?.key?.mode ?? song?.audioFeatures?.key?.mode) || '').toLowerCase(),
+    },
+    energy: Number(song?.mixProfile?.energy ?? song?.energy ?? song?.audioFeatures?.energy),
+    duration: durationSec,
+    intro_end: Number.isFinite(introEndRaw) ? Math.max(0, introEndRaw) : 0,
+    outro_start: Number.isFinite(outroStartRaw) ? Math.max(0, outroStartRaw) : 0,
+    beat_positions: Array.isArray(song?.mixProfile?.beat_positions) ? song.mixProfile.beat_positions : [],
+    section_segments: Array.isArray(song?.mixProfile?.section_segments) ? song.mixProfile.section_segments : [],
+  }
+
   return {
     id: song?.id ?? null,
     name: song?.name || '',
     artists: song?.artists || song?.ar || [],
     cover: song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || '',
     url: song?.url || '',
+    mixProfile,
   }
 }
 
@@ -34,6 +56,7 @@ export const usePlayerStore = defineStore('global-player', {
     currentQueueIndex: -1,
     playMode: PLAY_MODE.SEQUENCE,
     playlistPanelOpen: false,
+    automixEnabled: true,
   }),
 
   getters: {
@@ -49,6 +72,7 @@ export const usePlayerStore = defineStore('global-player', {
         artists: song?.artists || [],
         cover: song?.cover || '',
         url: song?.url || '',
+        mixProfile: song?.mixProfile || null,
       }
 
       const sameTrack = this.currentSong.id && next.id && String(this.currentSong.id) === String(next.id)
@@ -140,11 +164,19 @@ export const usePlayerStore = defineStore('global-player', {
     togglePlaylistPanel() {
       this.playlistPanelOpen = !this.playlistPanelOpen
     },
+
+    setAutomixEnabled(value) {
+      this.automixEnabled = Boolean(value)
+    },
+
+    toggleAutomixEnabled() {
+      this.automixEnabled = !this.automixEnabled
+    },
   },
 
   persist: {
     key: 'global-player-store',
     storage: localStorage,
-    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode'],
+    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode', 'automixEnabled'],
   },
 })

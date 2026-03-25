@@ -79,4 +79,21 @@ export const songsApi = {
 		return apiClient.get(`/personalized/djprogram?limit=${limit}`);
 	},
 
+	//最近听歌列表
+	async getRecentListenList(limit = 12) {
+		try {
+			return await apiClient.get('/record/recent/song', {
+				params: {
+					limit,
+				},
+			});
+		} catch {
+			return apiClient.get('/recent/listen/list', {
+				params: {
+					limit,
+				},
+			});
+		}
+	},
+
 };

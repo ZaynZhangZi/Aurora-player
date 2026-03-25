@@ -1,0 +1,18 @@
+{
+  "name": "automix",
+  "type": "module",
+  "collaborators": [
+    "zijun <1129491453@qq.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "automix_bg.wasm",
+    "automix.js",
+    "automix.d.ts"
+  ],
+  "main": "automix.js",
+  "types": "automix.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

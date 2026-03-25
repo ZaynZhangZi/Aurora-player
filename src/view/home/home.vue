@@ -110,6 +110,51 @@
 
       <section class="motion-section mb-20">
         <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-stone-900">最近听歌</h2>
+        </div>
+        <p v-if="loading.recent" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
+        <p v-else-if="errors.recent" class="text-sm font-medium text-red-500">{{ errors.recent }}</p>
+        <div v-else class="grid grid-cols-1 gap-x-8 gap-y-2 lg:grid-cols-2">
+          <button
+            v-for="(song, index) in pagedRecentListenSongs"
+            :key="`recent-${song.id}-${index}`"
+            class="group flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-colors hover:bg-white hover:shadow-sm focus:outline-none"
+            type="button"
+            @click="openRecentSong(song, index + recentPageStartIndex)"
+          >
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg">
+                <SmartMedia :src="song.cover || song.al?.picUrl || song.album?.picUrl || ''" class="h-full w-full object-cover" />
+                <div class="absolute inset-0 bg-black/8 opacity-0 transition-opacity group-hover:opacity-100" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-base font-bold text-stone-800">{{ song.name }}</p>
+                <ArtistLinks :artists="getSongArtists(song)" class="mt-0.5 truncate text-xs font-medium text-stone-500" />
+              </div>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-[0.12em] text-stone-400">RECENT</span>
+          </button>
+          <p v-if="!recentListenSongs.length" class="text-sm font-medium text-stone-500">最近听歌记录为空</p>
+        </div>
+        <div v-if="recentTotalPages > 1" class="mt-4 flex items-center justify-center gap-2">
+          <button
+            class="rounded-full border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-400 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+            type="button"
+            :disabled="recentCurrentPage <= 1"
+            @click="goRecentPage(recentCurrentPage - 1)"
+          >上一页</button>
+          <span class="text-xs font-semibold tracking-wide text-stone-500">{{ recentCurrentPage }} / {{ recentTotalPages }}</span>
+          <button
+            class="rounded-full border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-400 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+            type="button"
+            :disabled="recentCurrentPage >= recentTotalPages"
+            @click="goRecentPage(recentCurrentPage + 1)"
+          >下一页</button>
+        </div>
+      </section>
+
+      <section class="motion-section mb-20">
+        <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
           <h2 class="text-3xl font-bold tracking-tight text-stone-900">热门榜单</h2>
           <span class="text-xs font-bold uppercase tracking-[0.2em] text-stone-400">Top Charts</span>
         </div>
@@ -460,6 +505,18 @@ const latestReleaseTag = computed(() => {
 const recommendPlaylists = ref([])
 const topPlaylists = ref([])
 const newSongs = ref([])
+const recentListenSongs = ref([])
+const RECENT_PAGE_SIZE = 12
+const recentCurrentPage = ref(1)
+const recentTotalPages = computed(() => {
+  const total = recentListenSongs.value.length
+  return Math.max(1, Math.ceil(total / RECENT_PAGE_SIZE))
+})
+const recentPageStartIndex = computed(() => (recentCurrentPage.value - 1) * RECENT_PAGE_SIZE)
+const pagedRecentListenSongs = computed(() => {
+  const start = recentPageStartIndex.value
+  return recentListenSongs.value.slice(start, start + RECENT_PAGE_SIZE)
+})
 const topRanks = ref([])
 const podcastPrograms = ref([])
 const hotArtists = ref([])
@@ -499,6 +556,7 @@ const loading = ref({
   recommend: true,
   top: true,
   songs: true,
+  recent: true,
   rank: true,
   podcast: true,
   artist: true,
@@ -512,6 +570,7 @@ const errors = ref({
   recommend: '',
   top: '',
   songs: '',
+  recent: '',
   rank: '',
   podcast: '',
   artist: '',
@@ -557,8 +616,38 @@ async function openSong(song, index = 0) {
   await playSongWithQueue(song, newSongs.value, index)
 }
 
+async function openRecentSong(song, index = 0) {
+  await playSongWithQueue(song, recentListenSongs.value, index)
+}
+
+function goRecentPage(page) {
+  const next = Math.min(recentTotalPages.value, Math.max(1, Number(page) || 1))
+  recentCurrentPage.value = next
+}
+
 function getSongArtists(song) {
   return song?.artists || song?.ar || []
+}
+
+function normalizeRecentSongItem(item) {
+  const song = item?.data || item?.song || item || {}
+  const album = song?.al || song?.album || {}
+
+  return {
+    ...song,
+    id: song?.id || item?.id || null,
+    name: song?.name || item?.name || '未知歌曲',
+    ar: song?.ar || song?.artists || item?.artists || [],
+    artists: song?.artists || song?.ar || item?.artists || [],
+    al: album,
+    cover:
+      song?.cover ||
+      album?.picUrl ||
+      song?.picUrl ||
+      item?.cover ||
+      item?.picUrl ||
+      '',
+  }
 }
 
 async function openPodcast(item) {
@@ -925,6 +1014,30 @@ async function loadNewSongs() {
   }
 }
 
+async function loadRecentListenSongs() {
+  loading.value.recent = true
+  errors.value.recent = ''
+  try {
+    const res = await songsApi.getRecentListenList(12)
+    const list =
+      res?.data?.data?.list ||
+      res?.data?.list ||
+      res?.data?.data ||
+      []
+    recentListenSongs.value = Array.isArray(list)
+      ? list
+          .map(normalizeRecentSongItem)
+          .filter(item => item?.id)
+      : []
+    recentCurrentPage.value = 1
+  } catch (error) {
+    errors.value.recent = '最近听歌加载失败，请先登录账号'
+    recentListenSongs.value = []
+  } finally {
+    loading.value.recent = false
+  }
+}
+
 async function loadTopRanks() {
   try {
     const res = await songsApi.getTopListDetail()
@@ -981,6 +1094,7 @@ onMounted(() => {
   loadRecommendPlaylists()
   loadTopPlaylists()
   loadNewSongs()
+  loadRecentListenSongs()
   loadTopRanks()
   loadPodcastPrograms()
   loadMvList({reset: true})
