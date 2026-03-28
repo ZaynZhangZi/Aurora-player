@@ -1,29 +1,33 @@
 <template>
-  <div class="relative min-h-screen w-full overflow-y-auto text-stone-900 transition-colors duration-700" :style="pageStyle">
+  <div
+    class="relative w-full overflow-y-auto text-stone-900 transition-colors duration-700"
+    :class="isModalPlaylistDetail ? 'min-h-full' : 'min-h-screen'"
+    :style="pageStyle"
+  >
     <nav class="sticky top-0 z-50 flex items-center px-6 py-4">
 
     </nav>
 
     <main class="mx-auto max-w-6xl px-6 pb-24 pt-4 sm:px-10">
 
-      <header class="flex flex-col items-center gap-8 md:flex-row md:items-end md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
+      <header ref="playlistHeroCardRef" class="flex flex-col items-center gap-8 md:flex-row md:items-start md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
         <div class="group relative shrink-0">
           <div
             class="absolute -inset-12 z-0 rounded-full blur-[70px] opacity-40 mix-blend-multiply transition-all duration-700 group-hover:scale-110 group-hover:opacity-50"
             :style="{ backgroundColor: `rgb(${animatedThemeRgb})` }"
           />
 
-          <div class="relative z-10 h-64 w-64 overflow-hidden rounded-[24px] shadow-[0_24px_50px_rgba(0,0,0,0.15)] md:h-72 md:w-72 lg:h-80 lg:w-80" :style="playlistCoverTransitionStyle">
+          <div ref="playlistHeroCoverRef" data-playlist-detail-hero-cover class="relative z-10 h-64 w-64 overflow-hidden rounded-[24px] shadow-[0_24px_50px_rgba(0,0,0,0.15)] md:h-72 md:w-72 lg:h-80 lg:w-80" :style="playlistCoverTransitionStyle">
             <img v-if="playlist.coverImgUrl" :src="playlist.coverImgUrl" alt="playlist-cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div class="absolute inset-0 rounded-[24px] ring-1 ring-inset ring-black/5" />
           </div>
         </div>
 
-        <div class="relative z-10 flex-1 text-center md:text-left">
+        <div class="relative z-10 flex-1 text-center md:min-h-[280px] md:text-left">
           <p class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-stone-500">Playlist</p>
           <h1 class="text-4xl font-black tracking-tight text-stone-900 sm:text-6xl lg:text-7xl">{{ playlist.name || '歌单详情' }}</h1>
 
-          <div class="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-stone-600 md:justify-start">
+          <div class="mt-4 flex min-h-[24px] flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-stone-600 md:justify-start">
             <span class="font-bold text-stone-900">{{ playlist.creatorName ? `${playlist.creatorName}` : '网易云音乐' }}</span>
             <span class="opacity-40">•</span>
             <span>{{ playlist.trackCount || tracks.length }} 首歌曲</span>
@@ -31,8 +35,11 @@
             <span>{{ formatCount(playlist.playCount) }} 次播放</span>
           </div>
 
-          <p v-if="playlist.description" class="mt-5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-stone-600">
-            {{ playlist.description }}
+          <p
+            class="mt-5 min-h-[42px] max-w-2xl line-clamp-2 text-sm leading-relaxed text-stone-600 transition-opacity duration-200"
+            :class="playlist.description ? 'opacity-100' : 'opacity-0'"
+          >
+            {{ playlist.description || 'placeholder' }}
           </p>
 
           <div class="mt-8 flex flex-wrap items-center justify-center gap-4 md:justify-start">
@@ -121,24 +128,30 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { HeartIcon as HeartOutlineIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {
-  buildPlaylistTransitionName,
-  runViewTransition,
-  setActivePlaylistTransitionId,
-} from '@/utils/viewTransition.js'
+  consumePendingPlaylistHeroTransition,
+  peekPendingPlaylistHeroTransition,
+  playPlaylistHeroEnter,
+  setPendingPlaylistHeroTransition,
+} from '@/utils/playlistFlipHero.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import { useCounterStore } from '@/stores/userStores.js'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
+const isModalPlaylistDetail = computed(() => route.name === 'playlistDetail')
+const playlistHeroCardRef = ref(null)
+const playlistHeroCoverRef = ref(null)
+let heroEnterDone = Promise.resolve()
+let resolveHeroEnterGate = null
 
 const playlist = ref({
   id: null,
@@ -175,18 +188,12 @@ const pageStyle = computed(() => {
   }
 })
 
-const playlistTransitionId = computed(() => Number(route.query.id || playlist.value.id || 0))
-
 const playlistCardTransitionStyle = computed(() => {
-  const name = buildPlaylistTransitionName(playlistTransitionId.value, 'card')
-  if (!name) return {}
-  return {viewTransitionName: name}
+  return {}
 })
 
 const playlistCoverTransitionStyle = computed(() => {
-  const name = buildPlaylistTransitionName(playlistTransitionId.value, 'cover')
-  if (!name) return {}
-  return {viewTransitionName: name}
+  return {}
 })
 
 function parseRgb(rgbString) {
@@ -278,6 +285,20 @@ function formatCount(value) {
   return String(num)
 }
 
+function preparePlaylistHeroReturn() {
+  const id = Number(route.query.id || playlist.value.id || 0)
+  if (!id) return
+
+  const coverEl = playlistHeroCoverRef.value
+  if (!(coverEl instanceof HTMLElement)) return
+
+  setPendingPlaylistHeroTransition(id, {
+    coverRect: coverEl.getBoundingClientRect(),
+    coverSrc: playlist.value.coverImgUrl || '',
+    playlistName: playlist.value.name || '',
+  })
+}
+
 function resolveBackTarget() {
   const matched = route.matched || []
   if (matched.length > 1) {
@@ -294,22 +315,27 @@ function resolveBackTarget() {
 }
 
 async function goBack() {
-  setActivePlaylistTransitionId(playlistTransitionId.value)
+  preparePlaylistHeroReturn()
   const target = resolveBackTarget()
 
-  await runViewTransition(() => {
-    if (target) {
-      return router.push(target)
-    }
+  if (target) {
+    await router.push(target)
+    return
+  }
 
-    if (window.history.length > 1) {
-      router.back()
-      return
-    }
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
 
-    router.push('/home')
-  })
+  await router.push('/home')
 }
+
+onBeforeRouteLeave((to) => {
+  if (to?.name === 'home') {
+    preparePlaylistHeroReturn()
+  }
+})
 
 async function openSong(track, index = 0) {
   await playSongWithQueue(track, tracks.value, index)
@@ -496,9 +522,28 @@ async function loadPlaylist() {
     return
   }
 
+  const preview = peekPendingPlaylistHeroTransition(id)
+  if (preview) {
+    heroEnterDone = new Promise((resolve) => {
+      resolveHeroEnterGate = resolve
+    })
+
+    playlist.value = {
+      ...playlist.value,
+      id: Number(id),
+      name: preview.playlistName || playlist.value.name,
+      coverImgUrl: preview.coverSrc || playlist.value.coverImgUrl,
+    }
+  } else {
+    heroEnterDone = Promise.resolve()
+    resolveHeroEnterGate = null
+  }
+
   try {
     const detailRes = await playListsApi.getPlayListDetail(id)
     const detailPlaylist = detailRes?.data?.playlist || {}
+
+    await heroEnterDone
 
     playlist.value = {
       id: Number(detailPlaylist.id || id),
@@ -528,9 +573,42 @@ async function loadPlaylist() {
   }
 }
 
+async function runHeroFlipEnter() {
+  const id = Number(route.query.id || playlist.value.id || 0)
+  if (!id) return
+  const payload = consumePendingPlaylistHeroTransition(id)
+  if (!payload) {
+    if (typeof resolveHeroEnterGate === 'function') {
+      resolveHeroEnterGate()
+      resolveHeroEnterGate = null
+    }
+    return
+  }
+
+  const runner = (async () => {
+    await nextTick()
+    await playPlaylistHeroEnter({
+      payload,
+      targetCardEl: playlistHeroCardRef.value,
+      targetCoverEl: playlistHeroCoverRef.value,
+    })
+  })()
+
+  heroEnterDone = runner
+
+  try {
+    await runner
+  } finally {
+    if (typeof resolveHeroEnterGate === 'function') {
+      resolveHeroEnterGate()
+      resolveHeroEnterGate = null
+    }
+  }
+}
+
 onMounted(() => {
-  setActivePlaylistTransitionId(playlistTransitionId.value)
   loadPlaylist()
+  runHeroFlipEnter()
 })
 
 onBeforeUnmount(() => {
@@ -555,9 +633,9 @@ watch(
 watch(
   () => route.query.id,
   () => {
-    setActivePlaylistTransitionId(playlistTransitionId.value)
     actionFeedback.value = ''
     loadPlaylist()
+    runHeroFlipEnter()
   },
 )
 </script>

@@ -3,8 +3,10 @@
 export const memory: WebAssembly.Memory;
 export const choose_next_track_js: (a: any, b: any) => [number, number, number];
 export const compute_transition_plan_js: (a: any, b: any) => [number, number, number];
+export const compute_transition_plan_v2_js: (a: any, b: any) => [number, number, number];
 export const init_wasm: () => void;
 export const mix_score_js: (a: any, b: any) => [number, number, number];
+export const plan_track_path_js: (a: any) => [number, number, number];
 export const run_automix_js: (a: any) => [number, number, number];
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

@@ -30,7 +30,10 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gsap } from 'gsap'
-import {runViewTransition, setActivePlaylistTransitionId} from '@/utils/viewTransition.js'
+import {
+  peekPendingPlaylistHeroTransition,
+  setPendingPlaylistHeroTransition,
+} from '@/utils/playlistFlipHero.js'
 
 const props = defineProps({
   to: { type: String, default: 'body' },
@@ -66,7 +69,15 @@ function unlockScroll() {
 
 function closeModal() {
   if (route.name === 'playlistDetail') {
-    setActivePlaylistTransitionId(route.query?.id)
+    const id = Number(route.query?.id || 0)
+    const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')
+    if (id > 0 && coverEl instanceof HTMLElement) {
+      const coverImg = coverEl.querySelector('img')
+      setPendingPlaylistHeroTransition(id, {
+        coverRect: coverEl.getBoundingClientRect(),
+        coverSrc: coverImg?.getAttribute('src') || '',
+      })
+    }
   }
 
   const matched = route.matched || []
@@ -81,18 +92,17 @@ function closeModal() {
     }
   }
 
-  runViewTransition(() => {
-    if (target) {
-      return router.push(target)
-    }
+  if (target) {
+    router.push(target)
+    return
+  }
 
-    if (window.history.length > 1) {
-      router.back()
-      return
-    }
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
 
-    router.push('/home')
-  })
+  router.push('/home')
 }
 
 function handleBackdropClick() {
@@ -137,6 +147,13 @@ function defaultLeave(el, done) {
 ============================ */
 function handleEnter(el, done) {
   lockScroll()
+
+  if (route.name === 'playlistDetail' && peekPendingPlaylistHeroTransition(route.query?.id)) {
+    gsap.set(el, {opacity: 1, scale: 1, y: 0})
+    done()
+    return
+  }
+
   if (props.enterAnim) props.enterAnim(el, done)
   else defaultEnter(el, done)
 }

@@ -1,7 +1,9 @@
 import initAutomix, {
   choose_next_track_js,
+  compute_transition_plan_v2_js,
   init_wasm,
   mix_score_js,
+  plan_track_path_js,
 } from '@/wasm/automix/automix.js'
 
 const DEFAULT_BPM = 124
@@ -10,6 +12,7 @@ const BEATS_PER_BAR = 4
 const MAX_AUTOMIX_CANDIDATES = 24
 
 let automixReadyPromise = null
+let automixInitError = null
 let recommendationCache = {
   signature: '',
   currentQueueIndex: -1,
@@ -38,15 +41,33 @@ function createQueueSignature(playQueue = []) {
 
 async function ensureAutomixReady() {
   if (!automixReadyPromise) {
+    automixInitError = null
     automixReadyPromise = initAutomix()
       .then(() => {
         init_wasm()
         return true
       })
-      .catch(() => false)
+      .catch((error) => {
+        automixReadyPromise = null
+        automixInitError = error
+        return false
+      })
   }
 
   return automixReadyPromise
+}
+
+function enrichTransitionPlan(currentTrack, nextTrack, fallbackTransition = null) {
+  try {
+    const v2 = compute_transition_plan_v2_js(currentTrack, nextTrack)
+    if (!v2 || typeof v2 !== 'object') return fallbackTransition
+    return {
+      ...(fallbackTransition || {}),
+      ...v2,
+    }
+  } catch {
+    return fallbackTransition
+  }
 }
 
 function normalizeMode(mode) {
@@ -222,7 +243,9 @@ async function analyzeNextTrack(playQueue = [], currentQueueIndex = -1, {logPref
     const selected = selectedId
       ? candidates.find((item) => String(item.track.id) === String(selectedId))
       : null
-    const transition = choice?.transition || null
+    const transition = selected
+      ? enrichTransitionPlan(currentTrack, selected.track, choice?.transition || null)
+      : (choice?.transition || null)
 
     lastAutomixAnalysis = {
       currentTrackId: currentTrack.id,
@@ -277,6 +300,33 @@ export async function warmupAutomixRecommendation(playQueue = [], currentQueueIn
   return recommendedQueueIndex
 }
 
+export function prewarmAutomixEngine({idle = true} = {}) {
+  const trigger = () => {
+    ensureAutomixReady().catch(() => false)
+  }
+
+  if (!idle) {
+    trigger()
+    return
+  }
+
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(() => {
+      trigger()
+    })
+    return
+  }
+
+  if (typeof window !== 'undefined') {
+    window.setTimeout(() => {
+      trigger()
+    }, 0)
+    return
+  }
+
+  trigger()
+}
+
 export async function recommendNextQueueIndex(playQueue = [], currentQueueIndex = -1) {
   const signature = createQueueSignature(playQueue)
   if (
@@ -309,4 +359,35 @@ export function estimateCrossfadeDurationMs(bpm = DEFAULT_BPM, bars = 8) {
 
 export function getLastAutomixAnalysis() {
   return lastAutomixAnalysis
+}
+
+export async function planAutomixPath(playQueue = [], currentQueueIndex = -1, {horizon = 3, beamWidth = 5} = {}) {
+  const list = Array.isArray(playQueue) ? playQueue : []
+  if (!list.length || currentQueueIndex < 0 || currentQueueIndex >= list.length) {
+    return null
+  }
+
+  const current = buildTrackForAutomix(list[currentQueueIndex])
+  if (!current) return null
+
+  const candidate_tracks = buildCandidates(list, currentQueueIndex).map((item) => item.track)
+  if (!candidate_tracks.length) return null
+
+  const ready = await ensureAutomixReady()
+  if (!ready) return null
+
+  try {
+    return plan_track_path_js({
+      current,
+      candidate_tracks,
+      horizon: Number(horizon) || 3,
+      beam_width: Number(beamWidth) || 5,
+    })
+  } catch {
+    return null
+  }
+}
+
+export function getAutomixInitError() {
+  return automixInitError
 }

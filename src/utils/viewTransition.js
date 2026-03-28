@@ -8,33 +8,38 @@ export function setActivePlaylistTransitionId(id) {
 }
 
 export function runViewTransition(update, {skipIfReduced = true} = {}) {
+  let updateResult
+
   if (typeof window === 'undefined') {
-    update()
-    return Promise.resolve()
+    updateResult = update()
+    return Promise.resolve(updateResult)
   }
 
   const start = document.startViewTransition
   if (typeof start !== 'function') {
-    update()
-    return Promise.resolve()
+    updateResult = update()
+    return Promise.resolve(updateResult)
   }
 
   if (skipIfReduced && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    update()
-    return Promise.resolve()
+    updateResult = update()
+    return Promise.resolve(updateResult)
   }
 
   try {
     const transition = start(async () => {
-      await update()
+      updateResult = await update()
       await new Promise((resolve) => {
-        requestAnimationFrame(() => resolve())
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve())
+        })
       })
     })
-    return transition?.finished?.catch(() => {}) || Promise.resolve()
+    const finished = transition?.finished?.catch(() => {}) || Promise.resolve()
+    return finished.then(() => updateResult)
   } catch {
-    update()
-    return Promise.resolve()
+    updateResult = update()
+    return Promise.resolve(updateResult)
   }
 }
 

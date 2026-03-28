@@ -33,9 +33,9 @@
             :key="item.id"
             class="motion-card group cursor-pointer"
             :style="getPlaylistCardTransitionStyle(item)"
-            @click="openPlaylist(item)"
+            @click="openPlaylist(item, $event)"
           >
-            <div class="relative aspect-square overflow-hidden rounded-[24px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]" :style="getPlaylistCoverTransitionStyle(item)">
+            <div class="relative aspect-square overflow-hidden rounded-[24px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
               <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
               <div class="absolute inset-0 rounded-[24px] ring-1 ring-inset ring-black/5" />
             </div>
@@ -68,9 +68,9 @@
             :key="item.id"
             class="motion-card group flex cursor-pointer items-center gap-4 rounded-2xl p-2 transition-all hover:bg-white hover:shadow-md"
             :style="getPlaylistCardTransitionStyle(item)"
-            @click="openPlaylist(item)"
+            @click="openPlaylist(item, $event)"
           >
-            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-[16px] shadow-sm transition-transform duration-500 group-hover:scale-105" :style="getPlaylistCoverTransitionStyle(item)">
+            <div class="h-20 w-20 shrink-0 overflow-hidden rounded-[16px] shadow-sm transition-transform duration-500 group-hover:scale-105" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
               <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover" />
             </div>
             <div class="min-w-0 pr-4">
@@ -166,10 +166,10 @@
             :key="rank.id"
             class="group cursor-pointer rounded-[24px] bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.08)]"
             :style="getPlaylistCardTransitionStyle(rank)"
-            @click="openPlaylist(rank)"
+            @click="openPlaylist(rank, $event)"
           >
             <div class="mb-4 flex items-center gap-4">
-              <div class="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] shadow-sm" :style="getPlaylistCoverTransitionStyle(rank)">
+              <div class="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] shadow-sm" data-playlist-hero-cover :data-playlist-id="rank.id" :style="getPlaylistCoverTransitionStyle(rank)">
                 <SmartMedia :src="rank.coverImgUrl" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
               </div>
               <div>
@@ -222,9 +222,9 @@
               :key="item.id"
               class="group cursor-pointer overflow-hidden rounded-[20px] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
               :style="getPlaylistCardTransitionStyle(item)"
-              @click="openPlaylist(item)"
+              @click="openPlaylist(item, $event)"
             >
-              <div class="aspect-[4/3] overflow-hidden" :style="getPlaylistCoverTransitionStyle(item)">
+              <div class="aspect-[4/3] overflow-hidden" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
                 <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               </div>
               <div class="p-4">
@@ -455,12 +455,12 @@
       </Transition>
     </Teleport>
 
-    <ModalRouterView content-width="90vw" content-height="90vh" />
+    <ModalRouterView content-width="85vw" content-height="80vh" />
   </div>
 </template>
 
 <script setup>
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {animate, hover, inView, press} from 'motion'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
@@ -472,11 +472,10 @@ import {artistApi} from '@/api/artistApi/artistApi.js'
 import {homeIndexApi} from '@/api/home/homeIndexApi.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {
-  activePlaylistTransitionId,
-  buildPlaylistTransitionName,
-  runViewTransition,
-  setActivePlaylistTransitionId,
-} from '@/utils/viewTransition.js'
+  consumeLatestPendingPlaylistHeroTransition,
+  playPlaylistHeroEnter,
+  setPendingPlaylistHeroTransition,
+} from '@/utils/playlistFlipHero.js'
 import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const router = useRouter()
@@ -585,31 +584,54 @@ function openArtist(artist) {
   })
 }
 
-async function openPlaylist(playlist) {
+async function openPlaylist(playlist, event) {
   if (!playlist?.id) return
-  setActivePlaylistTransitionId(playlist.id)
-  await runViewTransition(() => {
-    return router.push({
-      path: '/home/playlistDetail',
-      query: {id: playlist.id},
-    })
+
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl ? cardEl.querySelector('[data-playlist-hero-cover]') : null
+  const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
+  const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
+
+  setPendingPlaylistHeroTransition(playlist.id, {
+    cardRect: cardEl?.getBoundingClientRect?.(),
+    coverRect: coverEl?.getBoundingClientRect?.(),
+    coverSrc: playlist.picUrl || playlist.coverImgUrl || '',
+    playlistName: playlist.name || '',
+    cardRadius: cardStyle?.borderRadius || '24px',
+    cardShadow: cardStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
+    coverRadius: coverStyle?.borderRadius || '24px',
+    coverShadow: coverStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
+  })
+
+  await router.push({
+    path: '/home/playlistDetail',
+    query: {id: playlist.id},
   })
 }
 
 function getPlaylistCardTransitionStyle(playlist) {
-  if (route.name === 'playlistDetail') return {}
-  if (Number(playlist?.id) !== activePlaylistTransitionId.value) return {}
-  const transitionName = buildPlaylistTransitionName(playlist?.id, 'card')
-  if (!transitionName) return {}
-  return {viewTransitionName: transitionName}
+  void playlist
+  return {}
 }
 
 function getPlaylistCoverTransitionStyle(playlist) {
-  if (route.name === 'playlistDetail') return {}
-  if (Number(playlist?.id) !== activePlaylistTransitionId.value) return {}
-  const transitionName = buildPlaylistTransitionName(playlist?.id, 'cover')
-  if (!transitionName) return {}
-  return {viewTransitionName: transitionName}
+  void playlist
+  return {}
+}
+
+async function runPlaylistHeroReturn() {
+  if (route.name !== 'home') return
+  const payload = consumeLatestPendingPlaylistHeroTransition()
+  if (!payload?.id) return
+
+  await nextTick()
+  const targetCoverEl = document.querySelector(`[data-playlist-hero-cover][data-playlist-id="${payload.id}"]`)
+  if (!(targetCoverEl instanceof HTMLElement)) return
+
+  await playPlaylistHeroEnter({
+    payload,
+    targetCoverEl,
+  })
 }
 
 async function openSong(song, index = 0) {
@@ -1089,6 +1111,7 @@ onMounted(() => {
   requestAnimationFrame(() => {
     setupMotionEffects()
   })
+  runPlaylistHeroReturn()
   loadHomeBanner()
   loadReleaseNotes()
   loadRecommendPlaylists()
@@ -1101,6 +1124,15 @@ onMounted(() => {
   loadHotArtists()
   loadHighQualityPlaylists()
 })
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'home') {
+      runPlaylistHeroReturn()
+    }
+  },
+)
 
 onBeforeUnmount(() => {
   motionCleanups.splice(0).forEach(stop => {

@@ -1,6 +1,6 @@
 <template>
 	<div class="app-shell">
-		<div class="top-blur-gradient" aria-hidden="true" />
+		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
 			<router-view />
@@ -21,6 +21,10 @@ const route = useRoute();
 const router = useRouter();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
+const topBlurStyle = {
+	backdropFilter: "blur(var(--top-blur-size, 22px))",
+	WebkitBackdropFilter: "blur(var(--top-blur-size, 22px))",
+};
 
 const swipeState = {
 	active: false,
@@ -131,10 +135,10 @@ function unbindGlobalBackGesture() {
 }
 
 function runRouteEnterMotion() {
-	if (!contentRef.value) return;
-	animate(
-		contentRef.value,
-		{ opacity: [0, 1], y: [10, 0], filter: ["blur(6px)", "blur(0px)"] },
+  if (!contentRef.value) return;
+  animate(
+    contentRef.value,
+    { opacity: [0, 1], y: [10, 0], filter: ["blur(6px)", "blur(0px)"] },
 		{ duration: 0.28, easing: [0.22, 1, 0.36, 1] },
 	);
 }
@@ -175,13 +179,12 @@ watch(
 }
 
 .top-blur-gradient {
+	--top-blur-size: 22px;
 	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	height: clamp(84px, 18vh, 180px);
-	backdrop-filter: blur(22px);
-	-webkit-backdrop-filter: blur(22px);
 	background: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0) 100%);
 	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
 	-webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
@@ -191,8 +194,7 @@ watch(
 
 @media (max-width: 768px) {
 	.top-blur-gradient {
-		backdrop-filter: blur(14px);
-		-webkit-backdrop-filter: blur(14px);
+		--top-blur-size: 14px;
 	}
 }
 

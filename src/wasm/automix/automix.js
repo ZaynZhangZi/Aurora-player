@@ -26,6 +26,19 @@ export function compute_transition_plan_js(current, next) {
     return takeFromExternrefTable0(ret[0]);
 }
 
+/**
+ * @param {any} current
+ * @param {any} next
+ * @returns {any}
+ */
+export function compute_transition_plan_v2_js(current, next) {
+    const ret = wasm.compute_transition_plan_v2_js(current, next);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
 export function init_wasm() {
     wasm.init_wasm();
 }
@@ -37,6 +50,18 @@ export function init_wasm() {
  */
 export function mix_score_js(current, next) {
     const ret = wasm.mix_score_js(current, next);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {any} request
+ * @returns {any}
+ */
+export function plan_track_path_js(request) {
+    const ret = wasm.plan_track_path_js(request);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -214,6 +239,10 @@ function __wbg_get_imports() {
             const ret = new Uint8Array(arg0);
             return ret;
         },
+        __wbg_new_a70fbab9066b301f: function() {
+            const ret = new Array();
+            return ret;
+        },
         __wbg_new_ab79df5bd7c26067: function() {
             const ret = new Object();
             return ret;
@@ -228,6 +257,9 @@ function __wbg_get_imports() {
         },
         __wbg_prototypesetcall_d62e5099504357e6: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);
+        },
+        __wbg_set_282384002438957f: function(arg0, arg1, arg2) {
+            arg0[arg1 >>> 0] = arg2;
         },
         __wbg_set_6be42768c690e380: function(arg0, arg1, arg2) {
             arg0[arg1] = arg2;

@@ -4,6 +4,7 @@ import { createApp } from "vue";
 
 import App from "./App.vue";
 import router from "./router";
+import { prewarmAutomixEngine } from "./utils/automixEngine.js";
 
 import "./index.css";
 import "@applemusic-like-lyrics/core/style.css";
@@ -18,3 +19,5 @@ pinia.use(piniaPluginPersistedstate);
 app.use(pinia);
 app.use(router);
 app.mount("#app");
+
+prewarmAutomixEngine({ idle: true });

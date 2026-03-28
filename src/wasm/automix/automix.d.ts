@@ -5,9 +5,13 @@ export function choose_next_track_js(current: any, candidate_tracks: any): any;
 
 export function compute_transition_plan_js(current: any, next: any): any;
 
+export function compute_transition_plan_v2_js(current: any, next: any): any;
+
 export function init_wasm(): void;
 
 export function mix_score_js(current: any, next: any): any;
+
+export function plan_track_path_js(request: any): any;
 
 export function run_automix_js(request: any): any;
 
@@ -17,8 +21,10 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly choose_next_track_js: (a: any, b: any) => [number, number, number];
     readonly compute_transition_plan_js: (a: any, b: any) => [number, number, number];
+    readonly compute_transition_plan_v2_js: (a: any, b: any) => [number, number, number];
     readonly init_wasm: () => void;
     readonly mix_score_js: (a: any, b: any) => [number, number, number];
+    readonly plan_track_path_js: (a: any) => [number, number, number];
     readonly run_automix_js: (a: any) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

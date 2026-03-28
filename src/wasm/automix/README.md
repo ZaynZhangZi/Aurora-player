@@ -5,6 +5,8 @@ Rust + WebAssembly automix engine for:
 - Track compatibility scoring (`mix_score`)
 - Next-track recommendation (`choose_next_track`)
 - Transition planning (`compute_transition_plan`)
+- Enhanced transition planning (`compute_transition_plan_v2`)
+- Multi-step path planning (`plan_track_path`)
 - One-shot pipeline (`run_automix`)
 
 The library supports direct Rust usage and JS/TS usage via wasm-bindgen.
@@ -21,6 +23,8 @@ wasm-pack build --target web
 - `mix_score_js(current, next)`
 - `choose_next_track_js(current, candidate_tracks)`
 - `compute_transition_plan_js(current, next)`
+- `compute_transition_plan_v2_js(current, next)`
+- `plan_track_path_js(request)`
 - `run_automix_js(request)`
 
 All wasm functions accept plain JS objects and return plain JS objects.
@@ -157,3 +161,14 @@ console.log("run_automix", fullResult);
 - If no candidate passes filters/threshold, `selected_next` is `null`.
 - Field names are snake_case to match Rust struct fields.
 - For best beat alignment, provide sorted `beat_positions` in seconds.
+
+## New APIs
+
+- `compute_transition_plan_v2` adds:
+  - `bar_aligned: boolean`
+  - `bars: number` (0/8/16/32)
+  - `mix_in_section_label: string | null`
+  - `alignment_confidence: number` (0..1)
+- `plan_track_path` takes `horizon` and `beam_width` and returns a best path:
+  - `steps: { track_id, step_score, cumulative_score, reason_codes[] }[]`
+  - `total_score: number`
