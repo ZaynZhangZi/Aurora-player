@@ -115,21 +115,17 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   const playerStore = usePlayerStore()
 
   try {
-    const [url, detailRes] = await Promise.all([
-      resolveSongPlayableUrl(id),
-      songsApi.getSongDetail(id),
-    ])
+    const url = await resolveSongPlayableUrl(id)
 
     if (!url) return false
 
-    const detail = detailRes?.data?.songs?.[0] || null
-
     const nextTrack = {
       id,
-      name: resolveName(songInput, detail),
-      artists: resolveArtists(songInput, detail),
-      cover: resolveCover(songInput, detail),
+      name: resolveName(songInput, null),
+      artists: resolveArtists(songInput, null),
+      cover: resolveCover(songInput, null),
       url,
+      mixProfile: songInput?.mixProfile || null,
     }
 
     playerStore.setTrack(nextTrack, {autoplay, resetTime: true})
@@ -145,6 +141,29 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
         console.log('[Automix/Warmup] failed to warm up next track')
       }
     })
+
+    songsApi.getSongDetail(id)
+      .then((detailRes) => {
+        const detail = detailRes?.data?.songs?.[0] || null
+        if (!detail) return
+        const currentId = String(playerStore.currentSong?.id || '')
+        if (currentId !== String(id)) return
+
+        playerStore.setTrack(
+          {
+            id,
+            name: resolveName(songInput, detail),
+            artists: resolveArtists(songInput, detail),
+            cover: resolveCover(songInput, detail),
+            url,
+            mixProfile: songInput?.mixProfile || null,
+          },
+          {autoplay: playerStore.isPlaying, resetTime: false},
+        )
+      })
+      .catch(() => {
+        // keep optimistic metadata
+      })
 
     return true
   } catch {
