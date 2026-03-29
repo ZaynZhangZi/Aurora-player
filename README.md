@@ -1,69 +1,60 @@
-# MyMusicDemo
+# AuroraPlayer
 
-一个基于 Vue 3 + Vite 的音乐 Web 应用，包含首页推荐、歌单详情、歌手/专辑页、全局播放器、扫码登录、消息中心、智能搜索、更新日志面板，以及类 Apple Music 风格歌词播放体验。
+AuroraPlayer 是一个基于 Vue 3 + Vite 的音乐 Web 应用，目标是把「发现 -> 搜索 -> 播放 -> 详情浏览 -> 账号能力」做成一条完整链路。
 
-## 目录
+![首页](img.png)
+![功能截图](img_1.png)
+![功能截图](img_2.png)
+![功能截图](img_3.png)
 
-- [项目简介](#项目简介)
-- [功能特性](#功能特性)
-- [技术栈](#技术栈)
-- [项目结构](#项目结构)
-- [快速开始](#快速开始)
-- [开发命令](#开发命令)
-- [接口与代理说明](#接口与代理说明)
-- [跨设备调试](#跨设备调试)
-- [构建与部署](#构建与部署)
-- [常见问题](#常见问题)
-- [致谢](#致谢)
+## 近期新增功能
 
-## 项目简介
+- 智能混音播放器：新增 Rust + WASM 自动混音引擎（选曲推荐、过渡点规划、双 Deck Crossfade）
+- 动态封面联动：歌曲支持动态封面拉取，播放器封面过渡与下一首预热
+- 悬浮搜索重构：支持歌手/歌曲/歌单并行搜索、意图识别、键盘导航、分区分页
+- 首页内容升级：新增最近听歌分页、MV 多来源切换（全部/最新/网易出品/推荐）和清晰度切换
+- 更新日志能力：新增 `/release-notes` 页面，并支持首页侧滑更新日志面板
+- 账号能力增强：新增二维码登录、消息中心（通知 + 私信）、私信会话与发送
+- 个人中心扩展：新增云盘歌曲管理（上传/播放/详情/删除）与听歌画像可视化
+- 交互体验升级：新增全局返回手势（键盘/鼠标侧键/边缘滑动）与歌单 Hero 转场
 
-MyMusicDemo 是一个前端音乐项目，目标是提供完整的“发现 -> 搜索 -> 播放 -> 详情页浏览”链路体验。项目使用组件化方式实现，并在播放与歌词展示上做了较多体验优化。
+## 核心功能
 
-当前重点模块：
-
-- 首页：Banner、推荐歌单、热门榜单、MV、播客、高品质歌单、热门歌手
-- 搜索：智能识别歌手/歌曲/歌单意图，分组分页
-- 播放：全局底部播放器、播放进度、播放模式、音量、队列切换
-- 详情页：歌单详情、歌手详情、专辑详情
-- 用户侧：扫码登录、消息中心、个人页
-- 运营侧：更新日志（`/api/release-notes`）
-
-## 功能特性
-
-- `首页聚合`：多源推荐模块同屏展示，支持 MV 弹层播放
-- `智能搜索`：输入关键词后并行检索歌手/歌曲/歌单，并做意图识别
-- `全局播放器`：跨路由保持播放状态，移动端自适应布局
-- `动态封面`：支持动态封面接口降级回退到静态封面
-- `歌词组件`：集成 Apple Music 风格歌词组件（Vue 绑定）
-- `登录与状态持久化`：Pinia + persistedstate
-- `跨路由过渡`：支持 View Transition 能力的浏览器可启用共享元素过渡
+- 首页聚合：Banner、推荐歌单、网友精选碟、新歌、最近听歌、榜单、播客、MV、热门艺人
+- 全局播放器：跨路由播放、队列管理、播放模式切换、音量控制、歌词页联动
+- 歌词体验：集成 `@applemusic-like-lyrics`（Vue 绑定）
+- 内容详情页：歌单详情、歌手详情、专辑详情
+- 用户系统：扫码登录、消息中心、个人页
+- 状态持久化：Pinia + persistedstate 持久化播放器与用户关键状态
 
 ## 技术栈
 
-- `框架`：Vue 3
-- `构建`：Vite（rolldown-vite）
-- `路由`：Vue Router 4
-- `状态管理`：Pinia + pinia-plugin-persistedstate
-- `UI/样式`：Tailwind CSS 4、Headless UI、Heroicons、Ant Design Vue
-- `动画`：GSAP + Motion
-- `请求`：Axios
-- `图形/媒体`：Three.js、Pixi.js、Chroma.js、ColorThief
+- 框架：`Vue 3`
+- 构建：`Vite`（`rolldown-vite`）
+- 路由：`Vue Router 4`
+- 状态管理：`Pinia` + `pinia-plugin-persistedstate`
+- UI：`Tailwind CSS 4`、`Headless UI`、`Heroicons`、`Ant Design Vue`
+- 动画：`GSAP`、`Motion`
+- 多媒体：`Three.js`、`Pixi.js`、`Chroma.js`、`ColorThief`
+- 请求层：`Axios`
+- 混音引擎：Rust + WebAssembly（位于 `src/wasm/automix`）
 
 ## 项目结构
 
 ```text
 .
 ├─ src/
-│  ├─ api/                    # 业务接口封装
-│  ├─ axios/                  # axios 实例与拦截器
-│  ├─ components/             # 通用组件（播放器、搜索、弹层等）
-│  ├─ stores/                 # Pinia 状态
-│  ├─ utils/                  # 工具函数（播放、歌词适配、过渡等）
-│  ├─ view/                   # 页面（home/artist/album/playlist/profile）
-│  ├─ router/                 # 路由配置
+│  ├─ api/                     # 接口封装（歌曲、歌单、用户、搜索等）
+│  ├─ axios/                   # 请求实例与拦截器
+│  ├─ components/              # 组件（播放器、搜索、弹层、媒体组件等）
+│  ├─ stores/                  # Pinia 状态
+│  ├─ utils/                   # 工具（全局播放、automix、转场等）
+│  ├─ view/                    # 页面（home、artist、album、playlist、profile）
+│  ├─ wasm/automix/            # Rust/WASM 自动混音引擎
+│  ├─ router/
 │  ├─ App.vue
 │  └─ main.js
+├─ .env.example
 ├─ vite.config.js
 ├─ package.json
 └─ README.md
@@ -88,10 +79,12 @@ npm install
 cp .env.example .env.local
 ```
 
-请按你的后端地址修改 `.env.local`：
+修改 `.env.local`：
 
-- `VITE_API_PROXY_TARGET`：网易云接口服务地址（开发代理目标）
-- `VITE_ADMIN_API_PROXY_TARGET`：你自己的管理后端地址（开发代理目标）
+- `VITE_API_BASE_URL`：默认 `/api`
+- `VITE_ADMIN_API_BASE_URL`：默认 `/backend-api`
+- `VITE_API_PROXY_TARGET`：开发代理到音乐 API 服务
+- `VITE_ADMIN_API_PROXY_TARGET`：开发代理到自建后端
 
 ### 4) 启动开发环境
 
@@ -99,59 +92,32 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认访问：
+默认访问地址：
 
 - 本机：`http://localhost:5173`
 - 局域网：`http://<你的IP>:5173`
 
-## 开发命令
+## 常用命令
 
 ```bash
-# 本地开发
 npm run dev
-
-# 生产构建
 npm run build
-
-# 预览构建结果
 npm run preview
-
-# 代码检查
 npm run lint
 ```
 
 ## 接口与代理说明
 
-项目包含两类请求来源：
+项目有两条请求链路：
 
-1. `apiClient`（`baseURL` 来自 `VITE_API_BASE_URL`，默认 `/api`）
-   - 在开发环境由 Vite 代理到 `VITE_API_PROXY_TARGET`
-   - 见 `vite.config.js` 的 `server.proxy`
+1. `apiClient`
+   - `baseURL` 来自 `VITE_API_BASE_URL`（默认 `/api`）
+   - 开发环境由 Vite 代理到 `VITE_API_PROXY_TARGET`
 
-2. `requestLocal`（独立后端）
-   - `baseURL` 来自 `VITE_ADMIN_API_BASE_URL`，默认 `/backend-api`
-   - 在开发环境由 Vite 代理到 `VITE_ADMIN_API_PROXY_TARGET`
-   - 用于如 `banner`、`release-notes` 等自有接口
-
-这样开源时仓库里不需要写死任何线上 IP/域名，只保留 `.env.example` 模板。
-
-当前已接入示例：
-
-- `GET /api/banner`
-- `GET /api/release-notes`
-
-## 跨设备调试
-
-已在 `vite.config.js` 配置：
-
-- `host: "0.0.0.0"`
-- `port: 5173`
-
-如果同一局域网设备无法访问，请检查：
-
-- macOS 防火墙是否拦截 Node
-- 两台设备是否同网段
-- 路由器是否开启 AP 隔离/客户端隔离
+2. `requestLocal`
+   - `baseURL` 来自 `VITE_ADMIN_API_BASE_URL`（默认 `/backend-api`）
+   - 开发环境由 Vite 代理到 `VITE_ADMIN_API_PROXY_TARGET`
+   - 当前用于 `banner`、`release-notes` 等自有接口
 
 ## 构建与部署
 
@@ -159,34 +125,29 @@ npm run lint
 npm run build
 ```
 
-输出目录为 `dist/`，可部署到任意静态资源服务器（Nginx、Vercel、Netlify 等）。
+构建产物为 `dist/`，可部署到任意静态服务器（Nginx、Vercel、Netlify 等）。
 
-> 注意：生产环境请根据实际后端地址调整代理/请求基地址策略（开发代理仅在 dev 有效）。
+## 开源许可证
 
-## 常见问题
+本项目采用 `GNU Affero General Public License v3.0`（`AGPL-3.0-only`）。
 
-### Q1：歌词组件样式错乱或不显示？
+- 可在 AGPL 条款下使用、修改、再分发
+- 若将本项目（含修改版）用于网络服务，需要向该服务用户提供对应源码
+- 完整协议请查看 `LICENSE`
 
-确认已引入以下样式：
+## 贡献
 
-- `@applemusic-like-lyrics/core/style.css`
-- `src/styles/amll-vue.css`
+欢迎提交 Issue / PR。
 
-### Q2：搜索翻页会不会刷新整个面板？
-
-当前实现为分组局部加载（歌手/歌曲/歌单互不影响）。
-
-### Q3：为什么构建时有 chunk 体积警告？
-
-项目包含多媒体与图形依赖（如 Three/Pixi），体积较大是预期现象。后续可通过按路由分包和手动分 chunk 优化。
+- 提交前请先运行 `npm run lint`
+- 涉及 UI 变更建议附截图
+- 涉及配置改动请同步更新文档和 `.env.example`
 
 ## 致谢
 
-- 感谢 JetBrains **WebStorm**，提供了稳定高效的开发体验。
-- 感谢 **amll-dev/applemusic-like-lyrics** 项目提供的歌词播放器能力：
-  - GitHub: <https://github.com/amll-dev/applemusic-like-lyrics>
-  - 描述：A lyric player component library aims to look similar to iPad version of Apple Music. Also with DOM, React and Vue bindings.
+- JetBrains WebStorm
+- `amll-dev/applemusic-like-lyrics`：<https://github.com/amll-dev/applemusic-like-lyrics>
 
 ---
 
-如果这个项目对你有帮助，欢迎点个 Star。也欢迎提交 Issue 或 PR 一起改进。
+如果这个项目对你有帮助，欢迎点个 Star。
