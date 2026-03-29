@@ -82,7 +82,18 @@ MyMusicDemo 是一个前端音乐项目，目标是提供完整的“发现 -> �
 npm install
 ```
 
-### 3) 启动开发环境
+### 3) 配置环境变量
+
+```bash
+cp .env.example .env.local
+```
+
+请按你的后端地址修改 `.env.local`：
+
+- `VITE_API_PROXY_TARGET`：网易云接口服务地址（开发代理目标）
+- `VITE_ADMIN_API_PROXY_TARGET`：你自己的管理后端地址（开发代理目标）
+
+### 4) 启动开发环境
 
 ```bash
 npm run dev
@@ -113,13 +124,16 @@ npm run lint
 
 项目包含两类请求来源：
 
-1. `apiClient`（`baseURL: /api`）
-   - 在开发环境由 Vite 代理到 `http://114.66.61.151:3000`
+1. `apiClient`（`baseURL` 来自 `VITE_API_BASE_URL`，默认 `/api`）
+   - 在开发环境由 Vite 代理到 `VITE_API_PROXY_TARGET`
    - 见 `vite.config.js` 的 `server.proxy`
 
 2. `requestLocal`（独立后端）
-   - 直接请求 `http://114.66.61.151:8080/`
+   - `baseURL` 来自 `VITE_ADMIN_API_BASE_URL`，默认 `/backend-api`
+   - 在开发环境由 Vite 代理到 `VITE_ADMIN_API_PROXY_TARGET`
    - 用于如 `banner`、`release-notes` 等自有接口
+
+这样开源时仓库里不需要写死任何线上 IP/域名，只保留 `.env.example` 模板。
 
 当前已接入示例：
 

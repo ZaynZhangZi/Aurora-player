@@ -2,16 +2,13 @@
 import axios from 'axios'
 import { useCounterStore } from '@/stores/userStores.js'
 
-/**
- * 访问 http://localhost:8080 的稳定 Axios 实例
- * - 自动带 Cookie / Token（如果你需要）
- * - 自动加时间戳，避免缓存
- * - 错误自动处理 & 控制台打印
- */
+const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL || '/backend-api'
+const ADMIN_API_TIMEOUT = Number(import.meta.env.VITE_ADMIN_API_TIMEOUT || 1000)
+
 const requestLocal = axios.create({
-  baseURL: 'http://musicadmin.xiaojunjunjun.com/',  // 访问地址
-  timeout: 1000,                     // 超时
-  withCredentials: true,              // 携带 Cookie（后端支持时才生效）
+  baseURL: ADMIN_API_BASE_URL,
+  timeout: ADMIN_API_TIMEOUT,
+  withCredentials: true,
 })
 
 // ====================== 请求拦截器 ======================

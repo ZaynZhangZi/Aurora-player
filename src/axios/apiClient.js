@@ -50,10 +50,13 @@ function readStoredCookieFallback() {
 }
 
 // 创建一个封装的 Axios 实例
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT || 10000);
+
 const axiosInstance = axios.create({
-    withCredentials: true, // 自动发送和接收 Cookie
-    baseURL: '/api', // 设置默认的 base URL，可根据需要修改
-    timeout: 10000, // 设置请求超时时间
+    withCredentials: true,
+    baseURL: API_BASE_URL,
+    timeout: API_TIMEOUT,
 });
 
 
