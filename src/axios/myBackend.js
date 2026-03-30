@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useCounterStore } from '@/stores/userStores.js'
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL || '/backend-api'
-const ADMIN_API_TIMEOUT = Number(import.meta.env.VITE_ADMIN_API_TIMEOUT || 1000)
+const ADMIN_API_TIMEOUT = Number(import.meta.env.VITE_ADMIN_API_TIMEOUT || 10000)
 
 const requestLocal = axios.create({
   baseURL: ADMIN_API_BASE_URL,

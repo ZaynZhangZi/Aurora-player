@@ -62,7 +62,7 @@ function enrichTransitionPlan(currentTrack, nextTrack, fallbackTransition = null
     const v2 = compute_transition_plan_v2_js(currentTrack, nextTrack)
     if (!v2 || typeof v2 !== 'object') return fallbackTransition
     return {
-      ...(fallbackTransition || {}),
+      ...fallbackTransition,
       ...v2,
     }
   } catch {

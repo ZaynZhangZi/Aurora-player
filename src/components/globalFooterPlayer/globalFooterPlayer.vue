@@ -16,44 +16,17 @@
         <div class="flex min-w-0 items-center gap-3">
           <Transition :name="trackSwapTransitionName" mode="out-in">
             <div :key="songTransitionKey" class="flex min-w-0 flex-1 items-center gap-3">
-            <button
-              class="h-12 w-12 overflow-hidden rounded-lg bg-white/20"
-              type="button"
-              :disabled="!hasSong"
-              aria-label="打开歌词页"
-              @click="openLyricPage"
-            >
-              <div class="cover-stack">
-                <video
-                  v-if="dynamicCoverUrl && dynamicCoverIsVideo"
-                  :src="dynamicCoverUrl"
-                  class="cover-media"
-                  autoplay
-                  muted
-                  loop
-                  playsinline
-                  preload="metadata"
-                />
-                <img
-                  v-else-if="dynamicCoverUrl"
-                  :src="dynamicCoverUrl"
-                  alt="dynamic-cover"
-                  class="cover-media"
-                >
-                <img
-                  v-else-if="coverUrl"
-                  :src="coverUrl"
-                  alt="cover"
-                  class="cover-media"
-                >
-                <div
-                  v-if="crossfadeCoverUrl"
-                  class="cover-crossfade-layer"
-                  :style="{ opacity: crossfadeCoverProgress }"
-                >
+              <button
+                class="h-12 w-12 overflow-hidden rounded-lg bg-white/20"
+                type="button"
+                :disabled="!hasSong"
+                aria-label="打开歌词页"
+                @click="openLyricPage"
+              >
+                <div class="cover-stack">
                   <video
-                    v-if="crossfadeCoverIsVideo"
-                    :src="crossfadeCoverUrl"
+                    v-if="dynamicCoverUrl && dynamicCoverIsVideo"
+                    :src="dynamicCoverUrl"
                     class="cover-media"
                     autoplay
                     muted
@@ -62,68 +35,95 @@
                     preload="metadata"
                   />
                   <img
-                    v-else
-                    :src="crossfadeCoverUrl"
-                    alt="next-cover"
+                    v-else-if="dynamicCoverUrl"
+                    :src="dynamicCoverUrl"
+                    alt="dynamic-cover"
                     class="cover-media"
                   >
-                </div>
-              </div>
-            </button>
-            <div class="min-w-0">
-              <p class="player-text-primary truncate text-sm font-semibold">
-                {{ songName || '未在播放' }}
-              </p>
-              <div
-                v-if="shouldScrollArtists"
-                class="artist-marquee player-text-muted mt-0.5 text-xs"
-              >
-                <div class="artist-marquee-track">
-                  <div class="artist-marquee-segment">
-                    <template
-                      v-for="(artist, index) in normalizedArtistList"
-                      :key="`desktop-marquee-a-${artist.id || artist.name}-${index}`"
+                  <img
+                    v-else-if="coverUrl"
+                    :src="coverUrl"
+                    alt="cover"
+                    class="cover-media"
+                  >
+                  <div
+                    v-if="crossfadeCoverUrl"
+                    class="cover-crossfade-layer"
+                    :style="{ opacity: crossfadeCoverProgress }"
+                  >
+                    <video
+                      v-if="crossfadeCoverIsVideo"
+                      :src="crossfadeCoverUrl"
+                      class="cover-media"
+                      autoplay
+                      muted
+                      loop
+                      playsinline
+                      preload="metadata"
+                    />
+                    <img
+                      v-else
+                      :src="crossfadeCoverUrl"
+                      alt="next-cover"
+                      class="cover-media"
                     >
-                      <button
-                        class="artist-marquee-link"
-                        type="button"
-                        @click.stop="openArtistFromPlayer(artist)"
-                      >
-                        {{ artist.name }}
-                      </button>
-                      <span
-                        v-if="index < normalizedArtistList.length - 1"
-                        class="player-separator"
-                      >
-             /
-            </span>
-                    </template>
-                  </div>
-                  <div class="artist-marquee-segment" aria-hidden="true">
-                    <template
-                      v-for="(artist, index) in normalizedArtistList"
-                      :key="`desktop-marquee-b-${artist.id || artist.name}-${index}`"
-                    >
-                      <span>{{ artist.name }}</span>
-                      <span
-                        v-if="index < normalizedArtistList.length - 1"
-                        class="player-separator"
-                      >
-             /
-            </span>
-                    </template>
                   </div>
                 </div>
+              </button>
+              <div class="min-w-0">
+                <p class="player-text-primary truncate text-sm font-semibold">
+                  {{ songName || '未在播放' }}
+                </p>
+                <div
+                  v-if="shouldScrollArtists"
+                  class="artist-marquee player-text-muted mt-0.5 text-xs"
+                >
+                  <div class="artist-marquee-track">
+                    <div class="artist-marquee-segment">
+                      <template
+                        v-for="(artist, index) in normalizedArtistList"
+                        :key="`desktop-marquee-a-${artist.id || artist.name}-${index}`"
+                      >
+                        <button
+                          class="artist-marquee-link"
+                          type="button"
+                          @click.stop="openArtistFromPlayer(artist)"
+                        >
+                          {{ artist.name }}
+                        </button>
+                        <span
+                          v-if="index < normalizedArtistList.length - 1"
+                          class="player-separator"
+                        >
+             /
+            </span>
+                      </template>
+                    </div>
+                    <div class="artist-marquee-segment" aria-hidden="true">
+                      <template
+                        v-for="(artist, index) in normalizedArtistList"
+                        :key="`desktop-marquee-b-${artist.id || artist.name}-${index}`"
+                      >
+                        <span>{{ artist.name }}</span>
+                        <span
+                          v-if="index < normalizedArtistList.length - 1"
+                          class="player-separator"
+                        >
+             /
+            </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <ArtistLinks
+                  v-else
+                  :artists="artistList"
+                  :container-class="artistLinksContainerClass"
+                  :link-class="artistLinksClass"
+                  :separator-class="artistSeparatorClass"
+                  :fallback-class="artistLinksContainerClass"
+                />
               </div>
-              <ArtistLinks
-                v-else
-                :artists="artistList"
-                :container-class="artistLinksContainerClass"
-                :link-class="artistLinksClass"
-                :separator-class="artistSeparatorClass"
-                :fallback-class="artistLinksContainerClass"
-              />
-            </div>
             </div>
           </Transition>
 
@@ -134,7 +134,7 @@
               :disabled="!canPlayPrev"
               @click="playPrevSong"
             >
-              <BackwardIcon class="h-3.5 w-3.5" />
+              <BackwardIcon class="h-3.5 w-3.5"/>
             </button>
             <button
               class="player-main-btn grid h-9 w-9 place-items-center rounded-full transition disabled:opacity-40"
@@ -142,8 +142,8 @@
               :disabled="!hasSong"
               @click="togglePlay"
             >
-              <PauseIcon v-if="isPlaying" class="h-[18px] w-[18px]" />
-              <PlayIcon v-else class="h-[18px] w-[18px]" />
+              <PauseIcon v-if="isPlaying" class="h-[18px] w-[18px]"/>
+              <PlayIcon v-else class="h-[18px] w-[18px]"/>
             </button>
             <button
               class="player-soft-btn grid h-7 w-7 place-items-center rounded-full transition disabled:opacity-50"
@@ -151,7 +151,7 @@
               :disabled="!canPlayNext"
               @click="playNextSong"
             >
-              <ForwardIcon class="h-3.5 w-3.5" />
+              <ForwardIcon class="h-3.5 w-3.5"/>
             </button>
           </div>
         </div>
@@ -178,10 +178,10 @@
               aria-label="显示更多播放设置"
               @click="toggleMorePanel"
             >
-              <EllipsisHorizontalIcon class="h-4 w-4" />
+              <EllipsisHorizontalIcon class="h-4 w-4"/>
             </button>
           </div>
-          <SpeakerWaveIcon class="player-text-muted h-4 w-4" />
+          <SpeakerWaveIcon class="player-text-muted h-4 w-4"/>
           <input
             class="player-range h-1.5 w-24 cursor-pointer appearance-none rounded-full"
             type="range"
@@ -315,7 +315,7 @@
                 :disabled="!canPlayPrev"
                 @click="playPrevSong"
               >
-                <BackwardIcon class="h-3.5 w-3.5" />
+                <BackwardIcon class="h-3.5 w-3.5"/>
               </button>
               <button
                 class="player-main-btn grid h-8 w-8 place-items-center rounded-full"
@@ -323,8 +323,8 @@
                 :disabled="!hasSong"
                 @click="togglePlay"
               >
-                <PauseIcon v-if="isPlaying" class="h-4 w-4" />
-                <PlayIcon v-else class="h-4 w-4" />
+                <PauseIcon v-if="isPlaying" class="h-4 w-4"/>
+                <PlayIcon v-else class="h-4 w-4"/>
               </button>
               <button
                 class="player-soft-btn grid h-7 w-7 place-items-center rounded-full disabled:opacity-50"
@@ -332,7 +332,7 @@
                 :disabled="!canPlayNext"
                 @click="playNextSong"
               >
-                <ForwardIcon class="h-3.5 w-3.5" />
+                <ForwardIcon class="h-3.5 w-3.5"/>
               </button>
             </div>
           </div>
@@ -427,7 +427,7 @@
                 type="button"
                 @click="closePlaylistPanel"
               >
-                <XMarkIcon class="h-4 w-4" />
+                <XMarkIcon class="h-4 w-4"/>
               </button>
             </div>
 
@@ -440,8 +440,12 @@
                 type="button"
                 @click="playSongAtIndex(index)"
               >
-                <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{ index + 1 }}</span>
-                <span class="truncate text-[14px] font-semibold">{{ song.name || '未知歌曲' }}</span>
+                <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{
+                    index + 1
+                  }}</span>
+                <span class="truncate text-[14px] font-semibold">{{
+                    song.name || '未知歌曲'
+                  }}</span>
               </button>
             </div>
           </div>
@@ -489,7 +493,6 @@
 
     <audio
       ref="audioRef"
-      :src="audioSrc"
       crossorigin="anonymous"
       playsinline
       webkit-playsinline="true"
@@ -518,7 +521,7 @@
 </template>
 
 <script setup>
-import { XMarkIcon } from "@heroicons/vue/24/outline";
+import {XMarkIcon} from "@heroicons/vue/24/outline";
 import {
   BackwardIcon,
   EllipsisHorizontalIcon,
@@ -536,10 +539,10 @@ import {
   ref,
   watch,
 } from "vue";
-import { useRouter } from "vue-router";
-import { songsApi } from "@/api/songsApi/songsApi.js";
+import {useRouter} from "vue-router";
+import {songsApi} from "@/api/songsApi/songsApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
-import { PLAY_MODE, usePlayerStore } from "@/stores/playerStore.js";
+import {PLAY_MODE, usePlayerStore} from "@/stores/playerStore.js";
 import {
   playQueueByDirection,
   playQueueByIndex,
@@ -549,7 +552,7 @@ import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
 } from "@/utils/automixEngine.js";
-import { normalizeLyricPayloadToAmll } from "@/utils/lyricAdapter.js";
+import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
 
 const AMLLWrapper = defineAsyncComponent({
   loader: () =>
@@ -597,10 +600,22 @@ let crossfadeTriggeredForSongId = null;
 let crossfadeRafId = 0;
 let crossfadePrewarmedSongId = "";
 let crossfadePrewarmedUrl = "";
+let pendingPromotedStartSec = -1;
 let skipNextCoverThemePick = false;
 let skipAudioResetOnNextSrcChange = false;
 let activeDeck = "primary";
 const playableUrlCache = new Map();
+
+const DEV_CROSSFADE_DEBUG = Boolean(import.meta.env.DEV);
+
+function debugCrossfade(label, payload = {}) {
+  if (!DEV_CROSSFADE_DEBUG || typeof console === "undefined") return;
+  try {
+    console.log(`[CrossfadeDebug] ${label}`, JSON.parse(JSON.stringify(payload)));
+  } catch {
+    console.log(`[CrossfadeDebug] ${label}`, payload);
+  }
+}
 
 function getActiveAudio() {
   return activeDeck === "primary" ? audioRef.value : crossfadeAudioRef.value;
@@ -645,7 +660,7 @@ const artistLinksContainerClass = computed(() => "text-xs player-text-muted");
 const artistLinksClass = computed(() => "hover:underline player-link");
 const artistSeparatorClass = computed(() => "player-separator");
 const coverUrl = computed(() => playerStore.currentSong?.cover || "");
-const audioSrc = computed(() => playerStore.currentSong?.url || "");
+const currentSongUrl = computed(() => playerStore.currentSong?.url || "");
 const isPlaying = computed(() => playerStore.isPlaying);
 const currentTimeMs = computed(() => playerStore.currentTimeMs);
 const durationMs = computed(() => playerStore.durationMs);
@@ -705,7 +720,7 @@ const trackSwapTransitionName = computed(() =>
 );
 const moreMenuButtonRef = ref(null);
 const morePanelOpen = ref(false);
-const morePanelStyle = ref({ right: "18px", bottom: "110px" });
+const morePanelStyle = ref({right: "18px", bottom: "110px"});
 const morePanelThemeStyle = computed(() => ({
   "--more-bg": themeIsDark.value ? "34, 44, 68" : "244, 247, 255",
   "--more-border": themeIsDark.value ? "255, 255, 255" : "24, 31, 45",
@@ -798,7 +813,7 @@ function rgbToHsl(r, g, b) {
   const delta = max - min;
   const l = (max + min) / 2;
 
-  if (delta === 0) return { h: 0, s: 0, l };
+  if (delta === 0) return {h: 0, s: 0, l};
 
   const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
   let h = 0;
@@ -806,7 +821,7 @@ function rgbToHsl(r, g, b) {
   else if (max === gn) h = (bn - rn) / delta + 2;
   else h = (rn - gn) / delta + 4;
 
-  return { h: h * 60, s, l };
+  return {h: h * 60, s, l};
 }
 
 function hslToRgb(h, s, l) {
@@ -961,7 +976,7 @@ async function extractDominantBaseColorFromCover(cover) {
   });
 
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const ctx = canvas.getContext("2d", {willReadFrequently: true});
   if (!ctx) throw new Error("canvas unavailable");
 
   const size = 52;
@@ -969,7 +984,7 @@ async function extractDominantBaseColorFromCover(cover) {
   canvas.height = size;
   ctx.drawImage(image, 0, 0, size, size);
 
-  const { data } = ctx.getImageData(0, 0, size, size);
+  const {data} = ctx.getImageData(0, 0, size, size);
   const bucketMap = new Map();
 
   for (let i = 0; i < data.length; i += 16) {
@@ -988,7 +1003,7 @@ async function extractDominantBaseColorFromCover(cover) {
     const weight =
       alpha * (0.3 + sat * 1.2 + (1 - Math.abs(light - 0.48)) * 0.75);
     const key = `${Math.round(pr / 24)}-${Math.round(pg / 24)}-${Math.round(pb / 24)}`;
-    const current = bucketMap.get(key) || { r: 0, g: 0, b: 0, w: 0 };
+    const current = bucketMap.get(key) || {r: 0, g: 0, b: 0, w: 0};
     current.r += pr * weight;
     current.g += pg * weight;
     current.b += pb * weight;
@@ -1273,12 +1288,12 @@ function updateMediaSessionMetadata() {
       album: amllAlbum.value || "",
       artwork: artworkSrc
         ? [
-          { src: artworkSrc, sizes: "96x96" },
-          { src: artworkSrc, sizes: "128x128" },
-          { src: artworkSrc, sizes: "192x192" },
-          { src: artworkSrc, sizes: "256x256" },
-          { src: artworkSrc, sizes: "384x384" },
-          { src: artworkSrc, sizes: "512x512" },
+          {src: artworkSrc, sizes: "96x96"},
+          {src: artworkSrc, sizes: "128x128"},
+          {src: artworkSrc, sizes: "192x192"},
+          {src: artworkSrc, sizes: "256x256"},
+          {src: artworkSrc, sizes: "384x384"},
+          {src: artworkSrc, sizes: "512x512"},
         ]
         : [],
     });
@@ -1326,7 +1341,7 @@ function scheduleMediaSessionPositionStateUpdate() {
   }, 800);
 }
 
-function setupMediaSessionHandlers({ force = false } = {}) {
+function setupMediaSessionHandlers({force = false} = {}) {
   if (typeof navigator === "undefined") return;
   if (!("mediaSession" in navigator)) return;
   if (force && mediaSessionHandlersBound) {
@@ -1345,13 +1360,13 @@ function setupMediaSessionHandlers({ force = false } = {}) {
   const handlePrevTrack = async () => {
     if (!playQueue.value.length) return;
     if (!canPlayPrev.value) return;
-    await playQueueByDirection("prev", { trigger: "manual" });
+    await playQueueByDirection("prev", {trigger: "manual"});
   };
 
   const handleNextTrack = async () => {
     if (!playQueue.value.length) return;
     if (!canPlayNext.value) return;
-    await playQueueByDirection("next", { trigger: "manual" });
+    await playQueueByDirection("next", {trigger: "manual"});
   };
 
   setHandler("play", async () => {
@@ -1458,7 +1473,7 @@ async function resolvePlayableUrlById(id) {
   const levels = ["exhigh", "higher", "standard"];
   for (const level of levels) {
     try {
-      const res = await songsApi.getSongUrl(id, { level });
+      const res = await songsApi.getSongUrl(id, {level});
       const url = getSongUrlEntry(res)?.url || "";
       if (url) {
         playableUrlCache.set(cacheKey, url);
@@ -1479,7 +1494,7 @@ async function resolvePlayableUrlById(id) {
   }
 }
 
-async function waitAudioMetadata(media, { timeoutMs = 1200 } = {}) {
+async function waitAudioMetadata(media, {timeoutMs = 1200} = {}) {
   if (!media) return false;
   if (media.readyState >= 1) return true;
 
@@ -1498,9 +1513,19 @@ async function waitAudioMetadata(media, { timeoutMs = 1200 } = {}) {
     };
     const onReady = () => finish(true);
     const timer = window.setTimeout(() => finish(false), timeoutMs);
-    media.addEventListener("loadedmetadata", onReady, { once: true });
-    media.addEventListener("canplay", onReady, { once: true });
+    media.addEventListener("loadedmetadata", onReady, {once: true});
+    media.addEventListener("canplay", onReady, {once: true});
   });
+}
+
+function sanitizePlaybackStartSec(media, targetSec = 0) {
+  const target = Math.max(0, Number(targetSec) || 0);
+  const duration = Number(media?.duration || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return target;
+
+  const maxStart = Math.max(0, duration - 0.35);
+  if (maxStart <= 0) return 0;
+  return Math.min(target, maxStart);
 }
 
 async function prewarmCrossfadeDeck(reason = "unknown") {
@@ -1543,7 +1568,7 @@ async function prewarmCrossfadeDeck(reason = "unknown") {
   }
 }
 
-function stopCrossfade({ keepCoverOverlay = false } = {}) {
+function stopCrossfade({keepCoverOverlay = false} = {}) {
   if (crossfadeRafId) {
     cancelAnimationFrame(crossfadeRafId);
     crossfadeRafId = 0;
@@ -1576,13 +1601,13 @@ function clearCrossfadeCoverSoon() {
 }
 
 function completeCrossfadeByDeckSwap({
-  fromTrackId,
-  toTrackId,
-  mixOutStart,
-  mixInStart,
-  crossfadeDuration,
-  promotedStartSec,
-}) {
+                                       fromTrackId,
+                                       toTrackId,
+                                       mixOutStart,
+                                       mixInStart,
+                                       crossfadeDuration,
+                                       promotedStartSec,
+                                     }) {
   const oldActive = getActiveAudio();
   flipActiveDeck();
   const newActive = getActiveAudio();
@@ -1597,6 +1622,31 @@ function completeCrossfadeByDeckSwap({
   crossfadeActive = false;
   crossfadeVisualActive.value = false;
   clearCrossfadeCoverSoon();
+
+  // 补齐状态同步，防止 onPlay 被 isEventFromActiveDeck 过滤掉
+  playerStore.setPlaying(true);
+  setupMediaSessionHandlers({force: isIOSDevice.value});
+  startRhythmLoop();
+  updateMediaSessionPlaybackState();
+  requestAutomixWarmup("crossfade-complete");
+  // 重置，确保下一轮 crossfade 可以正常触发
+  crossfadeTriggeredForSongId = null;
+
+  if (newActive?.paused) {
+    newActive.play().catch(() => {
+      playerStore.setPlaying(false);
+    });
+  }
+  debugCrossfade("completeCrossfadeByDeckSwap", {
+    fromTrackId,
+    toTrackId,
+    promotedStartSec,
+    mixInStart,
+    mixOutStart,
+    crossfadeDuration,
+    activeDeck,
+    newActiveCurrentTime: Number(newActive?.currentTime || 0).toFixed(3),
+  });
 
   if (typeof console !== "undefined") {
     console.log("[Automix] crossfade complete", {
@@ -1614,6 +1664,8 @@ function completeCrossfadeByDeckSwap({
 async function getCrossfadeTargetIndex() {
   const queue = playerStore.playQueue || [];
   if (!queue.length || playerStore.currentQueueIndex < 0) return -1;
+  const currentIndex = playerStore.currentQueueIndex;
+  const sequenceMode = playerStore.playMode === PLAY_MODE.SEQUENCE;
 
   const analysis = getLastAutomixAnalysis();
   if (
@@ -1622,17 +1674,26 @@ async function getCrossfadeTargetIndex() {
     Number.isInteger(analysis.selectedQueueIndex) &&
     analysis.selectedQueueIndex >= 0
   ) {
-    return analysis.selectedQueueIndex;
+    const selected = analysis.selectedQueueIndex;
+    if (!sequenceMode || selected > currentIndex) {
+      return selected;
+    }
   }
 
-  return recommendNextQueueIndex(queue, playerStore.currentQueueIndex);
+  const suggested = await recommendNextQueueIndex(queue, currentIndex);
+  if (!sequenceMode || suggested > currentIndex) {
+    return suggested;
+  }
+
+  return currentIndex < queue.length - 1 ? currentIndex + 1 : -1;
 }
 
-async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec) {
+async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex = -1) {
   if (!targetSong?.id || !targetUrl) return;
 
   suppressTrackSwapAnimation.value = true;
   skipAudioResetOnNextSrcChange = true;
+  pendingPromotedStartSec = Math.max(0, Number(promotedStartSec || 0));
   playerStore.setTrack(
     {
       id: targetSong.id,
@@ -1648,9 +1709,16 @@ async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec) {
       url: targetUrl,
       mixProfile: targetSong.mixProfile || null,
     },
-    { autoplay: true, resetTime: false },
+    {autoplay: true, resetTime: false},
   );
-  playerStore.syncQueueIndexBySongId(targetSong.id);
+  if (pendingPromotedStartSec > 0) {
+    playerStore.setCurrentTimeMs(Math.floor(pendingPromotedStartSec * 1000));
+  }
+  if (Number.isInteger(targetIndex) && targetIndex >= 0) {
+    playerStore.setCurrentQueueIndex(targetIndex);
+  } else {
+    playerStore.syncQueueIndexBySongId(targetSong.id);
+  }
 }
 
 async function tryStartAutomixCrossfade(currentSec) {
@@ -1704,7 +1772,8 @@ async function tryStartAutomixCrossfade(currentSec) {
       .then((theme) => {
         if (theme) toTheme = theme;
       })
-      .catch(() => {});
+      .catch(() => {
+      });
 
     crossfadeActive = true;
     crossfadeVisualActive.value = true;
@@ -1718,8 +1787,22 @@ async function tryStartAutomixCrossfade(currentSec) {
       secondary.load();
     }
     await waitAudioMetadata(secondary);
-    secondary.currentTime = mixInStart;
+    const safeMixInStart = sanitizePlaybackStartSec(secondary, mixInStart);
+    secondary.currentTime = safeMixInStart;
     secondary.volume = 0;
+    debugCrossfade("crossfadeStart", {
+      fromTrackId: currentSongId,
+      toTrackId: String(targetSong?.id || ""),
+      currentQueueIndex: playerStore.currentQueueIndex,
+      targetQueueIndex: targetIndex,
+      playMode: playerStore.playMode,
+      transitionMixOutStart: mixOutStart,
+      transitionMixInStart: mixInStart,
+      safeMixInStart,
+      crossfadeDuration,
+      secondaryDuration: Number(secondary?.duration || 0),
+      prewarmedMatch,
+    });
 
     try {
       await secondary.play();
@@ -1746,18 +1829,25 @@ async function tryStartAutomixCrossfade(currentSec) {
       crossfadeCoverProgress.value = progress;
 
       if (progress >= 1) {
-        const promotedStartSec = secondary.currentTime || mixInStart;
+        const promotedStartSec = Number(secondary.currentTime || safeMixInStart || 0);
+        debugCrossfade("promoteCrossfadedTrack", {
+          fromTrackId: currentSongId,
+          toTrackId: String(targetSong?.id || ""),
+          promotedStartSec,
+          safeMixInStart,
+          secondaryCurrentTime: Number(secondary.currentTime || 0).toFixed(3),
+        });
         skipNextCoverThemePick = true;
         applyTheme(toTheme);
-        await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec);
         completeCrossfadeByDeckSwap({
           fromTrackId: currentSongId,
           toTrackId: targetSong.id,
           mixOutStart,
-          mixInStart,
+          mixInStart: safeMixInStart,
           crossfadeDuration,
           promotedStartSec,
         });
+        await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex);
         return;
       }
 
@@ -1892,8 +1982,10 @@ function togglePlay() {
   if (!active || !hasSong.value) return;
   if (crossfadeActive && idle) {
     if (active.paused) {
-      active.play().catch(() => {});
-      idle.play().catch(() => {});
+      active.play().catch(() => {
+      });
+      idle.play().catch(() => {
+      });
     } else {
       active.pause();
       idle.pause();
@@ -1901,7 +1993,8 @@ function togglePlay() {
     return;
   }
   if (active.paused) {
-    active.play().catch(() => {});
+    active.play().catch(() => {
+    });
   } else {
     active.pause();
   }
@@ -1961,7 +2054,7 @@ async function loadCurrentSongLyric(songId) {
   }
 
   try {
-    const { data: newData } = await songsApi.getLyricNew(id);
+    const {data: newData} = await songsApi.getLyricNew(id);
     const hasWordByWord = /\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(
       String(newData?.yrc?.lyric || ""),
     );
@@ -1969,11 +2062,11 @@ async function loadCurrentSongLyric(songId) {
       amllLyricLines.value = normalizeLyricPayloadToAmll(newData || {});
       return;
     }
-    const { data: normalData } = await songsApi.getLyric(id);
+    const {data: normalData} = await songsApi.getLyric(id);
     amllLyricLines.value = normalizeLyricPayloadToAmll(normalData || {});
   } catch {
     try {
-      const { data: normalData } = await songsApi.getLyric(id);
+      const {data: normalData} = await songsApi.getLyric(id);
       amllLyricLines.value = normalizeLyricPayloadToAmll(normalData || {});
     } catch {
       amllLyricLines.value = [];
@@ -2003,7 +2096,7 @@ function requestAutomixWarmup(reason = "unknown") {
     .then(() => prewarmCrossfadeDeck(reason))
     .catch(() => {
       if (typeof console !== "undefined") {
-        console.log("[Automix/Warmup] failed", { reason });
+        console.log("[Automix/Warmup] failed", {reason});
       }
     });
 }
@@ -2103,10 +2196,13 @@ async function resolveManualDirectionTargetIndex(direction = "next") {
 
   if (automixEnabled.value) {
     const suggestedIndex = await recommendNextQueueIndex(queue, safeCurrent);
+    const isForwardSequence = mode === PLAY_MODE.SEQUENCE
+      ? suggestedIndex > safeCurrent
+      : suggestedIndex !== safeCurrent;
     if (
       suggestedIndex >= 0 &&
       suggestedIndex < length &&
-      suggestedIndex !== safeCurrent
+      isForwardSequence
     ) {
       return suggestedIndex;
     }
@@ -2187,7 +2283,7 @@ async function tryManualSeamlessSwitch(direction = "next") {
 
     const promotedStartSec = Number(secondary.currentTime || 0);
     skipNextCoverThemePick = true;
-    await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec);
+    await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex);
     completeCrossfadeByDeckSwap({
       fromTrackId,
       toTrackId: targetSong.id,
@@ -2252,7 +2348,7 @@ function onTimeUpdate(event) {
 function onPlay(event) {
   if (!isEventFromActiveDeck(event)) return;
   playerStore.setPlaying(true);
-  setupMediaSessionHandlers({ force: isIOSDevice.value });
+  setupMediaSessionHandlers({force: isIOSDevice.value});
   startRhythmLoop();
   updateMediaSessionPlaybackState();
   requestAutomixWarmup("audio-play");
@@ -2260,6 +2356,8 @@ function onPlay(event) {
 
 function onPause(event) {
   if (!isEventFromActiveDeck(event)) return;
+  // ✅ crossfade 进行中或刚完成时，忽略来自 deck 切换产生的 pause 事件
+  if (crossfadeActive || crossfadePreparing) return;
   playerStore.setPlaying(false);
   stopRhythmLoop();
   updateMediaSessionPlaybackState();
@@ -2291,25 +2389,55 @@ async function onEnded(event) {
 
   if (playerStore.playMode === PLAY_MODE.SINGLE && hasSong.value) {
     active.currentTime = 0;
-    active.play().catch(() => {});
+    active.play().catch(() => {
+    });
     return;
   }
 
-  const played = await playQueueByDirection("next", { trigger: "ended" });
+  const played = await playQueueByDirection("next", {trigger: "ended"});
   if (!played) {
     playerStore.setPlaying(false);
   }
 }
 
 watch(
-  audioSrc,
+  currentSongUrl,
   async () => {
+    const nextSrc = String(currentSongUrl.value || "");
     const promotedByCrossfade = skipAudioResetOnNextSrcChange;
     skipAudioResetOnNextSrcChange = false;
+    debugCrossfade("audioSrcWatch", {
+      promotedByCrossfade,
+      nextAudioSrc: nextSrc.slice(0, 120),
+      pendingPromotedStartSec,
+      currentSongId: String(playerStore.currentSong?.id || ""),
+      activeDeck,
+      activeCurrentTime: Number(getActiveAudio()?.currentTime || 0).toFixed(3),
+    });
     if (!promotedByCrossfade) {
       stopCrossfade({ keepCoverOverlay: false });
     } else {
+      const promotedSec = pendingPromotedStartSec;
+      pendingPromotedStartSec = -1;
+      const active = getActiveAudio();
+      if (active && Number.isFinite(promotedSec) && promotedSec > 0) {
+        const drift = Math.abs((active.currentTime || 0) - promotedSec);
+        if (drift > 0.45) {
+          active.currentTime = promotedSec;
+          debugCrossfade("audioSrcWatchSeekCorrection", {
+            promotedSec,
+            drift,
+            correctedCurrentTime: Number(active.currentTime || 0).toFixed(3),
+          });
+        }
+      }
+      syncAudioVolume();
+      await ensurePlaybackState();
+      startRhythmLoop();
+      updateMediaSessionPlaybackState();
+      updateMediaSessionPositionState();
       suppressTrackSwapAnimation.value = false;
+      crossfadeTriggeredForSongId = null;
       return;
     }
     crossfadeTriggeredForSongId = null;
@@ -2338,12 +2466,18 @@ watch(
     }
     await nextTick();
     const active = getActiveAudio();
-    if (active && audioSrc.value && active.getAttribute("src") !== audioSrc.value) {
-      active.src = audioSrc.value;
-      active.load();
+    if (active) {
+      if (!nextSrc) {
+        active.pause();
+        active.removeAttribute("src");
+        active.load();
+      } else if (active.getAttribute("src") !== nextSrc) {
+        active.src = nextSrc;
+        active.load();
+      }
     }
     syncAudioVolume();
-    ensurePlaybackState();
+    await ensurePlaybackState();
     startRhythmLoop();
     if (promotedByCrossfade) {
       requestAnimationFrame(() => {
@@ -2358,7 +2492,7 @@ watch(
   () => playerStore.currentSong?.id,
   async (songId) => {
     closeMorePanel();
-    setupMediaSessionHandlers({ force: isIOSDevice.value });
+    setupMediaSessionHandlers({force: isIOSDevice.value});
     await loadDynamicCover(songId);
     await loadCurrentSongLyric(songId);
     amllAlbum.value = "";
@@ -2368,7 +2502,7 @@ watch(
     updateMediaSessionPositionState();
     requestAutomixWarmup("song-changed");
   },
-  { immediate: true },
+  {immediate: true},
 );
 
 watch(
@@ -2395,13 +2529,13 @@ watch(
     if (crossfadeActive || crossfadePreparing) return;
     pickThemeFromCover(nextCover);
   },
-  { immediate: true },
+  {immediate: true},
 );
 
 watch(
   () => playerStore.isPlaying,
   () => {
-    setupMediaSessionHandlers({ force: isIOSDevice.value });
+    setupMediaSessionHandlers({force: isIOSDevice.value});
     ensurePlaybackState();
     updateMediaSessionPlaybackState();
     if (playerStore.isPlaying) {
@@ -2433,7 +2567,7 @@ watch(
     () => playerStore.playMode,
   ],
   () => {
-    setupMediaSessionHandlers({ force: isIOSDevice.value });
+    setupMediaSessionHandlers({force: isIOSDevice.value});
     requestAutomixWarmup("queue-or-mode-changed");
   },
 );
@@ -2531,7 +2665,8 @@ onBeforeUnmount(() => {
   }
 
   if (audioContext) {
-    audioContext.close().catch(() => {});
+    audioContext.close().catch(() => {
+    });
     audioContext = null;
   }
 
@@ -2549,31 +2684,27 @@ onBeforeUnmount(() => {
   isolation: isolate;
   overflow: hidden;
   border: 1px solid rgba(var(--player-border), var(--player-border-alpha));
-  background:
-    radial-gradient(
-      120% 140% at 12% 12%,
-      rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.9)) 0%,
-      rgba(var(--player-glow), 0) 56%
-    ),
-    linear-gradient(
-      128deg,
-      rgba(var(--player-base), 0.88) 0%,
-      rgba(var(--player-accent), 0.94) 100%
-    );
-  background-size:
-    170% 180%,
-    100% 100%;
-  background-position:
-    2% 8%,
-    50% 50%;
+  background: radial-gradient(
+    120% 140% at 12% 12%,
+    rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.9)) 0%,
+    rgba(var(--player-glow), 0) 56%
+  ),
+  linear-gradient(
+    128deg,
+    rgba(var(--player-base), 0.88) 0%,
+    rgba(var(--player-accent), 0.94) 100%
+  );
+  background-size: 170% 180%,
+  100% 100%;
+  background-position: 2% 8%,
+  50% 50%;
   box-shadow: 0 16px 44px rgba(15, 23, 42, var(--player-shadow-alpha));
   backdrop-filter: blur(22px);
   filter: saturate(var(--player-sat)) brightness(var(--player-brightness));
-  transition:
-    background 320ms ease,
-    border-color 240ms ease,
-    filter 180ms ease,
-    box-shadow 200ms ease;
+  transition: background 320ms ease,
+  border-color 240ms ease,
+  filter 180ms ease,
+  box-shadow 200ms ease;
   animation: player-shell-drift 18s ease-in-out infinite alternate;
 }
 
@@ -2582,11 +2713,9 @@ onBeforeUnmount(() => {
 }
 
 .player-shell-crossfading {
-  box-shadow:
-    0 20px 58px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.16)),
-    0 0 0 1px rgba(var(--player-fg), 0.22);
-  filter: saturate(calc(var(--player-sat) + 0.18))
-  brightness(calc(var(--player-brightness) + 0.08));
+  box-shadow: 0 20px 58px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.16)),
+  0 0 0 1px rgba(var(--player-fg), 0.22);
+  filter: saturate(calc(var(--player-sat) + 0.18)) brightness(calc(var(--player-brightness) + 0.08));
   animation: player-shell-drift 8s ease-in-out infinite alternate;
 }
 
@@ -2603,23 +2732,21 @@ onBeforeUnmount(() => {
   inset: -30%;
   pointer-events: none;
   z-index: 0;
-  transition:
-    opacity 220ms ease,
-    transform 240ms ease;
+  transition: opacity 220ms ease,
+  transform 240ms ease;
 }
 
 .player-shell::before {
-  background:
-    radial-gradient(
-      34% 36% at 24% 30%,
-      rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.8)) 0%,
-      rgba(var(--player-glow), 0) 72%
-    ),
-    radial-gradient(
-      30% 34% at 76% 64%,
-      rgba(var(--player-accent), calc(var(--player-glow-alpha) * 0.64)) 0%,
-      rgba(var(--player-accent), 0) 76%
-    );
+  background: radial-gradient(
+    34% 36% at 24% 30%,
+    rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.8)) 0%,
+    rgba(var(--player-glow), 0) 72%
+  ),
+  radial-gradient(
+    30% 34% at 76% 64%,
+    rgba(var(--player-accent), calc(var(--player-glow-alpha) * 0.64)) 0%,
+    rgba(var(--player-accent), 0) 76%
+  );
   opacity: 0.78;
   transform: scale(var(--player-aura-scale));
   mix-blend-mode: screen;
@@ -2692,65 +2819,64 @@ onBeforeUnmount(() => {
 }
 
 .player-side-menu {
-	display: grid;
-	place-items: center;
+  display: grid;
+  place-items: center;
 }
 
 .more-dialog-backdrop {
-	background: transparent;
+  background: transparent;
 }
 
 .more-dialog-panel {
-	position: fixed;
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	padding: 0.55rem;
-	border-radius: 14px;
-	border: 1px solid rgba(var(--more-border), 0.24);
-	background: rgba(var(--more-bg), 0.94);
-	color: rgba(var(--more-fg), 0.95);
-	box-shadow: 0 12px 30px rgba(15, 23, 42, 0.28);
-	backdrop-filter: blur(16px);
-	z-index: 1002;
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--more-border), 0.24);
+  background: rgba(var(--more-bg), 0.94);
+  color: rgba(var(--more-fg), 0.95);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(16px);
+  z-index: 1002;
 }
 
 .more-dialog-btn {
-	border: 1px solid rgba(var(--more-border), 0.26);
-	color: rgba(var(--more-fg), 0.94);
-	background: rgba(var(--more-fg), 0.08);
+  border: 1px solid rgba(var(--more-border), 0.26);
+  color: rgba(var(--more-fg), 0.94);
+  background: rgba(var(--more-fg), 0.08);
 }
 
 .more-dialog-btn:hover {
-	background: rgba(var(--more-fg), 0.14);
+  background: rgba(var(--more-fg), 0.14);
 }
 
 .more-dialog-enter-active,
 .more-dialog-leave-active {
-	transition: opacity 0.18s ease;
+  transition: opacity 0.18s ease;
 }
 
 .more-dialog-enter-from,
 .more-dialog-leave-to {
-	opacity: 0;
+  opacity: 0;
 }
 
 .more-dialog-enter-active .more-dialog-panel,
 .more-dialog-leave-active .more-dialog-panel {
-	transition:
-		opacity 0.2s ease,
-		transform 0.2s ease;
+  transition: opacity 0.2s ease,
+  transform 0.2s ease;
 }
 
 .more-dialog-enter-from .more-dialog-panel,
 .more-dialog-leave-to .more-dialog-panel {
-	opacity: 0;
-	transform: translateY(8px) scale(0.98);
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
 }
 
 .player-range {
-	background: rgba(var(--player-fg), 0.2);
-	accent-color: rgba(var(--player-main-bg), 0.95);
+  background: rgba(var(--player-fg), 0.2);
+  accent-color: rgba(var(--player-main-bg), 0.95);
 }
 
 .cover-stack {
@@ -2774,9 +2900,8 @@ onBeforeUnmount(() => {
 
 .track-swap-enter-active,
 .track-swap-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.24s ease;
+  transition: opacity 0.2s ease,
+  transform 0.24s ease;
 }
 
 .track-swap-enter-from {
@@ -2812,9 +2937,8 @@ onBeforeUnmount(() => {
 
 .playlist-dialog-enter-active .playlist-dialog-panel,
 .playlist-dialog-leave-active .playlist-dialog-panel {
-  transition:
-    transform 0.22s ease,
-    opacity 0.22s ease;
+  transition: transform 0.22s ease,
+  opacity 0.22s ease;
 }
 
 .playlist-dialog-enter-from .playlist-dialog-panel,
@@ -2878,14 +3002,12 @@ onBeforeUnmount(() => {
 
 @keyframes player-shell-drift {
   0% {
-    background-position:
-      2% 8%,
-      50% 50%;
+    background-position: 2% 8%,
+    50% 50%;
   }
   100% {
-    background-position:
-      26% -2%,
-      50% 50%;
+    background-position: 26% -2%,
+    50% 50%;
   }
 }
 
@@ -2894,8 +3016,7 @@ onBeforeUnmount(() => {
     transform: translate3d(-2.2%, -1.6%, 0) scale(var(--player-aura-scale));
   }
   100% {
-    transform: translate3d(2.4%, 1.8%, 0)
-    scale(calc(var(--player-aura-scale) * 1.06));
+    transform: translate3d(2.4%, 1.8%, 0) scale(calc(var(--player-aura-scale) * 1.06));
   }
 }
 

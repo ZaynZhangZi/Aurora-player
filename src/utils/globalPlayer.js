@@ -129,7 +129,13 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
     }
 
     playerStore.setTrack(nextTrack, {autoplay, resetTime: true})
-    playerStore.syncQueueIndexBySongId(id)
+    const queueCurrent = playerStore.playQueue[playerStore.currentQueueIndex]
+    if (String(queueCurrent?.id || '') !== String(id)) {
+      const matchedIndex = playerStore.playQueue.findIndex(item => String(item.id) === String(id))
+      if (matchedIndex >= 0) {
+        playerStore.setCurrentQueueIndex(matchedIndex)
+      }
+    }
     const inQueue = playerStore.playQueue.some(item => String(item.id) === String(id))
 
     if (!inQueue || playerStore.currentQueueIndex < 0 || !playerStore.playQueue.length) {
@@ -197,43 +203,57 @@ async function resolveNextIndex({direction = 'next', trigger = 'manual'} = {}) {
 
   const currentIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : 0
   const mode = trigger === 'ended' ? playerStore.playMode : (playerStore.playMode === PLAY_MODE.SINGLE ? PLAY_MODE.SEQUENCE : playerStore.playMode)
+  const normalizedCurrentIndex = Math.min(Math.max(currentIndex, 0), length - 1)
 
-  if (mode === PLAY_MODE.SINGLE) return Math.min(Math.max(currentIndex, 0), length - 1)
+  if (mode === PLAY_MODE.SINGLE) return normalizedCurrentIndex
 
   if (playerStore.automixEnabled && direction !== 'prev') {
-    const suggestedIndex = await recommendNextQueueIndex(playerStore.playQueue, Math.min(Math.max(currentIndex, 0), length - 1))
-    if (suggestedIndex >= 0 && suggestedIndex < length && suggestedIndex !== currentIndex) {
+    const suggestedIndex = await recommendNextQueueIndex(playerStore.playQueue, normalizedCurrentIndex)
+    const isForwardSequence = mode === PLAY_MODE.SEQUENCE
+      ? suggestedIndex > normalizedCurrentIndex
+      : suggestedIndex !== normalizedCurrentIndex
+    if (suggestedIndex >= 0 && suggestedIndex < length && isForwardSequence) {
       return suggestedIndex
     }
   }
 
   if (mode === PLAY_MODE.SHUFFLE) {
-    return pickRandomIndex(length, Math.min(Math.max(currentIndex, 0), length - 1))
+    return pickRandomIndex(length, normalizedCurrentIndex)
   }
 
   if (direction === 'prev') {
-    return currentIndex > 0 ? currentIndex - 1 : -1
+    return normalizedCurrentIndex > 0 ? normalizedCurrentIndex - 1 : -1
   }
 
-  return currentIndex < length - 1 ? currentIndex + 1 : -1
+  return normalizedCurrentIndex < length - 1 ? normalizedCurrentIndex + 1 : -1
 }
 
 export async function playQueueByDirection(direction = 'next', {trigger = 'manual'} = {}) {
   const playerStore = usePlayerStore()
+  const previousIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   const nextIndex = await resolveNextIndex({direction, trigger})
   if (nextIndex < 0) return false
   const targetSong = playerStore.playQueue[nextIndex]
   if (!targetSong?.id) return false
   playerStore.setCurrentQueueIndex(nextIndex)
-  return playSongById(targetSong, {autoplay: true})
+  const ok = await playSongById(targetSong, {autoplay: true})
+  if (!ok && previousIndex >= 0) {
+    playerStore.setCurrentQueueIndex(previousIndex)
+  }
+  return ok
 }
 
 export async function playQueueByIndex(index, {autoplay = true} = {}) {
   const playerStore = usePlayerStore()
+  const previousIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   const nextIndex = Number(index)
   if (!Number.isInteger(nextIndex)) return false
   const targetSong = playerStore.playQueue[nextIndex]
   if (!targetSong?.id) return false
   playerStore.setCurrentQueueIndex(nextIndex)
-  return playSongById(targetSong, {autoplay})
+  const ok = await playSongById(targetSong, {autoplay})
+  if (!ok && previousIndex >= 0) {
+    playerStore.setCurrentQueueIndex(previousIndex)
+  }
+  return ok
 }
