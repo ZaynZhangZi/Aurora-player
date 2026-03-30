@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [vue(), tailwindcss(), ...(mode === "development" ? [vueDevTools()] : [])],
+		build: {
+			esbuild: mode === "production" ? { drop: ["console", "debugger"] } : {},
+		},
 		resolve: {
 			alias: {
 				"@": fileURLToPath(new URL("./src", import.meta.url)),
