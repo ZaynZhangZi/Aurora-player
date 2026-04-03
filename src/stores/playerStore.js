@@ -57,6 +57,7 @@ export const usePlayerStore = defineStore('global-player', {
     playMode: PLAY_MODE.SEQUENCE,
     playlistPanelOpen: false,
     automixEnabled: true,
+    lyricTranslateEnabled: false,
   }),
 
   getters: {
@@ -172,11 +173,19 @@ export const usePlayerStore = defineStore('global-player', {
     toggleAutomixEnabled() {
       this.automixEnabled = !this.automixEnabled
     },
+
+    setLyricTranslateEnabled(value) {
+      this.lyricTranslateEnabled = Boolean(value)
+    },
+
+    toggleLyricTranslateEnabled() {
+      this.lyricTranslateEnabled = !this.lyricTranslateEnabled
+    },
   },
 
   persist: {
     key: 'global-player-store',
     storage: localStorage,
-    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode', 'automixEnabled'],
+    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode', 'automixEnabled', 'lyricTranslateEnabled'],
   },
 })

@@ -3,6 +3,7 @@
  * @description: 歌曲接口
  */
 import apiClient from "@/axios/apiClient.js";
+import requestLocal from "@/axios/myBackend.js";
 import { useCounterStore } from "@/stores/userStores.js";
 
 export const songsApi = {
@@ -34,6 +35,10 @@ export const songsApi = {
 
 	getLyricNew(id) {
 		return apiClient.get(`/lyric/new?id=${id}`);
+	},
+
+	getLyricSearch(params = {}) {
+		return requestLocal.get('/api/lyrics/search', { params });
 	},
 
 	//搜索歌曲

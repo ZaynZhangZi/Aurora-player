@@ -40,6 +40,18 @@ function parseLrcRows(raw = "") {
 		if (!stamps.length) continue;
 
 		const text = row.replace(/\[[^\]]+\]/g, "").trim();
+		if (!text) continue;
+
+		const hasInlineWordTiming = /\]\s*[^[]+\[/.test(row);
+		if (hasInlineWordTiming) {
+			const firstStamp = stamps[0];
+			result.push({
+				time: parseTimestampToMs(firstStamp[1], firstStamp[2], firstStamp[3]),
+				text,
+			});
+			continue;
+		}
+
 		for (const stamp of stamps) {
 			result.push({
 				time: parseTimestampToMs(stamp[1], stamp[2], stamp[3]),
@@ -51,7 +63,24 @@ function parseLrcRows(raw = "") {
 	return result.sort((a, b) => a.time - b.time);
 }
 
-function parseYrc(raw = "") {
+function resolveLyricByTime(map, targetTime) {
+	if (!(map instanceof Map) || !map.size) return "";
+	if (map.has(targetTime)) return map.get(targetTime) || "";
+
+	let bestText = "";
+	let bestDelta = Number.POSITIVE_INFINITY;
+	for (const [time, text] of map.entries()) {
+		const delta = Math.abs(Number(time) - Number(targetTime));
+		if (delta < bestDelta) {
+			bestDelta = delta;
+			bestText = text;
+		}
+	}
+
+	return bestDelta <= 900 ? bestText : "";
+}
+
+function parseYrc(raw = "", translatedByStart = new Map(), romanByStart = new Map()) {
 	if (!raw) return [];
 	const rows = normalizeLyricText(raw).split("\n");
 	const result = [];
@@ -111,8 +140,8 @@ function parseYrc(raw = "") {
 			startTime: Math.min(lineStart, wordStart),
 			endTime: Math.max(lineStart + fallbackDuration, wordEnd),
 			words,
-			translatedLyric: "",
-			romanLyric: "",
+			translatedLyric: resolveLyricByTime(translatedByStart, lineStart),
+			romanLyric: resolveLyricByTime(romanByStart, lineStart),
 			isBG: false,
 			isDuet: false,
 		});
@@ -169,11 +198,13 @@ function toAmllFromLrc(main = "", translated = "", roman = "") {
 
 export function normalizeLyricPayloadToAmll(payload = {}) {
 	const yrcText = payload?.yrc?.lyric || payload?.yrc || "";
-	const yrcLines = parseYrc(yrcText);
+	const translated = payload?.tlyric?.lyric || "";
+	const roman = payload?.romalrc?.lyric || "";
+	const translatedByStart = mapByStartTime(translated);
+	const romanByStart = mapByStartTime(roman);
+	const yrcLines = parseYrc(yrcText, translatedByStart, romanByStart);
 	if (yrcLines.length) return yrcLines;
 
 	const lrcText = payload?.lrc?.lyric || payload?.lyric || "";
-	const translated = payload?.tlyric?.lyric || "";
-	const roman = payload?.romalrc?.lyric || "";
 	return toAmllFromLrc(lrcText, translated, roman);
 }
