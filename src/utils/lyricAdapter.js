@@ -40,7 +40,6 @@ function parseLrcRows(raw = "") {
 		if (!stamps.length) continue;
 
 		const text = row.replace(/\[[^\]]+\]/g, "").trim();
-		if (!text) continue;
 
 		const hasInlineWordTiming = /\]\s*[^[]+\[/.test(row);
 		if (hasInlineWordTiming) {
@@ -168,11 +167,10 @@ function toAmllFromLrc(main = "", translated = "", roman = "") {
 	const lines = [];
 	for (let i = 0; i < rows.length; i += 1) {
 		const current = rows[i];
-		if (!hasMeaningfulText(current.text)) continue;
-
 		const next = rows[i + 1];
 		const endTime =
 			next && next.time > current.time ? next.time : current.time + 2600;
+		if (!hasMeaningfulText(current.text)) continue;
 
 		lines.push({
 			words: [

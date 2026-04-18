@@ -1994,12 +1994,15 @@ async function ensurePlaybackState() {
   if (playerStore.autoPlayOnLoad || playerStore.isPlaying) {
     try {
       await active.play();
+      // 某些浏览器/切源时序下 onPlay 可能延后，先与真实播放态同步，避免按钮图标滞后
+      playerStore.setPlaying(true);
       playerStore.autoPlayOnLoad = false;
     } catch {
       playerStore.setPlaying(false);
     }
   } else {
     active.pause();
+    playerStore.setPlaying(false);
   }
 }
 
@@ -2590,6 +2593,7 @@ async function tryManualSeamlessSwitch(direction = "next") {
 
     const promotedStartSec = Number(secondary.currentTime || 0);
     skipNextCoverThemePick = true;
+    pickThemeFromCover(resolveSongCover(targetSong));
     await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex);
     completeCrossfadeByDeckSwap({
       fromTrackId,
