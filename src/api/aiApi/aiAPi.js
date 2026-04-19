@@ -27,7 +27,7 @@ export const aiAPi = {
 						Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
 						"Content-Type": "application/json",
 					},
-					timeout: Number(import.meta.env.VITE_API_TIMEOUT || 10000),
+					timeout: Number(import.meta.env.VITE_DEEPSEEK_TIMEOUT || 60000),
 				},
 			);
 		}

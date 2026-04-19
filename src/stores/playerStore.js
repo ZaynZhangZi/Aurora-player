@@ -6,6 +6,13 @@ export const PLAY_MODE = {
   SHUFFLE: 'shuffle',
 }
 
+function normalizeCoverUrlProtocol(url = '') {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (/^\/\//.test(raw)) return `https:${raw}`
+  return raw.replace(/^http:\/\//i, 'https://')
+}
+
 function normalizeQueueItem(song) {
   const songDurationSec = Number(song?.dt) / 1000
   const durationCandidate = song?.mixProfile?.duration ?? song?.duration ?? songDurationSec
@@ -32,7 +39,7 @@ function normalizeQueueItem(song) {
     id: song?.id ?? null,
     name: song?.name || '',
     artists: song?.artists || song?.ar || [],
-    cover: song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || '',
+    cover: normalizeCoverUrlProtocol(song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || ''),
     url: song?.url || '',
     mixProfile,
   }
@@ -71,7 +78,7 @@ export const usePlayerStore = defineStore('global-player', {
         id: song?.id ?? null,
         name: song?.name || '',
         artists: song?.artists || [],
-        cover: song?.cover || '',
+        cover: normalizeCoverUrlProtocol(song?.cover || ''),
         url: song?.url || '',
         mixProfile: song?.mixProfile || null,
       }

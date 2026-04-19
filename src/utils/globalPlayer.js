@@ -9,12 +9,21 @@ import {
 const preloadedSongUrlCache = new Map()
 let warmupToken = 0
 
+function normalizeCoverUrlProtocol(url = '') {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (/^\/\//.test(raw)) return `https:${raw}`
+  return raw.replace(/^http:\/\//i, 'https://')
+}
+
 function resolveArtists(song, detail) {
   return song?.artists || song?.ar || detail?.ar || detail?.artists || []
 }
 
 function resolveCover(song, detail) {
-  return song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || detail?.al?.picUrl || detail?.album?.picUrl || ''
+  return normalizeCoverUrlProtocol(
+    song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || detail?.al?.picUrl || song?.album?.picUrl || detail?.album?.picUrl || ''
+  )
 }
 
 function resolveName(song, detail) {
