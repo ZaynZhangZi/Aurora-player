@@ -216,22 +216,19 @@ async function resolveNextIndex({direction = 'next', trigger = 'manual'} = {}) {
 
   if (mode === PLAY_MODE.SINGLE) return normalizedCurrentIndex
 
-  if (playerStore.automixEnabled && direction !== 'prev') {
+  if (direction === 'prev') {
+    return normalizedCurrentIndex > 0 ? normalizedCurrentIndex - 1 : -1
+  }
+
+  if (playerStore.automixEnabled) {
     const suggestedIndex = await recommendNextQueueIndex(playerStore.playQueue, normalizedCurrentIndex)
-    const isForwardSequence = mode === PLAY_MODE.SEQUENCE
-      ? suggestedIndex > normalizedCurrentIndex
-      : suggestedIndex !== normalizedCurrentIndex
-    if (suggestedIndex >= 0 && suggestedIndex < length && isForwardSequence) {
+    if (suggestedIndex >= 0 && suggestedIndex < length && suggestedIndex !== normalizedCurrentIndex) {
       return suggestedIndex
     }
   }
 
   if (mode === PLAY_MODE.SHUFFLE) {
     return pickRandomIndex(length, normalizedCurrentIndex)
-  }
-
-  if (direction === 'prev') {
-    return normalizedCurrentIndex > 0 ? normalizedCurrentIndex - 1 : -1
   }
 
   return normalizedCurrentIndex < length - 1 ? normalizedCurrentIndex + 1 : -1

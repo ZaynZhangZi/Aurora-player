@@ -584,6 +584,8 @@ let playerResizeObserver = null;
 let themePickToken = 0;
 let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
+let visibilityChangeHandler = null;
+let backgroundCheckTimer = null;
 
 const themeBaseRgb = ref([38, 56, 98]);
 const themeAccentRgb = ref([78, 114, 176]);
@@ -2302,9 +2304,9 @@ function extractLyricPayloadFromSearchResult(raw = null) {
   return null;
 }
 
-async function tryLoadLyricFromSearch(songId) {
-  const title = String(songName.value || "").trim();
-  const artist = String(normalizedArtistList.value?.[0]?.name || "").trim();
+async function tryLoadLyricFromSearch(songId, title = "", artist = "") {
+  if (!title) title = String(songName.value || "").trim();
+  if (!artist) artist = String(normalizedArtistList.value?.[0]?.name || "").trim();
   const keyword = [title, artist].filter(Boolean).join("-");
 
   try {
@@ -2329,11 +2331,20 @@ async function loadCurrentSongLyric(songId) {
     return;
   }
 
-  let lyricPayload = await tryLoadLyricFromSearch(id);
+  const currentSong = playerStore.currentSong;
+  const snapshotTitle = String(currentSong?.name || "").trim();
+  const snapshotArtist = String(
+    (currentSong?.artists || [])[0]?.name || "",
+  ).trim();
+
+  let lyricPayload = await tryLoadLyricFromSearch(id, snapshotTitle, snapshotArtist);
+  if (requestToken !== lyricLoadToken) return;
 
   if (!hasLyricText(lyricPayload || {})) {
+    if (requestToken !== lyricLoadToken) return;
     try {
       const {data: newData} = await songsApi.getLyricNew(id);
+      if (requestToken !== lyricLoadToken) return;
       const hasWordByWord = /\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(
         String(newData?.yrc?.lyric || ""),
       );
@@ -2341,11 +2352,14 @@ async function loadCurrentSongLyric(songId) {
         lyricPayload = newData || {};
       } else {
         const {data: normalData} = await songsApi.getLyric(id);
+        if (requestToken !== lyricLoadToken) return;
         lyricPayload = normalData || {};
       }
     } catch {
+      if (requestToken !== lyricLoadToken) return;
       try {
         const {data: normalData} = await songsApi.getLyric(id);
+        if (requestToken !== lyricLoadToken) return;
         lyricPayload = normalData || {};
       } catch {
         lyricPayload = null;
@@ -2804,7 +2818,7 @@ watch(
   async (songId) => {
     closeMorePanel();
     setupMediaSessionHandlers({force: isIOSDevice.value});
-    await loadDynamicCover(songId);
+    loadDynamicCover(songId);
     loadCurrentSongLyric(songId);
     amllAlbum.value = "";
     amllHideLyricView.value = false;
@@ -2912,6 +2926,36 @@ onMounted(() => {
   }
   window.addEventListener("resize", updatePlayerSpaceVar);
 
+  visibilityChangeHandler = () => {
+    if (typeof document === "undefined") return;
+    if (document.hidden) {
+      if (backgroundCheckTimer) clearInterval(backgroundCheckTimer);
+      const active = getActiveAudio();
+      if (!active) return;
+      backgroundCheckTimer = setInterval(() => {
+        if (document.hidden && playerStore.isPlaying && active) {
+          const currentTime = Number(active.currentTime || 0);
+          const duration = Number(active.duration || 0);
+          if (duration > 0 && currentTime >= duration - 0.2) {
+            onEnded({target: active});
+          }
+        }
+      }, 500);
+      return;
+    }
+    if (backgroundCheckTimer) {
+      clearInterval(backgroundCheckTimer);
+      backgroundCheckTimer = null;
+    }
+    const active = getActiveAudio();
+    if (!active || !hasSong.value) return;
+    const shouldPlay = playerStore.isPlaying || playerStore.autoPlayOnLoad;
+    if (shouldPlay && active.paused) {
+      active.play().catch(() => {});
+    }
+  };
+  document.addEventListener("visibilitychange", visibilityChangeHandler);
+
   if (
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function"
@@ -2993,6 +3037,14 @@ onBeforeUnmount(() => {
     playerResizeObserver = null;
   }
   window.removeEventListener("resize", updatePlayerSpaceVar);
+  if (visibilityChangeHandler) {
+    document.removeEventListener("visibilitychange", visibilityChangeHandler);
+    visibilityChangeHandler = null;
+  }
+  if (backgroundCheckTimer) {
+    clearInterval(backgroundCheckTimer);
+    backgroundCheckTimer = null;
+  }
 });
 </script>
 
