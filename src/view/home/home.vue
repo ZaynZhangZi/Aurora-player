@@ -907,7 +907,6 @@ function normalizeReleaseNoteItem(item, index = 0) {
     content,
     version: item?.version || item?.tag || item?.release || '',
     highlights,
-    highlights,
     bugFixes,
     knownIssues,
     dateText: Number.isFinite(ts) && ts > 0 ? new Date(ts).toLocaleDateString() : '-',
