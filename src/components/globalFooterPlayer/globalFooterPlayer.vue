@@ -1995,14 +1995,13 @@ async function ensurePlaybackState() {
   const active = getActiveAudio();
   if (!active) return;
   const shouldPlay = playerStore.isPlaying || playerStore.autoPlayOnLoad;
-  // 无论成功失败，立即清除 autoPlayOnLoad 防止后续调用重复触发
-  playerStore.autoPlayOnLoad = false;
   if (shouldPlay) {
     try {
       await active.play();
       playerStore.setPlaying(true);
+      playerStore.autoPlayOnLoad = false;
     } catch {
-      playerStore.setPlaying(false);
+      // play 失败不清除 autoPlayOnLoad，让下次 canplay 时重试
     }
   } else {
     active.pause();
@@ -2081,8 +2080,10 @@ function onAmllLineClick(event) {
   playerStore.setCurrentTimeMs(startTime);
 }
 
-function containsCjk(text = "") {
-  return /[\u3400-\u9fff]/u.test(String(text));
+function isChineseOnly(text = "") {
+  const meaningful = String(text).replace(/[\s\d\p{P}\p{S}a-zA-Z]/gu, "");
+  if (!meaningful) return false;
+  return /^[\u3400-\u9fff\u{20000}-\u{2a6df}\u{2a700}-\u{2ebef}]+$/u.test(meaningful);
 }
 
 function parseTimestampToMs(min, sec, frac = "") {
@@ -2203,14 +2204,34 @@ function parseTranslatedLines(rawText = "", expectedCount = 0) {
 async function attachAiTranslationIfNeeded(payload = {}, songId) {
   if (!lyricTranslateEnabled.value) return payload;
 
-  const existingTranslated = String(payload?.tlyric?.lyric || "").trim();
-  if (existingTranslated) return payload;
-
   const rows = collectLyricRowsForTranslate(payload);
   if (!rows.length) return payload;
 
   const sourceText = rows.map((row) => row.text).join("\n");
-  if (!sourceText || containsCjk(sourceText)) return payload;
+  if (!sourceText || isChineseOnly(sourceText)) return payload;
+
+  const existingTlyric = String(payload?.tlyric?.lyric || "").trim();
+  const existingMap = new Map();
+  if (existingTlyric) {
+    for (const line of existingTlyric.split(/\r?\n/)) {
+      const match = line.match(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\](.*)/);
+      if (match) {
+        const t = parseTimestampToMs(match[1], match[2], match[3]);
+        const text = String(match[4] || "").trim();
+        if (text) existingMap.set(t, text);
+      }
+    }
+  }
+
+  const missingRows = rows.filter((row) => {
+    if (existingMap.has(row.timeMs)) return false;
+    for (const [t] of existingMap) {
+      if (Math.abs(t - row.timeMs) <= 900) return false;
+    }
+    return true;
+  });
+
+  if (!missingRows.length) return payload;
 
   const cacheKey = String(songId || payload?.songId || "");
   if (cacheKey && lyricTranslationCache.has(cacheKey)) {
@@ -2223,7 +2244,7 @@ async function attachAiTranslationIfNeeded(payload = {}, songId) {
     };
   }
 
-  const linesToTranslate = rows.slice(0, 120).map((row) => row.text);
+  const linesToTranslate = missingRows.slice(0, 120).map((row) => row.text);
   const prompt = [
     "请把下面歌词逐行翻译成简体中文。",
     "要求：",
@@ -2243,23 +2264,30 @@ async function attachAiTranslationIfNeeded(payload = {}, songId) {
     );
     if (!translatedLines.length) return payload;
 
-    const alignedLines = rows.map((_, index) => {
-      if (index >= linesToTranslate.length) return "";
-      return String(translatedLines[index] || "").trim();
+    const aiMap = new Map();
+    missingRows.forEach((row, index) => {
+      if (index < translatedLines.length) {
+        const text = String(translatedLines[index] || "").trim();
+        if (text) aiMap.set(row.timeMs, text);
+      }
     });
 
-    const translatedLrc = rows
-      .map((row, index) => `${toLrcTimestamp(row.timeMs)}${alignedLines[index] || ""}`)
-      .join("\n");
+    const mergedLines = rows.map((row) => {
+      const existing = existingMap.get(row.timeMs)
+        || [...existingMap.entries()].find(([t]) => Math.abs(t - row.timeMs) <= 900)?.[1];
+      const ai = aiMap.get(row.timeMs);
+      return `${toLrcTimestamp(row.timeMs)}${existing || ai || ""}`;
+    });
 
-    if (!translatedLrc.trim()) return payload;
-    if (cacheKey) lyricTranslationCache.set(cacheKey, translatedLrc);
+    const mergedLrc = mergedLines.join("\n");
+    if (!mergedLrc.trim()) return payload;
+    if (cacheKey) lyricTranslationCache.set(cacheKey, mergedLrc);
 
     return {
       ...payload,
       tlyric: {
         ...(payload?.tlyric || {}),
-        lyric: translatedLrc,
+        lyric: mergedLrc,
       },
     };
   } catch {
@@ -2380,12 +2408,41 @@ async function loadCurrentSongLyric(songId) {
   amllLyricLines.value = baseLines;
 
   if (!lyricTranslateEnabled.value) return;
-  if (String(lyricPayload?.tlyric?.lyric || "").trim()) return;
+
+  const hasMissingTranslation = baseLines.some(
+    (line) => line.words?.some((w) => w.word?.trim()) && !line.translatedLyric?.trim(),
+  );
+  if (!hasMissingTranslation) return;
+
+  const rows = collectLyricRowsForTranslate(lyricPayload);
+  const sourceText = rows.map((row) => row.text).join("\n");
+  const needsTranslation = rows.length > 0 && sourceText && !isChineseOnly(sourceText);
+
+  if (!needsTranslation) return;
+
+  const cacheKey = String(id || "");
+  if (cacheKey && lyricTranslationCache.has(cacheKey)) {
+    const cachedPayload = {
+      ...lyricPayload,
+      tlyric: { ...(lyricPayload?.tlyric || {}), lyric: lyricTranslationCache.get(cacheKey) || "" },
+    };
+    amllLyricLines.value = normalizeLyricPayloadToAmll(cachedPayload);
+    return;
+  }
+
+  amllLyricLines.value = baseLines.map((line) => {
+    if (line.translatedLyric?.trim()) return line;
+    if (!line.words?.some((w) => w.word?.trim())) return line;
+    return { ...line, translatedLyric: "正在翻译..." };
+  });
 
   Promise.resolve().then(async () => {
     const translatedPayload = await attachAiTranslationIfNeeded(lyricPayload, id);
     if (requestToken !== lyricLoadToken) return;
-    if (translatedPayload === lyricPayload) return;
+    if (translatedPayload === lyricPayload) {
+      amllLyricLines.value = baseLines;
+      return;
+    }
 
     const translatedLines = normalizeLyricPayloadToAmll(translatedPayload);
     if (!translatedLines.length) return;
@@ -2651,6 +2708,9 @@ function onLoadedMetadata() {
   syncDurationFromAudio();
   syncAudioVolume();
   scheduleMediaSessionPositionStateUpdate();
+  if (playerStore.autoPlayOnLoad) {
+    ensurePlaybackState();
+  }
 }
 
 function onDurationChange() {
@@ -2864,7 +2924,14 @@ watch(
   () => playerStore.isPlaying,
   () => {
     setupMediaSessionHandlers({force: isIOSDevice.value});
-    ensurePlaybackState();
+    const active = getActiveAudio();
+    if (active) {
+      if (playerStore.isPlaying && active.paused && active.src) {
+        active.play().catch(() => {});
+      } else if (!playerStore.isPlaying && !active.paused) {
+        active.pause();
+      }
+    }
     updateMediaSessionPlaybackState();
     if (playerStore.isPlaying) {
       startRhythmLoop();
