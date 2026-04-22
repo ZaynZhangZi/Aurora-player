@@ -193,6 +193,18 @@ export const usePlayerStore = defineStore('global-player', {
   persist: {
     key: 'global-player-store',
     storage: localStorage,
-    paths: ['currentSong', 'volume', 'playQueue', 'currentQueueIndex', 'playMode', 'automixEnabled', 'lyricTranslateEnabled'],
+    paths: [
+      'currentSong',
+      'volume',
+      'playQueue',
+      'currentQueueIndex',
+      'playMode',
+      'automixEnabled',
+      'lyricTranslateEnabled',
+    ],
+    afterHydrate(ctx) {
+      ctx.store.isPlaying = false
+      ctx.store.autoPlayOnLoad = false
+    },
   },
 })

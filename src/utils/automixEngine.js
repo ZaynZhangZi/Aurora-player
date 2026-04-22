@@ -357,6 +357,50 @@ export function estimateCrossfadeDurationMs(bpm = DEFAULT_BPM, bars = 8) {
   return Math.round((safeBars * BEATS_PER_BAR * 60 * 1000) / safeBpm)
 }
 
+function chooseBestBpmMatch(currentBpm, nextBpm) {
+  const multipliers = [0.5, 1.0, 2.0]
+  let best = {
+    adjustedBpm: nextBpm,
+    ratioDelta: Number.POSITIVE_INFINITY,
+  }
+
+  for (const multiplier of multipliers) {
+    const adjustedBpm = nextBpm * multiplier
+    const ratioDelta = Math.abs((adjustedBpm - currentBpm) / currentBpm)
+    if (ratioDelta < best.ratioDelta) {
+      best = {adjustedBpm, ratioDelta}
+    }
+  }
+
+  return best
+}
+
+export function resolveTempoRateForTransition(
+  currentSong,
+  nextSong,
+  transition = null,
+  {maxAdjustRatio = 0.06, minRate = 0.5, maxRate = 2.0} = {},
+) {
+  if (!transition?.tempo_adjust_required) return 1
+
+  const currentTrack = buildTrackForAutomix(currentSong)
+  const nextTrack = buildTrackForAutomix(nextSong)
+  if (!currentTrack || !nextTrack) return 1
+  if (!currentTrack.bpm || !nextTrack.bpm) return 1
+
+  const match = chooseBestBpmMatch(currentTrack.bpm, nextTrack.bpm)
+  if (!Number.isFinite(match.ratioDelta) || match.ratioDelta > maxAdjustRatio) {
+    return 1
+  }
+  if (!match.adjustedBpm || !Number.isFinite(match.adjustedBpm) || match.adjustedBpm <= 0) {
+    return 1
+  }
+
+  const rate = currentTrack.bpm / match.adjustedBpm
+  if (!Number.isFinite(rate)) return 1
+  return clamp(rate, minRate, maxRate)
+}
+
 export function getLastAutomixAnalysis() {
   return lastAutomixAnalysis
 }

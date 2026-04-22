@@ -566,6 +566,7 @@ import {
 import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
+  resolveTempoRateForTransition,
 } from "@/utils/automixEngine.js";
 import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
 
@@ -1605,6 +1606,7 @@ function stopCrossfade({keepCoverOverlay = false} = {}) {
   const idle = getIdleAudio();
   if (idle) {
     idle.pause();
+    idle.playbackRate = 1;
     idle.removeAttribute("src");
     idle.load();
   }
@@ -1818,7 +1820,13 @@ async function tryStartAutomixCrossfade(currentSec) {
     }
     await waitAudioMetadata(secondary);
     const safeMixInStart = sanitizePlaybackStartSec(secondary, mixInStart);
+    const tempoRate = resolveTempoRateForTransition(
+      playerStore.currentSong,
+      targetSong,
+      transition,
+    );
     secondary.currentTime = safeMixInStart;
+    secondary.playbackRate = tempoRate;
     secondary.volume = 0;
     debugCrossfade("crossfadeStart", {
       fromTrackId: currentSongId,
@@ -1830,6 +1838,7 @@ async function tryStartAutomixCrossfade(currentSec) {
       transitionMixInStart: mixInStart,
       safeMixInStart,
       crossfadeDuration,
+      tempoRate,
       secondaryDuration: Number(secondary?.duration || 0),
       prewarmedMatch,
     });
@@ -1852,9 +1861,10 @@ async function tryStartAutomixCrossfade(currentSec) {
 
       const elapsed = (now - startTs) / 1000;
       const progress = clamp(elapsed / crossfadeDuration, 0, 1);
-
-      primary.volume = baseVolume * (1 - progress);
-      secondary.volume = baseVolume * progress;
+      const fadeOutGain = Math.cos(progress * Math.PI * 0.5);
+      const fadeInGain = Math.sin(progress * Math.PI * 0.5);
+      primary.volume = baseVolume * fadeOutGain;
+      secondary.volume = baseVolume * fadeInGain;
       applyThemeBlend(fromTheme, toTheme, progress);
       crossfadeCoverProgress.value = progress;
 
@@ -1901,6 +1911,7 @@ async function tryStartAutomixCrossfade(currentSec) {
         mixOutStart,
         mixInStart,
         crossfadeDuration,
+        tempoRate,
       });
     }
 
@@ -2631,6 +2642,7 @@ async function tryManualSeamlessSwitch(direction = "next") {
     }
     await waitAudioMetadata(secondary);
     secondary.currentTime = 0;
+    secondary.playbackRate = 1;
     secondary.volume = 0;
 
     try {
@@ -2651,8 +2663,10 @@ async function tryManualSeamlessSwitch(direction = "next") {
         }
 
         const progress = clamp((now - startTs) / (crossfadeDuration * 1000), 0, 1);
-        primary.volume = baseVolume * (1 - progress);
-        secondary.volume = baseVolume * progress;
+        const fadeOutGain = Math.cos(progress * Math.PI * 0.5);
+        const fadeInGain = Math.sin(progress * Math.PI * 0.5);
+        primary.volume = baseVolume * fadeOutGain;
+        secondary.volume = baseVolume * fadeInGain;
 
         if (progress >= 1) {
           resolve();
