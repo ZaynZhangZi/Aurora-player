@@ -29,6 +29,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 import { gsap } from 'gsap'
 import {
   peekPendingPlaylistHeroTransition,
@@ -68,6 +69,7 @@ function unlockScroll() {
 }
 
 function closeModal() {
+  markNavigatingBack()
   if (route.name === 'playlistDetail') {
     const id = Number(route.query?.id || 0)
     const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')

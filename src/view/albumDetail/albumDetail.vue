@@ -142,6 +142,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
@@ -340,6 +341,7 @@ async function playAll() {
 }
 
 function goBack() {
+  markNavigatingBack()
   router.back()
 }
 

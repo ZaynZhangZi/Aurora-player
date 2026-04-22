@@ -263,6 +263,7 @@
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
@@ -690,6 +691,7 @@ async function pickThemeFromImage(imageUrl, seed) {
 }
 
 function goBack() {
+  markNavigatingBack()
   router.back()
 }
 

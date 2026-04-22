@@ -316,6 +316,7 @@
 defineOptions({ name: 'profile' })
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
@@ -1031,6 +1032,7 @@ async function setListeningRange(type) {
 }
 
 function goBack() {
+  markNavigatingBack()
   router.back()
 }
 

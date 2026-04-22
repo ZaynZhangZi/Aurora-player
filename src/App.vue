@@ -3,7 +3,12 @@
 		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
-			<router-view />
+			<router-view v-slot="{ Component, route: currentRoute }">
+				<keep-alive>
+					<component :is="Component" v-if="currentRoute.meta.keepAlive" />
+				</keep-alive>
+				<component :is="Component" v-if="!currentRoute.meta.keepAlive" />
+			</router-view>
 		</div>
 		<globalFooterPlayer />
 	</div>
@@ -13,6 +18,7 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
+import { consumeNavigatingBack, markNavigatingBack } from "@/router/index.js";
 
 const FloatingSearchFab = defineAsyncComponent(() => import("@/components/floatingSearchFab/floatingSearchFab.vue"));
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
@@ -38,6 +44,7 @@ const MIN_SWIPE_DISTANCE = 76;
 const MAX_VERTICAL_DRIFT = 56;
 
 function goBack() {
+	markNavigatingBack();
 	const matched = route.matched || [];
 	if (matched.length > 1) {
 		const parent = matched[matched.length - 2];
@@ -156,7 +163,9 @@ watch(
 	() => route.fullPath,
 	async () => {
 		await nextTick();
-		runRouteEnterMotion();
+		if (!consumeNavigatingBack()) {
+			runRouteEnterMotion();
+		}
 	},
 );
 </script>

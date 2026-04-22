@@ -695,6 +695,7 @@ import {useCounterStore} from '@/stores/userStores.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
 import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useRouter, useRoute} from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -749,6 +750,7 @@ const showBackButton = computed(() => {
 })
 
 function goBack() {
+  markNavigatingBack()
   router.back()
 }
 

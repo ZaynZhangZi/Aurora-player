@@ -598,8 +598,9 @@ function openArtist(artist) {
 
 async function openPlaylist(playlist, event) {
   if (!playlist?.id) return
-
   const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  saveHomeScrollTop(cardEl)
+
   const coverEl = cardEl ? cardEl.querySelector('[data-playlist-hero-cover]') : null
   const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
   const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
@@ -1201,7 +1202,6 @@ onBeforeUnmount(() => {
 
 @supports (content-visibility: auto) {
   .motion-section {
-    content-visibility: auto;
     contain-intrinsic-size: 1px 760px;
   }
 }
