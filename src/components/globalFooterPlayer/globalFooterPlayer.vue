@@ -1406,6 +1406,7 @@ function setupMediaSessionHandlers({force = false} = {}) {
     }
   });
   setHandler("pause", () => {
+    playerStore.autoPlayOnLoad = false;
     getActiveAudio()?.pause();
   });
   setHandler("previoustrack", canPlayPrev.value ? handlePrevTrack : null);
@@ -1993,18 +1994,18 @@ function syncAudioVolume() {
 async function ensurePlaybackState() {
   const active = getActiveAudio();
   if (!active) return;
-  if (playerStore.autoPlayOnLoad || playerStore.isPlaying) {
+  const shouldPlay = playerStore.isPlaying || playerStore.autoPlayOnLoad;
+  // 无论成功失败，立即清除 autoPlayOnLoad 防止后续调用重复触发
+  playerStore.autoPlayOnLoad = false;
+  if (shouldPlay) {
     try {
       await active.play();
-      // 某些浏览器/切源时序下 onPlay 可能延后，先与真实播放态同步，避免按钮图标滞后
       playerStore.setPlaying(true);
-      playerStore.autoPlayOnLoad = false;
     } catch {
       playerStore.setPlaying(false);
     }
   } else {
     active.pause();
-    playerStore.setPlaying(false);
   }
 }
 
@@ -2012,6 +2013,8 @@ function togglePlay() {
   const active = getActiveAudio();
   const idle = getIdleAudio();
   if (!active || !hasSong.value) return;
+  // 用户主动操作时，清除 autoPlayOnLoad 防止 ensurePlaybackState 自动恢复播放
+  playerStore.autoPlayOnLoad = false;
   if (crossfadeActive && idle) {
     if (active.paused) {
       active.play().catch(() => {

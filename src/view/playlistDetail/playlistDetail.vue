@@ -130,6 +130,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { markNavigatingBack } from '@/router/index.js'
 import { HeartIcon as HeartOutlineIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
@@ -315,6 +316,7 @@ function resolveBackTarget() {
 }
 
 async function goBack() {
+  markNavigatingBack()
   preparePlaylistHeroReturn()
   const target = resolveBackTarget()
 

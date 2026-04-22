@@ -313,6 +313,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'profile' })
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import chroma from 'chroma-js'
