@@ -1249,10 +1249,10 @@ async function openSong(song) {
 }
 
 function openPlaylist(playlist) {
-  if (playlist?.id) {
-    router.push({path: '/home/playlistDetail', query: {id: playlist.id}});
-    collapse()
-  }
+  const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
+  if (!playlistId) return
+  router.push({name: 'playlistDetail', query: {id: playlistId}});
+  collapse()
 }
 
 function openProfile() {

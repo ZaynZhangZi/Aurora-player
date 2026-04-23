@@ -1041,10 +1041,9 @@ function switchTab(tab) {
 }
 
 function openPlaylist(item) {
-  router.push({
-    path: '/profile/playlistDetail',
-    query: {id: item.id},
-  })
+  const playlistId = Number(item?.id || item?.playlistId || item?.targetId || 0)
+  if (!playlistId) return
+  router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
 }
 
 function normalizeCloudSong(item = {}) {

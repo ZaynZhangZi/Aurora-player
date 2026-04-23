@@ -589,6 +589,18 @@ const errors = ref({
   mv: '',
 })
 
+const HOME_SCROLL_TOP_STORAGE_KEY = 'aurora:home-scroll-top'
+
+function saveHomeScrollTop() {
+  if (typeof window === 'undefined') return
+  const top = Math.max(0, Math.round(window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0))
+  try {
+    window.sessionStorage.setItem(HOME_SCROLL_TOP_STORAGE_KEY, String(top))
+  } catch (error) {
+    void error
+  }
+}
+
 function openArtist(artist) {
   router.push({
     path: '/artistDetial',
@@ -597,7 +609,8 @@ function openArtist(artist) {
 }
 
 async function openPlaylist(playlist, event) {
-  if (!playlist?.id) return
+  const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
+  if (!playlistId) return
   const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
   saveHomeScrollTop(cardEl)
 
@@ -605,7 +618,7 @@ async function openPlaylist(playlist, event) {
   const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
   const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
 
-  setPendingPlaylistHeroTransition(playlist.id, {
+  setPendingPlaylistHeroTransition(playlistId, {
     cardRect: cardEl?.getBoundingClientRect?.(),
     coverRect: coverEl?.getBoundingClientRect?.(),
     coverSrc: playlist.picUrl || playlist.coverImgUrl || '',
@@ -616,10 +629,7 @@ async function openPlaylist(playlist, event) {
     coverShadow: coverStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
   })
 
-  await router.push({
-    path: '/home/playlistDetail',
-    query: {id: playlist.id},
-  })
+  await router.push({name: 'playlistDetail', query: {id: playlistId}})
 }
 
 function getPlaylistCardTransitionStyle(playlist) {
