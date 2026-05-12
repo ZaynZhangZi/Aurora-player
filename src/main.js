@@ -5,6 +5,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import { prewarmAutomixEngine } from "./utils/automixEngine.js";
+import { installBehaviorTracker } from "./utils/behaviorTracker.js";
 
 import "./index.css";
 import "@applemusic-like-lyrics/core/style.css";
@@ -18,6 +19,7 @@ pinia.use(piniaPluginPersistedstate);
 // 3) 依次挂载
 app.use(pinia);
 app.use(router);
+installBehaviorTracker(router);
 app.mount("#app");
 
 prewarmAutomixEngine({ idle: true });

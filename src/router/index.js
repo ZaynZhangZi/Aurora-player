@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { visitApi } from '@/api/visitApi/visitApi.js'
 
 const routeScrollPositionMap = new Map()
 let navigatingBackMarkedAt = 0
@@ -96,6 +97,10 @@ router.beforeEach((to, from, next) => {
     routeScrollPositionMap.set(from.fullPath, getWindowScrollPosition())
   }
   next()
+})
+
+router.afterEach((to) => {
+  visitApi.report(to).catch(() => {})
 })
 
 export default router

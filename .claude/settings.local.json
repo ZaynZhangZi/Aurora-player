@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(grep -rn 'router\\\\.push\\\\|router\\\\.back\\\\|router\\\\.go\\\\|router\\\\.replace\\\\|$router' /Users/zijun/Documents/毕业设计/前端/aurora-player/src/ '--include=*.vue' '--include=*.js')",
+      "Bash(xxd)",
+      "Bash(cat)",
+      "Bash(python3 /tmp/patch_cjk.py)"
+    ]
+  }
+}

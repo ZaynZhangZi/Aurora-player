@@ -3,8 +3,13 @@
  * @description: 歌曲接口
  */
 import apiClient from "@/axios/apiClient.js";
-import requestLocal from "@/axios/myBackend.js";
+import requestLocal, {unwrapBackendResponse} from "@/axios/myBackend.js";
 import { useCounterStore } from "@/stores/userStores.js";
+import {toBackendMediaUrl, toBackendRequestUrl} from "@/utils/backendMedia.js";
+
+async function unwrap(request) {
+	return unwrapBackendResponse(await request);
+}
 
 export const songsApi = {
 	//获取动态封面
@@ -37,8 +42,18 @@ export const songsApi = {
 		return apiClient.get(`/lyric/new?id=${id}`);
 	},
 
-	getLyricSearch(params = {}) {
-		return requestLocal.get('/api/lyrics/search', { params });
+	async getLyricSearch(params = {}) {
+		const songName = params.songName || params.name || params.keyword || '';
+		const artist = params.artist || '';
+		const data = await unwrap(requestLocal.get('/api/v1/content/lyrics/search', {
+			params: {
+				songName,
+				artist,
+			},
+		}));
+		const list = Array.isArray(data) ? data : [];
+		const hydrated = await Promise.all(list.map(hydrateBackendLyric));
+		return { data: hydrated };
 	},
 
 	//搜索歌曲
@@ -57,10 +72,11 @@ export const songsApi = {
 	},
 
 	//喜欢音乐
-	likeSongs(id, like) {
+	async likeSongs(id, like) {
 		const store = useCounterStore();
 		if (store.userId) {
-			return apiClient.get(`/like?id=${id}&like=${like}`);
+			const response = await apiClient.get(`/like?id=${id}&like=${like}`);
+			return response;
 		}
 	},
 
@@ -102,3 +118,33 @@ export const songsApi = {
 	},
 
 };
+
+async function hydrateBackendLyric(item) {
+	if (!item || typeof item !== 'object') return item;
+	const lyricUrl = toBackendMediaUrl(item.lyricUrl);
+	if (String(item.lyricContent || '').trim() || !lyricUrl) {
+		return {...item, lyricUrl};
+	}
+	try {
+		const response = await requestLocal.get(toBackendRequestUrl(lyricUrl), {
+			responseType: 'text',
+			transformResponse: [(value) => value],
+		});
+		return {
+			...item,
+			lyricUrl,
+			lyricContent: String(response?.data || '').replace(/^\uFEFF/, ''),
+		};
+	} catch {
+		try {
+			const detail = await unwrap(requestLocal.get(`/api/v1/content/lyrics/${item.id}`));
+			return {
+				...item,
+				...detail,
+				lyricUrl: toBackendMediaUrl(detail?.lyricUrl || lyricUrl),
+			};
+		} catch {
+			return {...item, lyricUrl};
+		}
+	}
+}

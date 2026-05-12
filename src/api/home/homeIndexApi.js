@@ -3,7 +3,11 @@
  * @description: 首页接口Api
  */
 import apiClient from "@/axios/apiClient";
-import requestLocal from "@/axios/myBackend.js";
+import requestLocal, {getPageRecords, unwrapBackendResponse} from "@/axios/myBackend.js";
+
+async function unwrap(request) {
+  return unwrapBackendResponse(await request);
+}
 
 
 export const homeIndexApi = {
@@ -12,13 +16,36 @@ export const homeIndexApi = {
   },
 
   // 获取主页 banner
-  getBanner() {
-    return requestLocal.get('/api/banner');
+  async getBanner(params = {}) {
+    const data = await unwrap(requestLocal.get('/api/v1/content/banners', {
+      params: {
+        page: 0,
+        size: 10,
+        ...params,
+      },
+    }));
+    const banners = getPageRecords(data);
+    return {
+      data: {
+        banners,
+        data: banners,
+        raw: data,
+      },
+    };
   },
 
   // 获取发布日志
-  getReleaseNotes(params = {}) {
-    return requestLocal.get('/api/release-notes', { params });
+  async getReleaseNotes(params = {}) {
+    const data = await unwrap(requestLocal.get('/api/v1/content/release-notes'));
+    const list = Array.isArray(data) ? data : [];
+    const limit = Number(params.limit || 0);
+    const releaseNotes = limit > 0 ? list.slice(0, limit) : list;
+    return {
+      data: {
+        list: releaseNotes,
+        data: releaseNotes,
+      },
+    };
   },
 
 }

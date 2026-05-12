@@ -4,6 +4,7 @@
       <SmartMedia
         class="absolute inset-0 h-full w-full object-cover scale-105"
         :src="hero.media"
+        :media-type="hero.mediaType"
         :title="hero.title"
         :content="hero.subtitle"
         :lock-muted="true"
@@ -482,7 +483,9 @@ import {playListsApi} from '@/api/playListsApi/playListsApi.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
 import {homeIndexApi} from '@/api/home/homeIndexApi.js'
+import {reportApi} from '@/api/reportApi/reportApi.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
+import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
   playPlaylistHeroEnter,
@@ -611,6 +614,11 @@ function openArtist(artist) {
 async function openPlaylist(playlist, event) {
   const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
   if (!playlistId) return
+  reportApi.reportBehavior({
+    actionType: 'OPEN_PLAYLIST',
+    actionTarget: String(playlistId),
+    actionDetail: playlist?.name || '',
+  })
   const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
   saveHomeScrollTop(cardEl)
 
@@ -883,14 +891,15 @@ function formatPodcastDuration(durationMs) {
 function normalizeBannerItem(item, index = 0) {
   const srcList = Array.isArray(item?.src) ? item.src : []
   const contentList = Array.isArray(item?.content) ? item.content : []
-  const image = srcList[0] || item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || ''
+  const media = toBackendMediaUrl(srcList[0] || item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || '')
   const subtitleFromList = contentList
     .map(entry => String(entry || '').trim())
     .filter(Boolean)
     .join(' · ')
   return {
     id: item?.targetId || item?.bannerId || item?.id || `banner-${index}`,
-    media: image,
+    media,
+    mediaType: item?.mediaType || '',
     title: item?.typeTitle || item?.title || 'Now Playing',
     subtitle: subtitleFromList || item?.copywriter || item?.description || hero.value.subtitle,
   }

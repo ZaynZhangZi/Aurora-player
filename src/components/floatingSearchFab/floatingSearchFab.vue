@@ -693,6 +693,7 @@ import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
+import {reportApi} from '@/api/reportApi/reportApi.js'
 import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useRouter, useRoute} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
@@ -1207,6 +1208,11 @@ async function runSearch(keyword, {onlyType = ''} = {}) {
       }
     } else {
       searchResult.value = res || {}
+      const counts = searchResult.value?.counts || {}
+      reportApi.reportSearch({
+        keyword,
+        resultCount: Number(counts.artist || 0) + Number(counts.song || 0) + Number(counts.playlist || 0),
+      })
     }
     const maxIndex = flatEntries.value.length - 1;
     if (maxIndex < 0) {
@@ -1235,6 +1241,11 @@ async function runSearch(keyword, {onlyType = ''} = {}) {
 
 function openArtist(artist) {
   if (artist?.id) {
+    reportApi.reportBehavior({
+      actionType: 'OPEN_ARTIST',
+      actionTarget: String(artist.id),
+      actionDetail: JSON.stringify({name: artist.name || artist.artistName || ''}),
+    })
     router.push({path: '/artistDetial', query: {id: artist.id}});
     collapse()
   }
@@ -1242,6 +1253,11 @@ function openArtist(artist) {
 
 async function openSong(song) {
   if (song?.id) {
+    reportApi.reportBehavior({
+      actionType: 'OPEN_SEARCH_SONG',
+      actionTarget: String(song.id),
+      actionDetail: JSON.stringify({name: song.name || ''}),
+    })
     const queueIndex = songEntries.value.findIndex(item => String(item.id) === String(song.id));
     if (queueIndex >= 0) await playSongWithQueue(song, songEntries.value, queueIndex); else await playSongById(song);
     collapse()
@@ -1251,6 +1267,11 @@ async function openSong(song) {
 function openPlaylist(playlist) {
   const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
   if (!playlistId) return
+  reportApi.reportBehavior({
+    actionType: 'OPEN_PLAYLIST',
+    actionTarget: String(playlistId),
+    actionDetail: playlist.name || '',
+  })
   router.push({name: 'playlistDetail', query: {id: playlistId}});
   collapse()
 }
@@ -2024,14 +2045,20 @@ async function handleLoginSuccess(payload) {
     userStore.setLogin(cookie);
     try {
       const infoRes = await userApi.getUserInfo();
-      userStore.setProfile(buildProfile(infoRes?.data));
-      emit('signin', buildProfile(infoRes?.data))
+      const profile = buildProfile(infoRes?.data)
+      userStore.setProfile(profile);
+      reportApi.syncNeteaseUser(profile, {force: true})
+      emit('signin', profile)
     } catch (e) {
-      if (confirmProfile.value) userStore.setProfile({
+      if (confirmProfile.value) {
+        const profile = {
         userId: null,
         nickname: confirmProfile.value.nickname || '',
         avatarUrl: confirmProfile.value.avatarUrl || ''
-      })
+        }
+        userStore.setProfile(profile)
+        reportApi.syncNeteaseUser(profile)
+      }
     }
   }
   setTimeout(() => setIsOpen(false), 800)

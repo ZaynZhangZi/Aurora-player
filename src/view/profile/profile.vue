@@ -321,6 +321,7 @@ import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {reportApi} from '@/api/reportApi/reportApi.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 
 const router = useRouter()
@@ -1043,6 +1044,11 @@ function switchTab(tab) {
 function openPlaylist(item) {
   const playlistId = Number(item?.id || item?.playlistId || item?.targetId || 0)
   if (!playlistId) return
+  reportApi.reportBehavior({
+    actionType: 'OPEN_PLAYLIST',
+    actionTarget: String(playlistId),
+    actionDetail: item?.name || item?.playlistName || '',
+  })
   router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
 }
 
@@ -1259,11 +1265,13 @@ async function loadProfilePage() {
 
     await pickAvatarTheme(profile.value.avatarUrl, profile.value.nickname)
 
-    userStore.setProfile({
+    const syncedProfile = {
       userId: profile.value.userId,
       nickname: profile.value.nickname,
       avatarUrl: profile.value.avatarUrl,
-    })
+    }
+    userStore.setProfile(syncedProfile)
+    reportApi.syncNeteaseUser(syncedProfile)
 
     level.value = {
       level: levelRes?.data?.data?.level || 0,

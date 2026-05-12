@@ -555,6 +555,7 @@ import {
 } from "vue";
 import {useRouter} from "vue-router";
 import {aiAPi} from "@/api/aiApi/aiAPi.js";
+import {reportApi} from "@/api/reportApi/reportApi.js";
 import {songsApi} from "@/api/songsApi/songsApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import {PLAY_MODE, usePlayerStore} from "@/stores/playerStore.js";
@@ -587,6 +588,7 @@ let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
 let visibilityChangeHandler = null;
 let backgroundCheckTimer = null;
+let reportedPlayRecordKeys = new Set();
 
 const themeBaseRgb = ref([38, 56, 98]);
 const themeAccentRgb = ref([78, 114, 176]);
@@ -2488,8 +2490,43 @@ function requestAutomixWarmup(reason = "unknown") {
     });
 }
 
+function reportCurrentPlayRecord({completed = false, started = false} = {}) {
+  const song = playerStore.currentSong;
+  const songId = String(song?.id || "");
+  if (!songId) return;
+
+  const active = getActiveAudio();
+  const durationSec = Math.round(Number(active?.duration || 0));
+  const playDuration = Math.round(Number(active?.currentTime || 0));
+  const progress = durationSec > 0 ? Math.min(1, playDuration / durationSec) : 0;
+
+  if (!started && !completed && playDuration < 30 && progress < 0.5) return;
+
+  const reportType = started ? "started" : completed ? "completed" : "partial";
+  const reportKey = `${songId}:${reportType}:${started ? 0 : Math.floor(playDuration / 15)}`;
+  if (reportedPlayRecordKeys.has(reportKey)) return;
+  reportedPlayRecordKeys.add(reportKey);
+
+  reportApi.reportPlayRecord({
+    songId,
+    songName: song.name,
+    artist: normalizedArtistList.value.map(item => item.name).filter(Boolean).join(", "),
+    album: song.album?.name || song.al?.name || "",
+    duration: durationSec || undefined,
+    coverUrl: song.cover,
+    playDuration,
+    playProgress: progress,
+    completed,
+  });
+}
+
 function toggleAutomix() {
   playerStore.toggleAutomixEnabled();
+  reportApi.reportBehavior({
+    actionType: "TOGGLE_AUTOMIX",
+    actionTarget: "global-player",
+    actionDetail: JSON.stringify({enabled: Boolean(playerStore.automixEnabled)}),
+  });
   if (!playerStore.automixEnabled) {
     stopCrossfade();
   } else {
@@ -2701,6 +2738,11 @@ async function tryManualSeamlessSwitch(direction = "next") {
 
 async function playPrevSong() {
   if (!canPlayPrev.value) return;
+  reportApi.reportBehavior({
+    actionType: "QUEUE_PREV",
+    actionTarget: String(playerStore.currentSong?.id || ""),
+    actionDetail: JSON.stringify({currentQueueIndex: playerStore.currentQueueIndex}),
+  });
   const switched = await tryManualSeamlessSwitch("prev");
   if (switched) return;
   await playQueueByDirection("prev");
@@ -2708,12 +2750,23 @@ async function playPrevSong() {
 
 async function playNextSong() {
   if (!canPlayNext.value) return;
+  reportApi.reportBehavior({
+    actionType: "QUEUE_NEXT",
+    actionTarget: String(playerStore.currentSong?.id || ""),
+    actionDetail: JSON.stringify({currentQueueIndex: playerStore.currentQueueIndex}),
+  });
   const switched = await tryManualSeamlessSwitch("next");
   if (switched) return;
   await playQueueByDirection("next");
 }
 
 async function playSongAtIndex(index) {
+  const targetSong = playerStore.playQueue?.[index];
+  reportApi.reportBehavior({
+    actionType: "QUEUE_SELECT",
+    actionTarget: String(targetSong?.id || ""),
+    actionDetail: JSON.stringify({queueIndex: index}),
+  });
   await playQueueByIndex(index);
   closePlaylistPanel();
 }
@@ -2754,6 +2807,7 @@ function onPlay(event) {
   startRhythmLoop();
   updateMediaSessionPlaybackState();
   requestAutomixWarmup("audio-play");
+  reportCurrentPlayRecord({started: true});
 }
 
 function onPause(event) {
@@ -2766,6 +2820,7 @@ function onPause(event) {
   rhythmLevel.value = 0;
   beatLevel.value = 0;
   visualPulse.value = 0;
+  reportCurrentPlayRecord({completed: false});
 }
 
 function updatePlayerSpaceVar() {
@@ -2788,6 +2843,8 @@ async function onEnded(event) {
   const active = getActiveAudio();
   if (!active) return;
   if (crossfadeActive) return;
+
+  reportCurrentPlayRecord({completed: true});
 
   if (playerStore.playMode === PLAY_MODE.SINGLE && hasSong.value) {
     active.currentTime = 0;
@@ -2893,6 +2950,7 @@ watch(
 watch(
   () => playerStore.currentSong?.id,
   async (songId) => {
+    reportedPlayRecordKeys = new Set();
     closeMorePanel();
     setupMediaSessionHandlers({force: isIOSDevice.value});
     loadDynamicCover(songId);

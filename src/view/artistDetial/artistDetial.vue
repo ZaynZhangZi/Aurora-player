@@ -268,6 +268,7 @@ import {artistApi} from '@/api/artistApi/artistApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -559,6 +560,7 @@ function normalizeMaybeUrl(value) {
   if (typeof value !== 'string') return ''
   const url = value.trim()
   if (!url) return ''
+  if (url.startsWith('/')) return toBackendMediaUrl(url)
   if (/^https?:\/\//i.test(url)) return url
   return ''
 }

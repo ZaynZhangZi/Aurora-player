@@ -134,6 +134,7 @@ import { markNavigatingBack } from '@/router/index.js'
 import { HeartIcon as HeartOutlineIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
+import { reportApi } from '@/api/reportApi/reportApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {
@@ -349,6 +350,11 @@ function isSongLiked(songId) {
 
 async function playAllTracks() {
   if (!tracks.value.length) return
+  reportApi.reportBehavior({
+    actionType: 'PLAY_PLAYLIST',
+    actionTarget: String(playlist.value.id || route.query.id || ''),
+    actionDetail: JSON.stringify({name: playlist.value.name || '', trackCount: tracks.value.length}),
+  })
   await playSongWithQueue(tracks.value[0], tracks.value, 0)
 }
 
@@ -384,6 +390,16 @@ async function toggleSongLike(track) {
     if (liked) next.delete(String(songId))
     else next.add(String(songId))
     likedSongIdSet.value = next
+    if (!liked) {
+      reportApi.reportLikedSong({
+        songId,
+        songName: track.name,
+        artist: normalizeTrackArtistNameList(track).join(', '),
+        album: track.al?.name || track.album?.name || '',
+        duration: Math.round(Number(track.dt || track.duration || 0) / 1000) || undefined,
+        coverUrl: track.al?.picUrl || track.cover || track.coverImgUrl || '',
+      })
+    }
     actionFeedback.value = liked ? '已取消喜欢歌曲' : '已添加到我喜欢的音乐'
   } catch {
     actionFeedback.value = '操作失败，请稍后重试'
@@ -407,6 +423,14 @@ async function toggleSubscribePlaylist() {
     await playListsApi.subscribePlayList(playlist.value.id, shouldSubscribe ? 1 : 2)
     playlist.value.subscribed = shouldSubscribe
     playlist.value.subscribedCount = Math.max(0, Number(playlist.value.subscribedCount || 0) + (shouldSubscribe ? 1 : -1))
+    if (shouldSubscribe) {
+      reportApi.reportCollection({
+        collectionType: 'PLAYLIST',
+        targetId: playlist.value.id,
+        targetName: playlist.value.name,
+        coverUrl: playlist.value.coverImgUrl,
+      })
+    }
     actionFeedback.value = shouldSubscribe ? '已收藏歌单' : '已取消收藏歌单'
   } catch {
     actionFeedback.value = '歌单收藏操作失败，请稍后再试'

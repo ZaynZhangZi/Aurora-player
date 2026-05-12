@@ -124,6 +124,7 @@ const props = defineProps({
 
   // 视频封面
   poster: { type: String, default: '' },
+  mediaType: { type: String, default: '' },
 
   // 尺寸/适配
   objectFit: { type: String, default: 'cover' }, // cover/contain/fill/none/scale-down
@@ -284,6 +285,9 @@ function isVideoSrc(s) {
  * 媒体类型
  */
 const mediaType = computed(() => {
+  const explicit = String(props.mediaType || '').toLowerCase()
+  if (explicit === 'video') return 'video'
+  if (explicit === 'image') return 'image'
   if (!srcList.value.length) return 'unknown'
   const hasVideo = srcList.value.some(isVideoSrc)
   const hasImage = srcList.value.some(isImageSrc)

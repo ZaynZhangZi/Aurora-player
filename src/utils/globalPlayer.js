@@ -1,4 +1,5 @@
 import {songsApi} from '@/api/songsApi/songsApi.js'
+import {reportApi} from '@/api/reportApi/reportApi.js'
 import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
 import {
   getLastAutomixAnalysis,
@@ -32,6 +33,22 @@ function resolveName(song, detail) {
 
 function getUrlEntry(response) {
   return response?.data?.data?.[0] || null
+}
+
+function summarizeSongForReport(song) {
+  const artists = resolveArtists(song, null)
+    .map(item => item?.name || item?.artistName || item)
+    .filter(Boolean)
+    .join(', ')
+
+  return {
+    songId: song?.id,
+    songName: song?.name || '',
+    artist: artists,
+    album: song?.al?.name || song?.album?.name || song?.album || '',
+    duration: Math.round(Number(song?.dt || song?.duration || 0) / 1000) || undefined,
+    coverUrl: resolveCover(song, null),
+  }
 }
 
 async function resolveSongPlayableUrl(id) {
@@ -150,6 +167,12 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
     if (!inQueue || playerStore.currentQueueIndex < 0 || !playerStore.playQueue.length) {
       playerStore.setQueue([nextTrack], {startIndex: 0})
     }
+
+    reportApi.reportBehavior({
+      actionType: 'PLAY_START',
+      actionTarget: String(id),
+      actionDetail: JSON.stringify(summarizeSongForReport(nextTrack)),
+    })
 
     warmupNextTrack().catch(() => {
       if (typeof console !== 'undefined') {

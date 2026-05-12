@@ -3,7 +3,12 @@
  * @description: 歌手接口
  */
 import apiClient from "@/axios/apiClient";
-import requestLocal from "@/axios/myBackend.js";
+import requestLocal, {getPageRecords, unwrapBackendResponse} from "@/axios/myBackend.js";
+import {toBackendMediaUrl} from "@/utils/backendMedia.js";
+
+async function unwrap(request) {
+  return unwrapBackendResponse(await request);
+}
 
 
 export const artistApi = {
@@ -128,8 +133,17 @@ export const artistApi = {
   },
 
   //获取我们喜欢的歌手
-  getLikeArtist: () => {
-    return requestLocal.get(`/api/manage-list`);
+  getLikeArtist: async () => {
+    const data = await unwrap(requestLocal.get('/api/v1/content/manage-lists', {
+      params: {page: 0, size: 20},
+    }));
+    return {
+      data: {
+        list: getPageRecords(data),
+        data: getPageRecords(data),
+        raw: data,
+      },
+    };
   },
 
   //获取歌手视频
@@ -140,13 +154,27 @@ export const artistApi = {
     }
 
     try {
-      return await requestLocal.get('/api/singer-videos/lookup', {
+      const data = await unwrap(requestLocal.get('/api/v1/content/singer-videos/by-name', {
         params: {name: queryName},
-      });
+      }));
+      return {data: normalizeSingerVideo(data)};
     } catch (error) {
-      return requestLocal.get('/singer-videos/lookup', {
-        params: {name: queryName},
-      });
+      const data = await unwrap(requestLocal.get('/api/v1/content/singer-videos/search', {
+        params: {keyword: queryName},
+      }));
+      const first = Array.isArray(data) ? data[0] || null : data;
+      return {data: normalizeSingerVideo(first)};
     }
   }
+}
+
+function normalizeSingerVideo(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    videoUrl: toBackendMediaUrl(item.videoUrl),
+    url: toBackendMediaUrl(item.videoUrl || item.url),
+    bannerVideo: toBackendMediaUrl(item.videoUrl || item.bannerVideo || item.bannerUrl),
+    coverUrl: toBackendMediaUrl(item.coverUrl),
+  };
 }
