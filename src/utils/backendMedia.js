@@ -5,7 +5,12 @@ function trimRightSlash(value) {
 }
 
 export function backendBaseUrl() {
-  return trimRightSlash(import.meta.env.VITE_ADMIN_API_BASE_URL || DEFAULT_BACKEND_BASE)
+  const configured = import.meta.env.VITE_ADMIN_API_BASE_URL
+  if (configured) return trimRightSlash(configured)
+  if (typeof window !== 'undefined' && window.location.hostname === 'music.xiaojunjunjun.com') {
+    return 'https://musicadmin.xiaojunjunjun.com'
+  }
+  return trimRightSlash(DEFAULT_BACKEND_BASE)
 }
 
 export function toBackendMediaUrl(value) {
