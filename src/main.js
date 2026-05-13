@@ -22,4 +22,5 @@ app.use(router);
 installBehaviorTracker(router);
 app.mount("#app");
 
+
 prewarmAutomixEngine({ idle: true });
