@@ -2,7 +2,16 @@
 import axios from 'axios'
 import { useCounterStore } from '@/stores/userStores.js'
 
-const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL || '/backend-api'
+function resolveAdminApiBaseUrl() {
+  const configured = import.meta.env.VITE_ADMIN_API_BASE_URL
+  if (configured) return configured
+  if (typeof window !== 'undefined' && window.location.hostname === 'music.xiaojunjunjun.com') {
+    return 'https://musicadmin.xiaojunjunjun.com'
+  }
+  return '/backend-api'
+}
+
+const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl()
 const ADMIN_API_TIMEOUT = Number(import.meta.env.VITE_ADMIN_API_TIMEOUT || 10000)
 
 export const BACKEND_ACCESS_TOKEN_KEY = 'backend_access_token'
