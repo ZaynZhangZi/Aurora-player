@@ -2007,6 +2007,27 @@ function stopQrPolling() {
   }
 }
 
+function isRestrictedStatus(status) {
+  const normalized = String(status || '').toUpperCase()
+  return normalized === 'BANNED' || normalized === 'DISABLED'
+}
+
+function getRestrictedLoginMessage(statusInfo) {
+  const status = String(statusInfo?.status || '').toUpperCase()
+  const action = status === 'DISABLED' ? '禁用' : '封禁'
+  return statusInfo?.banReason ? `账号已被${action}：${statusInfo.banReason}` : `账号已被${action}，无法登录`
+}
+
+async function rejectRestrictedLogin(statusInfo) {
+  try {
+    await userApi.logout()
+  } catch {
+  }
+  userStore.logout()
+  qrState.value = 'error'
+  qrError.value = getRestrictedLoginMessage(statusInfo)
+}
+
 async function fetchQrStatus() {
   if (!qrKey.value) return;
   try {
@@ -2047,7 +2068,11 @@ async function handleLoginSuccess(payload) {
       const infoRes = await userApi.getUserInfo();
       const profile = buildProfile(infoRes?.data)
       userStore.setProfile(profile);
-      reportApi.syncNeteaseUser(profile, {force: true})
+      const syncedUser = await reportApi.syncNeteaseUser(profile, {force: true})
+      if (isRestrictedStatus(syncedUser?.status)) {
+        await rejectRestrictedLogin(syncedUser)
+        return
+      }
       emit('signin', profile)
     } catch (e) {
       if (confirmProfile.value) {

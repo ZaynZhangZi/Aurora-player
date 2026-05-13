@@ -1,4 +1,4 @@
-import requestLocal from '@/axios/myBackend.js'
+import requestLocal, { unwrapBackendResponse } from '@/axios/myBackend.js'
 import { useCounterStore } from '@/stores/userStores.js'
 
 function getUserId() {
@@ -32,20 +32,34 @@ function safeCall(fn, label = 'report') {
 }
 
 export const reportApi = {
-  syncNeteaseUser(profile = {}, { force = false } = {}) {
+  async syncNeteaseUser(profile = {}, { force = false } = {}) {
     const neteaseUserId = profile.userId || profile.neteaseUserId || getUserId()
-    if (!neteaseUserId) return
+    if (!neteaseUserId) return null
     const syncKey = `backend_netease_sync_${neteaseUserId}`
     try {
       const lastSyncedAt = Number(localStorage.getItem(syncKey) || 0)
-      if (!force && Date.now() - lastSyncedAt < 6 * 60 * 60 * 1000) return
+      if (!force && Date.now() - lastSyncedAt < 6 * 60 * 60 * 1000) return null
       localStorage.setItem(syncKey, String(Date.now()))
     } catch {}
-    safeCall(() => requestLocal.post('/api/v1/netease-users/sync-login', {
-      neteaseUserId: Number(neteaseUserId),
-      nickname: profile.nickname || '',
-      avatarUrl: profile.avatarUrl || '',
-    }), 'syncNeteaseUser')
+    try {
+      const response = await requestLocal.post('/api/v1/netease-users/sync-login', {
+        neteaseUserId: Number(neteaseUserId),
+        nickname: profile.nickname || '',
+        avatarUrl: profile.avatarUrl || '',
+      })
+      return unwrapBackendResponse(response)
+    } catch (error) {
+      if (import.meta.env.DEV || localStorage.getItem('behavior_debug') === '1') {
+        console.warn('[syncNeteaseUser] failed', error)
+      }
+      return null
+    }
+  },
+
+  async getNeteaseUserStatus(neteaseUserId = getUserId()) {
+    if (!neteaseUserId) return null
+    const response = await requestLocal.get(`/api/v1/netease-users/${neteaseUserId}/status`)
+    return unwrapBackendResponse(response)
   },
 
   /** 上报播放记录 */

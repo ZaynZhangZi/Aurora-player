@@ -19,12 +19,16 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
 import { consumeNavigatingBack, markNavigatingBack } from "@/router/index.js";
+import { useCounterStore } from "@/stores/userStores.js";
+import { reportApi } from "@/api/reportApi/reportApi.js";
+import { userApi } from "@/api/userApi/userApi.js";
 
 const FloatingSearchFab = defineAsyncComponent(() => import("@/components/floatingSearchFab/floatingSearchFab.vue"));
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
 const topBlurStyle = {
@@ -42,6 +46,9 @@ const swipeState = {
 const EDGE_START_LIMIT = 28;
 const MIN_SWIPE_DISTANCE = 76;
 const MAX_VERTICAL_DRIFT = 56;
+const USER_STATUS_CHECK_INTERVAL = 60 * 1000;
+let userStatusTimer = null;
+let checkingUserStatus = false;
 
 function goBack() {
 	markNavigatingBack();
@@ -141,6 +148,54 @@ function unbindGlobalBackGesture() {
 	window.removeEventListener("touchcancel", onTouchEnd);
 }
 
+function isRestrictedStatus(status) {
+	const normalized = String(status || "").toUpperCase();
+	return normalized === "BANNED" || normalized === "DISABLED";
+}
+
+async function forceLogoutForRestriction(statusInfo) {
+	stopUserStatusPolling();
+	try {
+		await userApi.logout();
+	} catch {
+	}
+	userStore.logout();
+	const reason = statusInfo?.banReason ? `：${statusInfo.banReason}` : "";
+	const action = String(statusInfo?.status || "").toUpperCase() === "DISABLED" ? "禁用" : "封禁";
+	window.alert(`账号已被${action}${reason}`);
+	if (route.path !== "/home") {
+		router.push("/home");
+	}
+}
+
+async function checkCurrentUserStatus() {
+	if (checkingUserStatus || !userStore.isLoggedIn || !userStore.userId) return;
+	checkingUserStatus = true;
+	try {
+		const statusInfo = await reportApi.getNeteaseUserStatus(userStore.userId);
+		if (isRestrictedStatus(statusInfo?.status)) {
+			await forceLogoutForRestriction(statusInfo);
+		}
+	} catch {
+	} finally {
+		checkingUserStatus = false;
+	}
+}
+
+function startUserStatusPolling() {
+	stopUserStatusPolling();
+	if (!userStore.isLoggedIn || !userStore.userId) return;
+	void checkCurrentUserStatus();
+	userStatusTimer = window.setInterval(checkCurrentUserStatus, USER_STATUS_CHECK_INTERVAL);
+}
+
+function stopUserStatusPolling() {
+	if (userStatusTimer) {
+		clearInterval(userStatusTimer);
+		userStatusTimer = null;
+	}
+}
+
 function runRouteEnterMotion() {
   if (!contentRef.value) return;
   animate(
@@ -153,11 +208,20 @@ function runRouteEnterMotion() {
 onMounted(() => {
 	runRouteEnterMotion();
 	bindGlobalBackGesture();
+	startUserStatusPolling();
 });
 
 onBeforeUnmount(() => {
 	unbindGlobalBackGesture();
+	stopUserStatusPolling();
 });
+
+watch(
+	() => [userStore.isLoggedIn, userStore.userId],
+	() => {
+		startUserStatusPolling();
+	},
+);
 
 watch(
 	() => route.fullPath,
