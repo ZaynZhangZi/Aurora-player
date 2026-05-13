@@ -27,7 +27,7 @@
 							<path d="M12 8.25v5.25M12 16.75h.01M2.75 20.25h18.5L12 3.75 2.75 20.25Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
 						</svg>
 					</div>
-					<div>
+					<div class="restriction-dialog-copy">
 						<p id="restriction-dialog-title" class="restriction-dialog-title">{{ restrictionDialog.title }}</p>
 						<p class="restriction-dialog-message">{{ restrictionDialog.message }}</p>
 					</div>
@@ -361,13 +361,17 @@ watch(
 
 .restriction-dialog-panel {
 	position: relative;
-	width: min(420px, 100%);
+	display: flex;
+	width: min(400px, 100%);
+	flex-direction: column;
+	align-items: center;
 	border-radius: 24px;
 	border: 1px solid rgba(255, 255, 255, 0.7);
 	background: rgba(255, 255, 255, 0.94);
-	padding: 24px;
+	padding: 28px 24px 24px;
 	box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
 	color: rgb(28, 25, 23);
+	text-align: center;
 }
 
 .restriction-dialog-icon {
@@ -385,11 +389,16 @@ watch(
 	width: 30px;
 }
 
+.restriction-dialog-copy {
+	width: 100%;
+}
+
 .restriction-dialog-title {
-	margin-top: 18px;
+	margin-top: 16px;
 	font-size: 20px;
 	font-weight: 800;
 	letter-spacing: 0;
+	line-height: 1.25;
 }
 
 .restriction-dialog-message {
@@ -403,6 +412,7 @@ watch(
 .restriction-dialog-button {
 	margin-top: 22px;
 	width: 100%;
+	max-width: 280px;
 	border-radius: 999px;
 	background: rgb(28, 25, 23);
 	padding: 11px 16px;
