@@ -92,8 +92,8 @@ export async function playPlaylistHeroEnter({
   payload,
   targetCardEl,
   targetCoverEl,
-  duration = 540,
-  easing = 'cubic-bezier(0.32, 0.72, 0, 1)',
+  duration = 680,
+  easing = 'cubic-bezier(0.34, 1.18, 0.64, 1)',
 } = {}) {
   void targetCardEl
   if (!payload || !targetCoverEl || prefersReducedMotion()) return

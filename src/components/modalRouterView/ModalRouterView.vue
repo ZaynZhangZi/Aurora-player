@@ -118,13 +118,14 @@ function handleBackdropClick() {
 function defaultEnter(el, done) {
   gsap.fromTo(
     el,
-    { opacity: 0, scale: 0.95, y: 20 },
+    { opacity: 0, scale: 0.965, y: 24, filter: 'blur(8px)' },
     {
       opacity: 1,
       scale: 1,
       y: 0,
-      duration: 0.25,
-      ease: 'power2.out',
+      filter: 'blur(0px)',
+      duration: 0.62,
+      ease: 'back.out(0.82)',
       onComplete: done,
     },
   )
@@ -138,8 +139,9 @@ function defaultLeave(el, done) {
     opacity: 0,
     scale: 0.97,
     y: 10,
-    duration: 0.2,
-    ease: 'power2.in',
+    filter: 'blur(5px)',
+    duration: 0.24,
+    ease: 'power3.in',
     onComplete: done,
   })
 }

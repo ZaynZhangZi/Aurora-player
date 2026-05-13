@@ -12,10 +12,14 @@
       <div class="absolute inset-0 bg-gradient-to-t from-[#FBFBFD] via-[#FBFBFD]/40 to-black/20" />
 
       <div class="relative mx-auto flex h-full max-w-7xl items-end px-6 pb-16 sm:px-10 sm:pb-24">
-        <div class="motion-section max-w-2xl">
+        <div class="motion-section home-hero-copy max-w-3xl">
           <p class="mb-3 text-[11px] font-bold uppercase tracking-[0.35em] text-stone-900/60 sm:text-xs drop-shadow-sm">My Music Demo</p>
-          <h1 class="text-5xl font-black tracking-tight text-stone-900 sm:text-7xl lg:text-8xl">今天听点什么</h1>
-          <p class="mt-5 max-w-md text-sm font-medium leading-relaxed text-stone-600 sm:text-base">{{ hero.subtitle }}</p>
+          <Transition name="hero-copy-spring" mode="out-in">
+            <div :key="heroCopyKey" class="hero-copy-block">
+              <h1 class="text-5xl font-black tracking-tight text-stone-900 sm:text-7xl lg:text-8xl">{{ heroCopyLine.title }}</h1>
+              <p class="mt-5 max-w-md text-sm font-medium leading-relaxed text-stone-600 sm:text-base">{{ heroCopyLine.subtitle }}</p>
+            </div>
+          </Transition>
         </div>
       </div>
     </section>
@@ -503,6 +507,27 @@ const hero = ref({
   title: '',
   subtitle: '',
 })
+const heroCopyIndex = ref(0)
+let heroCopyTimer = null
+const heroCopyItems = computed(() => {
+  const dynamicTitle = String(hero.value.title || '').trim()
+  const dynamicSubtitle = String(hero.value.subtitle || '').trim()
+  const fallbackSubtitle = dynamicSubtitle || '让音乐接住此刻的心情'
+  const items = [
+    {title: '今天听点什么', subtitle: fallbackSubtitle},
+    {title: dynamicTitle || '跟着此刻的节奏走', subtitle: dynamicSubtitle || '从模糊的念头开始，慢慢找到下一首歌'},
+    {title: '让声音慢慢靠近', subtitle: dynamicSubtitle || '推荐、最近播放和榜单会自然接上你的下一句'},
+  ]
+  const seen = new Set()
+  return items.filter((item) => {
+    const key = `${item.title}::${item.subtitle}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+})
+const heroCopyLine = computed(() => heroCopyItems.value[heroCopyIndex.value % heroCopyItems.value.length] || heroCopyItems.value[0])
+const heroCopyKey = computed(() => `${heroCopyIndex.value}-${heroCopyLine.value?.title || ''}`)
 
 const releaseNotes = ref([])
 const releaseNotesOpen = ref(false)
@@ -602,6 +627,21 @@ function saveHomeScrollTop() {
   } catch (error) {
     void error
   }
+}
+
+function stopHeroCopyCycle() {
+  if (heroCopyTimer) {
+    clearInterval(heroCopyTimer)
+    heroCopyTimer = null
+  }
+}
+
+function startHeroCopyCycle() {
+  stopHeroCopyCycle()
+  if (typeof window === 'undefined' || heroCopyItems.value.length <= 1) return
+  heroCopyTimer = window.setInterval(() => {
+    heroCopyIndex.value = (heroCopyIndex.value + 1) % heroCopyItems.value.length
+  }, 4600)
 }
 
 function openArtist(artist) {
@@ -957,8 +997,8 @@ function setupMotionEffects() {
       () => {
         animate(
           el,
-          {opacity: [0, 1], y: [18, 0], filter: ['blur(6px)', 'blur(0px)']},
-          {duration: 0.32, easing: [0.22, 1, 0.36, 1]},
+          {opacity: [0, 1], y: [24, -3, 0], scale: [0.985, 1.01, 1], filter: ['blur(10px)', 'blur(1px)', 'blur(0px)']},
+          {type: 'spring', stiffness: 210, damping: 25, mass: 0.72},
         )
       },
       {amount: 0.2},
@@ -972,14 +1012,14 @@ function setupMotionEffects() {
   const cards = document.querySelectorAll('.motion-card')
   cards.forEach((el) => {
     const stopHover = hover(el, () => {
-      const ctrl = animate(el, {y: -4, scale: 1.01}, {type: 'spring', stiffness: 380, damping: 28, mass: 0.35})
+      const ctrl = animate(el, {y: -6, scale: 1.012}, {type: 'spring', stiffness: 420, damping: 30, mass: 0.42})
       return () => ctrl.stop()
     })
     const stopPress = press(el, () => {
-      const down = animate(el, {scale: 0.985}, {duration: 0.1})
+      const down = animate(el, {scale: 0.978}, {type: 'spring', stiffness: 560, damping: 32, mass: 0.28})
       return () => {
         down.stop()
-        animate(el, {scale: 1}, {duration: 0.16, easing: [0.22, 1, 0.36, 1]})
+        animate(el, {scale: 1}, {type: 'spring', stiffness: 420, damping: 24, mass: 0.34})
       }
     })
     motionCleanups.push(stopHover)
@@ -1142,6 +1182,7 @@ onMounted(() => {
   requestAnimationFrame(() => {
     setupMotionEffects()
   })
+  startHeroCopyCycle()
   runPlaylistHeroReturn()
   loadHomeBanner()
   loadReleaseNotes()
@@ -1165,18 +1206,78 @@ watch(
   },
 )
 
+watch(
+  () => heroCopyItems.value.length,
+  () => {
+    heroCopyIndex.value = 0
+    startHeroCopyCycle()
+  },
+)
+
 onBeforeUnmount(() => {
   motionCleanups.splice(0).forEach(stop => {
     if (typeof stop === 'function') stop()
   })
+  stopHeroCopyCycle()
   closeMvPlayer()
 })
 </script>
 
 <style scoped>
+.home-hero-copy {
+  position: relative;
+}
+
+.hero-copy-block {
+  transform-origin: left bottom;
+  will-change: transform, opacity, filter;
+}
+
+.hero-copy-spring-enter-active {
+  animation: hero-copy-spring-in 760ms both;
+}
+
+.hero-copy-spring-leave-active {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  animation: hero-copy-spring-out 520ms both;
+}
+
+@keyframes hero-copy-spring-in {
+  0% {
+    opacity: 0;
+    filter: blur(16px);
+    transform: translate3d(0, 24px, 0) scale(0.965);
+  }
+  58% {
+    opacity: 1;
+    filter: blur(1px);
+    transform: translate3d(0, -4px, 0) scale(1.018);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes hero-copy-spring-out {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translate3d(0, -22px, 0) scale(1.028);
+  }
+}
+
 .release-notes-enter-active,
 .release-notes-leave-active {
-  transition: opacity 220ms ease;
+  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .release-notes-enter-from,
@@ -1186,7 +1287,9 @@ onBeforeUnmount(() => {
 
 .release-notes-enter-active .release-notes-panel,
 .release-notes-leave-active .release-notes-panel {
-  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+  transition:
+    transform 520ms cubic-bezier(0.34, 1.28, 0.64, 1),
+    opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .release-notes-enter-from .release-notes-panel,
@@ -1199,7 +1302,10 @@ onBeforeUnmount(() => {
   .release-notes-enter-active,
   .release-notes-leave-active,
   .release-notes-enter-active .release-notes-panel,
-  .release-notes-leave-active .release-notes-panel {
+  .release-notes-leave-active .release-notes-panel,
+  .hero-copy-spring-enter-active,
+  .hero-copy-spring-leave-active {
+    animation-duration: 1ms !important;
     transition-duration: 0ms !important;
   }
 }

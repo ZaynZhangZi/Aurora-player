@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+:root {
+  --spring-smooth: cubic-bezier(0.34, 1.18, 0.64, 1);
+  --spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-exit: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .transition,
+  .transition-all,
+  .transition-colors,
+  .transition-opacity,
+  .transition-transform {
+    transition-timing-function: var(--spring-smooth);
+  }
+}

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="album-page min-h-screen text-stone-900 transition-colors duration-700" :style="pageStyle">
     <nav class="sticky top-0 z-50 flex items-center justify-between px-6 py-4">
       <div class="h-5"></div>
@@ -485,14 +485,14 @@ watch(() => route.query.id, () => {
 <style scoped>
 /* 曲目列表入场动画更平滑 */
 .album-track-enter-active {
-  transition: all 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: all 400ms cubic-bezier(0.34, 1.18, 0.64, 1);
 }
 .album-track-enter-from {
   opacity: 0;
   transform: translateY(12px) scale(0.99);
 }
 .album-track-move {
-  transition: transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 400ms cubic-bezier(0.34, 1.18, 0.64, 1);
 }
 
 /* 弹窗过渡动画 */
@@ -506,7 +506,7 @@ watch(() => route.query.id, () => {
 }
 .modal-enter-active .modal-content,
 .modal-leave-active .modal-content {
-  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 300ms cubic-bezier(0.34, 1.18, 0.64, 1);
 }
 .modal-enter-from .modal-content,
 .modal-leave-to .modal-content {

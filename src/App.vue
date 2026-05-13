@@ -242,8 +242,8 @@ function runRouteEnterMotion() {
   if (!contentRef.value) return;
   animate(
     contentRef.value,
-    { opacity: [0, 1], y: [10, 0], filter: ["blur(6px)", "blur(0px)"] },
-		{ duration: 0.28, easing: [0.22, 1, 0.36, 1] },
+    { opacity: [0, 1], y: [16, -2, 0], scale: [0.992, 1.004, 1], filter: ["blur(8px)", "blur(1px)", "blur(0px)"] },
+		{ type: "spring", stiffness: 240, damping: 28, mass: 0.68 },
 	);
 }
 
@@ -321,14 +321,14 @@ watch(
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
-	animation-duration: 360ms;
-	animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+	animation-duration: 460ms;
+	animation-timing-function: cubic-bezier(0.34, 1.22, 0.64, 1);
 }
 
 ::view-transition-old(*),
 ::view-transition-new(*) {
-	animation-duration: 460ms;
-	animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+	animation-duration: 560ms;
+	animation-timing-function: cubic-bezier(0.34, 1.18, 0.64, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -419,7 +419,7 @@ watch(
 	font-size: 14px;
 	font-weight: 700;
 	color: white;
-	transition: transform 160ms ease, background-color 160ms ease;
+	transition: transform 240ms cubic-bezier(0.34, 1.35, 0.64, 1), background-color 180ms ease;
 }
 
 .restriction-dialog-button:hover {
@@ -432,7 +432,7 @@ watch(
 
 .restriction-dialog-enter-active,
 .restriction-dialog-leave-active {
-	transition: opacity 180ms ease;
+	transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .restriction-dialog-enter-from,
@@ -442,7 +442,9 @@ watch(
 
 .restriction-dialog-enter-active .restriction-dialog-panel,
 .restriction-dialog-leave-active .restriction-dialog-panel {
-	transition: transform 220ms ease, opacity 180ms ease;
+	transition:
+		transform 520ms cubic-bezier(0.34, 1.25, 0.64, 1),
+		opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .restriction-dialog-enter-from .restriction-dialog-panel,

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="fixed inset-x-0 top-0 z-[998] pointer-events-none">
     <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
 
@@ -38,12 +38,12 @@
                 <Bars3Icon
                   :class="expanded ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'"
                   aria-hidden="true"
-                  class="absolute size-6 transition-all duration-300 ease-out"
+                  class="absolute size-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.18,0.64,1)]"
                 />
                 <XMarkIcon
                   :class="expanded ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'"
                   aria-hidden="true"
-                  class="absolute size-6 transition-all duration-300 ease-out"
+                  class="absolute size-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.18,0.64,1)]"
                 />
               </span>
             </button>
@@ -60,7 +60,7 @@
 
             <div class="flex min-w-0 flex-1 px-1 sm:px-0">
               <div
-                class="relative h-full w-full max-w-none transition-all duration-300 ease-out sm:max-w-lg md:max-w-2xl">
+                class="relative h-full w-full max-w-none transition-all duration-300 ease-[cubic-bezier(0.34,1.18,0.64,1)] sm:max-w-lg md:max-w-2xl">
                 <input
                   ref="input"
                   :placeholder="placeholder"
@@ -943,7 +943,7 @@ function animateExpand(toExpand) {
     expanded.value = true
   }
   navTl = gsap.timeline({
-    defaults: {ease: 'power3.out'}, onComplete: () => {
+    defaults: {ease: 'back.out(0.82)'}, onComplete: () => {
       if (!toExpand) expanded.value = false;
       navTl = null;
       if (toExpand) input.value?.focus()
@@ -2122,14 +2122,14 @@ function animateDialogIn() {
   const panel = resolveAnimTarget(dialogPanel.value);
   if (!overlay && !panel) return;
   gsap.killTweensOf([overlay, panel]);
-  const tl = gsap.timeline({defaults: {ease: 'power3.out'}});
+  const tl = gsap.timeline({defaults: {ease: 'back.out(0.82)'}});
   if (overlay) {
     gsap.set(overlay, {opacity: 0});
     tl.to(overlay, {opacity: 1, duration: 0.22}, 0)
   }
   if (panel) {
     gsap.set(panel, {opacity: 0, scale: 0.95, y: 10, transformOrigin: '50% 50%'});
-    tl.to(panel, {opacity: 1, scale: 1, y: 0, duration: 0.3}, 0.05)
+    tl.to(panel, {opacity: 1, scale: 1, y: 0, duration: 0.46}, 0.05)
   }
 }
 
@@ -2142,7 +2142,7 @@ function animateDialogOut() {
   return new Promise((resolve) => {
     gsap.killTweensOf(targets);
     const tl = gsap.timeline({
-      defaults: {ease: 'power2.in', duration: 0.18}, onComplete: () => {
+      defaults: {ease: 'power3.in', duration: 0.22}, onComplete: () => {
         isClosing.value = false;
         for (const target of targets) {
           if (target?.style) gsap.set(target, {clearProps: 'all'})

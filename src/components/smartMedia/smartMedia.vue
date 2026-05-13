@@ -80,7 +80,7 @@
             class="will-change-transform"
             :style="{
           transform: `translateY(${-scrollIndex * (lineHeight + 8)}px)`,
-          transition: scrollNoTransition ? 'none' : `transform ${transitionMs}ms ease-out`
+          transition: scrollNoTransition ? 'none' : `transform ${transitionMs}ms cubic-bezier(0.34, 1.18, 0.64, 1)`
         }"
           >
             <div
@@ -369,7 +369,7 @@ const wrapperStyle = computed(() => {
 
   if (props.scaleOnScroll) {
     style.transform = `scale(${scrollScale.value})`
-    style.transition = 'transform 0.45s ease-out'
+    style.transition = 'transform 0.58s cubic-bezier(0.34, 1.18, 0.64, 1)'
     style.willChange = 'transform'
   }
 

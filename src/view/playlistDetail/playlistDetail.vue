@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     class="relative w-full overflow-y-auto text-stone-900 transition-colors duration-700"
     :class="isModalPlaylistDetail ? 'min-h-full' : 'min-h-screen'"
@@ -668,7 +668,7 @@ watch(
 
 <style scoped>
 .track-item-enter-active {
-  transition: opacity 300ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 300ms ease;
+  transition: opacity 300ms cubic-bezier(0.34, 1.18, 0.64, 1), transform 300ms cubic-bezier(0.34, 1.18, 0.64, 1), filter 420ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--item-delay, 0ms);
 }
 .track-item-leave-active {
@@ -681,6 +681,6 @@ watch(
   filter: blur(4px);
 }
 .track-item-move {
-  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 300ms cubic-bezier(0.34, 1.18, 0.64, 1);
 }
 </style>
