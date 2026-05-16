@@ -2,20 +2,27 @@
   <div class="fixed inset-x-0 top-0 z-[998] pointer-events-none">
     <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
 
-      <div class="flex items-start gap-2 sm:gap-3 w-full">
+      <div class="flex items-start w-full">
 
-        <Transition name="pop">
-          <button
-            v-if="showBackButton"
-            type="button"
-            @click="goBack"
-            :class="shellToneClass"
-            class="mt-2 sm:mt-3 shrink-0 flex items-center justify-center size-12 rounded-full border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 pointer-events-auto transition-all duration-300 active:scale-95 will-change-transform"
-            aria-label="返回上一页"
+        <div ref="backRail" class="back-button-rail shrink-0 overflow-visible">
+          <Transition
+            :css="false"
+            @before-enter="beforeBackButtonEnter"
+            @enter="enterBackButton"
+            @leave="leaveBackButton"
           >
-            <ChevronLeftIcon class="size-6 mr-0.5" :class="btnToneClass" stroke-width="2.5"/>
-          </button>
-        </Transition>
+            <button
+              v-if="showBackButton"
+              type="button"
+              @click="goBack"
+              :class="shellToneClass"
+              class="mt-2 sm:mt-3 shrink-0 flex items-center justify-center size-12 rounded-full border shadow-lg ring-1 backdrop-blur-md backdrop-saturate-150 pointer-events-auto transition-colors duration-200 active:scale-95 will-change-transform"
+              aria-label="返回上一页"
+            >
+              <ChevronLeftIcon class="size-6 mr-0.5" :class="btnToneClass" stroke-width="2.5"/>
+            </button>
+          </Transition>
+        </div>
 
         <div
           ref="shell"
@@ -711,6 +718,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'expand', 'collapse', 'toggle', 'search', 'signin', 'signup'])
 
 const shell = ref(null)
+const backRail = ref(null)
 const content = ref(null)
 const btn = ref(null)
 const input = ref(null)
@@ -803,6 +811,7 @@ const fabContrastMode = ref('on-dark')
 const viewportWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 
 let navTl = null
+let backRailTween = null
 let autoExpandByScroll = false
 let searchTimer = null
 let searchRequestId = 0
@@ -821,6 +830,7 @@ const authTextToneClass = computed(() => fabContrastMode.value === 'on-light' ? 
 const chipSoftToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'bg-white/20 hover:bg-white/28' : 'bg-white/70 hover:bg-white/90')
 const chipGhostToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'bg-white/25 hover:bg-white/35' : 'bg-white/78 hover:bg-white')
 const totalMessageBadgeCount = computed(() => Number(noticeBadgeCount.value || 0) + Number(privateBadgeCount.value || 0))
+const prefersReducedMotion = computed(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
 
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
@@ -848,11 +858,10 @@ watch(() => router.currentRoute.value.fullPath, () => {
   profileMenuOpen.value = false
 })
 
-// 监听返回按钮状态变化，如果展开中，需要重新测算宽度以避免挤压
-watch(showBackButton, () => {
-  if (expanded.value) {
-    nextTick(() => syncExpandedWidth())
-  }
+// 返回按钮出现/消失时，先动画按钮轨道，再同步搜索框宽度，避免布局突然跳变。
+watch(showBackButton, (visible) => {
+  animateBackRail(visible)
+  nextTick(() => syncExpandedWidth({animate: true}))
 })
 
 watch(isOpen, (open) => {
@@ -917,21 +926,95 @@ function measureExpandedWidth() {
   // parentElement 是外层的 div.flex 容器，它的宽度就是实际最大可用宽度
   const parentWidth = el.parentElement?.getBoundingClientRect().width || viewportWidth.value
 
-  // 判断当前屏幕是否是大屏，计算对应的 gap (大屏 sm:gap-3 是 12px, 小屏 gap-2 是 8px)
-  const isDesktop = viewportWidth.value >= 640
-  const gap = isDesktop ? 12 : 8
-
-  // 如果返回按钮存在，精确扣除按钮的尺寸 (48px) 以及 gap 的距离
-  const offset = showBackButton.value ? (48 + gap) : 0
+  const offset = getBackRailTargetWidth(showBackButton.value)
 
   // 计算得出最终宽度，预留 1 像素容错，防止部分浏览器亚像素渲染导致挤压缩放
   return Math.max(200, Math.floor(parentWidth - offset) - 1)
 }
 
-function syncExpandedWidth() {
+function getBackRailGap() {
+  return viewportWidth.value >= 640 ? 12 : 8
+}
+
+function getBackRailTargetWidth(visible = showBackButton.value) {
+  return visible ? 48 + getBackRailGap() : 0
+}
+
+function animateBackRail(visible = showBackButton.value) {
+  const rail = backRail.value
+  if (!rail) return
+  backRailTween?.kill()
+  const width = getBackRailTargetWidth(visible)
+  if (prefersReducedMotion.value) {
+    gsap.set(rail, {width})
+    return
+  }
+  backRailTween = gsap.to(rail, {
+    width,
+    duration: visible ? 0.48 : 0.34,
+    ease: visible ? 'elastic.out(1, 0.74)' : 'power3.inOut',
+    overwrite: true,
+    onComplete: () => {
+      backRailTween = null
+    }
+  })
+}
+
+function beforeBackButtonEnter(el) {
+  gsap.set(el, {
+    opacity: 0,
+    x: -18,
+    scale: 0.72,
+    rotate: -10,
+    transformOrigin: '50% 50%'
+  })
+}
+
+function enterBackButton(el, done) {
+  if (prefersReducedMotion.value) {
+    gsap.set(el, {opacity: 1, x: 0, scale: 1, rotate: 0})
+    done()
+    return
+  }
+  gsap.to(el, {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    rotate: 0,
+    duration: 0.52,
+    ease: 'elastic.out(1, 0.68)',
+    overwrite: true,
+    onComplete: done
+  })
+}
+
+function leaveBackButton(el, done) {
+  if (prefersReducedMotion.value) {
+    gsap.set(el, {opacity: 0})
+    done()
+    return
+  }
+  gsap.to(el, {
+    opacity: 0,
+    x: -14,
+    scale: 0.78,
+    rotate: -8,
+    duration: 0.2,
+    ease: 'power3.in',
+    overwrite: true,
+    onComplete: done
+  })
+}
+
+function syncExpandedWidth({animate = false} = {}) {
   const el = shell.value
   if (!el || !expanded.value || navTl) return
-  gsap.set(el, {width: measureExpandedWidth()})
+  const width = measureExpandedWidth()
+  if (animate && !prefersReducedMotion.value) {
+    gsap.to(el, {width, duration: 0.42, ease: 'power3.out', overwrite: 'auto'})
+    return
+  }
+  gsap.set(el, {width})
 }
 
 function animateExpand(toExpand) {
@@ -1895,6 +1978,7 @@ onMounted(async () => {
     height: 48,
     borderRadius: 9999
   });
+  if (backRail.value) gsap.set(backRail.value, {width: getBackRailTargetWidth()});
   updateFabContrast();
   window.addEventListener('scroll', onScroll, {passive: true});
   window.addEventListener('resize', onResize)
@@ -1904,11 +1988,13 @@ onMounted(async () => {
 function onResize() {
   viewportWidth.value = window.innerWidth;
   scheduleContrastUpdate();
+  if (backRail.value) gsap.set(backRail.value, {width: getBackRailTargetWidth()});
   syncExpandedWidth()
 }
 
 onBeforeUnmount(() => {
   navTl?.kill();
+  backRailTween?.kill();
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('resize', onResize);
   window.removeEventListener('pointerdown', handleOutsidePointerDown);
@@ -2173,14 +2259,9 @@ button, svg {
   will-change: transform, opacity;
 }
 
-/* 进出场动画：为返回悬浮球设计 */
-.pop-enter-active, .pop-leave-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.pop-enter-from, .pop-leave-to {
-  opacity: 0;
-  transform: scale(0.6) translateX(-15px);
+.back-button-rail {
+  width: 0;
+  will-change: width;
 }
 
 .menu-pop-enter-active,
