@@ -84,6 +84,22 @@ export const adminApi = {
     return unwrap(requestLocal.get(`/api/v1/admin/netease-users/${id}/login-status`));
   },
 
+  riskProfile(id) {
+    return unwrap(requestLocal.get(`/api/v1/admin/netease-users/${id}/risk-profile`));
+  },
+
+  ipAnalysis(id) {
+    return unwrap(requestLocal.get(`/api/v1/admin/netease-users/${id}/ip-analysis`));
+  },
+
+  lifecycle() {
+    return unwrap(requestLocal.get("/api/v1/admin/user-lifecycle"));
+  },
+
+  notifications() {
+    return unwrap(requestLocal.get("/api/v1/admin/notifications"));
+  },
+
   banUser(id, reason) {
     return unwrap(requestLocal.put(`/api/v1/admin/netease-users/${id}/ban`, {reason}));
   },
@@ -112,12 +128,24 @@ export const adminApi = {
     return unwrap(requestLocal.get(`/api/v1/admin/netease-users/${neteaseUserId}/report`));
   },
 
+  reportSummary(neteaseUserId) {
+    return unwrap(requestLocal.get(`/api/v1/admin/netease-users/${neteaseUserId}/report/summary`));
+  },
+
+  reportExportUrl(neteaseUserId) {
+    return `/api/v1/admin/netease-users/${neteaseUserId}/report/export`;
+  },
+
   behaviorTrace(neteaseUserId, params = {}) {
     return page(requestLocal.get(`/api/v1/admin/netease-users/${neteaseUserId}/behavior-trace`, {params: pageParams(params)}));
   },
 
   recommendations(neteaseUserId, params = {}) {
     return page(requestLocal.get(`/api/v1/admin/netease-users/${neteaseUserId}/recommendations`, {params: pageParams(params)}));
+  },
+
+  generateRecommendations(neteaseUserId, params = {}) {
+    return page(requestLocal.post(`/api/v1/admin/netease-users/${neteaseUserId}/recommendations/generate`, null, {params: pageParams(params)}));
   },
 
   remarks(neteaseUserId) {

@@ -27,6 +27,21 @@ function hasMeaningfulText(text = "") {
 	return normalizeInterludeText(text).length > 0;
 }
 
+const MAX_YRC_WORDS_PER_LINE = 48;
+const MAX_YRC_TOTAL_WORDS = 1800;
+
+function createLineLevelWord(startTime, duration, text = "") {
+	const safeStart = Number.isFinite(startTime) ? Math.max(0, startTime) : 0;
+	const safeDuration = Number.isFinite(duration) ? Math.max(600, duration) : 1400;
+	return {
+		startTime: safeStart,
+		endTime: safeStart + safeDuration,
+		word: String(text || "").trim(),
+		romanWord: "",
+		obscene: false,
+	};
+}
+
 function parseLrcRows(raw = "") {
 	if (!raw) return [];
 	const rows = normalizeLyricText(raw).split("\n");
@@ -83,6 +98,7 @@ function parseYrc(raw = "", translatedByStart = new Map(), romanByStart = new Ma
 	if (!raw) return [];
 	const rows = normalizeLyricText(raw).split("\n");
 	const result = [];
+	let totalWordCount = 0;
 
 	for (const row of rows) {
 		if (!row || !row.trim()) continue;
@@ -120,16 +136,15 @@ function parseYrc(raw = "", translatedByStart = new Map(), romanByStart = new Ma
 			? Math.max(600, lineDuration)
 			: 1400;
 
+		if (words.length > MAX_YRC_WORDS_PER_LINE && hasMeaningfulText(plainText)) {
+			words.splice(0, words.length, createLineLevelWord(lineStart, fallbackDuration, plainText));
+		}
+
 		if (!words.length && hasMeaningfulText(plainText)) {
-			words.push({
-				startTime: lineStart,
-				endTime: lineStart + fallbackDuration,
-				word: plainText,
-				romanWord: "",
-				obscene: false,
-			});
+			words.push(createLineLevelWord(lineStart, fallbackDuration, plainText));
 		}
 		if (!words.length) continue;
+		totalWordCount += words.length;
 
 		const wordStart = words[0]?.startTime ?? lineStart;
 		const wordEnd =
@@ -146,7 +161,25 @@ function parseYrc(raw = "", translatedByStart = new Map(), romanByStart = new Ma
 		});
 	}
 
-	return result.sort((a, b) => a.startTime - b.startTime);
+	const sortedResult = result.sort((a, b) => a.startTime - b.startTime);
+	if (totalWordCount > MAX_YRC_TOTAL_WORDS) {
+		return sortedResult.map((line) => {
+			const plainText = line.words.map((word) => word.word).join("").trim();
+			if (!hasMeaningfulText(plainText)) return line;
+			return {
+				...line,
+				words: [
+					createLineLevelWord(
+						line.startTime,
+						Math.max(600, line.endTime - line.startTime),
+						plainText,
+					),
+				],
+			};
+		});
+	}
+
+	return sortedResult;
 }
 
 function mapByStartTime(raw = "") {

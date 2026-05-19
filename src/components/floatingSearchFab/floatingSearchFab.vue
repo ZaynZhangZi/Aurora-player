@@ -2153,7 +2153,7 @@ async function handleLoginSuccess(payload) {
     try {
       const infoRes = await userApi.getUserInfo();
       const profile = buildProfile(infoRes?.data)
-      userStore.setProfile(profile);
+      userStore.setLogin(cookie, profile);
       const syncedUser = await reportApi.syncNeteaseUser(profile, {force: true})
       if (isRestrictedStatus(syncedUser?.status)) {
         await rejectRestrictedLogin(syncedUser)
@@ -2169,6 +2169,7 @@ async function handleLoginSuccess(payload) {
         }
         userStore.setProfile(profile)
         reportApi.syncNeteaseUser(profile)
+        emit('signin', profile)
       }
     }
   }

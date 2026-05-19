@@ -1235,6 +1235,9 @@ async function playCloudSong(item) {
 }
 
 async function loadProfilePage() {
+  loading.value = true
+  error.value = ''
+
   if (!userStore.userId) {
     error.value = '请先登录再查看个人中心'
     loading.value = false
@@ -1324,6 +1327,22 @@ watch(
   () => {
     if (!heroCanvasFrame) {
       renderHeroCanvasStatic()
+    }
+  },
+)
+
+watch(
+  () => userStore.userId,
+  (nextUserId, prevUserId) => {
+    if (nextUserId && nextUserId !== prevUserId) {
+      loadProfilePage()
+      return
+    }
+    if (!nextUserId) {
+      error.value = '请先登录再查看个人中心'
+      loading.value = false
+      playlists.value = []
+      cloudSongs.value = []
     }
   },
 )

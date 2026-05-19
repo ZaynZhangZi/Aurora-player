@@ -489,6 +489,7 @@ import {artistApi} from '@/api/artistApi/artistApi.js'
 import {homeIndexApi} from '@/api/home/homeIndexApi.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
+import {useCounterStore} from '@/stores/userStores.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
@@ -500,6 +501,7 @@ import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 const router = useRouter()
 const route = useRoute()
 const playerStore = usePlayerStore()
+const userStore = useCounterStore()
 const motionCleanups = []
 
 const hero = ref({
@@ -1108,6 +1110,14 @@ async function loadNewSongs() {
 }
 
 async function loadRecentListenSongs() {
+  if (!userStore.isLoggedIn) {
+    loading.value.recent = false
+    errors.value.recent = '请先登录账号查看最近听歌'
+    recentListenSongs.value = []
+    recentCurrentPage.value = 1
+    return
+  }
+
   loading.value.recent = true
   errors.value.recent = ''
   try {
@@ -1211,6 +1221,20 @@ watch(
   () => {
     heroCopyIndex.value = 0
     startHeroCopyCycle()
+  },
+)
+
+watch(
+  () => userStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) {
+      loadRecentListenSongs()
+      return
+    }
+    loading.value.recent = false
+    errors.value.recent = '请先登录账号查看最近听歌'
+    recentListenSongs.value = []
+    recentCurrentPage.value = 1
   },
 )
 

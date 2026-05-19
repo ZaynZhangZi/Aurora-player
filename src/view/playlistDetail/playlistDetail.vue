@@ -664,6 +664,18 @@ watch(
     runHeroFlipEnter()
   },
 )
+
+watch(
+  () => userStore.isLoggedIn,
+  (loggedIn) => {
+    actionFeedback.value = ''
+    if (loggedIn) {
+      loadLikedSongs()
+      return
+    }
+    likedSongIdSet.value = new Set()
+  },
+)
 </script>
 
 <style scoped>
