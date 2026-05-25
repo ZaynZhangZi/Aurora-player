@@ -1,159 +1,170 @@
 <template>
-  <div class="min-h-screen bg-[#FAFAFA] text-stone-900 selection:bg-stone-900 selection:text-white">
-    <section class="relative overflow-hidden pt-16 pb-12 sm:pt-24 sm:pb-20">
-      <div class="profile-hero-flow absolute inset-0" />
-      <canvas ref="heroCanvasRef" class="profile-hero-canvas absolute inset-0 mix-blend-multiply opacity-60" />
+  <div class="min-h-screen text-[#1D1D1F] selection:bg-[#0071E3] selection:text-white font-sans antialiased relative">
 
-      <div class="absolute inset-0 bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA]/60 to-transparent z-10" />
+    <!-- Global Immersive Full-Screen Ambient Engine -->
+    <div class="fixed inset-0 overflow-hidden select-none pointer-events-none z-0">
+      <img
+        v-if="profile.avatarUrl"
+        :src="profile.avatarUrl"
+        class="w-full h-full object-cover scale-150 blur-[110px] opacity-[0.22] saturate-[1.3]"
+        alt=""
+      />
+      <!-- Integrated Canvas Blending Layer -->
+      <div class="profile-hero-flow absolute inset-0 opacity-5" />
+      <canvas ref="heroCanvasRef" class="profile-hero-canvas absolute inset-0 mix-blend-multiply opacity-20" />
+      <!-- Soft Solid Layer to maintain premium text contrast across screen -->
+      <div class="absolute inset-0 bg-gradient-to-b from-white/30 via-[#F5F5F7]/60 to-[#F5F5F7]/90" />
+    </div>
 
-      <div class="relative z-20 mx-auto max-w-5xl px-6 sm:px-10">
-        <div class="flex flex-col items-center text-center md:flex-row md:text-left md:gap-10">
-          <div class="relative group shrink-0 mb-6 md:mb-0">
-            <div class="absolute -inset-4 rounded-full bg-white/20 blur-2xl transition-all duration-700 group-hover:bg-white/40" />
-            <img
-              v-if="profile.avatarUrl"
-              :src="profile.avatarUrl"
-              alt="avatar"
-              class="relative z-10 h-32 w-32 md:h-40 md:w-40 rounded-full border-4 border-white/60 object-cover shadow-[0_16px_40px_rgba(0,0,0,0.12)] transition-transform duration-500 group-hover:scale-105"
-            />
-          </div>
-
-          <div class="flex-1">
-            <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-stone-500">Personal Center</p>
-            <h1 class="mt-1 text-4xl font-black tracking-tight text-stone-900 sm:text-5xl md:text-6xl">{{ profile.nickname || '我的主页' }}</h1>
-
-            <div class="mt-5 flex flex-wrap justify-center md:justify-start items-center gap-2 text-xs font-bold text-stone-700">
-              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">UID {{ profile.userId || '-' }}</span>
-              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">{{ certificationText }}</span>
-              <span class="rounded-full bg-white/60 backdrop-blur-md px-3.5 py-1.5 shadow-sm ring-1 ring-stone-900/5">{{ locationText }}</span>
-            </div>
-
-            <div class="mt-3 flex flex-wrap justify-center md:justify-start items-center gap-2 text-xs font-bold text-stone-700">
-              <span class="profile-kpi-pill rounded-full bg-stone-900 text-white px-4 py-1.5 shadow-md">关注 {{ formatCount(profile.follows) }}</span>
-              <span class="profile-kpi-pill rounded-full bg-white/60 backdrop-blur-md px-4 py-1.5 shadow-sm ring-1 ring-stone-900/5">粉丝 {{ formatCount(profile.followeds) }}</span>
-              <span class="profile-kpi-pill rounded-full bg-white/60 backdrop-blur-md px-4 py-1.5 shadow-sm ring-1 ring-stone-900/5">等级 Lv.{{ level.level || 0 }}</span>
-            </div>
-
-            <p class="mt-5 max-w-2xl text-sm font-medium leading-relaxed text-stone-600 opacity-90">
-              {{ profile.signature || profile.description || '这个人很神秘，还没有留下简介。' }}
-            </p>
-          </div>
-        </div>
+    <!-- Centered Premium Minimalist Header -->
+    <header class="relative z-10 pt-20 pb-4 flex flex-col items-center text-center px-6">
+      <!-- Sharp & Elegant Circle Avatar Frame -->
+      <div class="relative shrink-0 mb-5 animate-fade-in">
+        <img
+          v-if="profile.avatarUrl"
+          :src="profile.avatarUrl"
+          alt="avatar"
+          class="h-28 w-28 md:h-32 md:w-32 rounded-full border border-white shadow-[0_12px_40px_rgba(0,0,0,0.05)] object-cover transition-transform duration-500 ease-out hover:scale-102"
+        />
       </div>
-    </section>
 
-    <main class="relative z-30 mx-auto max-w-5xl px-6 pb-24 sm:px-10">
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#86868B] mb-2">Personal Center</p>
+      <h1 class="text-3xl font-bold tracking-tight text-[#1D1D1F] sm:text-4xl md:text-5xl">{{ profile.nickname || '我的主页' }}</h1>
 
-      <section class="mb-12 flex justify-center">
-        <div class="inline-flex items-center rounded-full bg-stone-200/50 p-1.5 backdrop-blur-md shadow-inner">
-          <button
-            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
-            :class="activeTab === 'playlist' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
-            type="button"
-            @click="switchTab('playlist')"
-          >
-            歌单总览
-          </button>
-          <button
-            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
-            :class="activeTab === 'cloud' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
-            type="button"
-            @click="switchTab('cloud')"
-          >
-            云盘管理
-          </button>
-          <button
-            class="rounded-full px-6 py-2 text-sm font-bold transition-all duration-300"
-            :class="activeTab === 'listening' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
-            type="button"
-            @click="switchTab('listening')"
-          >
-            听歌画像
-          </button>
-        </div>
-      </section>
+      <!-- Minimalist Meta Metadata Badges -->
+      <div class="mt-4 flex flex-wrap justify-center items-center gap-1.5 text-[11px] font-semibold text-[#86868B]">
+        <span class="px-2.5 py-0.5 rounded bg-white/60 border border-black/[0.03] backdrop-blur-md shadow-sm">UID {{ profile.userId || '-' }}</span>
+        <span class="px-2.5 py-0.5 rounded bg-white/60 border border-black/[0.03] backdrop-blur-md shadow-sm">{{ certificationText }}</span>
+        <span class="px-2.5 py-0.5 rounded bg-white/60 border border-black/[0.03] backdrop-blur-md shadow-sm">{{ locationText }}</span>
+      </div>
 
+      <!-- Pure Text Interaction Metrics Grid -->
+      <div class="mt-4 flex items-center justify-center gap-5 text-xs font-semibold text-[#1D1D1F]">
+        <div class="cursor-default"><span class="text-[#0071E3] font-bold">{{ formatCount(profile.follows) }}</span> 关注</div>
+        <div class="h-3 w-px bg-black/10" />
+        <div class="cursor-default"><span class="text-[#0071E3] font-bold">{{ formatCount(profile.followeds) }}</span> 粉丝</div>
+        <div class="h-3 w-px bg-black/10" />
+        <div class="cursor-default">等阶 <span class="text-[#0071E3] font-bold">Lv.{{ level.level || 0 }}</span></div>
+      </div>
+
+      <!-- Descriptive Narrative Bio -->
+      <p class="mt-4.5 max-w-lg text-[13px] font-medium leading-relaxed text-[#86868B]">
+        {{ profile.signature || profile.description || '这个人很神秘，还没有留下简介。' }}
+      </p>
+
+      <!-- Clean Underlined Tab Bar with Apple Tech Blue Accent -->
+      <nav class="mt-14 flex items-center justify-center gap-8 border-b border-black/[0.08] w-full max-w-5xl text-sm font-medium text-[#86868B]">
+        <button
+          class="pb-3 transition-all relative border-b-2 text-sm"
+          :class="activeTab === 'playlist' ? 'border-[#0071E3] text-[#0071E3] font-semibold' : 'border-transparent hover:text-[#1D1D1F]'"
+          type="button"
+          @click="switchTab('playlist')"
+        >
+          歌单总览
+        </button>
+        <button
+          class="pb-3 transition-all relative border-b-2 text-sm"
+          :class="activeTab === 'cloud' ? 'border-[#0071E3] text-[#0071E3] font-semibold' : 'border-transparent hover:text-[#1D1D1F]'"
+          type="button"
+          @click="switchTab('cloud')"
+        >
+          云盘管理
+        </button>
+        <button
+          class="pb-3 transition-all relative border-b-2 text-sm"
+          :class="activeTab === 'listening' ? 'border-[#0071E3] text-[#0071E3] font-semibold' : 'border-transparent hover:text-[#1D1D1F]'"
+          type="button"
+          @click="switchTab('listening')"
+        >
+          听歌画像
+        </button>
+      </nav>
+    </header>
+
+    <!-- Main Content Stream Grid Frame -->
+    <main class="relative z-10 mx-auto max-w-5xl px-6 pb-32 sm:px-10 mt-6">
       <transition name="tab-panel" mode="out-in">
 
+        <!-- Tab Content 1: Borderless Clean Library Layout -->
         <section v-if="activeTab === 'playlist'" key="playlist" class="w-full">
           <div class="mb-8 flex items-end justify-between">
-            <h2 class="text-3xl font-bold tracking-tight text-stone-900">我的歌单</h2>
-            <span class="text-xs font-bold text-stone-500">创建 {{ createdPlaylists.length }} · 收藏 {{ subscribedPlaylists.length }}</span>
+            <h2 class="text-xl font-bold tracking-tight text-[#1D1D1F]">全量媒体库</h2>
+            <span class="text-xs font-semibold text-[#86868B]">自建 {{ createdPlaylists.length }} · 收藏 {{ subscribedPlaylists.length }}</span>
           </div>
 
-          <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">加载中...</p>
-          <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
+          <p v-if="loading" class="text-sm font-medium text-[#86868B]">正在同步媒体资料库...</p>
+          <p v-else-if="error" class="text-xs font-semibold text-[#0071E3] bg-[#0071E3]/5 rounded-xl p-3.5 border border-[#0071E3]/10">{{ error }}</p>
 
           <template v-else>
+            <!-- Sub-Grid Shelf: Created Framework -->
             <div class="mb-12">
-              <h3 class="mb-6 text-xs font-bold uppercase tracking-[0.2em] text-stone-400">我创建的</h3>
-              <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <h3 class="mb-5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#86868B]">创建的歌单</h3>
+              <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 <article
                   v-for="item in createdPlaylists"
                   :key="`created-${item.id}`"
-                  class="group flex cursor-pointer items-center gap-5 rounded-[24px] bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)]"
+                  class="group cursor-pointer"
                   @click="openPlaylist(item)"
                 >
-                  <div class="h-24 w-24 shrink-0 overflow-hidden rounded-[16px] shadow-sm">
-                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  <!-- Standard Apple Artwork Aspect Box -->
+                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
+                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
                   </div>
-                  <div class="min-w-0 flex-1 pr-4">
-                    <p class="truncate text-base font-bold text-stone-900">{{ item.name }}</p>
-                    <p class="mt-1 text-xs font-medium text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
-                    <p class="mt-2 line-clamp-1 text-xs font-medium text-stone-400">{{ item.description || '暂无简介' }}</p>
-                  </div>
+                  <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
+                  <p class="mt-0.5 px-0.5 text-[11px] font-medium text-[#86868B]">{{ item.trackCount || 0 }} 首歌曲</p>
                 </article>
               </div>
-              <p v-if="!createdPlaylists.length" class="mt-4 text-sm font-medium text-stone-500">还没有创建歌单。</p>
+              <p v-if="!createdPlaylists.length" class="text-xs font-medium text-[#86868B] py-4">暂无创建的内容</p>
             </div>
 
+            <!-- Sub-Grid Shelf: Bookmarked Framework -->
             <div>
-              <h3 class="mb-6 text-xs font-bold uppercase tracking-[0.2em] text-stone-400">我收藏的</h3>
-              <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <h3 class="mb-5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#86868B]">收藏的歌单</h3>
+              <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 <article
                   v-for="item in subscribedPlaylists"
                   :key="`sub-${item.id}`"
-                  class="group flex cursor-pointer items-center gap-4 rounded-[20px] bg-white/60 p-2.5 shadow-sm ring-1 ring-stone-900/5 transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-md"
+                  class="group cursor-pointer"
                   @click="openPlaylist(item)"
                 >
-                  <div class="h-16 w-16 shrink-0 overflow-hidden rounded-[12px]">
-                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
+                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
                   </div>
-                  <div class="min-w-0 flex-1 pr-4">
-                    <p class="truncate text-sm font-bold text-stone-900">{{ item.name }}</p>
-                    <p class="mt-0.5 text-xs font-medium text-stone-500">{{ item.trackCount || 0 }} 首音乐</p>
-                  </div>
+                  <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
+                  <p class="mt-0.5 px-0.5 text-[11px] font-medium text-[#86868B]">{{ item.trackCount || 0 }} 首歌曲</p>
                 </article>
               </div>
-              <p v-if="!subscribedPlaylists.length" class="mt-4 text-sm font-medium text-stone-500">还没有收藏歌单。</p>
+              <p v-if="!subscribedPlaylists.length" class="text-xs font-medium text-[#86868B] py-4">暂无收藏的内容</p>
             </div>
           </template>
         </section>
 
+        <!-- Tab Content 2: High-Fidelity Music Cloud Drive List -->
         <section v-else-if="activeTab === 'cloud'" key="cloud" class="w-full">
           <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <h2 class="text-3xl font-bold tracking-tight text-stone-900">音乐云盘</h2>
+            <h2 class="text-xl font-bold tracking-tight text-[#1D1D1F]">云端文件管理</h2>
             <button
-              class="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 hover:text-stone-900 disabled:opacity-50"
+              class="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-[#1D1D1F] text-white text-xs font-semibold shadow-sm transition hover:bg-zinc-800 active:scale-95 disabled:opacity-40"
               type="button"
               :disabled="cloudLoading"
               @click="loadCloudSongs(cloudPage)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              刷新状态
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              刷新存储
             </button>
           </div>
 
-          <div class="mb-10 flex flex-col items-center justify-center rounded-[24px] border border-dashed border-stone-300 bg-stone-100/50 p-8 text-center transition-colors hover:border-stone-400 hover:bg-stone-100">
-            <div class="mb-3 rounded-full bg-stone-200/50 p-3 text-stone-600">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+          <!-- Apple Style Understated Upload Deck Container with Tech Blue Icon -->
+          <div class="mb-10 flex flex-col items-center justify-center rounded-2xl bg-white/50 border border-black/[0.04] p-8 text-center backdrop-blur-md">
+            <div class="mb-3 text-[#0071E3]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
             </div>
-            <p class="text-sm font-bold text-stone-900">将本地音乐上传至云盘</p>
-            <p class="mt-1 text-xs font-medium text-stone-500">支持 mp3, flac, wav, m4a, aac 格式</p>
+            <p class="text-sm font-bold text-[#1D1D1F]">将个人独立音源封存至云端</p>
+            <p class="mt-0.5 text-xs text-[#86868B] font-medium">支持高标准打包 flac, wav, mp3, m4a, aac 音源流</p>
 
-            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <label class="cursor-pointer rounded-full bg-stone-900 px-6 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-black hover:shadow-lg">
-                选择文件
+            <div class="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+              <label class="cursor-pointer rounded-full bg-[#0071E3] px-5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0077ED] active:scale-95">
+                选择本地媒体文件
                 <input
                   :key="cloudFileInputKey"
                   type="file"
@@ -165,153 +176,164 @@
 
               <button
                 v-if="cloudUploadFile"
-                class="rounded-full bg-white px-6 py-2.5 text-xs font-bold text-stone-800 shadow-sm ring-1 ring-stone-900/10 transition hover:bg-stone-50 disabled:opacity-50"
+                class="rounded-full bg-[#1D1D1F] px-5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:opacity-40"
                 type="button"
                 :disabled="cloudUploading"
                 @click="uploadCloudSong"
               >
-                {{ cloudUploading ? '正在上传...' : '开始上传' }}
+                {{ cloudUploading ? '分片编译中...' : '确认部署上传' }}
               </button>
             </div>
-            <p v-if="cloudUploadMessage" class="mt-4 text-xs font-bold text-emerald-600">{{ cloudUploadMessage }}</p>
+            <p v-if="cloudUploadMessage" class="mt-3.5 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-full px-3.5 py-0.5 border border-emerald-100 animate-fade-in">{{ cloudUploadMessage }}</p>
           </div>
 
-          <p v-if="cloudLoading" class="animate-pulse text-sm font-medium text-stone-500">云盘加载中...</p>
-          <p v-else-if="cloudError" class="text-sm font-medium text-red-500">{{ cloudError }}</p>
+          <p v-if="cloudLoading" class="text-sm font-medium text-[#86868B]">正在同步分发节点数轴...</p>
+          <p v-else-if="cloudError" class="text-xs font-semibold text-[#0071E3] bg-[#0071E3]/5 rounded-xl p-3.5 border border-[#0071E3]/10">{{ cloudError }}</p>
 
           <template v-else>
-            <div v-if="cloudSongs.length" class="space-y-1">
+            <!-- Native Music Track Table rows Framework with Tech Blue Accent -->
+            <div v-if="cloudSongs.length" class="border-t border-b border-black/[0.08] divide-y divide-black/[0.04] bg-white/30 rounded-2xl p-1 backdrop-blur-sm animate-fade-in">
               <article
                 v-for="(item, index) in cloudSongs"
                 :key="`cloud-${item.songId}`"
-                class="group flex flex-col rounded-xl px-4 py-3 transition-colors hover:bg-white hover:shadow-sm"
+                class="group flex flex-col px-3 py-3 rounded-xl transition-colors duration-100 hover:bg-white/80"
               >
                 <div class="flex items-center justify-between gap-4 cursor-pointer" @click="playCloudSong(item)">
                   <div class="flex items-center gap-4 min-w-0">
-                    <div class="flex w-6 justify-center text-xs font-bold text-stone-400 group-hover:text-stone-900">
-                      <span class="group-hover:hidden">{{ index + 1 + (cloudPage - 1) * cloudLimit }}</span>
-                      <svg class="hidden group-hover:block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <!-- Audio Track Serial Index Indicator Shift -->
+                    <div class="flex w-5 justify-center text-xs font-semibold text-zinc-300 group-hover:text-[#0071E3] transition-colors">
+                      <span class="group-hover:hidden w-full text-center">{{ index + 1 + (cloudPage - 1) * cloudLimit }}</span>
+                      <svg class="hidden group-hover:block" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </div>
                     <div class="min-w-0">
-                      <p class="truncate text-sm font-bold text-stone-900">{{ item.songName }}</p>
-                      <p class="mt-0.5 truncate text-xs font-medium text-stone-500">{{ item.artistName }} · {{ item.albumName }}</p>
+                      <p class="truncate text-[13.5px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.songName }}</p>
+                      <p class="mt-0.5 truncate text-[11px] font-bold text-[#86868B]">{{ item.artistName }} <span class="text-zinc-300 font-normal mx-0.5">·</span> {{ item.albumName }}</p>
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-6 shrink-0">
-                    <span class="hidden text-xs font-medium text-stone-400 sm:block">{{ formatFileSize(item.fileSize) }}</span>
-                    <span class="hidden text-xs font-medium text-stone-400 sm:block">{{ formatDateTime(item.addTime).split(' ')[0] }}</span>
+                  <!-- Right Table Meta Field Items -->
+                  <div class="flex items-center gap-6 shrink-0 text-[11.5px] font-bold text-[#86868B]">
+                    <span class="hidden sm:block font-medium">{{ formatFileSize(item.fileSize) }}</span>
+                    <span class="hidden sm:block font-medium">{{ formatDateTime(item.addTime).split(' ')[0] }}</span>
 
-                    <div class="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <!-- Minimalist Quick Inline Actions Matrix -->
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        class="rounded-full bg-white p-2 text-stone-500 shadow-sm ring-1 ring-stone-900/5 transition hover:text-stone-900 hover:bg-stone-50"
+                        class="rounded-full bg-white p-1.5 border border-black/[0.04] text-[#86868B] transition hover:text-[#1D1D1F] hover:bg-zinc-50 shadow-sm"
                         title="查看详情"
                         @click.stop="toggleCloudDetail(item)"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                       </button>
                       <button
-                        class="rounded-full bg-white p-2 text-red-500 shadow-sm ring-1 ring-stone-900/5 transition hover:text-red-700 hover:bg-red-50"
+                        class="rounded-full bg-white p-1.5 border border-black/[0.04] text-rose-600 transition hover:bg-rose-50 shadow-sm"
                         title="删除歌曲"
                         @click.stop="deleteCloudSong(item)"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div v-if="activeCloudDetailId === item.songId" class="mt-3 ml-10 rounded-xl bg-stone-100/60 p-4 text-xs font-medium text-stone-600 cursor-default">
-                  <p v-if="cloudDetailLoadingId === item.songId" class="animate-pulse">数据加载中...</p>
-                  <div v-else class="grid grid-cols-2 gap-y-2">
-                    <p><span class="text-stone-400 mr-2">文件名</span> {{ cloudDetails[item.songId]?.fileName || item.fileName || '-' }}</p>
-                    <p><span class="text-stone-400 mr-2">比特率</span> {{ cloudDetails[item.songId]?.bitrate || item.bitrate || '-' }} kbps</p>
-                    <p><span class="text-stone-400 mr-2">音乐时长</span> {{ formatDuration(cloudDetails[item.songId]?.simpleSong?.dt || item.duration) }}</p>
-                    <p><span class="text-stone-400 mr-2">平台 ID</span> {{ cloudDetails[item.songId]?.songId || item.songId }}</p>
+                <!-- Expanded Row Detail Specs Board Container -->
+                <div v-if="activeCloudDetailId === item.songId" class="mt-2.5 ml-9 rounded-lg bg-black/[0.03] p-4 text-[11px] font-semibold text-zinc-500 cursor-default animate-fade-in border border-black/[0.01]">
+                  <p v-if="cloudDetailLoadingId === item.songId" class="animate-pulse">调取内部节点参数...</p>
+                  <div v-else class="grid grid-cols-2 gap-y-2 gap-x-4">
+                    <p class="truncate"><span class="text-zinc-400 font-medium mr-2">媒体原件名</span> {{ cloudDetails[item.songId]?.fileName || item.fileName || '-' }}</p>
+                    <p><span class="text-zinc-400 font-medium mr-2">数字比特率</span> {{ cloudDetails[item.songId]?.bitrate || item.bitrate || '-' }} kbps</p>
+                    <p><span class="text-zinc-400 font-medium mr-2">标准时频域</span> {{ formatDuration(cloudDetails[item.songId]?.simpleSong?.dt || item.duration) }}</p>
+                    <p><span class="text-zinc-400 font-medium mr-2">总线核心 ID</span> <span class="font-mono text-[#0071E3] px-1 py-0.5 rounded bg-white border border-black/[0.03] shadow-sm">{{ cloudDetails[item.songId]?.songId || item.songId }}</span></p>
                   </div>
                 </div>
               </article>
             </div>
-            <p v-else class="text-sm font-medium text-stone-500">云盘还没有歌曲。</p>
+            <p v-else class="text-xs font-semibold text-[#86868B] py-10 text-center border border-dashed border-black/10 rounded-xl bg-white/20">网盘存储区为空</p>
 
-            <div class="mt-8 flex items-center justify-end gap-4 text-sm">
-              <span class="text-xs font-medium text-stone-400">Page {{ cloudPage }}</span>
-              <div class="flex items-center gap-2">
+            <!-- Table Index Segment Control Pagination Deck -->
+            <div class="mt-6 flex items-center justify-end gap-2.5">
+              <span class="text-[11px] font-bold text-[#86868B] bg-white px-2.5 py-1 rounded border border-black/[0.04] shadow-sm">Page {{ cloudPage }}</span>
+              <div class="flex items-center gap-1">
                 <button
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
+                  class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-[#D1D1D6] text-[#1D1D1F] shadow-sm transition hover:bg-zinc-50 disabled:opacity-30"
                   type="button"
                   :disabled="cloudPage <= 1 || cloudLoading"
                   @click="prevCloudPage"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
                 <button
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition hover:bg-stone-50 disabled:opacity-40"
+                  class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-[#D1D1D6] text-[#1D1D1F] shadow-sm transition hover:bg-zinc-50 disabled:opacity-30"
                   type="button"
                   :disabled="!cloudCanNextPage || cloudLoading"
                   @click="nextCloudPage"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
             </div>
           </template>
         </section>
 
+        <!-- Tab Content 3: Sound Fingerprint Portrait Analysis -->
         <section v-else-if="activeTab === 'listening'" key="listening" class="w-full">
           <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <h2 class="text-3xl font-bold tracking-tight text-stone-900">听歌画像</h2>
-            <div class="inline-flex rounded-full bg-stone-200/50 p-1">
+            <h2 class="text-xl font-bold tracking-tight text-[#1D1D1F]">全时聆听画像</h2>
+
+            <!-- Capsule Range Controls -->
+            <div class="inline-flex rounded-full bg-black/[0.04] p-0.5 border border-black/[0.01]">
               <button
-                class="rounded-full px-5 py-1.5 text-xs font-bold transition-all"
-                :class="listeningRange === 'week' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
+                class="rounded-full px-4 py-1 text-xs font-bold transition-all"
+                :class="listeningRange === 'week' ? 'bg-white text-[#0071E3] shadow-sm font-semibold' : 'text-[#86868B] hover:text-[#1D1D1F]'"
                 type="button"
                 @click="setListeningRange('week')"
               >本周</button>
               <button
-                class="rounded-full px-5 py-1.5 text-xs font-bold transition-all"
-                :class="listeningRange === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
+                class="rounded-full px-4 py-1 text-xs font-bold transition-all"
+                :class="listeningRange === 'all' ? 'bg-white text-[#0071E3] shadow-sm font-semibold' : 'text-[#86868B] hover:text-[#1D1D1F]'"
                 type="button"
                 @click="setListeningRange('all')"
               >全时段</button>
             </div>
           </div>
 
-          <p v-if="listeningLoading" class="animate-pulse text-sm font-medium text-stone-500">正在分析你的听歌分布...</p>
-          <p v-else-if="listeningError" class="text-sm font-medium text-red-500">{{ listeningError }}</p>
+          <p v-if="listeningLoading" class="text-sm font-medium text-[#86868B]">正在编译多频率矩阵指纹...</p>
+          <p v-else-if="listeningError" class="text-sm font-bold text-[#0071E3] bg-[#0071E3]/5 rounded-xl p-3.5 border border-[#0071E3]/10">{{ listeningError }}</p>
 
-          <div v-else class="flex flex-col gap-8">
-            <div class="listening-gradient-stage listening-gradient-stage-large shadow-[0_24px_50px_rgba(0,0,0,0.1)]" :style="listeningMeshStyle">
-              <div class="pointer-events-none absolute inset-0 rounded-[24px] ring-1 ring-inset ring-white/20" />
+          <div class="flex flex-col gap-6 animate-fade-in" v-else>
+            <!-- Premium Fluid Mesh Stage Container Box -->
+            <div class="listening-gradient-stage listening-gradient-stage-large border border-black/[0.04] shadow-[0_12px_40px_rgba(0,0,0,0.02)] rounded-2xl overflow-hidden" :style="listeningMeshStyle">
+              <div class="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
               <div
                 v-if="!listeningBuckets.length"
-                class="absolute bottom-6 left-6 rounded-2xl bg-black/30 backdrop-blur-md px-5 py-3 text-xs font-medium text-white/90 ring-1 ring-white/10"
+                class="absolute bottom-5 left-5 rounded-lg bg-white/90 border border-black/[0.04] px-4 py-2.5 text-xs font-semibold text-[#1D1D1F] shadow-sm backdrop-blur-md"
               >
-                暂无可分析的听歌记录，先播放几首歌再回来看看。
+                分析样本稀缺，累积一定播放后即可渲染完整声带映射谱图。
               </div>
             </div>
 
-            <div v-if="listeningBuckets.length" class="flex flex-wrap items-center justify-center gap-3 pt-4">
+            <!-- Descriptive Badges Metadata Legend Footer Row -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5 pt-1" v-if="listeningBuckets.length">
               <span
                 v-for="item in listeningBuckets.slice(0, 5)"
                 :key="item.key"
-                class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-700 shadow-sm ring-1 ring-stone-900/5 transition-transform hover:scale-105"
+                class="inline-flex items-center gap-2 rounded bg-white/70 px-3.5 py-1.5 border border-black/[0.02] text-xs font-bold text-zinc-700 transition-transform hover:scale-101 cursor-default shadow-sm backdrop-blur-sm"
               >
-                <span class="inline-block h-2.5 w-2.5 rounded-full shadow-inner" :style="{ backgroundColor: item.color }" />
+                <span class="inline-block h-2 w-2 rounded-full shadow-inner" :style="{ backgroundColor: item.color }" />
                 {{ item.label }}
-                <span class="text-stone-400 ml-1">{{ item.percent }}%</span>
+                <span class="text-zinc-400 font-semibold ml-0.5">{{ item.percent }}%</span>
               </span>
             </div>
-            <p v-else class="text-center text-xs font-medium text-stone-400">当前暂无分布标签，系统会在有足够播放记录后自动生成。</p>
+            <p class="text-center text-xs font-semibold text-[#86868B] bg-white/40 border border-black/[0.02] py-4 rounded-xl backdrop-blur-sm" v-else>累积足够的聆听样本后，特征流谱会自动生成。</p>
           </div>
         </section>
       </transition>
     </main>
 
+    <!-- Global App Route Frame Modal Drawer Router -->
     <ModalRouterView content-width="90vw" content-height="90vh" content-radius="24px" />
   </div>
 </template>
-
 <script setup>
 defineOptions({ name: 'profile' })
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
