@@ -53,6 +53,7 @@ const emit = defineEmits(['closed', 'backdrop-click'])
 
 const router = useRouter()
 const route = useRoute()
+const PLAYLIST_MODAL_ROUTE_NAMES = new Set(['playlistDetail', 'profilePlaylistDetail'])
 
 // 记录原始 body overflow，避免影响别的页面
 const originalBodyOverflow = ref('')
@@ -70,7 +71,7 @@ function unlockScroll() {
 
 function closeModal() {
   markNavigatingBack()
-  if (route.name === 'playlistDetail') {
+  if (PLAYLIST_MODAL_ROUTE_NAMES.has(String(route.name || ''))) {
     const id = Number(route.query?.id || 0)
     const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')
     if (id > 0 && coverEl instanceof HTMLElement) {
@@ -152,7 +153,7 @@ function defaultLeave(el, done) {
 function handleEnter(el, done) {
   lockScroll()
 
-  if (route.name === 'playlistDetail' && peekPendingPlaylistHeroTransition(route.query?.id)) {
+  if (PLAYLIST_MODAL_ROUTE_NAMES.has(String(route.name || '')) && peekPendingPlaylistHeroTransition(route.query?.id)) {
     gsap.set(el, {opacity: 1, scale: 1, y: 0})
     done()
     return

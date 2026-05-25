@@ -99,16 +99,23 @@
             <!-- Sub-Grid Shelf: Created Framework -->
             <div class="mb-12">
               <h3 class="mb-5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#86868B]">创建的歌单</h3>
-              <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <div class="grid grid-cols-2 justify-items-center gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                 <article
                   v-for="item in createdPlaylists"
                   :key="`created-${item.id}`"
-                  class="group cursor-pointer"
-                  @click="openPlaylist(item)"
+                  class="group w-[136px] sm:w-[146px] md:w-[154px] cursor-pointer"
+                  @click="openPlaylist(item, $event)"
                 >
                   <!-- Standard Apple Artwork Aspect Box -->
-                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
-                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
+                  <div
+                    class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]"
+                    data-playlist-hero-cover
+                    :data-playlist-id="item.id"
+                  >
+                    <SmartMedia
+                      :src="item.coverImgUrl"
+                      class="h-full w-full object-cover transition duration-500 group-hover:scale-101"
+                    />
                   </div>
                   <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
                   <p class="mt-0.5 px-0.5 text-[11px] font-medium text-[#86868B]">{{ item.trackCount || 0 }} 首歌曲</p>
@@ -120,15 +127,22 @@
             <!-- Sub-Grid Shelf: Bookmarked Framework -->
             <div>
               <h3 class="mb-5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#86868B]">收藏的歌单</h3>
-              <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <div class="grid grid-cols-2 justify-items-center gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                 <article
                   v-for="item in subscribedPlaylists"
                   :key="`sub-${item.id}`"
-                  class="group cursor-pointer"
-                  @click="openPlaylist(item)"
+                  class="group w-[136px] sm:w-[146px] md:w-[154px] cursor-pointer"
+                  @click="openPlaylist(item, $event)"
                 >
-                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
-                    <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
+                  <div
+                    class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]"
+                    data-playlist-hero-cover
+                    :data-playlist-id="item.id"
+                  >
+                    <SmartMedia
+                      :src="item.coverImgUrl"
+                      class="h-full w-full object-cover transition duration-500 group-hover:scale-101"
+                    />
                   </div>
                   <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
                   <p class="mt-0.5 px-0.5 text-[11px] font-medium text-[#86868B]">{{ item.trackCount || 0 }} 首歌曲</p>
@@ -331,22 +345,29 @@
     </main>
 
     <!-- Global App Route Frame Modal Drawer Router -->
-    <ModalRouterView content-width="90vw" content-height="90vh" content-radius="24px" />
+    <ModalRouterView content-width="85vw" content-height="80vh" />
   </div>
 </template>
 <script setup>
 defineOptions({ name: 'profile' })
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {useRouter} from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
+import {
+  consumeLatestPendingPlaylistHeroTransition,
+  playPlaylistHeroEnter,
+  setPendingPlaylistHeroTransition,
+} from '@/utils/playlistFlipHero.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
+import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useCounterStore()
 
 const loading = ref(true)
@@ -1063,7 +1084,7 @@ function switchTab(tab) {
   activeTab.value = tab
 }
 
-function openPlaylist(item) {
+async function openPlaylist(item, event) {
   const playlistId = Number(item?.id || item?.playlistId || item?.targetId || 0)
   if (!playlistId) return
   reportApi.reportBehavior({
@@ -1071,7 +1092,38 @@ function openPlaylist(item) {
     actionTarget: String(playlistId),
     actionDetail: item?.name || item?.playlistName || '',
   })
-  router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl ? cardEl.querySelector('[data-playlist-hero-cover]') : null
+  const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
+  const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
+  setPendingPlaylistHeroTransition(playlistId, {
+    cardRect: cardEl?.getBoundingClientRect?.(),
+    coverRect: coverEl?.getBoundingClientRect?.(),
+    coverSrc: item?.coverImgUrl || item?.picUrl || '',
+    playlistName: item?.name || item?.playlistName || '',
+    cardRadius: cardStyle?.borderRadius || '24px',
+    cardShadow: cardStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
+    coverRadius: coverStyle?.borderRadius || '24px',
+    coverShadow: coverStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
+  })
+  await router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
+}
+
+async function runPlaylistHeroReturn() {
+  if (route.name !== 'profile') return
+  const payload = consumeLatestPendingPlaylistHeroTransition()
+  if (!payload?.id) return
+
+  await nextTick()
+  const targetCoverEl = document.querySelector(
+    `[data-playlist-hero-cover][data-playlist-id="${payload.id}"]`,
+  )
+  if (!(targetCoverEl instanceof HTMLElement)) return
+
+  await playPlaylistHeroEnter({
+    payload,
+    targetCoverEl,
+  })
 }
 
 function normalizeCloudSong(item = {}) {
@@ -1318,6 +1370,7 @@ onMounted(async () => {
   setupHeroCanvasObserver()
   startHeroCanvas()
   loadProfilePage()
+  runPlaylistHeroReturn()
 })
 
 onBeforeUnmount(() => {
@@ -1365,6 +1418,15 @@ watch(
       loading.value = false
       playlists.value = []
       cloudSongs.value = []
+    }
+  },
+)
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'profile') {
+      runPlaylistHeroReturn()
     }
   },
 )

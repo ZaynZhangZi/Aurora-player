@@ -1,5 +1,6 @@
 ﻿<template>
   <div
+    ref="playlistScrollRootRef"
     class="relative w-full overflow-y-auto text-stone-900 transition-colors duration-700"
     :class="isModalPlaylistDetail ? 'min-h-full' : 'min-h-screen'"
     :style="pageStyle"
@@ -76,9 +77,10 @@
       <section v-else class="relative z-10">
         <div class="mb-4 flex items-center justify-between px-4">
           <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
+          <span class="text-xs font-semibold text-stone-500">已加载 {{ tracks.length }} / {{ playlist.trackCount || 0 }}</span>
         </div>
 
-        <TransitionGroup name="track-item" tag="div" class="space-y-1" appear>
+        <div class="space-y-1">
           <div
             v-for="(track, index) in tracks"
             :key="track.id"
@@ -121,7 +123,10 @@
               <span class="w-10 text-right text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(track.dt) }}</span>
             </div>
           </div>
-        </TransitionGroup>
+        </div>
+        <div class="h-8 w-full" />
+        <div v-if="tracksLoadingMore" class="px-4 py-2 text-xs font-medium text-stone-500">正在加载更多曲目...</div>
+        <div v-else-if="hasMoreTracksToLoad" class="px-4 py-2 text-xs font-medium text-stone-500">向下滚动继续加载（每次 100 首）</div>
       </section>
     </main>
   </div>
@@ -149,11 +154,12 @@ import { useCounterStore } from '@/stores/userStores.js'
 const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
-const isModalPlaylistDetail = computed(() => route.name === 'playlistDetail')
+const isModalPlaylistDetail = computed(() => ['playlistDetail', 'profilePlaylistDetail'].includes(String(route.name || '')))
 const playlistHeroCardRef = ref(null)
 const playlistHeroCoverRef = ref(null)
 let heroEnterDone = Promise.resolve()
 let resolveHeroEnterGate = null
+const pendingResolvedCoverUrl = ref('')
 
 const playlist = ref({
   id: null,
@@ -168,6 +174,8 @@ const playlist = ref({
 })
 const tracks = ref([])
 const loading = ref(true)
+const tracksLoadingMore = ref(false)
+const hasMoreTracksToLoad = ref(false)
 const error = ref('')
 const actionFeedback = ref('')
 const subscribing = ref(false)
@@ -176,6 +184,11 @@ const likeLoadingSongId = ref(null)
 const themeRgb = ref('178, 154, 122') // 默认色调回到偏暖的灰色
 const animatedThemeRgb = ref(themeRgb.value)
 let themeTweenFrame = 0
+const playlistScrollRootRef = ref(null)
+let trackListScrollTicking = false
+let currentPlaylistId = 0
+let trackFetchOffset = 0
+const TRACK_FETCH_SIZE = 100
 
 // 【核心修改点】明亮模式渐变背景
 const pageStyle = computed(() => {
@@ -341,6 +354,7 @@ onBeforeRouteLeave((to) => {
 })
 
 async function openSong(track, index = 0) {
+  await ensureAllTracksLoaded()
   await playSongWithQueue(track, tracks.value, index)
 }
 
@@ -350,6 +364,7 @@ function isSongLiked(songId) {
 
 async function playAllTracks() {
   if (!tracks.value.length) return
+  await ensureAllTracksLoaded()
   reportApi.reportBehavior({
     actionType: 'PLAY_PLAYLIST',
     actionTarget: String(playlist.value.id || route.query.id || ''),
@@ -446,32 +461,63 @@ function getTrackItemStyle(index) {
   }
 }
 
-async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0) {
-  const pageSize = 500
-  let offset = 0
-  const merged = []
-
-  while (true) {
-    const res = await playListsApi.getPlayListSongs(playlistId, pageSize, offset)
-    const chunk = res?.data?.songs || []
-    if (!chunk.length) break
-
-    merged.push(...chunk)
-
-    if (chunk.length < pageSize) break
-    if (expectedTotal > 0 && merged.length >= expectedTotal) break
-
-    offset += pageSize
-  }
-
-  const map = new Map()
-  merged.forEach(song => {
+function appendTracksChunk(chunk = []) {
+  if (!Array.isArray(chunk) || !chunk.length) return
+  const map = new Map(tracks.value.map(song => [song?.id, song]))
+  chunk.forEach(song => {
     if (song?.id && !map.has(song.id)) {
       map.set(song.id, song)
     }
   })
+  tracks.value = Array.from(map.values())
+}
 
-  return Array.from(map.values())
+async function loadMoreTracks() {
+  if (!currentPlaylistId || tracksLoadingMore.value || !hasMoreTracksToLoad.value) return
+  tracksLoadingMore.value = true
+  try {
+    const res = await playListsApi.getPlayListSongs(
+      currentPlaylistId,
+      TRACK_FETCH_SIZE,
+      trackFetchOffset,
+    )
+    const chunk = res?.data?.songs || []
+    if (!chunk.length) {
+      hasMoreTracksToLoad.value = false
+      return
+    }
+    appendTracksChunk(chunk)
+    trackFetchOffset += chunk.length
+    if (chunk.length < TRACK_FETCH_SIZE || trackFetchOffset >= Number(playlist.value.trackCount || 0)) {
+      hasMoreTracksToLoad.value = false
+    }
+  } finally {
+    tracksLoadingMore.value = false
+  }
+}
+
+async function ensureAllTracksLoaded() {
+  while (hasMoreTracksToLoad.value) {
+    await loadMoreTracks()
+  }
+}
+
+function maybeLoadMoreByScroll() {
+  const rootEl = playlistScrollRootRef.value
+  if (!(rootEl instanceof HTMLElement)) return
+  const remain = rootEl.scrollHeight - rootEl.scrollTop - rootEl.clientHeight
+  if (remain <= 320) {
+    loadMoreTracks()
+  }
+}
+
+function onTrackRootScroll() {
+  if (trackListScrollTicking) return
+  trackListScrollTicking = true
+  requestAnimationFrame(() => {
+    trackListScrollTicking = false
+    maybeLoadMoreByScroll()
+  })
 }
 
 function colorFromString(seed) {
@@ -540,6 +586,9 @@ async function loadPlaylist() {
   loading.value = true
   error.value = ''
   tracks.value = []
+  hasMoreTracksToLoad.value = false
+  tracksLoadingMore.value = false
+  trackFetchOffset = 0
 
   const id = route.query.id
   if (!id) {
@@ -549,6 +598,7 @@ async function loadPlaylist() {
   }
 
   const preview = peekPendingPlaylistHeroTransition(id)
+  const hasPreviewCover = Boolean(preview?.coverSrc)
   if (preview) {
     heroEnterDone = new Promise((resolve) => {
       resolveHeroEnterGate = resolve
@@ -571,10 +621,11 @@ async function loadPlaylist() {
 
     await heroEnterDone
 
+    const resolvedCover = detailPlaylist.coverImgUrl || ''
     playlist.value = {
       id: Number(detailPlaylist.id || id),
       name: detailPlaylist.name || '',
-      coverImgUrl: detailPlaylist.coverImgUrl || '',
+      coverImgUrl: hasPreviewCover ? String(preview.coverSrc || '') : resolvedCover,
       creatorName: detailPlaylist.creator?.nickname || '',
       description: detailPlaylist.description || '',
       trackCount: detailPlaylist.trackCount || 0,
@@ -582,14 +633,20 @@ async function loadPlaylist() {
       subscribedCount: detailPlaylist.subscribedCount || 0,
       subscribed: Boolean(detailPlaylist.subscribed),
     }
+    pendingResolvedCoverUrl.value =
+      hasPreviewCover && resolvedCover && resolvedCover !== String(preview.coverSrc || '')
+        ? resolvedCover
+        : ''
 
     await pickThemeColor(playlist.value.coverImgUrl, playlist.value.name)
 
-    tracks.value = detailPlaylist.tracks || []
+    currentPlaylistId = Number(detailPlaylist.id || id || 0)
+    appendTracksChunk(detailPlaylist.tracks || [])
+    trackFetchOffset = tracks.value.length
+    hasMoreTracksToLoad.value = trackFetchOffset < Number(detailPlaylist.trackCount || 0)
 
-    const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0)
-    if (allSongs.length) {
-      tracks.value = allSongs
+    if (hasMoreTracksToLoad.value) {
+      await loadMoreTracks()
     }
     loadLikedSongs()
   } catch (err) {
@@ -625,6 +682,13 @@ async function runHeroFlipEnter() {
   try {
     await runner
   } finally {
+    if (pendingResolvedCoverUrl.value) {
+      playlist.value = {
+        ...playlist.value,
+        coverImgUrl: pendingResolvedCoverUrl.value,
+      }
+      pendingResolvedCoverUrl.value = ''
+    }
     if (typeof resolveHeroEnterGate === 'function') {
       resolveHeroEnterGate()
       resolveHeroEnterGate = null
@@ -635,6 +699,8 @@ async function runHeroFlipEnter() {
 onMounted(() => {
   loadPlaylist()
   runHeroFlipEnter()
+  nextTick(() => maybeLoadMoreByScroll())
+  playlistScrollRootRef.value?.addEventListener('scroll', onTrackRootScroll, {passive: true})
 })
 
 onBeforeUnmount(() => {
@@ -642,6 +708,7 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
   }
+  playlistScrollRootRef.value?.removeEventListener('scroll', onTrackRootScroll)
 })
 
 watch(
@@ -662,6 +729,15 @@ watch(
     actionFeedback.value = ''
     loadPlaylist()
     runHeroFlipEnter()
+    nextTick(() => maybeLoadMoreByScroll())
+  },
+)
+
+watch(
+  [playlistScrollRootRef, loading],
+  () => {
+    if (loading.value) return
+    nextTick(() => maybeLoadMoreByScroll())
   },
 )
 
