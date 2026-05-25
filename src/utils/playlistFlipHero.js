@@ -1,4 +1,5 @@
 const pendingHeroMap = new Map()
+let heroAnimating = false
 
 function toRect(rect) {
   if (!rect) return null
@@ -95,6 +96,7 @@ export async function playPlaylistHeroEnter({
   duration = 680,
   easing = 'cubic-bezier(0.34, 1.18, 0.64, 1)',
 } = {}) {
+  if (heroAnimating) return
   void targetCardEl
   if (!payload || !targetCoverEl || prefersReducedMotion()) return
 
@@ -137,9 +139,11 @@ export async function playPlaylistHeroEnter({
     ),
   ]
 
+  heroAnimating = true
   try {
     await Promise.all(animations.map(animation => animation.finished.catch(() => {})))
   } finally {
+    heroAnimating = false
     targetCoverEl.style.willChange = ''
     targetCoverEl.style.transformOrigin = ''
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay)

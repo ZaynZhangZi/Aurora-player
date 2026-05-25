@@ -159,7 +159,6 @@ const playlistHeroCardRef = ref(null)
 const playlistHeroCoverRef = ref(null)
 let heroEnterDone = Promise.resolve()
 let resolveHeroEnterGate = null
-const pendingResolvedCoverUrl = ref('')
 
 const playlist = ref({
   id: null,
@@ -633,10 +632,6 @@ async function loadPlaylist() {
       subscribedCount: detailPlaylist.subscribedCount || 0,
       subscribed: Boolean(detailPlaylist.subscribed),
     }
-    pendingResolvedCoverUrl.value =
-      hasPreviewCover && resolvedCover && resolvedCover !== String(preview.coverSrc || '')
-        ? resolvedCover
-        : ''
 
     await pickThemeColor(playlist.value.coverImgUrl, playlist.value.name)
 
@@ -682,13 +677,6 @@ async function runHeroFlipEnter() {
   try {
     await runner
   } finally {
-    if (pendingResolvedCoverUrl.value) {
-      playlist.value = {
-        ...playlist.value,
-        coverImgUrl: pendingResolvedCoverUrl.value,
-      }
-      pendingResolvedCoverUrl.value = ''
-    }
     if (typeof resolveHeroEnterGate === 'function') {
       resolveHeroEnterGate()
       resolveHeroEnterGate = null
