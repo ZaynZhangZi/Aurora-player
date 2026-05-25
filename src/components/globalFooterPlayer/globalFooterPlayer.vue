@@ -675,6 +675,8 @@ const {
   clearTimer: (id) => window.clearTimeout(id),
   setTimer: (cb, ms) => window.setTimeout(cb, ms),
 });
+const amllCurrentTimeMsRef = ref(0);
+let amllClockRafId = 0;
 
 const hasSong = computed(() => playerStore.hasSong);
 const songName = computed(() => playerStore.currentSong?.name || "");
@@ -716,12 +718,13 @@ const amllCoverIsVideo = computed(
 );
 
 const amllCurrentTimeMs = computed({
-  get: () => Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS),
+  get: () => amllCurrentTimeMsRef.value,
   set: (next) => {
     const ms = Number(next);
     if (!Number.isFinite(ms)) return;
     const safeMs = Math.max(0, ms - AMLL_LYRIC_LEAD_MS);
     playerStore.setCurrentTimeMs(safeMs);
+    amllCurrentTimeMsRef.value = Math.max(0, Math.floor(ms));
     const active = getActiveAudio();
     if (active) {
       const targetSec = safeMs / 1000;
@@ -1364,6 +1367,33 @@ function onAmllLineClick(event) {
   const targetSec = startTime / 1000;
   active.currentTime = targetSec;
   playerStore.setCurrentTimeMs(startTime);
+  amllCurrentTimeMsRef.value = Math.max(0, Math.floor(startTime + AMLL_LYRIC_LEAD_MS));
+}
+
+function stopAmllClock() {
+  if (!amllClockRafId) return;
+  cancelAnimationFrame(amllClockRafId);
+  amllClockRafId = 0;
+}
+
+function tickAmllClock() {
+  const active = getActiveAudio();
+  const safeMs = Math.max(0, Math.floor(Number(active?.currentTime || 0) * 1000));
+  amllCurrentTimeMsRef.value = safeMs + AMLL_LYRIC_LEAD_MS;
+  if (!amllOpened.value || !playerStore.isPlaying) {
+    amllClockRafId = 0;
+    return;
+  }
+  amllClockRafId = requestAnimationFrame(tickAmllClock);
+}
+
+function ensureAmllClock() {
+  if (!amllOpened.value || !playerStore.isPlaying) {
+    stopAmllClock();
+    return;
+  }
+  if (amllClockRafId) return;
+  amllClockRafId = requestAnimationFrame(tickAmllClock);
 }
 
 
@@ -1581,6 +1611,7 @@ watch(
     if (!promotedByCrossfade) {
       playerStore.setDurationMs(0);
       playerStore.setCurrentTimeMs(0);
+      amllCurrentTimeMsRef.value = AMLL_LYRIC_LEAD_MS;
     }
     await nextTick();
     const active = getActiveAudio();
@@ -1597,6 +1628,7 @@ watch(
     syncAudioVolume();
     await ensurePlaybackState();
     startRhythmLoop();
+    ensureAmllClock();
     if (promotedByCrossfade) {
       requestAnimationFrame(() => {
         suppressTrackSwapAnimation.value = false;
@@ -1616,6 +1648,7 @@ watch(
     loadCurrentSongLyric(songId);
     amllAlbum.value = "";
     amllHideLyricView.value = false;
+    amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
     updateMediaSessionMetadata();
     updateMediaSessionPlaybackState();
     updateMediaSessionPositionState();
@@ -1666,11 +1699,34 @@ watch(
     updateMediaSessionPlaybackState();
     if (playerStore.isPlaying) {
       startRhythmLoop();
+      ensureAmllClock();
     } else {
       stopRhythmLoop();
+      stopAmllClock();
       resetRhythmVisual();
     }
   },
+);
+
+watch(
+  amllOpened,
+  (opened) => {
+    if (!opened) {
+      stopAmllClock();
+      amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
+      return;
+    }
+    ensureAmllClock();
+  },
+);
+
+watch(
+  currentTimeMs,
+  (next) => {
+    if (amllOpened.value) return;
+    amllCurrentTimeMsRef.value = Math.max(0, next + AMLL_LYRIC_LEAD_MS);
+  },
+  {immediate: true},
 );
 
 watch(
@@ -1784,6 +1840,7 @@ onBeforeUnmount(() => {
   stopCrossfade();
   disposeRhythmAnalyzer();
   disposeLyricOverlay();
+  stopAmllClock();
   clearScheduledPositionStateUpdate();
 
   if (mediaQueryMotion) {
