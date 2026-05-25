@@ -479,18 +479,16 @@
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {animate, hover, inView, press} from 'motion'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
-import {playListsApi} from '@/api/playListsApi/playListsApi.js'
-import {songsApi} from '@/api/songsApi/songsApi.js'
-import {artistApi} from '@/api/artistApi/artistApi.js'
-import {homeIndexApi} from '@/api/home/homeIndexApi.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {useCounterStore} from '@/stores/userStores.js'
-import {toBackendMediaUrl} from '@/utils/backendMedia.js'
+import {useHomeData} from '@/composables/useHomeData.js'
+import {useHomeMv} from '@/composables/useHomeMv.js'
+import {useHomeHero} from '@/composables/useHomeHero.js'
+import {useHomeMotion} from '@/composables/useHomeMotion.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
   playPlaylistHeroEnter,
@@ -502,36 +500,53 @@ const router = useRouter()
 const route = useRoute()
 const playerStore = usePlayerStore()
 const userStore = useCounterStore()
-const motionCleanups = []
+const {
+  hero,
+  releaseNotes,
+  recommendPlaylists,
+  topPlaylists,
+  newSongs,
+  recentListenSongs,
+  topRanks,
+  podcastPrograms,
+  hotArtists,
+  highQualityPlaylists,
+  playlistTags,
+  activePlaylistTag,
+  recentCurrentPage,
+  recentTotalPages,
+  recentPageStartIndex,
+  pagedRecentListenSongs,
+  loading,
+  errors,
+  asList,
+  goRecentPage,
+  formatPodcastDuration,
+  loadHomeBanner,
+  loadReleaseNotes,
+  loadRecommendPlaylists,
+  loadTopPlaylists,
+  changePlaylistTag,
+  loadNewSongs,
+  loadRecentListenSongs,
+  loadTopRanks,
+  loadPodcastPrograms,
+  loadHotArtists,
+  loadHighQualityPlaylists,
+} = useHomeData(userStore)
+const {
+  heroCopyItems,
+  heroCopyLine,
+  heroCopyKey,
+  startHeroCopyCycle,
+  stopHeroCopyCycle,
+  resetHeroCopyCycle,
+} = useHomeHero(hero)
+const {
+  setupMotionEffects,
+  cleanupMotionEffects,
+} = useHomeMotion()
 
-const hero = ref({
-  media: '',
-  title: '',
-  subtitle: '',
-})
-const heroCopyIndex = ref(0)
-let heroCopyTimer = null
-const heroCopyItems = computed(() => {
-  const dynamicTitle = String(hero.value.title || '').trim()
-  const dynamicSubtitle = String(hero.value.subtitle || '').trim()
-  const fallbackSubtitle = dynamicSubtitle || '让音乐接住此刻的心情'
-  const items = [
-    {title: '今天听点什么', subtitle: fallbackSubtitle},
-    {title: dynamicTitle || '跟着此刻的节奏走', subtitle: dynamicSubtitle || '从模糊的念头开始，慢慢找到下一首歌'},
-    {title: '让声音慢慢靠近', subtitle: dynamicSubtitle || '推荐、最近播放和榜单会自然接上你的下一句'},
-  ]
-  const seen = new Set()
-  return items.filter((item) => {
-    const key = `${item.title}::${item.subtitle}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
-const heroCopyLine = computed(() => heroCopyItems.value[heroCopyIndex.value % heroCopyItems.value.length] || heroCopyItems.value[0])
-const heroCopyKey = computed(() => `${heroCopyIndex.value}-${heroCopyLine.value?.title || ''}`)
-
-const releaseNotes = ref([])
 const releaseNotesOpen = ref(false)
 const latestReleaseTag = computed(() => {
   const first = releaseNotes.value[0]
@@ -543,81 +558,35 @@ const latestReleaseTag = computed(() => {
   return releaseNotes.value.length ? 'NEW' : '...'
 })
 
-const recommendPlaylists = ref([])
-const topPlaylists = ref([])
-const newSongs = ref([])
-const recentListenSongs = ref([])
-const RECENT_PAGE_SIZE = 12
-const recentCurrentPage = ref(1)
-const recentTotalPages = computed(() => {
-  const total = recentListenSongs.value.length
-  return Math.max(1, Math.ceil(total / RECENT_PAGE_SIZE))
-})
-const recentPageStartIndex = computed(() => (recentCurrentPage.value - 1) * RECENT_PAGE_SIZE)
-const pagedRecentListenSongs = computed(() => {
-  const start = recentPageStartIndex.value
-  return recentListenSongs.value.slice(start, start + RECENT_PAGE_SIZE)
-})
-const topRanks = ref([])
-const podcastPrograms = ref([])
-const hotArtists = ref([])
-const highQualityPlaylists = ref([])
-const mvList = ref([])
-const playlistTags = ['全部', '华语', '欧美', '流行', '电子']
-const activePlaylistTag = ref('全部')
+const {
+  mvList,
+  mvSourceOptions,
+  mvAreas,
+  mvTypes,
+  mvOrders,
+  activeMvSource,
+  mvArea,
+  mvType,
+  mvOrder,
+  mvLimit,
+  mvOffset,
+  mvHasMore,
+  mvPlayerOpen,
+  mvPlayerLoading,
+  mvPlayerError,
+  currentMv,
+  currentMvUrl,
+  mvResolutions,
+  selectedMvResolution,
+  loadMvList,
+  switchMvSource,
+  nextMvPage,
+  prevMvPage,
+  openMv,
+  changeMvResolution,
+  closeMvPlayer,
+} = useHomeMv(playerStore, loading, errors)
 
-const mvSourceOptions = [
-  {label: '全部 MV', value: 'all'},
-  {label: '最新 MV', value: 'latest'},
-  {label: '网易出品', value: 'exclusive'},
-  {label: '推荐 MV', value: 'recommend'},
-]
-const mvAreas = ['全部', '内地', '港台', '欧美', '日本', '韩国']
-const mvTypes = ['全部', '官方版', '原生', '现场版', '网易出品']
-const mvOrders = ['上升最快', '最热', '最新']
-const activeMvSource = ref('all')
-const mvArea = ref('全部')
-const mvType = ref('全部')
-const mvOrder = ref('上升最快')
-const mvLimit = ref(9)
-const mvOffset = ref(0)
-const mvHasMore = ref(false)
-const mvPlayerOpen = ref(false)
-const mvPlayerLoading = ref(false)
-const mvPlayerError = ref('')
-const currentMv = ref(null)
-const currentMvUrl = ref('')
-const mvResolutions = ref([])
-const selectedMvResolution = ref(1080)
-const shouldResumeMusicOnClose = ref(false)
-
-const loading = ref({
-  banner: true,
-  releaseNotes: true,
-  recommend: true,
-  top: true,
-  songs: true,
-  recent: true,
-  rank: true,
-  podcast: true,
-  artist: true,
-  hq: true,
-  mv: true,
-})
-
-const errors = ref({
-  banner: '',
-  releaseNotes: '',
-  recommend: '',
-  top: '',
-  songs: '',
-  recent: '',
-  rank: '',
-  podcast: '',
-  artist: '',
-  hq: '',
-  mv: '',
-})
 
 const HOME_SCROLL_TOP_STORAGE_KEY = 'aurora:home-scroll-top'
 
@@ -629,21 +598,6 @@ function saveHomeScrollTop() {
   } catch (error) {
     void error
   }
-}
-
-function stopHeroCopyCycle() {
-  if (heroCopyTimer) {
-    clearInterval(heroCopyTimer)
-    heroCopyTimer = null
-  }
-}
-
-function startHeroCopyCycle() {
-  stopHeroCopyCycle()
-  if (typeof window === 'undefined' || heroCopyItems.value.length <= 1) return
-  heroCopyTimer = window.setInterval(() => {
-    heroCopyIndex.value = (heroCopyIndex.value + 1) % heroCopyItems.value.length
-  }, 4600)
 }
 
 function openArtist(artist) {
@@ -715,34 +669,8 @@ async function openRecentSong(song, index = 0) {
   await playSongWithQueue(song, recentListenSongs.value, index)
 }
 
-function goRecentPage(page) {
-  const next = Math.min(recentTotalPages.value, Math.max(1, Number(page) || 1))
-  recentCurrentPage.value = next
-}
-
 function getSongArtists(song) {
   return song?.artists || song?.ar || []
-}
-
-function normalizeRecentSongItem(item) {
-  const song = item?.data || item?.song || item || {}
-  const album = song?.al || song?.album || {}
-
-  return {
-    ...song,
-    id: song?.id || item?.id || null,
-    name: song?.name || item?.name || '未知歌曲',
-    ar: song?.ar || song?.artists || item?.artists || [],
-    artists: song?.artists || song?.ar || item?.artists || [],
-    al: album,
-    cover:
-      song?.cover ||
-      album?.picUrl ||
-      song?.picUrl ||
-      item?.cover ||
-      item?.picUrl ||
-      '',
-  }
 }
 
 async function openPodcast(item) {
@@ -756,435 +684,10 @@ async function openPodcast(item) {
   })
 }
 
-function openMv(mv) {
-  if (!mv?.id) return
-  shouldResumeMusicOnClose.value = Boolean(playerStore.isPlaying && playerStore.hasSong)
-  if (shouldResumeMusicOnClose.value) {
-    playerStore.setPlaying(false)
-  }
-  currentMv.value = mv
-  currentMvUrl.value = ''
-  mvPlayerError.value = ''
-  mvPlayerLoading.value = true
-  mvPlayerOpen.value = true
-  selectedMvResolution.value = 1080
-  mvResolutions.value = [1080, 720, 480]
-
-  artistApi.getMvDetail(mv.id)
-    .then((res) => {
-      const brs = res?.data?.data?.brs || {}
-      const available = Object.keys(brs)
-        .map(item => Number(item))
-        .filter(item => Number.isFinite(item) && item > 0)
-        .sort((a, b) => b - a)
-      if (available.length) {
-        mvResolutions.value = available
-        selectedMvResolution.value = available[0]
-      }
-    })
-    .catch(() => {
-      mvResolutions.value = [1080, 720, 480]
-    })
-    .finally(() => {
-      loadMvUrl(mv.id, selectedMvResolution.value)
-    })
-}
-
-async function loadMvUrl(mvId, resolution) {
-  mvPlayerLoading.value = true
-  mvPlayerError.value = ''
-
-  const candidates = Array.from(new Set([
-    Number(resolution),
-    ...mvResolutions.value.map(item => Number(item)),
-    1080,
-    720,
-    480,
-    240,
-  ].filter(item => Number.isFinite(item) && item > 0))).sort((a, b) => b - a)
-
-  try {
-    for (const r of candidates) {
-      const res = await artistApi.getMvUrl(mvId, r)
-      const url = res?.data?.data?.url || ''
-      if (!url) continue
-      selectedMvResolution.value = r
-      currentMvUrl.value = url
-      return
-    }
-
-    mvPlayerError.value = '该 MV 暂无可播放地址'
-  } catch {
-    mvPlayerError.value = 'MV 加载失败，请稍后重试'
-  } finally {
-    mvPlayerLoading.value = false
-  }
-}
-
-function changeMvResolution() {
-  if (!currentMv.value?.id) return
-  currentMvUrl.value = ''
-  loadMvUrl(currentMv.value.id, Number(selectedMvResolution.value || 1080))
-}
-
-function closeMvPlayer() {
-  mvPlayerOpen.value = false
-  mvPlayerLoading.value = false
-  mvPlayerError.value = ''
-  currentMvUrl.value = ''
-  mvResolutions.value = []
-  if (shouldResumeMusicOnClose.value && playerStore.hasSong) {
-    playerStore.setPlaying(true)
-  }
-  shouldResumeMusicOnClose.value = false
-}
-
-function normalizeMvItem(item) {
-  return {
-    id: item?.id || null,
-    name: item?.name || item?.copywriter || '未知 MV',
-    cover: item?.cover || item?.imgurl || item?.picUrl || '',
-    artistName: item?.artistName || item?.artist?.name || item?.artists?.map(a => a.name).join(' / ') || '',
-    playCount: item?.playCount || item?.playTime || item?.playtime || 0,
-  }
-}
-
-async function loadMvList({reset = false} = {}) {
-  if (reset) {
-    mvOffset.value = 0
-  }
-
-  loading.value.mv = true
-  errors.value.mv = ''
-
-  try {
-    let res
-    if (activeMvSource.value === 'all') {
-      res = await artistApi.getAllMv({
-        area: mvArea.value,
-        type: mvType.value,
-        order: mvOrder.value,
-        limit: mvLimit.value,
-        offset: mvOffset.value,
-      })
-      const list = (res?.data?.data || []).map(normalizeMvItem)
-      mvList.value = list
-      mvHasMore.value = Boolean(res?.data?.hasMore ?? list.length >= mvLimit.value)
-      return
-    }
-
-    if (activeMvSource.value === 'latest') {
-      res = await artistApi.getLatestMv({
-        area: mvArea.value,
-        limit: mvLimit.value,
-      })
-      mvList.value = (res?.data?.data || []).map(normalizeMvItem)
-      mvHasMore.value = false
-      return
-    }
-
-    if (activeMvSource.value === 'exclusive') {
-      res = await artistApi.getExclusiveMv({
-        limit: mvLimit.value,
-        offset: mvOffset.value,
-      })
-      const raw = res?.data?.data || res?.data?.result || []
-      const list = raw.map(normalizeMvItem)
-      mvList.value = list
-      mvHasMore.value = Boolean(res?.data?.hasMore ?? list.length >= mvLimit.value)
-      return
-    }
-
-    res = await artistApi.getRecommendMv()
-    mvList.value = (res?.data?.result || res?.data?.data || []).map(normalizeMvItem)
-    mvHasMore.value = false
-  } catch (error) {
-    errors.value.mv = 'MV 加载失败'
-  } finally {
-    loading.value.mv = false
-  }
-}
-
-function switchMvSource(source) {
-  if (activeMvSource.value === source) return
-  activeMvSource.value = source
-  loadMvList({reset: true})
-}
-
-function nextMvPage() {
-  if (!mvHasMore.value || loading.value.mv) return
-  mvOffset.value += mvLimit.value
-  loadMvList()
-}
-
-function prevMvPage() {
-  if (mvOffset.value <= 0 || loading.value.mv) return
-  mvOffset.value = Math.max(0, mvOffset.value - mvLimit.value)
-  loadMvList()
-}
-
-function formatPodcastDuration(durationMs) {
-  const total = Math.floor((durationMs || 0) / 1000)
-  const minute = Math.floor(total / 60)
-  const second = String(total % 60).padStart(2, '0')
-  return `${minute}:${second}`
-}
-
-function normalizeBannerItem(item, index = 0) {
-  const srcList = Array.isArray(item?.src) ? item.src : []
-  const contentList = Array.isArray(item?.content) ? item.content : []
-  const media = toBackendMediaUrl(srcList[0] || item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || '')
-  const subtitleFromList = contentList
-    .map(entry => String(entry || '').trim())
-    .filter(Boolean)
-    .join(' · ')
-  return {
-    id: item?.targetId || item?.bannerId || item?.id || `banner-${index}`,
-    media,
-    mediaType: item?.mediaType || '',
-    title: item?.typeTitle || item?.title || 'Now Playing',
-    subtitle: subtitleFromList || item?.copywriter || item?.description || hero.value.subtitle,
-  }
-}
-
-function normalizeReleaseNoteItem(item, index = 0) {
-  const timeSource = item?.createdAt || item?.updatedAt || item?.time || item?.date || 0
-  const ts = Number.isFinite(Number(timeSource))
-    ? Number(timeSource)
-    : Date.parse(String(timeSource || ''))
-  const title = item?.title || item?.name || `更新 ${index + 1}`
-  const explicitContent = item?.content || item?.description || item?.body || ''
-  const highlights = Array.isArray(item?.highlights) ? item.highlights.filter(Boolean) : []
-  const bugFixes = Array.isArray(item?.bugFixes) ? item.bugFixes.filter(Boolean) : []
-  const knownIssues = Array.isArray(item?.knownIssues) ? item.knownIssues.filter(Boolean) : []
-  const mergedBlocks = [
-    highlights.length ? `亮点：${highlights.join('；')}` : '',
-    bugFixes.length ? `修复：${bugFixes.join('；')}` : '',
-    knownIssues.length ? `已知问题：${knownIssues.join('；')}` : '',
-  ].filter(Boolean)
-  const content = explicitContent || mergedBlocks.join('\n')
-  return {
-    id: item?.id || `${title}-${index}`,
-    title,
-    content,
-    version: item?.version || item?.tag || item?.release || '',
-    highlights,
-    bugFixes,
-    knownIssues,
-    dateText: Number.isFinite(ts) && ts > 0 ? new Date(ts).toLocaleDateString() : '-',
-  }
-}
-
-function asList(value) {
-  return Array.isArray(value) ? value : []
-}
-
 function openReleaseNotesPanel() {
   releaseNotesOpen.value = true
   if (!releaseNotes.value.length && !loading.value.releaseNotes) {
     loadReleaseNotes()
-  }
-}
-
-function setupMotionEffects() {
-  if (typeof window === 'undefined') return
-
-  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (prefersReduced) return
-
-  const sections = document.querySelectorAll('.motion-section')
-  sections.forEach((el) => {
-    const stop = inView(
-      el,
-      () => {
-        animate(
-          el,
-          {opacity: [0, 1], y: [24, -3, 0], scale: [0.985, 1.01, 1], filter: ['blur(10px)', 'blur(1px)', 'blur(0px)']},
-          {type: 'spring', stiffness: 210, damping: 25, mass: 0.72},
-        )
-      },
-      {amount: 0.2},
-    )
-    motionCleanups.push(stop)
-  })
-
-  const canUsePointerMotion = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-  if (!canUsePointerMotion) return
-
-  const cards = document.querySelectorAll('.motion-card')
-  cards.forEach((el) => {
-    const stopHover = hover(el, () => {
-      const ctrl = animate(el, {y: -6, scale: 1.012}, {type: 'spring', stiffness: 420, damping: 30, mass: 0.42})
-      return () => ctrl.stop()
-    })
-    const stopPress = press(el, () => {
-      const down = animate(el, {scale: 0.978}, {type: 'spring', stiffness: 560, damping: 32, mass: 0.28})
-      return () => {
-        down.stop()
-        animate(el, {scale: 1}, {type: 'spring', stiffness: 420, damping: 24, mass: 0.34})
-      }
-    })
-    motionCleanups.push(stopHover)
-    motionCleanups.push(stopPress)
-  })
-
-}
-
-async function loadHomeBanner() {
-  loading.value.banner = true
-  errors.value.banner = ''
-  try {
-    const res = await homeIndexApi.getBanner()
-    const raw = res?.banners || res?.data?.banners || res?.data?.data?.banners || res?.data?.data || res?.data || res || []
-    const list = Array.isArray(raw) ? raw.map(normalizeBannerItem) : []
-    if (list.length) {
-      const firstUsable = list.find(item => String(item?.media || '').trim()) || list[0]
-      hero.value = {
-        ...hero.value,
-        ...firstUsable,
-      }
-    }
-  } catch (error) {
-    errors.value.banner = error?.message || 'Banner 加载失败'
-  } finally {
-    loading.value.banner = false
-  }
-}
-
-async function loadReleaseNotes() {
-  loading.value.releaseNotes = true
-  errors.value.releaseNotes = ''
-  try {
-    const res = await homeIndexApi.getReleaseNotes({limit: 6})
-    const raw = res?.list || res?.data?.list || res?.data?.data?.list || res?.data?.data || res?.data || res || []
-    releaseNotes.value = Array.isArray(raw)
-      ? raw.map(normalizeReleaseNoteItem)
-      : []
-  } catch (error) {
-    errors.value.releaseNotes = error?.message || '更新日志加载失败'
-    releaseNotes.value = []
-  } finally {
-    loading.value.releaseNotes = false
-  }
-}
-
-async function loadRecommendPlaylists() {
-  try {
-    const res = await playListsApi.getRecommendPlayList()
-    recommendPlaylists.value = res?.data?.result || []
-  } catch (error) {
-    errors.value.recommend = '推荐歌单加载失败'
-  } finally {
-    loading.value.recommend = false
-  }
-}
-
-async function loadTopPlaylists(tag = activePlaylistTag.value) {
-  loading.value.top = true
-  errors.value.top = ''
-  try {
-    const res = await playListsApi.getPlayList(tag, 9, 0)
-    topPlaylists.value = res?.data?.playlists || []
-  } catch (error) {
-    errors.value.top = '网友精选碟加载失败'
-  } finally {
-    loading.value.top = false
-  }
-}
-
-function changePlaylistTag(tag) {
-  if (activePlaylistTag.value === tag) return
-  activePlaylistTag.value = tag
-  loadTopPlaylists(tag)
-}
-
-async function loadNewSongs() {
-  try {
-    const res = await songsApi.getNewSongs()
-    newSongs.value = res?.data?.result || []
-  } catch (error) {
-    errors.value.songs = '新音乐加载失败'
-  } finally {
-    loading.value.songs = false
-  }
-}
-
-async function loadRecentListenSongs() {
-  if (!userStore.isLoggedIn) {
-    loading.value.recent = false
-    errors.value.recent = '请先登录账号查看最近听歌'
-    recentListenSongs.value = []
-    recentCurrentPage.value = 1
-    return
-  }
-
-  loading.value.recent = true
-  errors.value.recent = ''
-  try {
-    const res = await songsApi.getRecentListenList(12)
-    const list =
-      res?.data?.data?.list ||
-      res?.data?.list ||
-      res?.data?.data ||
-      []
-    recentListenSongs.value = Array.isArray(list)
-      ? list
-          .map(normalizeRecentSongItem)
-          .filter(item => item?.id)
-      : []
-    recentCurrentPage.value = 1
-  } catch (error) {
-    errors.value.recent = '最近听歌加载失败，请先登录账号'
-    recentListenSongs.value = []
-  } finally {
-    loading.value.recent = false
-  }
-}
-
-async function loadTopRanks() {
-  try {
-    const res = await songsApi.getTopListDetail()
-    const list = res?.data?.list || []
-    topRanks.value = list
-      .filter(item => item?.id && item?.coverImgUrl)
-      .slice(0, 6)
-  } catch (error) {
-    errors.value.rank = '榜单加载失败'
-  } finally {
-    loading.value.rank = false
-  }
-}
-
-async function loadPodcastPrograms() {
-  try {
-    const res = await songsApi.getPodcastPrograms(6)
-    podcastPrograms.value = res?.data?.result || []
-  } catch (error) {
-    errors.value.podcast = '播客加载失败'
-  } finally {
-    loading.value.podcast = false
-  }
-}
-
-async function loadHotArtists() {
-  try {
-    const res = await artistApi.getHotArtist()
-    hotArtists.value = res?.data?.artists || []
-  } catch (error) {
-    errors.value.artist = '热门歌手加载失败'
-  } finally {
-    loading.value.artist = false
-  }
-}
-
-async function loadHighQualityPlaylists() {
-  try {
-    const res = await songsApi.getHighQualitySongs()
-    highQualityPlaylists.value = res?.data?.playlists || []
-  } catch (error) {
-    errors.value.hq = '高品质歌单加载失败'
-  } finally {
-    loading.value.hq = false
   }
 }
 
@@ -1219,8 +722,7 @@ watch(
 watch(
   () => heroCopyItems.value.length,
   () => {
-    heroCopyIndex.value = 0
-    startHeroCopyCycle()
+    resetHeroCopyCycle()
   },
 )
 
@@ -1239,9 +741,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  motionCleanups.splice(0).forEach(stop => {
-    if (typeof stop === 'function') stop()
-  })
+  cleanupMotionEffects()
   stopHeroCopyCycle()
   closeMvPlayer()
 })

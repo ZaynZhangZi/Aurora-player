@@ -554,11 +554,30 @@ import {
   watch,
 } from "vue";
 import {useRouter} from "vue-router";
-import {aiAPi} from "@/api/aiApi/aiAPi.js";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import {songsApi} from "@/api/songsApi/songsApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
+import {usePlayerLyric} from "@/composables/usePlayerLyric.js";
+import {usePlayerLyricLoader} from "@/composables/usePlayerLyricLoader.js";
+import {usePlayerThemeFromCover} from "@/composables/usePlayerThemeFromCover.js";
+import {usePlayerRhythmAnalyzer} from "@/composables/usePlayerRhythmAnalyzer.js";
+import {usePlayerReporting} from "@/composables/usePlayerReporting.js";
+import {usePlayerManualSwitch} from "@/composables/usePlayerManualSwitch.js";
+import {usePlayerMorePanel} from "@/composables/usePlayerMorePanel.js";
+import {usePlayerLyricOverlay} from "@/composables/usePlayerLyricOverlay.js";
+import {usePlayerCrossfade} from "@/composables/usePlayerCrossfade.js";
+import {usePlayerCrossfadeFlow} from "@/composables/usePlayerCrossfadeFlow.js";
+import {usePlayerCrossfadeRuntime} from "@/composables/usePlayerCrossfadeRuntime.js";
+import {usePlayerMediaSession} from "@/composables/usePlayerMediaSession.js";
+import {usePlayerAssets} from "@/composables/usePlayerAssets.js";
 import {PLAY_MODE, usePlayerStore} from "@/stores/playerStore.js";
+import {
+  blendTheme,
+  buildThemeByBase,
+  createFallbackTheme,
+  getRgbBrightness,
+} from "@/utils/player/playerTheme.js";
+import {formatMs, isVideoUrl} from "@/utils/player/playerMedia.js";
 import {
   playQueueByDirection,
   playQueueByIndex,
@@ -579,53 +598,37 @@ const AMLLWrapper = defineAsyncComponent({
 
 const playerStore = usePlayerStore();
 const router = useRouter();
+const {
+  collectLyricRowsForTranslate,
+  hasLyricText,
+  extractLyricPayloadFromSearchResult,
+  attachAiTranslationIfNeeded,
+} = usePlayerLyric();
 const audioRef = ref(null);
 const crossfadeAudioRef = ref(null);
 const playerRootRef = ref(null);
 let playerResizeObserver = null;
-let themePickToken = 0;
 let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
 let visibilityChangeHandler = null;
 let backgroundCheckTimer = null;
-let reportedPlayRecordKeys = new Set();
 
 const themeBaseRgb = ref([38, 56, 98]);
 const themeAccentRgb = ref([78, 114, 176]);
 const themeGlowRgb = ref([138, 176, 236]);
 const themeIsDark = ref(true);
-const rhythmLevel = ref(0);
-const beatLevel = ref(0);
-const visualPulse = ref(0);
 const prefersReducedMotion = ref(false);
 const isIOSDevice = ref(false);
 
-let audioContext = null;
-let analyserNode = null;
-let mediaSourceNode = null;
-let analyserFrame = 0;
-let analyserData = null;
-let analyserPrevData = null;
-let analyserLastTs = 0;
-let lastStoreTimeSyncTs = 0;
-let rhythmEnergyEma = 0;
-let rhythmFluxEma = 0;
-let lowBandEma = 0;
-let rhythmGain = 1;
-let mediaSessionHandlersBound = false;
-let mediaSessionPositionUpdateTimer = 0;
 let crossfadeActive = false;
 let crossfadePreparing = false;
 let crossfadeTriggeredForSongId = null;
 let crossfadeRafId = 0;
-let crossfadePrewarmedSongId = "";
-let crossfadePrewarmedUrl = "";
 let pendingPromotedStartSec = -1;
 let skipNextCoverThemePick = false;
 let skipAudioResetOnNextSrcChange = false;
 let activeDeck = "primary";
 const playableUrlCache = new Map();
-const STORE_TIME_SYNC_INTERVAL_MS = 72;
 
 const DEV_CROSSFADE_DEBUG = Boolean(import.meta.env.DEV);
 
@@ -655,13 +658,23 @@ function isEventFromActiveDeck(event) {
   return Boolean(target && target === getActiveAudio());
 }
 
-const amllOpened = ref(false);
-const amllMounted = ref(false);
 const amllHideLyricView = ref(false);
 const amllLyricLines = ref([]);
 const amllAlbum = ref("");
-let amllUnmountTimer = 0;
 const AMLL_LYRIC_LEAD_MS = 320;
+const {
+  amllOpened,
+  amllMounted,
+  openLyricPage,
+  onAmllOpenedChange,
+  disposeLyricOverlay,
+} = usePlayerLyricOverlay({
+  hasSong: () => hasSong.value,
+  nextTick,
+  requestFrame: (cb) => requestAnimationFrame(cb),
+  clearTimer: (id) => window.clearTimeout(id),
+  setTimer: (cb, ms) => window.setTimeout(cb, ms),
+});
 
 const hasSong = computed(() => playerStore.hasSong);
 const songName = computed(() => playerStore.currentSong?.name || "");
@@ -745,25 +758,106 @@ const suppressTrackSwapAnimation = ref(false);
 const trackSwapTransitionName = computed(() =>
   suppressTrackSwapAnimation.value ? "track-swap-none" : "track-swap",
 );
-const moreMenuButtonRef = ref(null);
-const morePanelOpen = ref(false);
-const morePanelStyle = ref({right: "18px", bottom: "110px"});
+const {
+  moreMenuButtonRef,
+  morePanelOpen,
+  morePanelStyle,
+  updateMorePanelPosition,
+  closeMorePanel,
+  toggleMorePanel,
+} = usePlayerMorePanel();
 const morePanelThemeStyle = computed(() => ({
   "--more-bg": themeIsDark.value ? "34, 44, 68" : "244, 247, 255",
   "--more-border": themeIsDark.value ? "255, 255, 255" : "24, 31, 45",
   "--more-fg": themeIsDark.value ? "238, 244, 255" : "24, 31, 45",
   "--more-fg-muted": themeIsDark.value ? "205, 218, 238" : "84, 94, 114",
 }));
+const {
+  updateMediaSessionMetadata,
+  updateMediaSessionPlaybackState,
+  updateMediaSessionPositionState,
+  scheduleMediaSessionPositionStateUpdate,
+  clearScheduledPositionStateUpdate,
+  setupMediaSessionHandlers,
+  clearMediaSessionHandlers,
+} = usePlayerMediaSession({
+  getSongName: () => songName.value,
+  getArtistNames: () => normalizedArtistList.value.map((item) => item.name),
+  getAlbumName: () => amllAlbum.value,
+  getArtworkSrc: () => resolveMediaSessionArtworkUrl(),
+  getHasSong: () => hasSong.value,
+  getIsPlaying: () => isPlaying.value,
+  getDurationMs: () => durationMs.value,
+  getCurrentTimeMs: () => currentTimeMs.value,
+  getPlayQueueLength: () => playQueue.value.length,
+  getCanPlayPrev: () => canPlayPrev.value,
+  getCanPlayNext: () => canPlayNext.value,
+  playPrev: () => playQueueByDirection("prev", {trigger: "manual"}),
+  playNext: () => playQueueByDirection("next", {trigger: "manual"}),
+  getActiveAudio: () => getActiveAudio(),
+  onPlayFailed: () => playerStore.setPlaying(false),
+  onPause: () => {
+    playerStore.autoPlayOnLoad = false;
+  },
+  setCurrentTimeMs: (next) => playerStore.setCurrentTimeMs(next),
+});
 
 const dynamicCoverUrl = ref("");
 const dynamicCoverIsVideo = ref(false);
 const crossfadeCoverUrl = ref("");
 const crossfadeCoverIsVideo = ref(false);
 const crossfadeCoverProgress = ref(0);
-let dynamicCoverToken = 0;
-const dynamicCoverCache = new Map();
-const lyricTranslationCache = new Map();
-let lyricLoadToken = 0;
+const {loadDynamicCover: loadDynamicCoverAsset} = usePlayerAssets({
+  isVideoUrl,
+});
+const {
+  resolveThemeFromCover,
+  pickThemeFromCover,
+} = usePlayerThemeFromCover();
+const {loadCurrentSongLyric} = usePlayerLyricLoader({
+  getSongName: () => songName.value,
+  getFirstArtistName: () => normalizedArtistList.value?.[0]?.name || "",
+  getCurrentSong: () => playerStore.currentSong,
+  hasLyricText,
+  extractLyricPayloadFromSearchResult,
+  normalizeLyricPayloadToAmll,
+  collectLyricRowsForTranslate,
+  attachAiTranslationIfNeeded,
+  isLyricTranslateEnabled: () => lyricTranslateEnabled.value,
+  setLyricLines: (next) => {
+    amllLyricLines.value = next;
+  },
+});
+const {
+  rhythmLevel,
+  beatLevel,
+  visualPulse,
+  startRhythmLoop,
+  stopRhythmLoop,
+  resetRhythmVisual,
+  resetRhythmEnergy,
+  disposeRhythmAnalyzer,
+} = usePlayerRhythmAnalyzer({
+  getHasSong: () => hasSong.value,
+  getIsPlaying: () => playerStore.isPlaying,
+  getPrefersReducedMotion: () => prefersReducedMotion.value,
+  getIsIOSDevice: () => isIOSDevice.value,
+  getActiveAudio: () => getActiveAudio(),
+  getPrimaryAudio: () => audioRef.value,
+  onSyncCurrentTimeMs: (nextMs) => {
+    playerStore.setCurrentTimeMs(nextMs);
+  },
+});
+const {
+  reportBehavior,
+  reportCurrentPlayRecord,
+  resetPlayRecordCache,
+} = usePlayerReporting({
+  reportApi,
+  getCurrentSong: () => playerStore.currentSong,
+  getCurrentAudio: () => getActiveAudio(),
+  getArtistNames: () => normalizedArtistList.value.map((item) => item.name),
+});
 
 const playerStyle = computed(() => {
   const [b1, b2, b3] = themeBaseRgb.value;
@@ -828,123 +922,180 @@ const canPlayNext = computed(() => {
     currentQueueIndex.value < playQueue.value.length - 1
   );
 });
+const {
+  getCrossfadeTargetIndex,
+  prewarmCrossfadeDeck,
+  isPrewarmedMatch,
+  getPrewarmedUrl,
+  clearPrewarmed,
+} = usePlayerCrossfade({
+  playerStore,
+  isSequenceMode: () => playerStore.playMode === PLAY_MODE.SEQUENCE,
+  automixEnabled: () => automixEnabled.value,
+  getIdleAudio: () => getIdleAudio(),
+  isCrossfadeBusy: () => crossfadeActive || crossfadePreparing,
+  resolvePlayableUrlById,
+  getLastAutomixAnalysis,
+  recommendNextQueueIndex,
+  log: (...args) => {
+    if (typeof console !== "undefined") console.log(...args);
+  },
+});
+const {
+  stopCrossfade,
+  completeCrossfadeByDeckSwap,
+} = usePlayerCrossfadeRuntime({
+  getCrossfadeRafId: () => crossfadeRafId,
+  setCrossfadeRafId: (next) => {
+    crossfadeRafId = next;
+  },
+  getActiveAudio: () => getActiveAudio(),
+  getIdleAudio: () => getIdleAudio(),
+  getVolume: () => clamp(Number(volume.value || 0.85), 0, 1),
+  getCrossfadeCoverState: () => ({
+    progress: crossfadeCoverProgress.value,
+    url: crossfadeCoverUrl.value,
+    isVideo: crossfadeCoverIsVideo.value,
+  }),
+  setCrossfadeCoverState: ({progress, url, isVideo}) => {
+    if (typeof progress === "number") crossfadeCoverProgress.value = progress;
+    if (typeof url === "string") crossfadeCoverUrl.value = url;
+    if (typeof isVideo === "boolean") crossfadeCoverIsVideo.value = isVideo;
+  },
+  setCrossfadeActive: (next) => {
+    crossfadeActive = next;
+  },
+  setCrossfadeVisualActive: (next) => {
+    crossfadeVisualActive.value = next;
+  },
+  flipActiveDeck,
+  syncCurrentTimeMs: (nextMs) => {
+    playerStore.setCurrentTimeMs(nextMs);
+    resetRhythmEnergy();
+  },
+  onCrossfadeCompleted: () => {
+    playerStore.setPlaying(true);
+  },
+  setupMediaSessionHandlers: () => setupMediaSessionHandlers({force: isIOSDevice.value}),
+  startRhythmLoop,
+  updateMediaSessionPlaybackState,
+  requestAutomixWarmup,
+  resetTriggeredSong: () => {
+    crossfadeTriggeredForSongId = null;
+  },
+  onResumePlayFailed: () => {
+    playerStore.setPlaying(false);
+  },
+  debugCrossfade,
+  log: (...args) => {
+    if (typeof console !== "undefined") console.log(...args);
+  },
+});
+const {tryStartAutomixCrossfade} = usePlayerCrossfadeFlow({
+  getActiveAudio: () => getActiveAudio(),
+  getIdleAudio: () => getIdleAudio(),
+  isCrossfadeActive: () => crossfadeActive,
+  isCrossfadePreparing: () => crossfadePreparing,
+  setCrossfadeActive: (next) => {
+    crossfadeActive = next;
+  },
+  setCrossfadePreparing: (next) => {
+    crossfadePreparing = next;
+  },
+  getCrossfadeTriggeredSongId: () => crossfadeTriggeredForSongId,
+  setCrossfadeTriggeredSongId: (next) => {
+    crossfadeTriggeredForSongId = next;
+  },
+  getHasSong: () => hasSong.value,
+  isAutomixEnabled: () => automixEnabled.value,
+  isSinglePlayMode: () => playerStore.playMode === PLAY_MODE.SINGLE,
+  getCurrentSong: () => playerStore.currentSong,
+  getPlayQueue: () => playerStore.playQueue || [],
+  getCurrentQueueIndex: () => playerStore.currentQueueIndex,
+  getCrossfadeTargetIndex,
+  isPrewarmedMatch,
+  getPrewarmedUrl,
+  resolvePlayableUrlById,
+  getLastAutomixAnalysis,
+  getCurrentThemeSnapshot,
+  resolveThemeFromCover,
+  resolveSongCover,
+  isVideoUrl,
+  setCrossfadeVisualActive: (next) => {
+    crossfadeVisualActive.value = next;
+  },
+  setCrossfadeCoverState: ({url, isVideo, progress}) => {
+    if (typeof url === "string") crossfadeCoverUrl.value = url;
+    if (typeof isVideo === "boolean") crossfadeCoverIsVideo.value = isVideo;
+    if (typeof progress === "number") crossfadeCoverProgress.value = progress;
+  },
+  waitAudioMetadata,
+  sanitizePlaybackStartSec,
+  resolveTempoRateForTransition,
+  debugCrossfade,
+  clamp,
+  getVolume: () => volume.value,
+  applyThemeBlend,
+  applyTheme,
+  setSkipNextCoverThemePick: (next) => {
+    skipNextCoverThemePick = next;
+  },
+  completeCrossfadeByDeckSwap,
+  promoteCrossfadedTrack,
+  setCrossfadeRafId: (next) => {
+    crossfadeRafId = next;
+  },
+  stopCrossfade,
+  log: (...args) => {
+    if (typeof console !== "undefined") console.log(...args);
+  },
+});
+const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
+  playerStore,
+  automixEnabled: () => automixEnabled.value,
+  canPlayPrev: () => canPlayPrev.value,
+  canPlayNext: () => canPlayNext.value,
+  hasSong: () => hasSong.value,
+  getActiveAudio: () => getActiveAudio(),
+  getIdleAudio: () => getIdleAudio(),
+  getCrossfadeActive: () => crossfadeActive,
+  getCrossfadePreparing: () => crossfadePreparing,
+  setCrossfadeActive: (next) => {
+    crossfadeActive = next;
+  },
+  setCrossfadePreparing: (next) => {
+    crossfadePreparing = next;
+  },
+  setCrossfadeVisualActive: (next) => {
+    crossfadeVisualActive.value = next;
+  },
+  setCrossfadeTriggeredSongId: (next) => {
+    crossfadeTriggeredForSongId = next;
+  },
+  getVolume: () => volume.value,
+  resolvePlayableUrlById,
+  recommendNextQueueIndex,
+  waitAudioMetadata,
+  resolveSongCover,
+  pickThemeFromCover,
+  getSongName: () => songName.value,
+  applyTheme,
+  setSkipNextCoverThemePick: (next) => {
+    skipNextCoverThemePick = next;
+  },
+  promoteCrossfadedTrack,
+  completeCrossfadeByDeckSwap,
+  requestAutomixWarmup,
+  reportBehavior,
+  playQueueByDirection,
+  playQueueByIndex,
+  closePlaylistPanel,
+});
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function rgbToHsl(r, g, b) {
-  const rn = clamp(r / 255, 0, 1);
-  const gn = clamp(g / 255, 0, 1);
-  const bn = clamp(b / 255, 0, 1);
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  const delta = max - min;
-  const l = (max + min) / 2;
-
-  if (delta === 0) return {h: 0, s: 0, l};
-
-  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-  let h = 0;
-  if (max === rn) h = (gn - bn) / delta + (gn < bn ? 6 : 0);
-  else if (max === gn) h = (bn - rn) / delta + 2;
-  else h = (rn - gn) / delta + 4;
-
-  return {h: h * 60, s, l};
-}
-
-function hslToRgb(h, s, l) {
-  const hue = ((h % 360) + 360) % 360;
-  const sat = clamp(s, 0, 1);
-  const lig = clamp(l, 0, 1);
-  const c = (1 - Math.abs(2 * lig - 1)) * sat;
-  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const m = lig - c / 2;
-
-  let rn = 0;
-  let gn = 0;
-  let bn = 0;
-
-  if (hue < 60) {
-    rn = c;
-    gn = x;
-  } else if (hue < 120) {
-    rn = x;
-    gn = c;
-  } else if (hue < 180) {
-    gn = c;
-    bn = x;
-  } else if (hue < 240) {
-    gn = x;
-    bn = c;
-  } else if (hue < 300) {
-    rn = x;
-    bn = c;
-  } else {
-    rn = c;
-    bn = x;
-  }
-
-  return [
-    Math.round((rn + m) * 255),
-    Math.round((gn + m) * 255),
-    Math.round((bn + m) * 255),
-  ];
-}
-
-function getRgbBrightness([r, g, b]) {
-  return (r * 299 + g * 587 + b * 114) / 1000;
-}
-
-function mixRgb(from, to, ratio) {
-  const t = clamp(ratio, 0, 1);
-  return [
-    Math.round(from[0] * (1 - t) + to[0] * t),
-    Math.round(from[1] * (1 - t) + to[1] * t),
-    Math.round(from[2] * (1 - t) + to[2] * t),
-  ];
-}
-
-function getYellowGreenBias(hue) {
-  const d1 = Math.abs(hue - 78);
-  const d2 = Math.abs(hue - 118);
-  const nearest = Math.min(d1, d2);
-  return clamp(1 - nearest / 65, 0, 1);
-}
-
-function buildThemeByBase(baseRgb) {
-  const [r, g, b] = baseRgb;
-  const hsl = rgbToHsl(r, g, b);
-  const yellowGreenBias = getYellowGreenBias(hsl.h);
-  const neutral = [48, 58, 84];
-
-  const base = hslToRgb(
-    hsl.h,
-    clamp(hsl.s * (0.78 - yellowGreenBias * 0.14) + 0.06, 0.22, 0.62),
-    clamp(hsl.l * (0.48 - yellowGreenBias * 0.08) + 0.08, 0.16, 0.38),
-  );
-  const accent = hslToRgb(
-    hsl.h + 14,
-    clamp(hsl.s * (0.62 - yellowGreenBias * 0.12) + 0.08, 0.2, 0.52),
-    clamp(hsl.l * (0.62 - yellowGreenBias * 0.1) + 0.16, 0.3, 0.56),
-  );
-  const glow = hslToRgb(
-    hsl.h - 8,
-    clamp(hsl.s * (0.46 - yellowGreenBias * 0.12) + 0.06, 0.16, 0.42),
-    clamp(hsl.l + 0.2 - yellowGreenBias * 0.12, 0.48, 0.74),
-  );
-
-  const mixedBase = mixRgb(base, neutral, 0.12 + yellowGreenBias * 0.2);
-  const mixedAccent = mixRgb(accent, neutral, 0.08 + yellowGreenBias * 0.16);
-  const mixedGlow = mixRgb(glow, neutral, 0.05 + yellowGreenBias * 0.12);
-
-  return {
-    base: mixedBase,
-    accent: mixedAccent,
-    glow: mixedGlow,
-    isDark: getRgbBrightness(mixedBase) < 146,
-  };
-}
 
 function applyTheme(theme) {
   if (!theme) return;
@@ -961,110 +1112,14 @@ function applyTheme(theme) {
       : getRgbBrightness(base) < 146;
 }
 
-function blendTheme(fromTheme, toTheme, ratio) {
-  const t = clamp(ratio, 0, 1);
-  const base = mixRgb(fromTheme.base, toTheme.base, t);
-  const accent = mixRgb(fromTheme.accent, toTheme.accent, t);
-  const glow = mixRgb(fromTheme.glow, toTheme.glow, t);
-  return {
-    base,
-    accent,
-    glow,
-    isDark: getRgbBrightness(base) < 146,
-  };
-}
-
 function applyThemeByBase(baseRgb) {
   applyTheme(buildThemeByBase(baseRgb));
-}
-
-function createFallbackTheme(seedText = "") {
-  const text = String(seedText || "player");
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = text.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  const fallbackBase = hslToRgb(hue, 0.56, 0.44);
-  return buildThemeByBase(fallbackBase);
 }
 
 function applyFallbackTheme(seedText = "") {
   applyTheme(createFallbackTheme(seedText));
 }
 
-async function extractDominantBaseColorFromCover(cover) {
-  const image = new Image();
-  image.crossOrigin = "anonymous";
-  image.referrerPolicy = "no-referrer";
-
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
-    image.src = cover;
-  });
-
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", {willReadFrequently: true});
-  if (!ctx) throw new Error("canvas unavailable");
-
-  const size = 52;
-  canvas.width = size;
-  canvas.height = size;
-  ctx.drawImage(image, 0, 0, size, size);
-
-  const {data} = ctx.getImageData(0, 0, size, size);
-  const bucketMap = new Map();
-
-  for (let i = 0; i < data.length; i += 16) {
-    const alpha = data[i + 3] / 255;
-    if (alpha < 0.08) continue;
-
-    const pr = data[i];
-    const pg = data[i + 1];
-    const pb = data[i + 2];
-    const max = Math.max(pr, pg, pb);
-    const min = Math.min(pr, pg, pb);
-    const sat = max === 0 ? 0 : (max - min) / max;
-    const light = (max + min) / 510;
-    if (light < 0.06 || light > 0.94) continue;
-
-    const weight =
-      alpha * (0.3 + sat * 1.2 + (1 - Math.abs(light - 0.48)) * 0.75);
-    const key = `${Math.round(pr / 24)}-${Math.round(pg / 24)}-${Math.round(pb / 24)}`;
-    const current = bucketMap.get(key) || {r: 0, g: 0, b: 0, w: 0};
-    current.r += pr * weight;
-    current.g += pg * weight;
-    current.b += pb * weight;
-    current.w += weight;
-    bucketMap.set(key, current);
-  }
-
-  let best = null;
-  for (const item of bucketMap.values()) {
-    if (!best || item.w > best.w) best = item;
-  }
-  if (!best || best.w <= 0) throw new Error("no color");
-
-  return [
-    Math.round(best.r / best.w),
-    Math.round(best.g / best.w),
-    Math.round(best.b / best.w),
-  ];
-}
-
-async function resolveThemeFromCover(cover, fallbackSeed = "") {
-  if (!cover) {
-    return createFallbackTheme(fallbackSeed || songName.value);
-  }
-
-  try {
-    const dominant = await extractDominantBaseColorFromCover(cover);
-    return buildThemeByBase(dominant);
-  } catch {
-    return createFallbackTheme(fallbackSeed || songName.value);
-  }
-}
 
 function resolveSongCover(song) {
   return (
@@ -1090,200 +1145,6 @@ function applyThemeBlend(fromTheme, toTheme, progress) {
   applyTheme(blendTheme(fromTheme, toTheme, progress));
 }
 
-async function pickThemeFromCover(cover) {
-  if (!cover) {
-    applyFallbackTheme(songName.value);
-    return;
-  }
-
-  const currentToken = ++themePickToken;
-
-  try {
-    const theme = await resolveThemeFromCover(cover, songName.value);
-    if (currentToken !== themePickToken) return;
-    applyTheme(theme);
-  } catch {
-    if (currentToken !== themePickToken) return;
-    applyFallbackTheme(songName.value);
-  }
-}
-
-function ensureAnalyser() {
-  if (!audioRef.value || typeof window === "undefined") return false;
-  if (isIOSDevice.value) return false;
-  const Context = window.AudioContext || window.webkitAudioContext;
-  if (!Context) return false;
-
-  try {
-    if (!audioContext) {
-      audioContext = new Context();
-    }
-    if (!analyserNode) {
-      analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 256;
-      analyserNode.smoothingTimeConstant = 0.82;
-    }
-    if (!mediaSourceNode) {
-      mediaSourceNode = audioContext.createMediaElementSource(audioRef.value);
-      mediaSourceNode.connect(analyserNode);
-      analyserNode.connect(audioContext.destination);
-      analyserData = new Uint8Array(analyserNode.frequencyBinCount);
-      analyserPrevData = new Uint8Array(analyserNode.frequencyBinCount);
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function stopRhythmLoop() {
-  if (analyserFrame) {
-    cancelAnimationFrame(analyserFrame);
-    analyserFrame = 0;
-  }
-}
-
-function tickRhythm(now) {
-  const active = getActiveAudio();
-  if (
-    active &&
-    !active.paused &&
-    (now - lastStoreTimeSyncTs > STORE_TIME_SYNC_INTERVAL_MS ||
-      !lastStoreTimeSyncTs)
-  ) {
-    playerStore.setCurrentTimeMs(
-      Math.floor((active.currentTime || 0) * 1000),
-    );
-    lastStoreTimeSyncTs = now;
-  }
-
-  if (!analyserNode || !analyserData || !analyserPrevData) {
-    analyserFrame = requestAnimationFrame(tickRhythm);
-    return;
-  }
-
-  if (now - analyserLastTs > 34) {
-    analyserNode.getByteFrequencyData(analyserData);
-    let low = 0;
-    let mid = 0;
-    let high = 0;
-    let flux = 0;
-    let total = 0;
-    const lowCount = Math.max(6, Math.floor(analyserData.length * 0.08));
-    const midStart = lowCount;
-    const midEnd = Math.max(
-      midStart + 1,
-      Math.floor(analyserData.length * 0.28),
-    );
-    const highStart = midEnd;
-    const highEnd = Math.max(
-      highStart + 1,
-      Math.floor(analyserData.length * 0.62),
-    );
-
-    for (let i = 0; i < lowCount; i += 1) low += analyserData[i];
-    for (let i = midStart; i < midEnd; i += 1) mid += analyserData[i];
-    for (let i = highStart; i < highEnd; i += 1) high += analyserData[i];
-    for (let i = 0; i < analyserData.length; i += 1) {
-      const current = analyserData[i];
-      total += current;
-      const diff = current - analyserPrevData[i];
-      if (diff > 0) flux += diff;
-      analyserPrevData[i] = current;
-    }
-
-    const lowEnergy = low / (lowCount * 255);
-    const midEnergy = mid / ((midEnd - midStart) * 255);
-    const highEnergy = high / ((highEnd - highStart) * 255);
-    const totalEnergy = total / (analyserData.length * 255);
-    const fluxEnergy = flux / (analyserData.length * 255);
-
-    rhythmEnergyEma =
-      rhythmEnergyEma > 0
-        ? rhythmEnergyEma * 0.88 + totalEnergy * 0.12
-        : totalEnergy;
-    rhythmFluxEma =
-      rhythmFluxEma > 0 ? rhythmFluxEma * 0.9 + fluxEnergy * 0.1 : fluxEnergy;
-
-    const energyBoost = clamp(
-      (totalEnergy - rhythmEnergyEma * 0.9) * 3.4,
-      0,
-      1,
-    );
-    const fluxBoost = clamp((fluxEnergy - rhythmFluxEma * 0.72) * 7.8, 0, 1);
-    const fluxRatio = clamp(fluxEnergy / (rhythmFluxEma + 0.016), 0, 2.6);
-
-    lowBandEma =
-      lowBandEma > 0 ? lowBandEma * 0.86 + lowEnergy * 0.14 : lowEnergy;
-    const lowTransient = clamp((lowEnergy - lowBandEma * 0.9) * 4.6, 0, 1);
-
-    const bodyRaw = clamp(
-      totalEnergy * 1.08 +
-      lowEnergy * 0.56 +
-      midEnergy * 0.38 +
-      highEnergy * 0.18,
-      0,
-      1,
-    );
-    const targetLevel = 0.42;
-    const adaptive = clamp(targetLevel / (bodyRaw + 0.08), 0.9, 2.4);
-    rhythmGain = rhythmGain * 0.93 + adaptive * 0.07;
-
-    const bodyLevel = clamp(bodyRaw * rhythmGain, 0, 1);
-    const beatKickRaw =
-      fluxBoost * 0.78 +
-      fluxRatio * 0.22 +
-      energyBoost * 0.4 +
-      lowTransient * 1.05;
-    const beatKick = clamp((beatKickRaw - 0.1) / 0.9, 0, 1) ** 0.78;
-
-    rhythmLevel.value = clamp(rhythmLevel.value * 0.5 + bodyLevel * 0.5, 0, 1);
-    beatLevel.value = clamp(Math.max(beatLevel.value * 0.86, beatKick), 0, 1);
-
-    const targetPulse = clamp(
-      rhythmLevel.value * 0.42 + beatLevel.value * 0.78,
-      0,
-      1,
-    );
-    if (targetPulse > visualPulse.value) {
-      visualPulse.value = clamp(
-        visualPulse.value + (targetPulse - visualPulse.value) * 0.24,
-        0,
-        1,
-      );
-    } else {
-      visualPulse.value = clamp(
-        visualPulse.value + (targetPulse - visualPulse.value) * 0.08,
-        0,
-        1,
-      );
-    }
-    analyserLastTs = now;
-  }
-
-  analyserFrame = requestAnimationFrame(tickRhythm);
-}
-
-async function startRhythmLoop() {
-  if (!hasSong.value) return;
-  if (!playerStore.isPlaying) return;
-  if (prefersReducedMotion.value) return;
-  if (!ensureAnalyser()) return;
-
-  if (audioContext?.state === "suspended") {
-    try {
-      await audioContext.resume();
-    } catch {
-      return;
-    }
-  }
-
-  if (!analyserFrame) {
-    analyserLastTs = 0;
-    analyserFrame = requestAnimationFrame(tickRhythm);
-  }
-}
-
 function detectIOSDevice() {
   if (typeof navigator === "undefined") return false;
   const ua = String(navigator.userAgent || "");
@@ -1304,160 +1165,6 @@ function setAudioSessionPlaybackMode() {
   }
 }
 
-function updateMediaSessionMetadata() {
-  if (typeof navigator === "undefined") return;
-  if (!("mediaSession" in navigator)) return;
-  const title = songName.value || "未在播放";
-  const artist = normalizedArtistList.value.map((item) => item.name).join(" / ");
-  const artworkSrc = resolveMediaSessionArtworkUrl();
-  if (typeof window.MediaMetadata !== "function") return;
-  try {
-    navigator.mediaSession.metadata = new window.MediaMetadata({
-      title,
-      artist,
-      album: amllAlbum.value || "",
-      artwork: artworkSrc
-        ? [
-          {src: artworkSrc, sizes: "96x96"},
-          {src: artworkSrc, sizes: "128x128"},
-          {src: artworkSrc, sizes: "192x192"},
-          {src: artworkSrc, sizes: "256x256"},
-          {src: artworkSrc, sizes: "384x384"},
-          {src: artworkSrc, sizes: "512x512"},
-        ]
-        : [],
-    });
-  } catch {
-    // noop
-  }
-}
-
-function updateMediaSessionPlaybackState() {
-  if (typeof navigator === "undefined") return;
-  if (!("mediaSession" in navigator)) return;
-  try {
-    navigator.mediaSession.playbackState = hasSong.value && isPlaying.value
-      ? "playing"
-      : "paused";
-  } catch {
-    // noop
-  }
-}
-
-function updateMediaSessionPositionState() {
-  if (typeof navigator === "undefined") return;
-  if (!("mediaSession" in navigator)) return;
-  if (typeof navigator.mediaSession.setPositionState !== "function") return;
-  const durationSec = Math.max(0, Number(durationMs.value || 0) / 1000);
-  const positionSec = Math.max(0, Number(currentTimeMs.value || 0) / 1000);
-  if (!Number.isFinite(durationSec) || !Number.isFinite(positionSec)) return;
-  if (durationSec <= 0) return;
-  try {
-    navigator.mediaSession.setPositionState({
-      duration: durationSec,
-      position: Math.min(positionSec, durationSec),
-      playbackRate: 1,
-    });
-  } catch {
-    // noop
-  }
-}
-
-function scheduleMediaSessionPositionStateUpdate() {
-  if (mediaSessionPositionUpdateTimer) return;
-  mediaSessionPositionUpdateTimer = window.setTimeout(() => {
-    mediaSessionPositionUpdateTimer = 0;
-    updateMediaSessionPositionState();
-  }, 800);
-}
-
-function setupMediaSessionHandlers({force = false} = {}) {
-  if (typeof navigator === "undefined") return;
-  if (!("mediaSession" in navigator)) return;
-  if (force && mediaSessionHandlersBound) {
-    clearMediaSessionHandlers();
-  }
-  if (mediaSessionHandlersBound) return;
-
-  const setHandler = (action, handler) => {
-    try {
-      navigator.mediaSession.setActionHandler(action, handler);
-    } catch {
-      // noop
-    }
-  };
-
-  const handlePrevTrack = async () => {
-    if (!playQueue.value.length) return;
-    if (!canPlayPrev.value) return;
-    await playQueueByDirection("prev", {trigger: "manual"});
-  };
-
-  const handleNextTrack = async () => {
-    if (!playQueue.value.length) return;
-    if (!canPlayNext.value) return;
-    await playQueueByDirection("next", {trigger: "manual"});
-  };
-
-  setHandler("play", async () => {
-    const active = getActiveAudio();
-    if (!active || !hasSong.value) return;
-    try {
-      await active.play();
-    } catch {
-      playerStore.setPlaying(false);
-    }
-  });
-  setHandler("pause", () => {
-    playerStore.autoPlayOnLoad = false;
-    getActiveAudio()?.pause();
-  });
-  setHandler("previoustrack", canPlayPrev.value ? handlePrevTrack : null);
-  setHandler("nexttrack", canPlayNext.value ? handleNextTrack : null);
-  setHandler("seekbackward", null);
-  setHandler("seekforward", null);
-  setHandler("seekto", (details = {}) => {
-    const active = getActiveAudio();
-    if (!active) return;
-    const seekTime = Number(details.seekTime);
-    if (!Number.isFinite(seekTime)) return;
-    active.currentTime = Math.max(0, seekTime);
-    playerStore.setCurrentTimeMs(Math.floor((active.currentTime || 0) * 1000));
-    updateMediaSessionPositionState();
-  });
-
-  mediaSessionHandlersBound = true;
-}
-
-function clearMediaSessionHandlers() {
-  if (typeof navigator === "undefined") return;
-  if (!("mediaSession" in navigator)) return;
-  const actions = [
-    "play",
-    "pause",
-    "previoustrack",
-    "nexttrack",
-    "seekbackward",
-    "seekforward",
-    "seekto",
-  ];
-  actions.forEach((action) => {
-    try {
-      navigator.mediaSession.setActionHandler(action, null);
-    } catch {
-      // noop
-    }
-  });
-  mediaSessionHandlersBound = false;
-}
-
-function formatMs(ms) {
-  const sec = Math.floor((ms || 0) / 1000);
-  const min = Math.floor(sec / 60);
-  const remain = String(sec % 60).padStart(2, "0");
-  return `${min}:${remain}`;
-}
-
 function openArtistFromPlayer(artist) {
   if (!artist?.name) return;
   router.push({
@@ -1467,16 +1174,6 @@ function openArtistFromPlayer(artist) {
       name: artist.name,
     },
   });
-}
-
-function getExt(url = "") {
-  const clean = String(url).split("?")[0].split("#")[0].toLowerCase();
-  const index = clean.lastIndexOf(".");
-  return index >= 0 ? clean.slice(index + 1) : "";
-}
-
-function isVideoUrl(url = "") {
-  return ["mp4", "webm", "m4v", "mov", "ogg", "ogv"].includes(getExt(url));
 }
 
 function resolveMediaSessionArtworkUrl() {
@@ -1559,168 +1256,6 @@ function sanitizePlaybackStartSec(media, targetSec = 0) {
   return Math.min(target, maxStart);
 }
 
-async function prewarmCrossfadeDeck(reason = "unknown") {
-  const idle = getIdleAudio();
-  if (!idle || crossfadeActive || crossfadePreparing) return;
-  if (!automixEnabled.value) return;
-  if (!playerStore.playQueue.length || playerStore.currentQueueIndex < 0) return;
-
-  const targetIndex = await getCrossfadeTargetIndex();
-  if (targetIndex < 0 || targetIndex >= playerStore.playQueue.length) return;
-  if (targetIndex === playerStore.currentQueueIndex) return;
-
-  const targetSong = playerStore.playQueue[targetIndex];
-  const targetId = Number(targetSong?.id);
-  if (!Number.isFinite(targetId) || targetId <= 0) return;
-
-  const targetUrl = await resolvePlayableUrlById(targetId);
-  if (!targetUrl || !idle || crossfadeActive) return;
-
-  if (
-    crossfadePrewarmedSongId === String(targetSong.id) &&
-    crossfadePrewarmedUrl === targetUrl
-  ) {
-    return;
-  }
-
-  if (!idle.paused) return;
-
-  idle.src = targetUrl;
-  idle.load();
-  crossfadePrewarmedSongId = String(targetSong.id);
-  crossfadePrewarmedUrl = targetUrl;
-
-  if (typeof console !== "undefined") {
-    console.log("[Automix/Warmup] deck prewarmed", {
-      reason,
-      targetId: targetSong.id,
-      targetIndex,
-    });
-  }
-}
-
-function stopCrossfade({keepCoverOverlay = false} = {}) {
-  if (crossfadeRafId) {
-    cancelAnimationFrame(crossfadeRafId);
-    crossfadeRafId = 0;
-  }
-  const active = getActiveAudio();
-  const idle = getIdleAudio();
-  if (idle) {
-    idle.pause();
-    idle.playbackRate = 1;
-    idle.removeAttribute("src");
-    idle.load();
-  }
-  if (active) {
-    active.volume = volume.value;
-  }
-  if (!keepCoverOverlay) {
-    crossfadeCoverProgress.value = 0;
-    crossfadeCoverUrl.value = "";
-    crossfadeCoverIsVideo.value = false;
-  }
-  crossfadeActive = false;
-  crossfadeVisualActive.value = false;
-}
-
-function clearCrossfadeCoverSoon() {
-  window.setTimeout(() => {
-    crossfadeCoverProgress.value = 0;
-    crossfadeCoverUrl.value = "";
-    crossfadeCoverIsVideo.value = false;
-  }, 120);
-}
-
-function completeCrossfadeByDeckSwap({
-                                       fromTrackId,
-                                       toTrackId,
-                                       mixOutStart,
-                                       mixInStart,
-                                       crossfadeDuration,
-                                       promotedStartSec,
-                                     }) {
-  const oldActive = getActiveAudio();
-  flipActiveDeck();
-  const newActive = getActiveAudio();
-  if (newActive) {
-    newActive.volume = clamp(Number(volume.value || 0.85), 0, 1);
-    playerStore.setCurrentTimeMs(Math.floor((newActive.currentTime || 0) * 1000));
-    lastStoreTimeSyncTs = 0;
-  }
-  if (oldActive) {
-    oldActive.pause();
-    oldActive.removeAttribute("src");
-    oldActive.load();
-  }
-  crossfadeActive = false;
-  crossfadeVisualActive.value = false;
-  clearCrossfadeCoverSoon();
-
-  // 补齐状态同步，防止 onPlay 被 isEventFromActiveDeck 过滤掉
-  playerStore.setPlaying(true);
-  setupMediaSessionHandlers({force: isIOSDevice.value});
-  startRhythmLoop();
-  updateMediaSessionPlaybackState();
-  requestAutomixWarmup("crossfade-complete");
-  // 重置，确保下一轮 crossfade 可以正常触发
-  crossfadeTriggeredForSongId = null;
-
-  if (newActive?.paused) {
-    newActive.play().catch(() => {
-      playerStore.setPlaying(false);
-    });
-  }
-  debugCrossfade("completeCrossfadeByDeckSwap", {
-    fromTrackId,
-    toTrackId,
-    promotedStartSec,
-    mixInStart,
-    mixOutStart,
-    crossfadeDuration,
-    activeDeck,
-    newActiveCurrentTime: Number(newActive?.currentTime || 0).toFixed(3),
-  });
-
-  if (typeof console !== "undefined") {
-    console.log("[Automix] crossfade complete", {
-      fromTrackId,
-      toTrackId,
-      mixOutStart,
-      mixInStart,
-      crossfadeDuration,
-      promotedStartSec,
-      activeDeck,
-    });
-  }
-}
-
-async function getCrossfadeTargetIndex() {
-  const queue = playerStore.playQueue || [];
-  if (!queue.length || playerStore.currentQueueIndex < 0) return -1;
-  const currentIndex = playerStore.currentQueueIndex;
-  const sequenceMode = playerStore.playMode === PLAY_MODE.SEQUENCE;
-
-  const analysis = getLastAutomixAnalysis();
-  if (
-    analysis?.currentTrackId &&
-    String(analysis.currentTrackId) === String(playerStore.currentSong?.id) &&
-    Number.isInteger(analysis.selectedQueueIndex) &&
-    analysis.selectedQueueIndex >= 0
-  ) {
-    const selected = analysis.selectedQueueIndex;
-    if (!sequenceMode || selected > currentIndex) {
-      return selected;
-    }
-  }
-
-  const suggested = await recommendNextQueueIndex(queue, currentIndex);
-  if (!sequenceMode || suggested > currentIndex) {
-    return suggested;
-  }
-
-  return currentIndex < queue.length - 1 ? currentIndex + 1 : -1;
-}
 
 async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex = -1) {
   if (!targetSong?.id || !targetUrl) return;
@@ -1755,174 +1290,6 @@ async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, t
   }
 }
 
-async function tryStartAutomixCrossfade(currentSec) {
-  const primary = getActiveAudio();
-  const secondary = getIdleAudio();
-  if (crossfadeActive || crossfadePreparing || !primary || !secondary || !hasSong.value)
-    return false;
-  if (!automixEnabled.value) return false;
-  if (playerStore.playMode === PLAY_MODE.SINGLE) return false;
-
-  const currentSongId = String(playerStore.currentSong?.id || "");
-  if (!currentSongId) return false;
-  if (crossfadeTriggeredForSongId === currentSongId) return false;
-
-  const analysis = getLastAutomixAnalysis();
-  if (
-    !analysis?.transition ||
-    String(analysis.currentTrackId || "") !== currentSongId
-  ) {
-    return false;
-  }
-
-  const transition = analysis.transition;
-  const mixOutStart = Number(transition.mix_out_start || 0);
-  const mixInStart = Math.max(0, Number(transition.mix_in_start || 0));
-  const crossfadeDuration = Math.max(0.4, Number(transition.crossfade_duration || 0));
-  if (!Number.isFinite(mixOutStart) || !Number.isFinite(crossfadeDuration)) return false;
-  if (currentSec + 0.08 < mixOutStart) return false;
-
-  crossfadePreparing = true;
-  try {
-    const targetIndex = await getCrossfadeTargetIndex();
-    if (targetIndex < 0 || targetIndex >= playerStore.playQueue.length)
-      return false;
-    if (targetIndex === playerStore.currentQueueIndex) return false;
-
-    const targetSong = playerStore.playQueue[targetIndex];
-    const targetId = Number(targetSong?.id);
-    if (!Number.isFinite(targetId) || targetId <= 0) return false;
-
-    const prewarmedMatch =
-      crossfadePrewarmedSongId === String(targetSong.id) &&
-      Boolean(crossfadePrewarmedUrl);
-    const targetUrl = prewarmedMatch
-      ? crossfadePrewarmedUrl
-      : await resolvePlayableUrlById(targetId);
-    if (!targetUrl || !primary || !secondary) return false;
-    const fromTheme = getCurrentThemeSnapshot();
-    let toTheme = fromTheme;
-    resolveThemeFromCover(resolveSongCover(targetSong), targetSong?.name || "")
-      .then((theme) => {
-        if (theme) toTheme = theme;
-      })
-      .catch(() => {
-      });
-
-    crossfadeActive = true;
-    crossfadeVisualActive.value = true;
-    crossfadeTriggeredForSongId = currentSongId;
-    crossfadeCoverUrl.value = resolveSongCover(targetSong);
-    crossfadeCoverIsVideo.value = isVideoUrl(crossfadeCoverUrl.value);
-    crossfadeCoverProgress.value = 0;
-
-    if (!prewarmedMatch || secondary.getAttribute("src") !== targetUrl) {
-      secondary.src = targetUrl;
-      secondary.load();
-    }
-    await waitAudioMetadata(secondary);
-    const safeMixInStart = sanitizePlaybackStartSec(secondary, mixInStart);
-    const tempoRate = resolveTempoRateForTransition(
-      playerStore.currentSong,
-      targetSong,
-      transition,
-    );
-    secondary.currentTime = safeMixInStart;
-    secondary.playbackRate = tempoRate;
-    secondary.volume = 0;
-    debugCrossfade("crossfadeStart", {
-      fromTrackId: currentSongId,
-      toTrackId: String(targetSong?.id || ""),
-      currentQueueIndex: playerStore.currentQueueIndex,
-      targetQueueIndex: targetIndex,
-      playMode: playerStore.playMode,
-      transitionMixOutStart: mixOutStart,
-      transitionMixInStart: mixInStart,
-      safeMixInStart,
-      crossfadeDuration,
-      tempoRate,
-      secondaryDuration: Number(secondary?.duration || 0),
-      prewarmedMatch,
-    });
-
-    try {
-      await secondary.play();
-    } catch {
-      crossfadeActive = false;
-      return false;
-    }
-
-    const baseVolume = clamp(Number(volume.value || 0.85), 0, 1);
-    const startTs = performance.now();
-
-    const step = async (now) => {
-      if (!crossfadeActive || !primary || !secondary) {
-        stopCrossfade();
-        return;
-      }
-
-      const elapsed = (now - startTs) / 1000;
-      const progress = clamp(elapsed / crossfadeDuration, 0, 1);
-      const fadeOutGain = Math.cos(progress * Math.PI * 0.5);
-      const fadeInGain = Math.sin(progress * Math.PI * 0.5);
-      primary.volume = baseVolume * fadeOutGain;
-      secondary.volume = baseVolume * fadeInGain;
-      applyThemeBlend(fromTheme, toTheme, progress);
-      crossfadeCoverProgress.value = progress;
-
-      if (progress >= 1) {
-        const promotedStartSec = Number(secondary.currentTime || safeMixInStart || 0);
-        debugCrossfade("promoteCrossfadedTrack", {
-          fromTrackId: currentSongId,
-          toTrackId: String(targetSong?.id || ""),
-          promotedStartSec,
-          safeMixInStart,
-          secondaryCurrentTime: Number(secondary.currentTime || 0).toFixed(3),
-        });
-        skipNextCoverThemePick = true;
-        applyTheme(toTheme);
-        completeCrossfadeByDeckSwap({
-          fromTrackId: currentSongId,
-          toTrackId: targetSong.id,
-          mixOutStart,
-          mixInStart: safeMixInStart,
-          crossfadeDuration,
-          promotedStartSec,
-        });
-        await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex);
-        return;
-      }
-
-      crossfadeRafId = requestAnimationFrame((ts) => {
-        step(ts).catch(() => {
-          stopCrossfade();
-        });
-      });
-    };
-
-    crossfadeRafId = requestAnimationFrame((ts) => {
-      step(ts).catch(() => {
-        stopCrossfade();
-      });
-    });
-
-    if (typeof console !== "undefined") {
-      console.log("[Automix] crossfade started", {
-        fromTrackId: currentSongId,
-        toTrackId: targetSong.id,
-        mixOutStart,
-        mixInStart,
-        crossfadeDuration,
-        tempoRate,
-      });
-    }
-
-    return true;
-  } finally {
-    crossfadePreparing = false;
-  }
-}
-
 function syncDurationFromAudio() {
   const active = getActiveAudio();
   if (!active) return;
@@ -1931,68 +1298,11 @@ function syncDurationFromAudio() {
   playerStore.setDurationMs(Math.floor(seconds * 1000));
 }
 
-function pickDynamicCover(payload) {
-  const data = payload?.data ?? payload;
-  const root = data?.data ?? data ?? {};
-  const hintedType = String(root?.type || root?.format || "").toLowerCase();
-  const sources = [
-    root?.videoPlayUrl,
-    root?.url,
-    root?.cover,
-    root?.video,
-    root?.videoUrl,
-    root?.dynamicCover,
-    root?.dynamicCoverUrl,
-    root?.mvUrl,
-    Array.isArray(root) ? root[0]?.videoPlayUrl : "",
-    Array.isArray(root) ? root[0]?.url : "",
-    Array.isArray(root) ? root[0]?.cover : "",
-    Array.isArray(root?.list) ? root.list[0]?.videoPlayUrl : "",
-    Array.isArray(root?.list) ? root.list[0]?.url : "",
-    Array.isArray(root?.list) ? root.list[0]?.cover : "",
-  ];
-
-  for (const candidate of sources) {
-    const url = String(candidate || "").trim();
-    if (!url || !/^https?:\/\//i.test(url)) continue;
-    return {
-      url,
-      isVideo: hintedType.includes("video") || isVideoUrl(url),
-    };
-  }
-
-  return {url: "", isVideo: false};
-}
-
 async function loadDynamicCover(songId) {
-  const id = Number(songId);
-  if (!Number.isFinite(id) || id <= 0) {
-    dynamicCoverUrl.value = "";
-    dynamicCoverIsVideo.value = false;
-    return;
-  }
-
-  if (dynamicCoverCache.has(id)) {
-    const cached = dynamicCoverCache.get(id) || {url: "", isVideo: false};
-    dynamicCoverUrl.value = cached.url || "";
-    dynamicCoverIsVideo.value = Boolean(cached.isVideo);
-    return;
-  }
-
-  const token = ++dynamicCoverToken;
-  try {
-    const res = await songsApi.getDynamicCover(id);
-    const dynamic = pickDynamicCover(res);
-    dynamicCoverCache.set(id, dynamic);
-    if (token !== dynamicCoverToken) return;
-    dynamicCoverUrl.value = dynamic.url;
-    dynamicCoverIsVideo.value = Boolean(dynamic.isVideo);
-  } catch {
-    dynamicCoverCache.set(id, {url: "", isVideo: false});
-    if (token !== dynamicCoverToken) return;
-    dynamicCoverUrl.value = "";
-    dynamicCoverIsVideo.value = false;
-  }
+  await loadDynamicCoverAsset(songId, ({url, isVideo}) => {
+    dynamicCoverUrl.value = url || "";
+    dynamicCoverIsVideo.value = Boolean(isVideo);
+  });
 }
 
 function syncAudioVolume() {
@@ -2047,43 +1357,6 @@ function togglePlay() {
   }
 }
 
-function openLyricPage() {
-  if (!hasSong.value) return;
-  if (amllUnmountTimer) {
-    window.clearTimeout(amllUnmountTimer);
-    amllUnmountTimer = 0;
-  }
-  if (!amllMounted.value) {
-    amllMounted.value = true;
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        amllOpened.value = true;
-      });
-    });
-    return;
-  }
-  amllOpened.value = true;
-}
-
-function onAmllOpenedChange(nextOpened) {
-  const opened = Boolean(nextOpened);
-  if (opened) {
-    if (amllUnmountTimer) {
-      window.clearTimeout(amllUnmountTimer);
-      amllUnmountTimer = 0;
-    }
-    amllMounted.value = true;
-    amllOpened.value = true;
-    return;
-  }
-  amllOpened.value = false;
-  if (amllUnmountTimer) window.clearTimeout(amllUnmountTimer);
-  amllUnmountTimer = window.setTimeout(() => {
-    if (!amllOpened.value) amllMounted.value = false;
-    amllUnmountTimer = 0;
-  }, 560);
-}
-
 function onAmllLineClick(event) {
   const startTime = event?.line?.getLine?.()?.startTime;
   const active = getActiveAudio();
@@ -2093,375 +1366,6 @@ function onAmllLineClick(event) {
   playerStore.setCurrentTimeMs(startTime);
 }
 
-function isChineseOnly(text = "") {
-  const meaningful = String(text).replace(/[\s\d\p{P}\p{S}a-zA-Z]/gu, "");
-  if (!meaningful) return false;
-  return /^[\u3400-\u9fff\u{20000}-\u{2a6df}\u{2a700}-\u{2ebef}]+$/u.test(meaningful);
-}
-
-function parseTimestampToMs(min, sec, frac = "") {
-  const minute = Number(min);
-  const second = Number(sec);
-  if (!Number.isFinite(minute) || !Number.isFinite(second)) return 0;
-
-  const fractionText = String(frac || "").trim();
-  let milli = 0;
-  if (fractionText) {
-    if (fractionText.length >= 3) milli = Number(fractionText.slice(0, 3));
-    else if (fractionText.length === 2) milli = Number(fractionText) * 10;
-    else milli = Number(fractionText) * 100;
-  }
-
-  return Math.max(0, minute * 60 * 1000 + second * 1000 + milli);
-}
-
-function normalizeLrcLineText(text = "") {
-  return String(text || "").replace(/\s+/g, " ").trim();
-}
-
-function collectLyricRowsForTranslate(payload = {}) {
-  const rows = [];
-  const lrcText = payload?.lrc?.lyric || payload?.lyric || "";
-  const yrcText = payload?.yrc?.lyric || payload?.yrc || "";
-
-  if (lrcText) {
-    for (const line of String(lrcText).split(/\r?\n/)) {
-      if (!line || !line.trim()) continue;
-      const stamps = [
-        ...line.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g),
-      ];
-      if (!stamps.length) continue;
-
-      const text = normalizeLrcLineText(line.replace(/\[[^\]]+\]/g, ""));
-      if (!text || /^\w+[:：]/.test(text)) continue;
-
-      for (const stamp of stamps) {
-        rows.push({
-          timeMs: parseTimestampToMs(stamp[1], stamp[2], stamp[3]),
-          text,
-        });
-      }
-    }
-  }
-
-  if (!rows.length && yrcText) {
-    for (const line of String(yrcText).split(/\r?\n/)) {
-      const match = line.match(/^\[(\d+),(\d+)\](.*)$/);
-      if (!match) continue;
-      const timeMs = Number(match[1]);
-      const text = normalizeLrcLineText(
-        String(match[3] || "").replace(/\(\d+,\d+,\d+\)/g, ""),
-      );
-      if (!Number.isFinite(timeMs) || !text || /^\w+[:：]/.test(text)) continue;
-      rows.push({timeMs: Math.max(0, timeMs), text});
-    }
-  }
-
-  rows.sort((a, b) => a.timeMs - b.timeMs);
-  return rows;
-}
-
-function toLrcTimestamp(timeMs) {
-  const safeMs = Math.max(0, Math.floor(Number(timeMs) || 0));
-  const min = Math.floor(safeMs / 60000);
-  const sec = Math.floor((safeMs % 60000) / 1000);
-  const cent = Math.floor((safeMs % 1000) / 10);
-  return `[${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(cent).padStart(2, "0")}]`;
-}
-
-function extractDeepseekText(payload) {
-  const candidate = payload?.data ?? payload;
-  if (!candidate) return "";
-
-  if (typeof candidate === "string") return candidate;
-  if (typeof candidate?.content === "string") return candidate.content;
-  if (typeof candidate?.result === "string") return candidate.result;
-  if (typeof candidate?.message === "string") return candidate.message;
-  if (typeof candidate?.data === "string") return candidate.data;
-  if (typeof candidate?.data?.content === "string") return candidate.data.content;
-  if (typeof candidate?.data?.result === "string") return candidate.data.result;
-  if (typeof candidate?.choices?.[0]?.message?.content === "string") {
-    return candidate.choices[0].message.content;
-  }
-
-  return "";
-}
-
-function parseTranslatedLines(rawText = "", expectedCount = 0) {
-  const text = String(rawText || "").trim();
-  if (!text) return [];
-
-  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  const jsonSource = fencedMatch?.[1] || text;
-
-  try {
-    const parsed = JSON.parse(jsonSource);
-    if (Array.isArray(parsed)) {
-      return parsed.map((item) => String(item || "").trim());
-    }
-  } catch {
-    // fallback below
-  }
-
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\d+[.)、:\-]\s*/, "").trim())
-    .filter(Boolean);
-
-  if (expectedCount && lines.length > expectedCount) {
-    return lines.slice(0, expectedCount);
-  }
-  return lines;
-}
-
-async function attachAiTranslationIfNeeded(payload = {}, songId) {
-  if (!lyricTranslateEnabled.value) return payload;
-
-  const rows = collectLyricRowsForTranslate(payload);
-  if (!rows.length) return payload;
-
-  const sourceText = rows.map((row) => row.text).join("\n");
-  if (!sourceText || isChineseOnly(sourceText)) return payload;
-
-  const existingTlyric = String(payload?.tlyric?.lyric || "").trim();
-  const existingMap = new Map();
-  if (existingTlyric) {
-    for (const line of existingTlyric.split(/\r?\n/)) {
-      const match = line.match(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\](.*)/);
-      if (match) {
-        const t = parseTimestampToMs(match[1], match[2], match[3]);
-        const text = String(match[4] || "").trim();
-        if (text) existingMap.set(t, text);
-      }
-    }
-  }
-
-  const missingRows = rows.filter((row) => {
-    if (existingMap.has(row.timeMs)) return false;
-    for (const [t] of existingMap) {
-      if (Math.abs(t - row.timeMs) <= 900) return false;
-    }
-    return true;
-  });
-
-  if (!missingRows.length) return payload;
-
-  const cacheKey = String(songId || payload?.songId || "");
-  if (cacheKey && lyricTranslationCache.has(cacheKey)) {
-    return {
-      ...payload,
-      tlyric: {
-        ...(payload?.tlyric || {}),
-        lyric: lyricTranslationCache.get(cacheKey) || "",
-      },
-    };
-  }
-
-  const linesToTranslate = missingRows.slice(0, 120).map((row) => row.text);
-  const prompt = [
-    "请把下面歌词逐行翻译成简体中文。",
-    "要求：",
-    "1. 保持行数一致，不要合并或拆分。",
-    "2. 只输出 JSON 数组字符串，不要输出其他解释。",
-    "3. 空行请输出空字符串。",
-    "原歌词：",
-    JSON.stringify(linesToTranslate),
-  ].join("\n");
-
-  try {
-    const response = await aiAPi.deepseekAPi({prompt});
-    const translatedText = extractDeepseekText(response?.data);
-    const translatedLines = parseTranslatedLines(
-      translatedText,
-      linesToTranslate.length,
-    );
-    if (!translatedLines.length) return payload;
-
-    const aiMap = new Map();
-    missingRows.forEach((row, index) => {
-      if (index < translatedLines.length) {
-        const text = String(translatedLines[index] || "").trim();
-        if (text) aiMap.set(row.timeMs, text);
-      }
-    });
-
-    const mergedLines = rows.map((row) => {
-      const existing = existingMap.get(row.timeMs)
-        || [...existingMap.entries()].find(([t]) => Math.abs(t - row.timeMs) <= 900)?.[1];
-      const ai = aiMap.get(row.timeMs);
-      return `${toLrcTimestamp(row.timeMs)}${existing || ai || ""}`;
-    });
-
-    const mergedLrc = mergedLines.join("\n");
-    if (!mergedLrc.trim()) return payload;
-    if (cacheKey) lyricTranslationCache.set(cacheKey, mergedLrc);
-
-    return {
-      ...payload,
-      tlyric: {
-        ...(payload?.tlyric || {}),
-        lyric: mergedLrc,
-      },
-    };
-  } catch {
-    return payload;
-  }
-}
-
-function hasLyricText(payload = {}) {
-  const yrcText = String(payload?.yrc?.lyric || payload?.yrc || "").trim();
-  const lrcText = String(payload?.lrc?.lyric || payload?.lyric || "").trim();
-  return Boolean(yrcText || lrcText);
-}
-
-function extractLyricPayloadFromSearchResult(raw = null) {
-  if (!raw) return null;
-
-  if (typeof raw === "string") {
-    const text = raw.trim();
-    return text ? {lrc: {lyric: text}} : null;
-  }
-
-  const candidate = raw?.data?.data ?? raw?.data ?? raw;
-  if (Array.isArray(candidate)) {
-    for (const item of candidate) {
-      const picked = extractLyricPayloadFromSearchResult(item);
-      if (picked) return picked;
-    }
-    return null;
-  }
-
-  if (typeof candidate !== "object") return null;
-  if (hasLyricText(candidate)) return candidate;
-
-  const lyricContentText = String(candidate?.lyricContent ?? "").trim();
-  if (lyricContentText && lyricContentText.toLowerCase() !== "null") {
-    return {lrc: {lyric: lyricContentText}};
-  }
-
-  const nested = [candidate?.lyric, candidate?.result, candidate?.payload];
-  for (const item of nested) {
-    const picked = extractLyricPayloadFromSearchResult(item);
-    if (picked) return picked;
-  }
-
-  return null;
-}
-
-async function tryLoadLyricFromSearch(songId, title = "", artist = "") {
-  if (!title) title = String(songName.value || "").trim();
-  if (!artist) artist = String(normalizedArtistList.value?.[0]?.name || "").trim();
-  const keyword = [title, artist].filter(Boolean).join("-");
-
-  try {
-    const response = await songsApi.getLyricSearch({
-      keyword,
-      id: songId,
-      name: title,
-      artist,
-    });
-    const payload = extractLyricPayloadFromSearchResult(response?.data ?? response);
-    return hasLyricText(payload || {}) ? payload : null;
-  } catch {
-    return null;
-  }
-}
-
-async function loadCurrentSongLyric(songId) {
-  const requestToken = ++lyricLoadToken;
-  const id = Number(songId);
-  if (!Number.isFinite(id) || id <= 0) {
-    if (requestToken === lyricLoadToken) amllLyricLines.value = [];
-    return;
-  }
-
-  const currentSong = playerStore.currentSong;
-  const snapshotTitle = String(currentSong?.name || "").trim();
-  const snapshotArtist = String(
-    (currentSong?.artists || [])[0]?.name || "",
-  ).trim();
-
-  let lyricPayload = await tryLoadLyricFromSearch(id, snapshotTitle, snapshotArtist);
-  if (requestToken !== lyricLoadToken) return;
-
-  if (!hasLyricText(lyricPayload || {})) {
-    if (requestToken !== lyricLoadToken) return;
-    try {
-      const {data: newData} = await songsApi.getLyricNew(id);
-      if (requestToken !== lyricLoadToken) return;
-      const hasWordByWord = /\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(
-        String(newData?.yrc?.lyric || ""),
-      );
-      if (hasWordByWord && hasLyricText(newData || {})) {
-        lyricPayload = newData || {};
-      } else {
-        const {data: normalData} = await songsApi.getLyric(id);
-        if (requestToken !== lyricLoadToken) return;
-        lyricPayload = normalData || {};
-      }
-    } catch {
-      if (requestToken !== lyricLoadToken) return;
-      try {
-        const {data: normalData} = await songsApi.getLyric(id);
-        if (requestToken !== lyricLoadToken) return;
-        lyricPayload = normalData || {};
-      } catch {
-        lyricPayload = null;
-      }
-    }
-  }
-
-  if (!lyricPayload) {
-    if (requestToken === lyricLoadToken) amllLyricLines.value = [];
-    return;
-  }
-
-  const baseLines = normalizeLyricPayloadToAmll(lyricPayload);
-  if (requestToken !== lyricLoadToken) return;
-  amllLyricLines.value = baseLines;
-
-  if (!lyricTranslateEnabled.value) return;
-
-  const hasMissingTranslation = baseLines.some(
-    (line) => line.words?.some((w) => w.word?.trim()) && !line.translatedLyric?.trim(),
-  );
-  if (!hasMissingTranslation) return;
-
-  const rows = collectLyricRowsForTranslate(lyricPayload);
-  const sourceText = rows.map((row) => row.text).join("\n");
-  const needsTranslation = rows.length > 0 && sourceText && !isChineseOnly(sourceText);
-
-  if (!needsTranslation) return;
-
-  const cacheKey = String(id || "");
-  if (cacheKey && lyricTranslationCache.has(cacheKey)) {
-    const cachedPayload = {
-      ...lyricPayload,
-      tlyric: { ...(lyricPayload?.tlyric || {}), lyric: lyricTranslationCache.get(cacheKey) || "" },
-    };
-    amllLyricLines.value = normalizeLyricPayloadToAmll(cachedPayload);
-    return;
-  }
-
-  amllLyricLines.value = baseLines.map((line) => {
-    if (line.translatedLyric?.trim()) return line;
-    if (!line.words?.some((w) => w.word?.trim())) return line;
-    return { ...line, translatedLyric: "正在翻译..." };
-  });
-
-  Promise.resolve().then(async () => {
-    const translatedPayload = await attachAiTranslationIfNeeded(lyricPayload, id);
-    if (requestToken !== lyricLoadToken) return;
-    if (translatedPayload === lyricPayload) {
-      amllLyricLines.value = baseLines;
-      return;
-    }
-
-    const translatedLines = normalizeLyricPayloadToAmll(translatedPayload);
-    if (!translatedLines.length) return;
-    amllLyricLines.value = translatedLines;
-  });
-}
 
 function seekByInput(event) {
   const active = getActiveAudio();
@@ -2490,42 +1394,10 @@ function requestAutomixWarmup(reason = "unknown") {
     });
 }
 
-function reportCurrentPlayRecord({completed = false, started = false} = {}) {
-  const song = playerStore.currentSong;
-  const songId = String(song?.id || "");
-  if (!songId) return;
-
-  const active = getActiveAudio();
-  const durationSec = Math.round(Number(active?.duration || 0));
-  const playDuration = Math.round(Number(active?.currentTime || 0));
-  const progress = durationSec > 0 ? Math.min(1, playDuration / durationSec) : 0;
-
-  if (!started && !completed && playDuration < 30 && progress < 0.5) return;
-
-  const reportType = started ? "started" : completed ? "completed" : "partial";
-  const reportKey = `${songId}:${reportType}:${started ? 0 : Math.floor(playDuration / 15)}`;
-  if (reportedPlayRecordKeys.has(reportKey)) return;
-  reportedPlayRecordKeys.add(reportKey);
-
-  reportApi.reportPlayRecord({
-    songId,
-    songName: song.name,
-    artist: normalizedArtistList.value.map(item => item.name).filter(Boolean).join(", "),
-    album: song.album?.name || song.al?.name || "",
-    duration: durationSec || undefined,
-    coverUrl: song.cover,
-    playDuration,
-    playProgress: progress,
-    completed,
-  });
-}
-
 function toggleAutomix() {
   playerStore.toggleAutomixEnabled();
-  reportApi.reportBehavior({
-    actionType: "TOGGLE_AUTOMIX",
-    actionTarget: "global-player",
-    actionDetail: JSON.stringify({enabled: Boolean(playerStore.automixEnabled)}),
+  reportBehavior("TOGGLE_AUTOMIX", "global-player", {
+    enabled: Boolean(playerStore.automixEnabled),
   });
   if (!playerStore.automixEnabled) {
     stopCrossfade();
@@ -2551,34 +1423,6 @@ function closePlaylistPanel() {
   playerStore.setPlaylistPanelOpen(false);
 }
 
-function updateMorePanelPosition() {
-  if (!moreMenuButtonRef.value || typeof window === "undefined") return;
-  const rect = moreMenuButtonRef.value.getBoundingClientRect();
-  const right = Math.max(12, window.innerWidth - rect.right);
-  const bottom = Math.max(14, window.innerHeight - rect.top + 10);
-  morePanelStyle.value = {
-    right: `${right}px`,
-    bottom: `${bottom}px`,
-  };
-}
-
-function openMorePanel() {
-  updateMorePanelPosition();
-  morePanelOpen.value = true;
-}
-
-function closeMorePanel() {
-  morePanelOpen.value = false;
-}
-
-function toggleMorePanel() {
-  if (morePanelOpen.value) {
-    closeMorePanel();
-    return;
-  }
-  openMorePanel();
-}
-
 function onClickMoreAutomix() {
   toggleAutomix();
 }
@@ -2596,180 +1440,6 @@ function onClickMorePlaylist() {
   closeMorePanel();
 }
 
-function pickRandomQueueIndex(length, currentIndex) {
-  if (length <= 1) return currentIndex;
-  let nextIndex = currentIndex;
-  while (nextIndex === currentIndex) {
-    nextIndex = Math.floor(Math.random() * length);
-  }
-  return nextIndex;
-}
-
-async function resolveManualDirectionTargetIndex(direction = "next") {
-  const queue = playerStore.playQueue || [];
-  const length = queue.length;
-  if (!length) return -1;
-
-  const currentIndex = Number.isInteger(playerStore.currentQueueIndex)
-    ? playerStore.currentQueueIndex
-    : 0;
-  const safeCurrent = Math.min(Math.max(currentIndex, 0), length - 1);
-  const mode =
-    playerStore.playMode === PLAY_MODE.SINGLE
-      ? PLAY_MODE.SEQUENCE
-      : playerStore.playMode;
-
-  if (direction === "prev") {
-    if (mode === PLAY_MODE.SHUFFLE) {
-      return pickRandomQueueIndex(length, safeCurrent);
-    }
-    return safeCurrent > 0 ? safeCurrent - 1 : -1;
-  }
-
-  if (automixEnabled.value) {
-    const suggestedIndex = await recommendNextQueueIndex(queue, safeCurrent);
-    const isForwardSequence = mode === PLAY_MODE.SEQUENCE
-      ? suggestedIndex > safeCurrent
-      : suggestedIndex !== safeCurrent;
-    if (
-      suggestedIndex >= 0 &&
-      suggestedIndex < length &&
-      isForwardSequence
-    ) {
-      return suggestedIndex;
-    }
-  }
-
-  if (mode === PLAY_MODE.SHUFFLE) {
-    return pickRandomQueueIndex(length, safeCurrent);
-  }
-
-  return safeCurrent < length - 1 ? safeCurrent + 1 : -1;
-}
-
-async function tryManualSeamlessSwitch(direction = "next") {
-  const primary = getActiveAudio();
-  const secondary = getIdleAudio();
-  if (!primary || !secondary || !hasSong.value) return false;
-  if (crossfadeActive || crossfadePreparing) return false;
-
-  crossfadePreparing = true;
-  try {
-    const targetIndex = await resolveManualDirectionTargetIndex(direction);
-    if (targetIndex < 0 || targetIndex >= playerStore.playQueue.length) return false;
-    if (targetIndex === playerStore.currentQueueIndex) return false;
-
-    const targetSong = playerStore.playQueue[targetIndex];
-    const targetId = Number(targetSong?.id);
-    if (!Number.isFinite(targetId) || targetId <= 0) return false;
-
-    const targetUrl = await resolvePlayableUrlById(targetId);
-    if (!targetUrl || !primary || !secondary) return false;
-
-    const fromTrackId = String(playerStore.currentSong?.id || "");
-    const crossfadeDuration = 0.14;
-
-    crossfadeActive = true;
-    crossfadeVisualActive.value = false;
-    crossfadeTriggeredForSongId = fromTrackId || null;
-
-    if (secondary.getAttribute("src") !== targetUrl) {
-      secondary.src = targetUrl;
-      secondary.load();
-    }
-    await waitAudioMetadata(secondary);
-    secondary.currentTime = 0;
-    secondary.playbackRate = 1;
-    secondary.volume = 0;
-
-    try {
-      await secondary.play();
-    } catch {
-      crossfadeActive = false;
-      return false;
-    }
-
-    const baseVolume = clamp(Number(volume.value || 0.85), 0, 1);
-    const startTs = performance.now();
-
-    await new Promise((resolve) => {
-      const step = (now) => {
-        if (!primary || !secondary) {
-          resolve();
-          return;
-        }
-
-        const progress = clamp((now - startTs) / (crossfadeDuration * 1000), 0, 1);
-        const fadeOutGain = Math.cos(progress * Math.PI * 0.5);
-        const fadeInGain = Math.sin(progress * Math.PI * 0.5);
-        primary.volume = baseVolume * fadeOutGain;
-        secondary.volume = baseVolume * fadeInGain;
-
-        if (progress >= 1) {
-          resolve();
-          return;
-        }
-
-        requestAnimationFrame(step);
-      };
-
-      requestAnimationFrame(step);
-    });
-
-    const promotedStartSec = Number(secondary.currentTime || 0);
-    skipNextCoverThemePick = true;
-    pickThemeFromCover(resolveSongCover(targetSong));
-    await promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, targetIndex);
-    completeCrossfadeByDeckSwap({
-      fromTrackId,
-      toTrackId: targetSong.id,
-      mixOutStart: Number(primary.currentTime || 0),
-      mixInStart: 0,
-      crossfadeDuration,
-      promotedStartSec,
-    });
-
-    requestAutomixWarmup("manual-seamless-switch");
-    return true;
-  } finally {
-    crossfadePreparing = false;
-  }
-}
-
-async function playPrevSong() {
-  if (!canPlayPrev.value) return;
-  reportApi.reportBehavior({
-    actionType: "QUEUE_PREV",
-    actionTarget: String(playerStore.currentSong?.id || ""),
-    actionDetail: JSON.stringify({currentQueueIndex: playerStore.currentQueueIndex}),
-  });
-  const switched = await tryManualSeamlessSwitch("prev");
-  if (switched) return;
-  await playQueueByDirection("prev");
-}
-
-async function playNextSong() {
-  if (!canPlayNext.value) return;
-  reportApi.reportBehavior({
-    actionType: "QUEUE_NEXT",
-    actionTarget: String(playerStore.currentSong?.id || ""),
-    actionDetail: JSON.stringify({currentQueueIndex: playerStore.currentQueueIndex}),
-  });
-  const switched = await tryManualSeamlessSwitch("next");
-  if (switched) return;
-  await playQueueByDirection("next");
-}
-
-async function playSongAtIndex(index) {
-  const targetSong = playerStore.playQueue?.[index];
-  reportApi.reportBehavior({
-    actionType: "QUEUE_SELECT",
-    actionTarget: String(targetSong?.id || ""),
-    actionDetail: JSON.stringify({queueIndex: index}),
-  });
-  await playQueueByIndex(index);
-  closePlaylistPanel();
-}
 
 function onLoadedMetadata() {
   syncDurationFromAudio();
@@ -2817,9 +1487,7 @@ function onPause(event) {
   playerStore.setPlaying(false);
   stopRhythmLoop();
   updateMediaSessionPlaybackState();
-  rhythmLevel.value = 0;
-  beatLevel.value = 0;
-  visualPulse.value = 0;
+  resetRhythmVisual();
   reportCurrentPlayRecord({completed: false});
 }
 
@@ -2901,23 +1569,14 @@ watch(
     }
     crossfadeTriggeredForSongId = null;
     if (!promotedByCrossfade) {
-      crossfadePrewarmedSongId = "";
-      crossfadePrewarmedUrl = "";
+      clearPrewarmed();
     }
     if (!promotedByCrossfade) {
-      rhythmLevel.value = 0;
-      beatLevel.value = 0;
-      visualPulse.value = 0;
+      resetRhythmVisual();
     }
-    lastStoreTimeSyncTs = 0;
+    resetRhythmEnergy();
     if (!promotedByCrossfade) {
-      rhythmEnergyEma = 0;
-      rhythmFluxEma = 0;
-      lowBandEma = 0;
-      rhythmGain = 1;
-      if (analyserPrevData) {
-        analyserPrevData.fill(0);
-      }
+      resetRhythmEnergy();
     }
     if (!promotedByCrossfade) {
       playerStore.setDurationMs(0);
@@ -2950,7 +1609,7 @@ watch(
 watch(
   () => playerStore.currentSong?.id,
   async (songId) => {
-    reportedPlayRecordKeys = new Set();
+    resetPlayRecordCache();
     closeMorePanel();
     setupMediaSessionHandlers({force: isIOSDevice.value});
     loadDynamicCover(songId);
@@ -2987,7 +1646,7 @@ watch(
       return;
     }
     if (crossfadeActive || crossfadePreparing) return;
-    pickThemeFromCover(nextCover);
+    pickThemeFromCover(nextCover, songName.value, applyTheme);
   },
   {immediate: true},
 );
@@ -3009,9 +1668,7 @@ watch(
       startRhythmLoop();
     } else {
       stopRhythmLoop();
-      rhythmLevel.value = 0;
-      beatLevel.value = 0;
-      visualPulse.value = 0;
+      resetRhythmVisual();
     }
   },
 );
@@ -3107,11 +1764,8 @@ onMounted(() => {
       prefersReducedMotion.value = Boolean(mediaQueryMotion?.matches);
       if (prefersReducedMotion.value) {
         stopRhythmLoop();
-        rhythmLevel.value = 0;
-        beatLevel.value = 0;
-        visualPulse.value = 0;
-        lowBandEma = 0;
-        rhythmGain = 1;
+        resetRhythmVisual();
+        resetRhythmEnergy();
       } else if (playerStore.isPlaying) {
         startRhythmLoop();
       }
@@ -3128,15 +1782,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearMediaSessionHandlers();
   stopCrossfade();
-  stopRhythmLoop();
-  if (amllUnmountTimer) {
-    window.clearTimeout(amllUnmountTimer);
-    amllUnmountTimer = 0;
-  }
-  if (mediaSessionPositionUpdateTimer) {
-    window.clearTimeout(mediaSessionPositionUpdateTimer);
-    mediaSessionPositionUpdateTimer = 0;
-  }
+  disposeRhythmAnalyzer();
+  disposeLyricOverlay();
+  clearScheduledPositionStateUpdate();
 
   if (mediaQueryMotion) {
     if (mediaQueryMotionHandler) {
@@ -3148,30 +1796,6 @@ onBeforeUnmount(() => {
     }
     mediaQueryMotion = null;
     mediaQueryMotionHandler = null;
-  }
-
-  if (mediaSourceNode) {
-    try {
-      mediaSourceNode.disconnect();
-    } catch {
-      // noop
-    }
-    mediaSourceNode = null;
-  }
-
-  if (analyserNode) {
-    try {
-      analyserNode.disconnect();
-    } catch {
-      // noop
-    }
-    analyserNode = null;
-  }
-
-  if (audioContext) {
-    audioContext.close().catch(() => {
-    });
-    audioContext = null;
   }
 
   if (playerResizeObserver) {

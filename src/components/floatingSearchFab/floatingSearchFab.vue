@@ -704,6 +704,9 @@ import {reportApi} from '@/api/reportApi/reportApi.js'
 import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useRouter, useRoute} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
+import { useFloatingSearch } from '@/composables/useFloatingSearch.js'
+import { useMessageCenter } from '@/composables/useMessageCenter.js'
+import { useQrLogin } from '@/composables/useQrLogin.js'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -732,26 +735,40 @@ const contentVisible = ref(props.modelValue)
 const hovering = ref(false)
 const inputValue = ref('')
 
-const confirmProfile = ref(null)
 const isOpen = ref(false)
-const qrKey = ref('')
-const qrImage = ref('')
-const qrState = ref('idle')
-const qrError = ref('')
-const pollingTimer = ref(null)
-const useNoCookie = ref(false)
 const isClosing = ref(false)
-const searchResult = ref(null)
-const searching = ref(false)
-const searchError = ref('')
-const sectionLoading = ref({artist: false, song: false, playlist: false})
-const sectionError = ref({artist: '', song: '', playlist: ''})
-const pageSize = 6
-const searchPage = ref({artist: 0, song: 0, playlist: 0})
-const activeEntryIndex = ref(-1)
 
 const router = useRouter()
 const route = useRoute()
+const {
+  PAGE_SIZE,
+  searchResult,
+  searching,
+  searchError,
+  sectionLoading,
+  sectionError,
+  searchPage,
+  activeEntryIndex,
+  artists,
+  songs,
+  playlists,
+  artistEntries,
+  songEntries,
+  playlistEntries,
+  flatEntries,
+  intentType,
+  intentConfidence,
+  isSearchEmpty,
+  clearSearchState,
+  runSearch,
+  getTotalCount,
+  canPrev,
+  canNext,
+  getPageLabel,
+  isSectionLoading,
+  getResultSectionStyle,
+  setupSearchWatchers,
+} = useFloatingSearch(inputValue, expanded, isOpen)
 
 // 只在非首页显示返回按钮
 const showBackButton = computed(() => {
@@ -769,58 +786,85 @@ const avatarUrl = computed(() => userStore.avatarUrl)
 const userNickname = computed(() => userStore.nickname)
 
 const messageDialogOpen = ref(false)
-const messageTab = ref('notice')
-const profileMenuOpen = ref(false)
-const noticeBadgeCount = ref(0)
-const privateBadgeCount = ref(0)
-const noticeLoading = ref(false)
-const noticeError = ref('')
-const noticeList = ref([])
-const noticeHasMore = ref(false)
-const noticeLastTime = ref(-1)
-const noticeLoadingMore = ref(false)
-const privateLoading = ref(false)
-const privateError = ref('')
-const privateList = ref([])
-const privateHasMore = ref(false)
-const privateOffset = ref(0)
-const privateLoadingMore = ref(false)
-const activePrivateId = ref('')
-const privateHistory = ref([])
-const privateHistoryLoading = ref(false)
-const privateHistoryError = ref('')
-const privateHistoryHasMore = ref(false)
-const privateHistoryBefore = ref(0)
-const privateHistoryLoadingMore = ref(false)
 const privateHistoryScroller = ref(null)
-const privateHistoryRenderLimit = ref(180)
-const privateConversationKeyword = ref('')
-const privateTargetKeyword = ref('')
-const privateReceiverLoading = ref(false)
-const privateReceiverError = ref('')
-const privateReceiverResults = ref([])
-const privateReceiverFocused = ref(false)
-const privateReceiverSearched = ref(false)
-const selectedPrivateTarget = ref(null)
-const highlightedMessageIds = ref({})
-const privateContent = ref('')
-const sendingPrivate = ref(false)
-const privateFeedback = ref('')
-const privateFeedbackIsError = ref(false)
 const fabContrastMode = ref('on-dark')
 const viewportWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 
 let navTl = null
 let backRailTween = null
 let autoExpandByScroll = false
-let searchTimer = null
-let searchRequestId = 0
-let privateReceiverSearchTimer = null
-let privateReceiverSearchRequestId = 0
-let privateHistoryRequestId = 0
 let contrastRaf = 0
 let lastContrastUpdateTs = 0
 const CONTRAST_UPDATE_MIN_INTERVAL = 140
+
+const {
+  messageTab,
+  profileMenuOpen,
+  noticeBadgeCount,
+  privateBadgeCount,
+  noticeLoading,
+  noticeError,
+  noticeList,
+  noticeHasMore,
+  noticeLoadingMore,
+  privateLoading,
+  privateError,
+  privateList,
+  privateHasMore,
+  privateLoadingMore,
+  activePrivateId,
+  privateHistory,
+  privateHistoryLoading,
+  privateHistoryError,
+  privateHistoryHasMore,
+  privateHistoryLoadingMore,
+  privateHistoryRenderLimit,
+  privateConversationKeyword,
+  privateTargetKeyword,
+  privateReceiverLoading,
+  privateReceiverError,
+  privateReceiverResults,
+  privateReceiverFocused,
+  privateReceiverSearched,
+  selectedPrivateTarget,
+  highlightedMessageIds,
+  privateContent,
+  sendingPrivate,
+  privateFeedback,
+  privateFeedbackIsError,
+  fetchNotices,
+  fetchPrivateMessages,
+  loadMoreNotices,
+  loadMorePrivateMessages,
+  refreshMessageBadges,
+  debounceSearchPrivateReceiver,
+  openPrivateConversation,
+  loadMorePrivateHistory,
+  selectPrivateTarget,
+  handlePrivateReceiverBlur,
+  submitPrivateMessage,
+  formatTime,
+  cleanupTimers,
+} = useMessageCenter(userStore)
+
+const {
+  confirmProfile,
+  qrImage,
+  qrState,
+  qrError,
+  qrStatusText,
+  startQrLogin,
+  stopQrPolling,
+  resetQrState,
+  refreshQr,
+  cleanup: cleanupQrLogin,
+} = useQrLogin(
+  userStore,
+  (profile) => emit('signin', profile),
+  () => {
+    void setIsOpen(false)
+  },
+)
 
 const shellToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'border-stone-800/45 ring-stone-900/20 bg-stone-900/58 text-white' : 'border-white/30 ring-white/20 bg-white/38 text-stone-900')
 const btnToneClass = computed(() => fabContrastMode.value === 'on-light' ? 'text-white/90 hover:text-white' : 'text-stone-800 hover:text-black')
@@ -835,28 +879,15 @@ const prefersReducedMotion = computed(() => typeof window !== 'undefined' && win
 watch(() => props.modelValue, (v) => {
   if (v !== expanded.value) animateExpand(v)
 })
-watch(inputValue, (value) => {
-  const keyword = value.trim()
-  if (!keyword || !expanded.value) {
-    clearSearchState();
-    return
-  }
-  searchPage.value = {artist: 0, song: 0, playlist: 0}
-  activeEntryIndex.value = -1
-  debounceSearch(keyword)
-})
 watch(expanded, (value) => {
-  if (!value) {
-    inputValue.value = '';
-    clearSearchState()
-    profileMenuOpen.value = false
-  }
+  if (!value) profileMenuOpen.value = false
   scheduleContrastUpdate()
 })
 watch(() => router.currentRoute.value.fullPath, () => {
   scheduleContrastUpdate()
   profileMenuOpen.value = false
 })
+setupSearchWatchers()
 
 // 返回按钮出现/消失时，先动画按钮轨道，再同步搜索框宽度，避免布局突然跳变。
 watch(showBackButton, (visible) => {
@@ -1078,114 +1109,6 @@ function handleSearchEnter() {
   if (!searchResult.value) runSearch(keyword)
 }
 
-const artists = computed(() => searchResult.value?.artists || [])
-const songs = computed(() => searchResult.value?.songs || [])
-const playlists = computed(() => searchResult.value?.playlists || [])
-const artistEntries = computed(() => artists.value.map((item, index) => ({
-  ...item,
-  type: 'artist',
-  globalIndex: index
-})))
-const songEntries = computed(() => songs.value.map((item, index) => ({
-  ...item,
-  type: 'song',
-  globalIndex: artistEntries.value.length + index
-})))
-const playlistEntries = computed(() => playlists.value.map((item, index) => ({
-  ...item,
-  type: 'playlist',
-  globalIndex: artistEntries.value.length + songEntries.value.length + index
-})))
-const flatEntries = computed(() => [...artistEntries.value, ...songEntries.value, ...playlistEntries.value])
-
-function normalizeIntentText(value) {
-  return String(value || '').toLowerCase().replace(/\s+/g, '').replace(/[\u3000-\u303f`~!@#$%^&*()_+\-=[\]{};:'"\\|,.<>/?，。！？、；：“”‘’【】（）《》]/g, '')
-}
-
-function charOverlapScore(a, b) {
-  if (!a || !b) return 0;
-  const sa = new Set(a.split(''));
-  const sb = new Set(b.split(''));
-  let overlap = 0;
-  for (const ch of sa) if (sb.has(ch)) overlap += 1;
-  return overlap / Math.max(1, Math.max(sa.size, sb.size))
-}
-
-function calcNameMatchScore(keywordRaw, textRaw) {
-  const keyword = normalizeIntentText(keywordRaw);
-  const text = normalizeIntentText(textRaw);
-  if (!keyword || !text) return 0;
-  if (keyword === text) return 12;
-  if (text.startsWith(keyword) || keyword.startsWith(text)) return 9;
-  if (text.includes(keyword) || keyword.includes(text)) return 7;
-  return Number((charOverlapScore(keyword, text) * 6).toFixed(2))
-}
-
-function calcTopMatchScore(type, keyword) {
-  const list = type === 'artist' ? artists.value : type === 'song' ? songs.value : playlists.value;
-  const top = list.slice(0, 6);
-  if (!top.length) return 0;
-  let best = 0;
-  let sum = 0;
-  top.forEach((item, index) => {
-    const weight = 1 - index * 0.12;
-    const mainName = item?.name || '';
-    const mainScore = calcNameMatchScore(keyword, mainName);
-    let extra = 0;
-    if (type === 'song') {
-      const artistNames = (item?.ar || item?.artists || []).map(a => a?.name).join(' ');
-      extra = calcNameMatchScore(keyword, artistNames) * 0.28
-    } else if (type === 'playlist') {
-      extra = calcNameMatchScore(keyword, item?.creator?.nickname || '') * 0.15
-    }
-    const score = (mainScore + extra) * Math.max(0.45, weight);
-    best = Math.max(best, score);
-    sum += score
-  });
-  return Number((best * 0.72 + (sum / top.length) * 0.28).toFixed(2))
-}
-
-function calcHintBoost(keyword) {
-  const artistHints = ['歌手', '歌星', '谁唱', 'artist', 'singer', '乐队'];
-  const songHints = ['歌曲', '歌名', '单曲', '歌词', 'song', 'track'];
-  const playlistHints = ['歌单', 'playlist', '合集', '清单'];
-  return {
-    artist: artistHints.some(token => keyword.includes(token)) ? 4.8 : 0,
-    song: songHints.some(token => keyword.includes(token)) ? 4.8 : 0,
-    playlist: playlistHints.some(token => keyword.includes(token)) ? 4.8 : 0
-  }
-}
-
-const intentAnalysis = computed(() => {
-  const keyword = inputValue.value.trim()
-  if (!keyword) return {type: 'mixed', confidence: 0, scores: {artist: 0, song: 0, playlist: 0}}
-  const counts = {
-    artist: Number(getTotalCount('artist') || 0),
-    song: Number(getTotalCount('song') || 0),
-    playlist: Number(getTotalCount('playlist') || 0)
-  }
-  const hint = calcHintBoost(keyword.toLowerCase())
-  const scores = {
-    artist: calcTopMatchScore('artist', keyword) + Math.min(3, Math.log1p(counts.artist) * 0.78) + hint.artist,
-    song: calcTopMatchScore('song', keyword) + Math.min(2.6, Math.log1p(counts.song) * 0.58) + hint.song,
-    playlist: calcTopMatchScore('playlist', keyword) + Math.min(2.2, Math.log1p(counts.playlist) * 0.52) + hint.playlist
-  }
-  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1])
-  const [topType, topScore] = sorted[0];
-  const secondScore = sorted[1]?.[1] || 0;
-  const margin = topScore - secondScore
-  const confidence = Math.max(0, Math.min(1, (margin + topScore * 0.08) / 8.5))
-  if (topScore < 3.5 || margin < 1.05 || confidence < 0.42) return {
-    type: 'mixed',
-    confidence,
-    scores
-  }
-  return {type: topType, confidence, scores}
-})
-
-const intentType = computed(() => intentAnalysis.value.type)
-const intentConfidence = computed(() => intentAnalysis.value.confidence)
-const isSearchEmpty = computed(() => searchResult.value ? (artists.value.length === 0 && songs.value.length === 0 && playlists.value.length === 0) : false)
 const searchPanelVisible = computed(() => (!expanded.value || !inputValue.value.trim() || isOpen.value) ? false : (searching.value || Boolean(searchError.value) || Boolean(searchResult.value)))
 const privateReceiverDropdownVisible = computed(() => privateReceiverFocused.value && privateTargetKeyword.value.trim() && (privateReceiverLoading.value || Boolean(privateReceiverError.value) || Boolean(privateReceiverResults.value.length) || privateReceiverSearched.value))
 const filteredPrivateList = computed(() => {
@@ -1218,109 +1141,6 @@ function markMessageHighlighted(ids) {
   }, 2200)
 }
 
-function clearSearchState() {
-  searchResult.value = null;
-  searchError.value = '';
-  searching.value = false;
-  sectionLoading.value = {artist: false, song: false, playlist: false};
-  sectionError.value = {artist: '', song: '', playlist: ''};
-  activeEntryIndex.value = -1;
-  if (searchTimer) {
-    clearTimeout(searchTimer);
-    searchTimer = null
-  }
-}
-
-function debounceSearch(keyword) {
-  if (searchTimer) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => runSearch(keyword), 280)
-}
-
-async function runSearch(keyword, {onlyType = ''} = {}) {
-  const currentId = ++searchRequestId
-  if (onlyType) {
-    sectionLoading.value = {...sectionLoading.value, [onlyType]: true};
-    sectionError.value = {...sectionError.value, [onlyType]: ''}
-  } else {
-    searching.value = true;
-    searchError.value = '';
-    sectionError.value = {artist: '', song: '', playlist: ''}
-  }
-  try {
-    let res = null
-    if (onlyType) {
-      const typeMap = {artist: 100, song: 1, playlist: 1000};
-      res = await searchApi.searchByType(keyword, {
-        type: typeMap[onlyType] || 1,
-        limit: pageSize,
-        offset: (searchPage.value[onlyType] || 0) * pageSize
-      })
-    } else {
-      res = await searchApi.searchComposite(keyword, {
-        limit: pageSize,
-        offsets: {
-          artist: searchPage.value.artist * pageSize,
-          song: searchPage.value.song * pageSize,
-          playlist: searchPage.value.playlist * pageSize
-        }
-      })
-    }
-    if (currentId !== searchRequestId) return
-    if (onlyType) {
-      const result = res?.data?.result || {}
-      const prev = searchResult.value || {
-        artists: [],
-        songs: [],
-        playlists: [],
-        counts: {artist: 0, song: 0, playlist: 0},
-        limit: pageSize,
-        offsets: {artist: 0, song: 0, playlist: 0}
-      }
-      searchResult.value = {
-        ...prev,
-        artists: onlyType === 'artist' ? (result.artists || []) : prev.artists,
-        songs: onlyType === 'song' ? (result.songs || []) : prev.songs,
-        playlists: onlyType === 'playlist' ? (result.playlists || []) : prev.playlists,
-        counts: {
-          ...prev.counts,
-          artist: onlyType === 'artist' ? (result.artistCount || 0) : (prev.counts?.artist || 0),
-          song: onlyType === 'song' ? (result.songCount || 0) : (prev.counts?.song || 0),
-          playlist: onlyType === 'playlist' ? (result.playlistCount || 0) : (prev.counts?.playlist || 0)
-        },
-        offsets: {...prev.offsets, [onlyType]: (searchPage.value[onlyType] || 0) * pageSize}
-      }
-    } else {
-      searchResult.value = res || {}
-      const counts = searchResult.value?.counts || {}
-      reportApi.reportSearch({
-        keyword,
-        resultCount: Number(counts.artist || 0) + Number(counts.song || 0) + Number(counts.playlist || 0),
-      })
-    }
-    const maxIndex = flatEntries.value.length - 1;
-    if (maxIndex < 0) {
-      activeEntryIndex.value = -1
-    } else if (activeEntryIndex.value > maxIndex) {
-      activeEntryIndex.value = maxIndex
-    }
-  } catch (error) {
-    if (currentId !== searchRequestId) return
-    if (onlyType) sectionError.value = {
-      ...sectionError.value,
-      [onlyType]: error?.message || '该模块加载失败'
-    }; else {
-      searchResult.value = null;
-      searchError.value = error?.message || '搜索失败，请稍后重试'
-    }
-  } finally {
-    if (currentId === searchRequestId) {
-      if (onlyType) sectionLoading.value = {
-        ...sectionLoading.value,
-        [onlyType]: false
-      }; else searching.value = false
-    }
-  }
-}
 
 function openArtist(artist) {
   if (artist?.id) {
@@ -1415,371 +1235,6 @@ function switchMessageTab(tab) {
   }
 }
 
-async function fetchNotices({reset = false} = {}) {
-  if (reset) {
-    noticeLoading.value = true;
-    noticeLastTime.value = -1
-  } else {
-    noticeLoadingMore.value = true
-  }
-  noticeError.value = ''
-  try {
-    const res = await userApi.getNotices(30, noticeLastTime.value)
-    const payload = res?.data || {};
-    const list = normalizeNoticeList(payload)
-    noticeList.value = reset ? list : mergeById(noticeList.value, list)
-    noticeHasMore.value = Boolean(payload?.more);
-    noticeBadgeCount.value = extractNoticeUnread(payload)
-    if (list.length) {
-      const nextLast = payload?.lasttime || list[list.length - 1]?.time || noticeLastTime.value;
-      noticeLastTime.value = Number.isFinite(Number(nextLast)) ? Number(nextLast) : noticeLastTime.value
-    }
-  } catch (error) {
-    noticeError.value = error?.message || '通知加载失败';
-    if (reset) noticeList.value = []
-  } finally {
-    if (reset) noticeLoading.value = false; else noticeLoadingMore.value = false
-  }
-}
-
-async function fetchPrivateMessages({reset = false} = {}) {
-  if (reset) {
-    privateLoading.value = true;
-    privateOffset.value = 0
-  } else {
-    privateLoadingMore.value = true
-  }
-  privateError.value = ''
-  try {
-    const res = await userApi.getPrivateMessages(30, privateOffset.value)
-    const payload = res?.data || {};
-    const list = normalizePrivateList(payload)
-    privateList.value = reset ? list : mergeById(privateList.value, list)
-    privateHasMore.value = Boolean(payload?.more);
-    privateBadgeCount.value = extractPrivateUnread(payload);
-    privateOffset.value += 30
-    if (reset && window.innerWidth >= 768) {
-      const matched = privateList.value[0]
-      if (matched) openPrivateConversation(matched); else {
-        privateHistory.value = [];
-        privateHistoryError.value = '';
-        activePrivateId.value = ''
-      }
-    }
-  } catch (error) {
-    privateError.value = error?.message || '私信加载失败';
-    if (reset) privateList.value = []
-  } finally {
-    if (reset) privateLoading.value = false; else privateLoadingMore.value = false
-  }
-}
-
-function loadMoreNotices() {
-  if (noticeHasMore.value && !noticeLoadingMore.value) fetchNotices({reset: false})
-}
-
-function loadMorePrivateMessages() {
-  if (privateHasMore.value && !privateLoadingMore.value) fetchPrivateMessages({reset: false})
-}
-
-async function refreshMessageBadges() {
-  try {
-    const [noticeRes, privateRes] = await Promise.all([userApi.getNotices(10, -1), userApi.getPrivateMessages(10, 0)]);
-    noticeBadgeCount.value = extractNoticeUnread(noticeRes?.data || {});
-    privateBadgeCount.value = extractPrivateUnread(privateRes?.data || {})
-  } catch (error) {
-    console.warn('消息刷新失败', error)
-  }
-}
-
-function normalizeNoticeList(payload) {
-  const raw = payload?.notices || payload?.data?.notices || payload?.msgs || [];
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item, index) => {
-    const parsed = parseNoticePayload(item);
-    return {
-      id: item?.id || item?.noticeId || `${item?.time || Date.now()}-${index}`,
-      senderName: item?.user?.nickname || parsed?.senderName || '系统通知',
-      avatarUrl: item?.user?.avatarUrl || parsed?.avatarUrl || '',
-      title: parsed?.title || item?.typeTitle || item?.noticeType || '系统通知',
-      content: parsed?.content || '你有一条新的通知',
-      time: item?.time || item?.lastTime || item?.createTime || 0,
-      webUrl: parsed?.webUrl || item?.webUrl || '',
-      unreadCount: Number(item?.newMsgCount || 0)
-    }
-  })
-}
-
-function parseNoticePayload(item) {
-  const source = item?.notice || item?.json || item?.content;
-  if (!source) return null;
-  let payload = source;
-  if (typeof payload === 'string') {
-    try {
-      payload = JSON.parse(payload)
-    } catch {
-      payload = {msg: source}
-    }
-  }
-  const generalMsg = payload?.generalMsg || payload?.generalNotice || payload?.promotionUrl || {};
-  const sender = payload?.user || {};
-  return {
-    senderName: sender?.nickname || payload?.fromNickName || '',
-    avatarUrl: sender?.avatarUrl || '',
-    title: generalMsg?.title || generalMsg?.noticeMsg || payload?.title || payload?.actionDesc || '',
-    content: payload?.msg || payload?.pushMsg || generalMsg?.inboxBriefContent || generalMsg?.content || generalMsg?.noticeMsg || generalMsg?.actionDesc || '',
-    webUrl: payload?.pushUrl || generalMsg?.webUrl || payload?.webUrl || ''
-  }
-}
-
-function parsePrivateMessageBody(rawText) {
-  if (!rawText) return '';
-  if (typeof rawText === 'object') return rawText?.msg || rawText?.text || rawText?.message || JSON.stringify(rawText);
-  const text = String(rawText);
-  try {
-    const parsed = JSON.parse(text);
-    return parsed?.msg || parsed?.text || parsed?.message || text
-  } catch {
-    return text
-  }
-}
-
-function extractPrivateUnread(payload) {
-  if (Number.isFinite(Number(payload?.newMsgCount))) return Number(payload.newMsgCount);
-  const raw = payload?.msgs || payload?.data?.msgs || [];
-  if (!Array.isArray(raw)) return 0;
-  return raw.reduce((sum, item) => sum + Number(item?.newMsgCount || 0), 0)
-}
-
-function extractNoticeUnread(payload) {
-  if (Number.isFinite(Number(payload?.newNoticeCount))) return Number(payload.newNoticeCount);
-  const raw = payload?.notices || payload?.data?.notices || [];
-  if (!Array.isArray(raw)) return 0;
-  return raw.reduce((sum, item) => sum + Number(item?.newMsgCount || 0), 0)
-}
-
-function mergeById(oldList, newList) {
-  const map = new Map();
-  for (const item of oldList) map.set(item.id, item);
-  for (const item of newList) map.set(item.id, item);
-  return Array.from(map.values()).sort((a, b) => Number(b.time || 0) - Number(a.time || 0))
-}
-
-function mergeByIdAsc(oldList, newList) {
-  const map = new Map();
-  for (const item of oldList) map.set(item.id, item);
-  for (const item of newList) map.set(item.id, item);
-  return Array.from(map.values()).sort((a, b) => Number(a.time || 0) - Number(b.time || 0))
-}
-
-function normalizeUserTarget(user) {
-  if (!user) return null;
-  return {
-    userId: Number(user.userId || user.id || 0),
-    nickname: user.nickname || user.userName || '',
-    avatarUrl: user.avatarUrl || user.avatar || ''
-  }
-}
-
-function normalizeUserSearchResult(item) {
-  return {
-    userId: Number(item?.userId || 0),
-    nickname: item?.nickname || '',
-    avatarUrl: item?.avatarUrl || ''
-  }
-}
-
-function debounceSearchPrivateReceiver(keyword) {
-  if (privateReceiverSearchTimer) clearTimeout(privateReceiverSearchTimer);
-  privateReceiverSearchTimer = setTimeout(() => searchPrivateReceiver(keyword), 260)
-}
-
-async function searchPrivateReceiver(keyword) {
-  const currentId = ++privateReceiverSearchRequestId
-  privateReceiverLoading.value = true;
-  privateReceiverError.value = '';
-  privateReceiverSearched.value = false
-  try {
-    const result = await searchApi.searchUsers(keyword, {limit: 8, offset: 0})
-    if (currentId !== privateReceiverSearchRequestId) return
-    privateReceiverResults.value = (result?.users || []).map(normalizeUserSearchResult).filter(item => item.userId)
-  } catch (error) {
-    if (currentId !== privateReceiverSearchRequestId) return;
-    privateReceiverResults.value = [];
-    privateReceiverError.value = error?.message || '搜索失败'
-  } finally {
-    if (currentId === privateReceiverSearchRequestId) {
-      privateReceiverLoading.value = false;
-      privateReceiverSearched.value = true
-    }
-  }
-}
-
-function normalizePrivateList(payload) {
-  const raw = payload?.msgs || payload?.data?.msgs || payload?.messages || []
-  if (!Array.isArray(raw)) return []
-  const currentUserId = Number(userStore.userId) || null
-  return raw.map((item, index) => {
-    const fromUser = item?.fromUser || {};
-    const toUser = item?.toUser || {};
-    const fromId = Number(item?.fromUserId ?? fromUser?.userId) || null;
-    const toId = Number(item?.toUserId ?? toUser?.userId) || null;
-    const isSelfSender = currentUserId && fromId === currentUserId;
-    const counterpartId = isSelfSender ? toId : fromId;
-    const counterpartName = isSelfSender ? (toUser?.nickname || item?.toNickName || `用户 ${toId || '-'}`) : (fromUser?.nickname || item?.fromNickName || `用户 ${fromId || '-'}`)
-    return {
-      id: item?.id || `${item?.time || Date.now()}-${index}`,
-      content: parsePrivateMessageBody(item?.lastMsg || item?.msg || item?.message || ''),
-      time: item?.time || item?.lastTime || item?.createTime || 0,
-      counterpartId: counterpartId ? String(counterpartId) : '',
-      counterpartName,
-      avatarUrl: isSelfSender ? (toUser?.avatarUrl || item?.toUserAvatar || '') : (fromUser?.avatarUrl || item?.fromUserAvatar || ''),
-      unreadCount: Number(item?.newMsgCount || 0)
-    }
-  })
-}
-
-function normalizePrivateHistoryList(payload) {
-  const raw = payload?.msgs || payload?.data?.msgs || []
-  if (!Array.isArray(raw)) return []
-  const currentUserId = Number(userStore.userId) || null
-  return raw.map((item, index) => {
-    const fromUser = item?.fromUser || {};
-    const toUser = item?.toUser || {};
-    const fromId = Number(item?.fromUserId ?? fromUser?.userId) || null;
-    const toId = Number(item?.toUserId ?? toUser?.userId) || null;
-    const isSelf = currentUserId && fromId === currentUserId
-    return {
-      id: item?.id || `${item?.time || Date.now()}-${index}`,
-      content: parsePrivateMessageBody(item?.msg || item?.message || item?.lastMsg || ''),
-      time: Number(item?.time || item?.lastTime || item?.createTime || 0),
-      isSelf: Boolean(isSelf),
-      fromId,
-      toId
-    }
-  }).sort((a, b) => a.time - b.time)
-}
-
-function openPrivateConversation(item) {
-  if (!item?.counterpartId) return
-  activePrivateId.value = String(item.counterpartId)
-  selectPrivateTarget({
-    userId: item.counterpartId,
-    nickname: item.counterpartName,
-    avatarUrl: item.avatarUrl
-  })
-}
-
-async function fetchPrivateHistory(targetId, {reset = false} = {}) {
-  if (!targetId) return
-  const currentId = ++privateHistoryRequestId
-  if (reset) {
-    privateHistoryRenderLimit.value = 180
-    privateHistoryLoading.value = true;
-    privateHistoryError.value = '';
-    privateHistory.value = [];
-    privateHistoryBefore.value = 0
-  } else {
-    privateHistoryLoadingMore.value = true
-  }
-  try {
-    const res = await userApi.getPrivateHistory(targetId, 30, privateHistoryBefore.value)
-    if (currentId !== privateHistoryRequestId) return
-    const payload = res?.data || {};
-    const list = normalizePrivateHistoryList(payload)
-    privateHistoryHasMore.value = Boolean(payload?.more);
-    privateHistory.value = reset ? list : mergeByIdAsc(privateHistory.value, list)
-    if (privateHistory.value.length) privateHistoryBefore.value = Number(privateHistory.value[0].time || privateHistoryBefore.value)
-  } catch (error) {
-    if (currentId !== privateHistoryRequestId) return
-    const preview = privateList.value.find(item => String(item.counterpartId) === String(targetId)) || null
-    if (reset && preview) {
-      privateHistory.value = [{
-        id: `${preview.id}-preview`,
-        content: preview.content,
-        time: Number(preview.time || Date.now()),
-        isSelf: false
-      }];
-      privateHistoryHasMore.value = false
-    }
-    privateHistoryError.value = error?.message || '会话加载失败'
-  } finally {
-    if (currentId === privateHistoryRequestId) reset ? privateHistoryLoading.value = false : privateHistoryLoadingMore.value = false
-  }
-}
-
-function loadMorePrivateHistory() {
-  if (!privateHistoryHasMore.value || privateHistoryLoadingMore.value || !selectedPrivateTarget.value?.userId) return
-  privateHistoryRenderLimit.value += 120
-  fetchPrivateHistory(String(selectedPrivateTarget.value.userId), {reset: false})
-}
-
-function selectPrivateTarget(user) {
-  const target = normalizeUserTarget(user);
-  if (!target?.userId) return;
-  selectedPrivateTarget.value = target;
-  activePrivateId.value = String(target.userId);
-  privateTargetKeyword.value = target.nickname || String(target.userId);
-  privateReceiverResults.value = [];
-  privateReceiverFocused.value = false;
-  privateReceiverSearched.value = false;
-  fetchPrivateHistory(String(target.userId), {reset: true})
-}
-
-function handlePrivateReceiverBlur() {
-  setTimeout(() => privateReceiverFocused.value = false, 120)
-}
-
-async function submitPrivateMessage() {
-  privateFeedback.value = '';
-  privateFeedbackIsError.value = false
-  const target = selectedPrivateTarget.value?.userId;
-  const content = privateContent.value.trim()
-  if (!target || !Number.isFinite(Number(target))) {
-    privateFeedback.value = '请先选择接收方';
-    privateFeedbackIsError.value = true;
-    return
-  }
-  if (!content) {
-    privateFeedback.value = '内容不能为空';
-    privateFeedbackIsError.value = true;
-    return
-  }
-  sendingPrivate.value = true
-  try {
-    const res = await userApi.sendPrivateMessage(String(target), content)
-    const code = res?.data?.code;
-    if (code && code !== 200) throw new Error(res?.data?.message || `发送失败，错误码 ${code}`)
-    privateFeedback.value = '发送成功';
-    privateHistory.value = mergeByIdAsc(privateHistory.value, [{
-      id: `local-${Date.now()}`,
-      content,
-      time: Date.now(),
-      isSelf: true
-    }]);
-    privateContent.value = '';
-    await fetchPrivateMessages({reset: true});
-    await fetchPrivateHistory(String(target), {reset: true});
-    privateBadgeCount.value = 0
-  } catch (error) {
-    privateFeedback.value = error?.message || '发送失败';
-    privateFeedbackIsError.value = true
-  } finally {
-    sendingPrivate.value = false
-  }
-}
-
-function formatTime(value) {
-  const ts = Number(value);
-  if (!Number.isFinite(ts) || ts <= 0) return '-';
-  const date = new Date(ts);
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mi = String(date.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
-}
 
 function getSongArtists(song) {
   return song?.ar || song?.artists || []
@@ -1825,41 +1280,6 @@ function openEntryByIndex(index) {
   if (entry.type === 'artist') openArtist(entry);
   if (entry.type === 'song') openSong(entry);
   if (entry.type === 'playlist') openPlaylist(entry)
-}
-
-function getTotalCount(type) {
-  return searchResult.value?.counts?.[type] || 0
-}
-
-function canPrev(type) {
-  return (searchPage.value[type] || 0) > 0
-}
-
-function canNext(type) {
-  const page = searchPage.value[type] || 0;
-  return (page + 1) * pageSize < getTotalCount(type)
-}
-
-function getPageLabel(type) {
-  const totalCount = getTotalCount(type);
-  const totalPage = Math.max(1, Math.ceil(totalCount / pageSize));
-  const page = (searchPage.value[type] || 0) + 1;
-  return `${page}/${totalPage}`
-}
-
-function isSectionLoading(type) {
-  return Boolean(sectionLoading.value?.[type])
-}
-
-function getResultSectionStyle(type) {
-  const orderMap = {
-    mixed: {artist: 1, song: 2, playlist: 3},
-    artist: {artist: 1, song: 2, playlist: 3},
-    song: {song: 1, artist: 2, playlist: 3},
-    playlist: {playlist: 1, song: 2, artist: 3}
-  };
-  const orders = orderMap[intentType.value] || orderMap.mixed;
-  return {order: String(orders[type] || 4)}
 }
 
 function getPreferredEntryIndex() {
@@ -2002,9 +1422,9 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(contrastRaf);
     contrastRaf = 0
   }
-  ;stopQrPolling();
+  cleanupQrLogin()
   clearSearchState();
-  if (privateReceiverSearchTimer) clearTimeout(privateReceiverSearchTimer)
+  cleanupTimers()
 })
 
 watch(isOpen, (open) => {
@@ -2012,17 +1432,6 @@ watch(isOpen, (open) => {
     stopQrPolling();
     resetQrState()
   }
-})
-const qrStatusText = computed(() => {
-  const map = {
-    loading: '正在生成二维码...',
-    wait: '打开网易云音乐 App 扫码',
-    confirm: '已扫码，请确认',
-    success: '登录成功，同步中...',
-    expired: '二维码过期，请刷新',
-    error: '生成失败，请重试'
-  };
-  return map[qrState.value] || '安全快捷登录'
 })
 
 function openLoginDialog() {
@@ -2051,134 +1460,6 @@ async function setIsOpen(value) {
   isOpen.value = false
 }
 
-function resetQrState() {
-  qrKey.value = '';
-  qrImage.value = '';
-  qrState.value = 'idle';
-  qrError.value = '';
-  useNoCookie.value = false;
-  confirmProfile.value = null
-}
-
-async function startQrLogin() {
-  resetQrState();
-  qrState.value = 'loading';
-  try {
-    const keyRes = await userApi.getQrKey();
-    const key = keyRes?.data?.data?.unikey;
-    if (!key) throw new Error('缺Key');
-    qrKey.value = key;
-    const qrRes = await userApi.getQrCode(key);
-    const qrImg = qrRes?.data?.data?.qrimg;
-    if (!qrImg) throw new Error('缺图');
-    qrImage.value = qrImg;
-    qrState.value = 'wait';
-    startQrPolling()
-  } catch (error) {
-    qrState.value = 'error';
-    qrError.value = error?.message || '生成失败'
-  }
-}
-
-function startQrPolling() {
-  stopQrPolling();
-  fetchQrStatus();
-  pollingTimer.value = window.setInterval(fetchQrStatus, 2000)
-}
-
-function stopQrPolling() {
-  if (pollingTimer.value) {
-    clearInterval(pollingTimer.value);
-    pollingTimer.value = null
-  }
-}
-
-function isRestrictedStatus(status) {
-  const normalized = String(status || '').toUpperCase()
-  return normalized === 'BANNED' || normalized === 'DISABLED'
-}
-
-function getRestrictedLoginMessage(statusInfo) {
-  const status = String(statusInfo?.status || '').toUpperCase()
-  const action = status === 'DISABLED' ? '禁用' : '封禁'
-  return statusInfo?.banReason ? `账号已被${action}：${statusInfo.banReason}` : `账号已被${action}，无法登录`
-}
-
-async function rejectRestrictedLogin(statusInfo) {
-  try {
-    await userApi.logout()
-  } catch {
-  }
-  userStore.logout()
-  qrState.value = 'error'
-  qrError.value = getRestrictedLoginMessage(statusInfo)
-}
-
-async function fetchQrStatus() {
-  if (!qrKey.value) return;
-  try {
-    const res = await userApi.checkQrCode(qrKey.value, {noCookie: useNoCookie.value});
-    const code = res?.data?.code;
-    const qrData = res?.data || {};
-    if (code === 800) {
-      qrState.value = 'expired';
-      stopQrPolling()
-    } else if (code === 801) {
-      qrState.value = 'wait'
-    } else if (code === 802) {
-      qrState.value = 'confirm';
-      confirmProfile.value = {avatarUrl: qrData.avatarUrl || '', nickname: qrData.nickname || ''}
-    } else if (code === 803) {
-      await handleLoginSuccess(res?.data)
-    } else if (code === 502) {
-      useNoCookie.value = true
-    } else if (code && code !== 200) {
-      qrState.value = 'error';
-      qrError.value = res?.data?.message || '登录失败';
-      stopQrPolling()
-    }
-  } catch (error) {
-    qrState.value = 'error';
-    qrError.value = error?.message || '状态获取失败';
-    stopQrPolling()
-  }
-}
-
-async function handleLoginSuccess(payload) {
-  qrState.value = 'success';
-  stopQrPolling();
-  const cookie = payload?.cookie || payload?.data?.cookie;
-  if (cookie) {
-    userStore.setLogin(cookie);
-    try {
-      const infoRes = await userApi.getUserInfo();
-      const profile = buildProfile(infoRes?.data)
-      userStore.setLogin(cookie, profile);
-      const syncedUser = await reportApi.syncNeteaseUser(profile, {force: true})
-      if (isRestrictedStatus(syncedUser?.status)) {
-        await rejectRestrictedLogin(syncedUser)
-        return
-      }
-      emit('signin', profile)
-    } catch (e) {
-      if (confirmProfile.value) {
-        const profile = {
-        userId: null,
-        nickname: confirmProfile.value.nickname || '',
-        avatarUrl: confirmProfile.value.avatarUrl || ''
-        }
-        userStore.setProfile(profile)
-        reportApi.syncNeteaseUser(profile)
-        emit('signin', profile)
-      }
-    }
-  }
-  setTimeout(() => setIsOpen(false), 800)
-}
-
-function refreshQr() {
-  if (qrState.value !== 'loading') startQrLogin()
-}
 
 async function logout() {
   profileMenuOpen.value = false
@@ -2187,15 +1468,6 @@ async function logout() {
   } catch (e) {
   } finally {
     userStore.logout()
-  }
-}
-
-function buildProfile(data) {
-  const p = data?.profile || data || {};
-  return {
-    userId: p.userId ?? p.id ?? null,
-    nickname: p.nickname ?? p.userName ?? confirmProfile.value?.nickname ?? '',
-    avatarUrl: p.avatarUrl ?? confirmProfile.value?.avatarUrl ?? ''
   }
 }
 
