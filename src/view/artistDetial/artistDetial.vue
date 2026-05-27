@@ -25,7 +25,12 @@
       </div>
 
       <div class="relative z-20 mx-auto w-full max-w-6xl">
-        <div v-if="!hasHeroVideo || !heroVideoReady" class="mb-6 h-32 w-32 overflow-hidden rounded-full border-4 border-white/20 shadow-2xl sm:h-48 sm:w-48">
+        <div
+          v-if="!hasHeroVideo || !heroVideoReady"
+          ref="artistHeroCoverRef"
+          data-artist-detail-hero-cover
+          class="mb-6 h-32 w-32 overflow-hidden rounded-full border-4 border-white/20 shadow-2xl sm:h-48 sm:w-48"
+        >
           <img :src="artistAvatar" alt="artist-avatar" class="h-full w-full object-cover" @error="onAvatarError" />
         </div>
         <h1 class="text-5xl font-black tracking-widest  text-white drop-shadow-2xl sm:text-7xl lg:text-8xl">
@@ -111,9 +116,13 @@
               v-for="(album, index) in featuredAlbums"
               :key="album.id"
               class="group text-left"
-              @click="openAlbum(album)"
+              @click="openAlbum(album, $event)"
             >
-              <div class="relative overflow-hidden rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+              <div
+                class="relative overflow-hidden rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
+                data-album-hero-cover
+                :data-album-id="album.id"
+              >
                 <div v-if="index === 0" class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-stone-900 backdrop-blur-md">Latest</div>
                 <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
                 <div class="absolute inset-0 rounded-[20px] ring-1 ring-inset ring-black/5" />
@@ -136,9 +145,13 @@
               :key="`all-${album.id}`"
               class="group text-left"
               type="button"
-              @click="openAlbum(album)"
+              @click="openAlbum(album, $event)"
             >
-              <div class="relative overflow-hidden rounded-2xl transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg">
+              <div
+                class="relative overflow-hidden rounded-2xl transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg"
+                data-album-hero-cover
+                :data-album-id="album.id"
+              >
                 <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
                 <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
               </div>
@@ -262,6 +275,7 @@
 
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import {useRoute, useRouter} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
@@ -269,6 +283,7 @@ import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
+import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -322,6 +337,7 @@ const mvLoadingMore = ref(false)
 const themeRgb = ref('56, 64, 82')
 const animatedThemeRgb = ref(themeRgb.value)
 const heroCanvasRef = ref(null)
+const artistHeroCoverRef = ref(null)
 let themeRaf = 0
 let heroCanvasRaf = 0
 let heroCanvasStart = 0
@@ -692,8 +708,60 @@ async function pickThemeFromImage(imageUrl, seed) {
   }
 }
 
+/* ===== Hero 过渡 ===== */
+
+function prepareArtistHeroReturn() {
+  const id = Number(route.query?.id || 0)
+  if (!id) return
+  const coverEl = artistHeroCoverRef.value
+  if (!(coverEl instanceof HTMLElement)) return
+
+  setPendingTransition('artist', id, {
+    coverRect: coverEl.getBoundingClientRect(),
+    coverSrc: artistAvatar.value || '',
+    name: artistName.value || '',
+  })
+}
+
+async function runArtistHeroFlipEnter() {
+  const id = Number(route.query?.id || 0)
+  if (!id) return
+  const payload = consumePendingTransition('artist', id)
+  if (!payload) return
+
+  await nextTick()
+
+  const imgEl = artistHeroCoverRef.value?.querySelector('img')
+  if (imgEl && !imgEl.complete) {
+    await new Promise((resolve) => {
+      imgEl.onload = resolve
+      imgEl.onerror = resolve
+    })
+  }
+
+  await playHeroEnter({
+    payload,
+    targetCoverEl: artistHeroCoverRef.value,
+  })
+}
+
+async function runAlbumHeroReturn() {
+  const payload = consumePendingTransition('album')
+  if (!payload?.id) return
+
+  await nextTick()
+  // 找专辑封面元素：artist 页的专辑列表中的第一个匹配
+  const targetCoverEl = document.querySelector(`[data-album-hero-cover][data-album-id="${payload.id}"]`)
+  if (!(targetCoverEl instanceof HTMLElement)) return
+
+  await playHeroEnter({payload, targetCoverEl})
+}
+
+/* ===== 导航 ===== */
+
 function goBack() {
   markNavigatingBack()
+  prepareArtistHeroReturn()
   router.back()
 }
 
@@ -766,12 +834,21 @@ function getMvCover(mv) {
   return mv?.imgurl16v9 || mv?.cover || mv?.picUrl || artistAvatar.value
 }
 
-function openAlbum(album) {
-  if (!album?.id) return
-  router.push({
-    path: '/albumDetail',
-    query: {id: album.id},
-  })
+function openAlbum(album, event) {
+  const albumId = Number(album?.id || 0)
+  if (!albumId) return
+
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl ? cardEl.querySelector('img') : null
+  if (coverEl instanceof HTMLElement) {
+    setPendingTransition('album', albumId, {
+      coverRect: coverEl.getBoundingClientRect(),
+      coverSrc: album.picUrl || '',
+      name: album.name || '',
+    })
+  }
+
+  router.push({path: '/albumDetail', query: {id: albumId}})
 }
 
 function openMv(mv) {
@@ -1269,6 +1346,14 @@ onMounted(async () => {
   setupHeroCanvasObserver()
   startHeroCanvas()
   loadArtistPage()
+  runArtistHeroFlipEnter()
+  runAlbumHeroReturn()
+})
+
+onBeforeRouteLeave((to) => {
+  if (to?.name === 'home') {
+    prepareArtistHeroReturn()
+  }
 })
 
 onBeforeUnmount(() => {

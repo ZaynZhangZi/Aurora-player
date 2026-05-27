@@ -76,6 +76,9 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: () => import('@/view/profile/profile.vue'),
+      meta: {
+        keepAlive: true,
+      },
       children: [
         {
           path: 'playlistDetail',

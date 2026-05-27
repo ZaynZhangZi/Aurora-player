@@ -12,7 +12,11 @@
             :style="{ backgroundColor: `rgb(${animatedThemeRgb})` }"
           />
 
-          <div class="relative z-10 h-64 w-64 overflow-hidden rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.3)] md:h-72 md:w-72 lg:h-80 lg:w-80">
+          <div
+            ref="albumHeroCoverRef"
+            data-album-detail-hero-cover
+            class="relative z-10 h-64 w-64 overflow-hidden rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.3)] md:h-72 md:w-72 lg:h-80 lg:w-80"
+          >
             <video
               v-if="displayCoverIsVideo"
               :src="displayCoverUrl"
@@ -140,12 +144,14 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useRoute, useRouter } from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
+import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -340,8 +346,47 @@ async function playAll() {
   await playFromIndex(0)
 }
 
+/* ===== Hero 过渡 ===== */
+const albumHeroCoverRef = ref(null)
+
+function prepareAlbumHeroReturn() {
+  const id = Number(route.query?.id || 0)
+  if (!id) return
+  const coverEl = albumHeroCoverRef.value
+  if (!(coverEl instanceof HTMLElement)) return
+
+  setPendingTransition('album', id, {
+    coverRect: coverEl.getBoundingClientRect(),
+    coverSrc: album.value.cover || album.value.coverImgUrl || '',
+    name: album.value.name || '',
+  })
+}
+
+async function runAlbumHeroFlipEnter() {
+  const id = Number(route.query?.id || 0)
+  if (!id) return
+  const payload = consumePendingTransition('album', id)
+  if (!payload) return
+
+  await nextTick()
+
+  const imgEl = albumHeroCoverRef.value?.querySelector('img, video')
+  if (imgEl && !imgEl.complete) {
+    await new Promise((resolve) => {
+      imgEl.onload = resolve
+      imgEl.onerror = resolve
+    })
+  }
+
+  await playHeroEnter({
+    payload,
+    targetCoverEl: albumHeroCoverRef.value,
+  })
+}
+
 function goBack() {
   markNavigatingBack()
+  prepareAlbumHeroReturn()
   router.back()
 }
 
@@ -458,6 +503,13 @@ async function loadAlbum() {
 
 onMounted(() => {
   loadAlbum()
+  runAlbumHeroFlipEnter()
+})
+
+onBeforeRouteLeave((to) => {
+  if (to?.name === 'artistDetailPage') {
+    prepareAlbumHeroReturn()
+  }
 })
 
 onBeforeUnmount(() => {

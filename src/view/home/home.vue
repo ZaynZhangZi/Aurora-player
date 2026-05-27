@@ -370,9 +370,13 @@
             v-for="artist in hotArtists"
             :key="artist.id"
             class="group cursor-pointer text-center"
-            @click="openArtist(artist)"
+            @click="openArtist(artist, $event)"
           >
-            <div class="mx-auto aspect-square w-full max-w-[150px] overflow-hidden rounded-full shadow-[0_12px_28px_rgba(0,0,0,0.04)] border border-white transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] group-hover:ring-zinc-900">
+            <div
+              class="mx-auto aspect-square w-full max-w-[150px] overflow-hidden rounded-full shadow-[0_12px_28px_rgba(0,0,0,0.04)] border border-white transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] group-hover:ring-zinc-900"
+              data-artist-hero-cover
+              :data-artist-id="artist.id"
+            >
               <SmartMedia :src="artist.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             </div>
             <p class="mt-5 truncate text-[15px] font-black text-zinc-900 transition-colors group-hover:text-zinc-600">{{ artist.name }}</p>
@@ -506,12 +510,14 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'home' })
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import {reportApi} from '@/api/reportApi/reportApi.js'
+import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useHomeData} from '@/composables/useHomeData.js'
@@ -698,11 +704,24 @@ function handleRecentPointerUp() {
   recentHasMoved.value = false
 }
 
-function openArtist(artist) {
-  router.push({
-    path: '/artistDetial',
-    query: {id: artist.id || ''},
-  })
+function openArtist(artist, event) {
+  const artistId = Number(artist?.id || 0)
+  if (!artistId) {
+    router.push({path: '/artistDetial', query: {id: artist.id || ''}})
+    return
+  }
+
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl ? cardEl.querySelector('[data-artist-hero-cover]') : null
+  if (coverEl instanceof HTMLElement) {
+    setPendingTransition('artist', artistId, {
+      coverRect: coverEl.getBoundingClientRect(),
+      coverSrc: artist.picUrl || '',
+      name: artist.name || '',
+    })
+  }
+
+  router.push({path: '/artistDetial', query: {id: artistId}})
 }
 
 async function openPlaylist(playlist, event) {
@@ -759,6 +778,18 @@ async function runPlaylistHeroReturn() {
   })
 }
 
+async function runArtistHeroReturn() {
+  if (route.name !== 'home') return
+  const payload = consumeLatestPendingTransition('artist')
+  if (!payload?.id) return
+
+  await nextTick()
+  const targetCoverEl = document.querySelector(`[data-artist-hero-cover][data-artist-id="${payload.id}"]`)
+  if (!(targetCoverEl instanceof HTMLElement)) return
+
+  await playHeroEnter({payload, targetCoverEl})
+}
+
 async function openSong(song, index = 0) {
   await playSongWithQueue(song, newSongs.value, index)
 }
@@ -805,6 +836,7 @@ onMounted(() => {
   })
   startHeroCopyCycle()
   runPlaylistHeroReturn()
+  runArtistHeroReturn()
   loadHomeBanner()
   loadReleaseNotes()
   loadRecommendPlaylists()
@@ -826,6 +858,7 @@ watch(
   (name) => {
     if (name === 'home') {
       runPlaylistHeroReturn()
+      runArtistHeroReturn()
     }
   },
 )

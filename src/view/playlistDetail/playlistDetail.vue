@@ -335,7 +335,7 @@ async function goBack() {
 }
 
 onBeforeRouteLeave((to) => {
-  if (to?.name === 'home') {
+  if (to?.name === 'home' || to?.name === 'profile') {
     preparePlaylistHeroReturn()
   }
 })
@@ -549,7 +549,9 @@ async function loadPlaylist() {
   }
 
   const preview = peekPendingPlaylistHeroTransition(id)
+  let heroPreviewCoverUrl = ''
   if (preview) {
+    heroPreviewCoverUrl = preview.coverSrc || ''
     heroEnterDone = new Promise((resolve) => {
       resolveHeroEnterGate = resolve
     })
@@ -558,7 +560,7 @@ async function loadPlaylist() {
       ...playlist.value,
       id: Number(id),
       name: preview.playlistName || playlist.value.name,
-      coverImgUrl: preview.coverSrc || playlist.value.coverImgUrl,
+      coverImgUrl: heroPreviewCoverUrl,
     }
   } else {
     heroEnterDone = Promise.resolve()
@@ -571,10 +573,23 @@ async function loadPlaylist() {
 
     await heroEnterDone
 
+    // 如果 API 返回的封面 URL 和预览 URL 不同，预加载新图再切，避免闪白
+    const apiCoverUrl = detailPlaylist.coverImgUrl || ''
+    const needsCoverSwap = apiCoverUrl && apiCoverUrl !== heroPreviewCoverUrl
+
+    if (needsCoverSwap) {
+      await new Promise((resolve) => {
+        const img = new Image()
+        img.onload = resolve
+        img.onerror = resolve
+        img.src = apiCoverUrl
+      })
+    }
+
     playlist.value = {
       id: Number(detailPlaylist.id || id),
       name: detailPlaylist.name || '',
-      coverImgUrl: detailPlaylist.coverImgUrl || '',
+      coverImgUrl: needsCoverSwap ? apiCoverUrl : (heroPreviewCoverUrl || apiCoverUrl),
       creatorName: detailPlaylist.creator?.nickname || '',
       description: detailPlaylist.description || '',
       trackCount: detailPlaylist.trackCount || 0,
@@ -613,6 +628,16 @@ async function runHeroFlipEnter() {
 
   const runner = (async () => {
     await nextTick()
+
+    // 等待封面图片真正加载完再开启动画，避免空图飞一半
+    const imgEl = playlistHeroCoverRef.value?.querySelector('img')
+    if (imgEl && !imgEl.complete) {
+      await new Promise((resolve) => {
+        imgEl.onload = resolve
+        imgEl.onerror = resolve
+      })
+    }
+
     await playPlaylistHeroEnter({
       payload,
       targetCardEl: playlistHeroCardRef.value,

@@ -3,11 +3,10 @@
 		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
-			<router-view v-slot="{ Component, route: currentRoute }">
-				<keep-alive>
-					<component :is="Component" v-if="currentRoute.meta.keepAlive" />
+			<router-view v-slot="{ Component }">
+				<keep-alive :include="keepAliveNames">
+					<component :is="Component" />
 				</keep-alive>
-				<component :is="Component" v-if="!currentRoute.meta.keepAlive" />
 			</router-view>
 		</div>
 		<globalFooterPlayer />
@@ -57,6 +56,18 @@ const router = useRouter();
 const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
+
+// 需要 keepAlive 的组件名（对应 defineOptions({ name })）
+const keepAliveNames = computed(() => {
+  const names = [];
+  for (const record of route.matched) {
+    if (record.meta?.keepAlive) {
+      // 组件 name 与路由 name 相同（home / profile）
+      names.push(record.name);
+    }
+  }
+  return names;
+});
 const restrictionDialog = ref({
 	open: false,
 	title: "",

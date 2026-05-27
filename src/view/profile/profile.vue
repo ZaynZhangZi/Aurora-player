@@ -104,10 +104,14 @@
                   v-for="item in createdPlaylists"
                   :key="`created-${item.id}`"
                   class="group cursor-pointer"
-                  @click="openPlaylist(item)"
+                  @click="openPlaylist(item, $event)"
                 >
                   <!-- Standard Apple Artwork Aspect Box -->
-                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
+                  <div
+                    class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]"
+                    data-playlist-hero-cover
+                    :data-playlist-id="item.id"
+                  >
                     <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
                   </div>
                   <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
@@ -125,9 +129,13 @@
                   v-for="item in subscribedPlaylists"
                   :key="`sub-${item.id}`"
                   class="group cursor-pointer"
-                  @click="openPlaylist(item)"
+                  @click="openPlaylist(item, $event)"
                 >
-                  <div class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]">
+                  <div
+                    class="relative aspect-square overflow-hidden rounded-xl bg-white/60 border border-black/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-400 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_16px_32px_rgba(0,0,0,0.06)]"
+                    data-playlist-hero-cover
+                    :data-playlist-id="item.id"
+                  >
                     <img :src="item.coverImgUrl" alt="playlist" class="h-full w-full object-cover transition duration-500 group-hover:scale-101" />
                   </div>
                   <p class="mt-2.5 px-0.5 truncate text-[13px] font-semibold text-[#1D1D1F] transition-colors group-hover:text-[#0071E3]">{{ item.name }}</p>
@@ -331,21 +339,23 @@
     </main>
 
     <!-- Global App Route Frame Modal Drawer Router -->
-    <ModalRouterView content-width="90vw" content-height="90vh" content-radius="24px" />
+    <ModalRouterView content-width="85vw" content-height="80vh" content-radius="24px" />
   </div>
 </template>
 <script setup>
 defineOptions({ name: 'profile' })
-import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {useRouter} from 'vue-router'
+import {computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {useRoute, useRouter} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
+import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
 
@@ -1063,7 +1073,20 @@ function switchTab(tab) {
   activeTab.value = tab
 }
 
-function openPlaylist(item) {
+async function runPlaylistHeroReturn() {
+  const payload = consumeLatestPendingTransition('playlist')
+  if (!payload?.id) return
+
+  await nextTick()
+  const targetCoverEl = document.querySelector(
+    `[data-playlist-hero-cover][data-playlist-id="${payload.id}"]`
+  )
+  if (!(targetCoverEl instanceof HTMLElement)) return
+
+  await playHeroEnter({payload, targetCoverEl})
+}
+
+function openPlaylist(item, event) {
   const playlistId = Number(item?.id || item?.playlistId || item?.targetId || 0)
   if (!playlistId) return
   reportApi.reportBehavior({
@@ -1071,6 +1094,22 @@ function openPlaylist(item) {
     actionTarget: String(playlistId),
     actionDetail: item?.name || item?.playlistName || '',
   })
+
+  const coverSrc = item.coverImgUrl || item.picUrl || ''
+
+  // 用 event.currentTarget 找到卡片，再从卡片内找封面元素
+  // 比 document.querySelector 更可靠（不受 DOM 结构变动影响）
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl ? cardEl.querySelector('[data-playlist-hero-cover]') : null
+
+  if (coverEl instanceof HTMLElement) {
+    setPendingTransition('playlist', playlistId, {
+      coverRect: coverEl.getBoundingClientRect(),
+      coverSrc,
+      playlistName: item.name || item.playlistName || '',
+    })
+  }
+
   router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
 }
 
@@ -1320,6 +1359,11 @@ onMounted(async () => {
   loadProfilePage()
 })
 
+onActivated(() => {
+  // keepAlive 重新激活时，检查是否有待处理的 Hero 回程动画
+  runPlaylistHeroReturn()
+})
+
 onBeforeUnmount(() => {
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
@@ -1342,6 +1386,15 @@ watch(
     animateThemeColor(nextValue)
   },
   {immediate: true},
+)
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'profile') {
+      runPlaylistHeroReturn()
+    }
+  },
 )
 
 watch(

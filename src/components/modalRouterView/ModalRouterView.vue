@@ -70,16 +70,14 @@ function unlockScroll() {
 
 function closeModal() {
   markNavigatingBack()
-  if (route.name === 'playlistDetail') {
-    const id = Number(route.query?.id || 0)
-    const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')
-    if (id > 0 && coverEl instanceof HTMLElement) {
-      const coverImg = coverEl.querySelector('img')
-      setPendingPlaylistHeroTransition(id, {
-        coverRect: coverEl.getBoundingClientRect(),
-        coverSrc: coverImg?.getAttribute('src') || '',
-      })
-    }
+  const id = Number(route.query?.id || 0)
+  const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')
+  if (id > 0 && coverEl instanceof HTMLElement) {
+    const coverImg = coverEl.querySelector('img')
+    setPendingPlaylistHeroTransition(id, {
+      coverRect: coverEl.getBoundingClientRect(),
+      coverSrc: coverImg?.getAttribute('src') || '',
+    })
   }
 
   const matched = route.matched || []
@@ -152,9 +150,19 @@ function defaultLeave(el, done) {
 function handleEnter(el, done) {
   lockScroll()
 
-  if (route.name === 'playlistDetail' && peekPendingPlaylistHeroTransition(route.query?.id)) {
+  if (peekPendingPlaylistHeroTransition(route.query?.id)) {
+    // Hero 过渡：封面会从 modal 外部飞入，需要临时取消 overflow 裁剪
+    const origOverflow = el.style.overflow
+    el.style.overflow = 'visible'
+
     gsap.set(el, {opacity: 1, scale: 1, y: 0})
     done()
+
+    // 等 Hero 动画（~680ms）结束后恢复 overflow
+    setTimeout(() => {
+      el.style.overflow = origOverflow || ''
+    }, 880)
+
     return
   }
 
