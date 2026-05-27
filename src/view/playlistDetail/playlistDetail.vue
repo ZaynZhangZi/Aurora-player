@@ -459,8 +459,6 @@ async function toggleSongLike(track) {
         coverUrl: track.al?.picUrl || track.cover || track.coverImgUrl || '',
       })
     }
-
-    actionFeedback.value = liked ? '已取消喜欢歌曲' : '已添加到我喜欢的音乐'
   } catch {
     actionFeedback.value = '操作失败，请稍后重试'
   } finally {
