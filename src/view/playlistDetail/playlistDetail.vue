@@ -1,16 +1,16 @@
 ﻿<template>
   <div
-    class="relative w-full overflow-y-auto text-stone-900 transition-colors duration-700"
-    :class="isModalPlaylistDetail ? 'min-h-full' : 'min-h-screen'"
+    class="relative flex w-full flex-col overflow-hidden text-stone-900 transition-colors duration-700"
+    :class="isModalPlaylistDetail ? 'h-full min-h-0' : 'h-screen'"
     :style="pageStyle"
   >
-    <nav class="sticky top-0 z-50 flex items-center px-6 py-4">
+    <nav class="shrink-0 flex items-center px-6 py-4">
 
     </nav>
 
-    <main class="mx-auto max-w-6xl px-6 pb-24 pt-4 sm:px-10">
+    <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-6 pb-6 pt-4 sm:px-10">
 
-      <header ref="playlistHeroCardRef" class="flex flex-col items-center gap-8 md:flex-row md:items-start md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
+      <header ref="playlistHeroCardRef" class="shrink-0 flex flex-col items-center gap-8 md:flex-row md:items-start md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
         <div class="group relative shrink-0">
           <div
             class="absolute -inset-12 z-0 rounded-full blur-[70px] opacity-40 mix-blend-multiply transition-all duration-700 group-hover:scale-110 group-hover:opacity-50"
@@ -54,31 +54,34 @@
             </button>
 
             <button
-              class="flex h-12 w-12 items-center justify-center rounded-full bg-white/50 backdrop-blur-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ring-1 ring-stone-900/5 shadow-sm"
+              class="like-button flex h-12 w-12 items-center justify-center rounded-full bg-white/50 backdrop-blur-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ring-1 ring-stone-900/5 shadow-sm"
+              :class="[playlistLikeAnimationClass, subscribing ? 'like-button--loading' : '']"
               type="button"
               :disabled="subscribing"
               :title="playlist.subscribed ? '取消收藏' : '收藏歌单'"
               @click="toggleSubscribePlaylist"
             >
-              <HeartSolidIcon v-if="playlist.subscribed" class="h-6 w-6 text-rose-500" />
-              <HeartOutlineIcon v-else class="h-6 w-6 text-stone-700" />
+              <Transition name="heart-switch" mode="out-in">
+                <HeartSolidIcon v-if="playlist.subscribed" key="playlist-liked" class="relative z-10 h-6 w-6 text-rose-500" />
+                <HeartOutlineIcon v-else key="playlist-unliked" class="relative z-10 h-6 w-6 text-stone-700" />
+              </Transition>
             </button>
           </div>
           <p v-if="actionFeedback" class="mt-3 text-xs font-medium text-amber-600">{{ actionFeedback }}</p>
         </div>
       </header>
 
-      <div class="my-8 h-px w-full bg-stone-900/5" />
+      <div class="my-8 h-px w-full shrink-0 bg-stone-900/5" />
 
-      <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">正在加载歌单...</p>
-      <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
+      <p v-if="loading" class="shrink-0 animate-pulse text-sm font-medium text-stone-500">正在加载歌单...</p>
+      <p v-else-if="error" class="shrink-0 text-sm font-medium text-red-500">{{ error }}</p>
 
-      <section v-else class="relative z-10">
-        <div class="mb-4 flex items-center justify-between px-4">
+      <section v-else class="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div class="mb-4 flex shrink-0 items-center justify-between px-4">
           <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
         </div>
 
-        <TransitionGroup name="track-item" tag="div" class="space-y-1" appear>
+        <TransitionGroup name="track-item" tag="div" class="playlist-track-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pb-24 pr-1" appear>
           <div
             v-for="(track, index) in tracks"
             :key="track.id"
@@ -109,14 +112,17 @@
 
             <div class="ml-4 flex shrink-0 items-center gap-6">
               <button
-                class="flex items-center justify-center p-1 transition"
+                class="like-button flex items-center justify-center p-1 transition"
+                :class="[getSongLikeAnimationClass(track.id), likeLoadingSongId === Number(track.id) ? 'like-button--loading' : '']"
                 type="button"
-                :disabled="likeLoadingSongId === track.id"
+                :disabled="likeLoadingSongId === Number(track.id)"
                 :title="isSongLiked(track.id) ? '取消喜欢' : '喜欢歌曲'"
                 @click.stop="toggleSongLike(track)"
               >
-                <HeartSolidIcon v-if="isSongLiked(track.id)" class="h-5 w-5 text-rose-500 transition-transform hover:scale-110" />
-                <HeartOutlineIcon v-else class="h-5 w-5 text-stone-300 opacity-0 transition-all hover:scale-110 hover:text-stone-600 group-hover:opacity-100" />
+                <Transition name="heart-switch" mode="out-in">
+                  <HeartSolidIcon v-if="isSongLiked(track.id)" key="song-liked" class="relative z-10 h-5 w-5 text-rose-500 transition-transform hover:scale-110" />
+                  <HeartOutlineIcon v-else key="song-unliked" class="relative z-10 h-5 w-5 text-stone-300 opacity-0 transition-all hover:scale-110 hover:text-stone-600 group-hover:opacity-100" />
+                </Transition>
               </button>
               <span class="w-10 text-right text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(track.dt) }}</span>
             </div>
@@ -131,7 +137,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
-import { HeartIcon as HeartOutlineIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon as HeartOutlineIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
 import { reportApi } from '@/api/reportApi/reportApi.js'
@@ -173,19 +179,21 @@ const actionFeedback = ref('')
 const subscribing = ref(false)
 const likedSongIdSet = ref(new Set())
 const likeLoadingSongId = ref(null)
-const themeRgb = ref('178, 154, 122') // 默认色调回到偏暖的灰色
+const songLikeAnimationMap = ref({})
+const playlistLikeAnimationClass = ref('')
+const themeRgb = ref('178, 154, 122')
 const animatedThemeRgb = ref(themeRgb.value)
-let themeTweenFrame = 0
 
-// 【核心修改点】明亮模式渐变背景
+let themeTweenFrame = 0
+let playlistLikeAnimationTimer = 0
+const songLikeAnimationTimers = new Map()
+
 const pageStyle = computed(() => {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
-  // 基底颜色使用通透的浅白 #FAFAFA
   const baseColor = '#FAFAFA'
 
   return {
     backgroundColor: baseColor,
-    // 顶部用 0.35 透明度起手，往下平滑消散，不影响文字阅读
     backgroundImage: `linear-gradient(180deg, rgba(${r},${g},${b},0.35) 0%, rgba(${r},${g},${b},0.08) 350px, ${baseColor} 700px)`,
   }
 })
@@ -287,6 +295,50 @@ function formatCount(value) {
   return String(num)
 }
 
+function getSongLikeAnimationClass(songId) {
+  return songLikeAnimationMap.value[String(songId || '')] || ''
+}
+
+function triggerSongLikeAnimation(songId, liked) {
+  const key = String(songId || '')
+  if (!key) return
+
+  const nextClass = liked ? 'like-button--liked-pop' : 'like-button--unliked-pop'
+
+  if (songLikeAnimationTimers.has(key)) {
+    clearTimeout(songLikeAnimationTimers.get(key))
+    songLikeAnimationTimers.delete(key)
+  }
+
+  songLikeAnimationMap.value = {
+    ...songLikeAnimationMap.value,
+    [key]: nextClass,
+  }
+
+  const timer = window.setTimeout(() => {
+    const next = {...songLikeAnimationMap.value}
+    delete next[key]
+    songLikeAnimationMap.value = next
+    songLikeAnimationTimers.delete(key)
+  }, 560)
+
+  songLikeAnimationTimers.set(key, timer)
+}
+
+function triggerPlaylistLikeAnimation(subscribed) {
+  if (playlistLikeAnimationTimer) {
+    clearTimeout(playlistLikeAnimationTimer)
+    playlistLikeAnimationTimer = 0
+  }
+
+  playlistLikeAnimationClass.value = subscribed ? 'like-button--liked-pop' : 'like-button--unliked-pop'
+
+  playlistLikeAnimationTimer = window.setTimeout(() => {
+    playlistLikeAnimationClass.value = ''
+    playlistLikeAnimationTimer = 0
+  }, 560)
+}
+
 function preparePlaylistHeroReturn() {
   const id = Number(route.query.id || playlist.value.id || 0)
   if (!id) return
@@ -382,14 +434,21 @@ async function toggleSongLike(track) {
 
   const songId = Number(track.id)
   const liked = isSongLiked(songId)
+  const nextLiked = !liked
+
   likeLoadingSongId.value = songId
   actionFeedback.value = ''
+
   try {
     await songsApi.likeSongs(songId, liked ? 'false' : 'true')
+
     const next = new Set(likedSongIdSet.value)
     if (liked) next.delete(String(songId))
     else next.add(String(songId))
     likedSongIdSet.value = next
+
+    triggerSongLikeAnimation(songId, nextLiked)
+
     if (!liked) {
       reportApi.reportLikedSong({
         songId,
@@ -400,6 +459,7 @@ async function toggleSongLike(track) {
         coverUrl: track.al?.picUrl || track.cover || track.coverImgUrl || '',
       })
     }
+
     actionFeedback.value = liked ? '已取消喜欢歌曲' : '已添加到我喜欢的音乐'
   } catch {
     actionFeedback.value = '操作失败，请稍后重试'
@@ -421,8 +481,12 @@ async function toggleSubscribePlaylist() {
   try {
     const shouldSubscribe = !playlist.value.subscribed
     await playListsApi.subscribePlayList(playlist.value.id, shouldSubscribe ? 1 : 2)
+
     playlist.value.subscribed = shouldSubscribe
     playlist.value.subscribedCount = Math.max(0, Number(playlist.value.subscribedCount || 0) + (shouldSubscribe ? 1 : -1))
+
+    triggerPlaylistLikeAnimation(shouldSubscribe)
+
     if (shouldSubscribe) {
       reportApi.reportCollection({
         collectionType: 'PLAYLIST',
@@ -431,7 +495,6 @@ async function toggleSubscribePlaylist() {
         coverUrl: playlist.value.coverImgUrl,
       })
     }
-    actionFeedback.value = shouldSubscribe ? '已收藏歌单' : '已取消收藏歌单'
   } catch {
     actionFeedback.value = '歌单收藏操作失败，请稍后再试'
   } finally {
@@ -447,30 +510,38 @@ function getTrackItemStyle(index) {
 }
 
 async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0) {
-  const pageSize = 500
-  let offset = 0
-  const merged = []
+  const pageSize = 100
+  const first = await playListsApi.getPlayListSongs(playlistId, pageSize, 0)
+  const firstChunk = first?.data?.songs || []
+  if (!firstChunk.length) return []
 
-  while (true) {
-    const res = await playListsApi.getPlayListSongs(playlistId, pageSize, offset)
-    const chunk = res?.data?.songs || []
-    if (!chunk.length) break
+  const total = expectedTotal > 0 ? expectedTotal : firstChunk.length
+  const pages = Math.ceil(total / pageSize)
+  const restOffsets = []
+  for (let i = 1; i < pages; i++) {
+    restOffsets.push(i * pageSize)
+  }
 
-    merged.push(...chunk)
-
-    if (chunk.length < pageSize) break
-    if (expectedTotal > 0 && merged.length >= expectedTotal) break
-
-    offset += pageSize
+  let allChunks = [firstChunk]
+  if (restOffsets.length > 0) {
+    const restResults = await Promise.all(
+      restOffsets.map(offset =>
+        playListsApi.getPlayListSongs(playlistId, pageSize, offset)
+          .then(r => r?.data?.songs || [])
+          .catch(() => [])
+      )
+    )
+    allChunks = allChunks.concat(restResults)
   }
 
   const map = new Map()
-  merged.forEach(song => {
-    if (song?.id && !map.has(song.id)) {
-      map.set(song.id, song)
+  for (const chunk of allChunks) {
+    for (const song of chunk) {
+      if (song?.id && !map.has(song.id)) {
+        map.set(song.id, song)
+      }
     }
-  })
-
+  }
   return Array.from(map.values())
 }
 
@@ -525,7 +596,6 @@ async function pickThemeColor(coverUrl, seedName) {
 
     if (!count) throw new Error('no sampled pixels')
 
-    // 明亮模式下，放宽色彩上限，避免过于暗沉
     const rr = Math.min(240, Math.max(60, Math.round(r / count)))
     const gg = Math.min(240, Math.max(60, Math.round(g / count)))
     const bb = Math.min(240, Math.max(60, Math.round(b / count)))
@@ -573,7 +643,6 @@ async function loadPlaylist() {
 
     await heroEnterDone
 
-    // 如果 API 返回的封面 URL 和预览 URL 不同，预加载新图再切，避免闪白
     const apiCoverUrl = detailPlaylist.coverImgUrl || ''
     const needsCoverSwap = apiCoverUrl && apiCoverUrl !== heroPreviewCoverUrl
 
@@ -598,13 +667,19 @@ async function loadPlaylist() {
       subscribed: Boolean(detailPlaylist.subscribed),
     }
 
-    await pickThemeColor(playlist.value.coverImgUrl, playlist.value.name)
-
+    // 立即展示初始歌曲，不阻塞
     tracks.value = detailPlaylist.tracks || []
+    pickThemeColor(playlist.value.coverImgUrl, playlist.value.name)
+    loading.value = false
 
-    const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0)
-    if (allSongs.length) {
-      tracks.value = allSongs
+    // 后台并行拉取剩余歌曲
+    try {
+      const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0)
+      if (allSongs.length) {
+        tracks.value = allSongs
+      }
+    } catch {
+      // 剩余歌曲加载失败不影响已有展示
     }
     loadLikedSongs()
   } catch (err) {
@@ -629,7 +704,6 @@ async function runHeroFlipEnter() {
   const runner = (async () => {
     await nextTick()
 
-    // 等待封面图片真正加载完再开启动画，避免空图飞一半
     const imgEl = playlistHeroCoverRef.value?.querySelector('img')
     if (imgEl && !imgEl.complete) {
       await new Promise((resolve) => {
@@ -667,6 +741,14 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
   }
+
+  if (playlistLikeAnimationTimer) {
+    clearTimeout(playlistLikeAnimationTimer)
+    playlistLikeAnimationTimer = 0
+  }
+
+  songLikeAnimationTimers.forEach(timer => clearTimeout(timer))
+  songLikeAnimationTimers.clear()
 })
 
 watch(
@@ -685,6 +767,8 @@ watch(
   () => route.query.id,
   () => {
     actionFeedback.value = ''
+    playlistLikeAnimationClass.value = ''
+    songLikeAnimationMap.value = {}
     loadPlaylist()
     runHeroFlipEnter()
   },
@@ -704,20 +788,140 @@ watch(
 </script>
 
 <style scoped>
+.playlist-track-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.playlist-track-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .track-item-enter-active {
   transition: opacity 300ms cubic-bezier(0.34, 1.18, 0.64, 1), transform 300ms cubic-bezier(0.34, 1.18, 0.64, 1), filter 420ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--item-delay, 0ms);
 }
+
 .track-item-leave-active {
   transition: opacity 150ms ease, transform 150ms ease;
 }
+
 .track-item-enter-from,
 .track-item-leave-to {
   opacity: 0;
   transform: translateY(12px) scale(0.99);
   filter: blur(4px);
 }
+
 .track-item-move {
   transition: transform 300ms cubic-bezier(0.34, 1.18, 0.64, 1);
+}
+
+.like-button {
+  position: relative;
+  border-radius: 9999px;
+  transform-origin: center;
+}
+
+.like-button::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.55);
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.2) 0%, rgba(244, 63, 94, 0.1) 35%, rgba(244, 63, 94, 0) 70%);
+}
+
+.like-button--liked-pop {
+  animation: heart-pop 520ms cubic-bezier(0.2, 1.4, 0.32, 1);
+}
+
+.like-button--liked-pop::before {
+  animation: heart-bloom 520ms ease-out;
+}
+
+.like-button--unliked-pop {
+  animation: heart-away 380ms ease-out;
+}
+
+.like-button--unliked-pop::before {
+  background: radial-gradient(circle, rgba(120, 113, 108, 0.18) 0%, rgba(120, 113, 108, 0.08) 35%, rgba(120, 113, 108, 0) 70%);
+  animation: heart-bloom 420ms ease-out;
+}
+
+.like-button--loading {
+  animation: heart-breath 900ms ease-in-out infinite;
+}
+
+.heart-switch-enter-active {
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 1.35, 0.32, 1);
+}
+
+.heart-switch-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.heart-switch-enter-from {
+  opacity: 0;
+  transform: scale(0.45) rotate(-12deg);
+}
+
+.heart-switch-leave-to {
+  opacity: 0;
+  transform: scale(0.7) rotate(12deg);
+}
+
+@keyframes heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.28);
+  }
+  68% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes heart-away {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(0.78);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes heart-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.65);
+  }
+}
+
+@keyframes heart-breath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.86);
+  }
 }
 </style>
