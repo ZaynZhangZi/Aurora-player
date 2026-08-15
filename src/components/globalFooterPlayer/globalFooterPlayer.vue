@@ -1,12 +1,12 @@
 <template>
   <div
     ref="playerRootRef"
-    class="fixed inset-x-0 bottom-0 z-[999] px-0"
+    class="player-root fixed inset-x-0 z-[999]"
     role="region"
     aria-label="全局播放器"
   >
     <div
-      class="player-shell w-full rounded-none border-x-0 border-b-0"
+      class="player-shell"
       :class="{ 'player-shell-idle': !isPlaying, 'player-shell-crossfading': crossfadeVisualActive }"
       :style="playerStyle"
     >
@@ -1872,10 +1872,19 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.player-root {
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
 .player-shell {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  width: min(calc(100vw - 20px), 1240px);
+  margin-inline: auto;
+  border-radius: 22px;
+  pointer-events: auto;
   border: 1px solid rgba(var(--player-border), var(--player-border-alpha));
   background: radial-gradient(
     120% 140% at 12% 12%,
@@ -1891,7 +1900,10 @@ onBeforeUnmount(() => {
   100% 100%;
   background-position: 2% 8%,
   50% 50%;
-  box-shadow: 0 16px 44px rgba(15, 23, 42, var(--player-shadow-alpha));
+  box-shadow:
+    0 18px 54px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.08)),
+    0 3px 12px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(var(--player-fg), 0.12);
   backdrop-filter: blur(22px);
   filter: saturate(var(--player-sat)) brightness(var(--player-brightness));
   transition: background 320ms ease,
@@ -1899,6 +1911,17 @@ onBeforeUnmount(() => {
   filter 180ms ease,
   box-shadow 200ms ease;
   animation: player-shell-drift 18s ease-in-out infinite alternate;
+}
+
+@media (min-width: 640px) {
+  .player-root {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .player-shell {
+    width: min(calc(100vw - 32px), 1240px);
+    border-radius: 24px;
+  }
 }
 
 .player-shell-idle {
