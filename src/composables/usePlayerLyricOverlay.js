@@ -20,11 +20,16 @@ export function usePlayerLyricOverlay({
     amllUnmountTimer = 0;
   }
 
-  function openLyricPage() {
-    if (!hasSong()) return;
+  function prepareLyricPage() {
+    if (!hasSong()) return false;
     clearUnmountTimer();
-    if (!amllMounted.value) {
-      amllMounted.value = true;
+    amllMounted.value = true;
+    return true;
+  }
+
+  function openLyricPage() {
+    if (!prepareLyricPage()) return;
+    if (!amllOpened.value) {
       nextTick(() => {
         requestFrame(() => {
           amllOpened.value = true;
@@ -58,6 +63,7 @@ export function usePlayerLyricOverlay({
   return {
     amllOpened,
     amllMounted,
+    prepareLyricPage,
     openLyricPage,
     onAmllOpenedChange,
     disposeLyricOverlay,

@@ -247,6 +247,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.amll-wrapper {
+		transition: none !important;
+	}
+
 	.amll-prebuilt__controls .amll-prebuilt__btn,
 	.amll-prebuilt__controls .amll-prebuilt__btn > *,
 	.amll-prebuilt__nowPlayingSliderInner {

@@ -6,6 +6,9 @@
     aria-label="全局播放器"
   >
     <div
+      ref="playerShellRef"
+      :inert="amllOpened ? '' : null"
+      :aria-hidden="amllOpened ? 'true' : null"
       class="player-shell"
       :class="{ 'player-shell-idle': !isPlaying, 'player-shell-crossfading': crossfadeVisualActive }"
       :style="playerStyle"
@@ -17,6 +20,8 @@
           <Transition :name="trackSwapTransitionName" mode="out-in">
             <div :key="songTransitionKey" class="flex min-w-0 flex-1 items-center gap-3">
               <button
+                ref="desktopCoverRef"
+                data-player-transition-cover
                 class="h-12 w-12 overflow-hidden rounded-lg bg-white/20"
                 type="button"
                 :disabled="!hasSong"
@@ -200,6 +205,8 @@
         <Transition :name="trackSwapTransitionName" mode="out-in">
           <div :key="songTransitionKey" class="flex min-w-0 items-center gap-2.5">
             <button
+              ref="mobileCoverRef"
+              data-player-transition-cover
               class="h-10 w-10 overflow-hidden rounded-lg bg-white/20"
               type="button"
               :disabled="!hasSong"
@@ -387,27 +394,32 @@
     </div>
 
     <Teleport to="body">
-      <AMLLWrapper
+      <div
         v-if="amllMounted"
-        :opened="amllOpened"
-        @update:opened="onAmllOpenedChange"
-        v-model:current-time="amllCurrentTimeMs"
-        v-model:hide-lyric-view="amllHideLyricView"
-        v-model:volume="amllVolume"
-        :music-name="songName"
-        :music-artists="amllArtists"
-        :music-album="amllAlbum"
-        :cover="amllCoverUrl"
-        :cover-is-video="amllCoverIsVideo"
-        :lyric-lines="amllLyricLines"
-        :duration="durationMs"
-        :playing="isPlaying"
-        :low-freq-volume="amllLowFreqVolume"
-        @play-or-pause="togglePlay"
-        @prev="playPrevSong"
-        @next="playNextSong"
-        @line-click="onAmllLineClick"
-      />
+        ref="amllHostRef"
+        data-player-amll-host
+      >
+        <AMLLWrapper
+          :opened="amllOpened"
+          @update:opened="onAmllOpenedChange"
+          v-model:current-time="amllCurrentTimeMs"
+          v-model:hide-lyric-view="amllHideLyricView"
+          v-model:volume="amllVolume"
+          :music-name="songName"
+          :music-artists="amllArtists"
+          :music-album="amllAlbum"
+          :cover="amllCoverUrl"
+          :cover-is-video="amllCoverIsVideo"
+          :lyric-lines="amllLyricLines"
+          :duration="durationMs"
+          :playing="isPlaying"
+          :low-freq-volume="amllLowFreqVolume"
+          @play-or-pause="togglePlay"
+          @prev="playPrevSong"
+          @next="playNextSong"
+          @line-click="onAmllLineClick"
+        />
+      </div>
     </Teleport>
 
     <Teleport to="body">
@@ -565,6 +577,7 @@ import {usePlayerReporting} from "@/composables/usePlayerReporting.js";
 import {usePlayerManualSwitch} from "@/composables/usePlayerManualSwitch.js";
 import {usePlayerMorePanel} from "@/composables/usePlayerMorePanel.js";
 import {usePlayerLyricOverlay} from "@/composables/usePlayerLyricOverlay.js";
+import {usePlayerFullscreenTransition} from "@/composables/usePlayerFullscreenTransition.js";
 import {usePlayerCrossfade} from "@/composables/usePlayerCrossfade.js";
 import {usePlayerCrossfadeFlow} from "@/composables/usePlayerCrossfadeFlow.js";
 import {usePlayerCrossfadeRuntime} from "@/composables/usePlayerCrossfadeRuntime.js";
@@ -607,6 +620,10 @@ const {
 const audioRef = ref(null);
 const crossfadeAudioRef = ref(null);
 const playerRootRef = ref(null);
+const playerShellRef = ref(null);
+const desktopCoverRef = ref(null);
+const mobileCoverRef = ref(null);
+const amllHostRef = ref(null);
 let playerResizeObserver = null;
 let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
@@ -665,8 +682,8 @@ const AMLL_LYRIC_LEAD_MS = 320;
 const {
   amllOpened,
   amllMounted,
-  openLyricPage,
-  onAmllOpenedChange,
+  prepareLyricPage,
+  onAmllOpenedChange: commitAmllOpenedChange,
   disposeLyricOverlay,
 } = usePlayerLyricOverlay({
   hasSong: () => hasSong.value,
@@ -675,6 +692,47 @@ const {
   clearTimer: (id) => window.clearTimeout(id),
   setTimer: (cb, ms) => window.setTimeout(cb, ms),
 });
+
+function getVisibleMiniCover() {
+  for (const cover of [desktopCoverRef.value, mobileCoverRef.value]) {
+    const rect = cover?.getBoundingClientRect();
+    if (
+      cover?.getClientRects().length &&
+      rect?.width > 0 &&
+      rect?.height > 0
+    ) {
+      return cover;
+    }
+  }
+  return null;
+}
+
+const {
+  openFullscreen,
+  closeFullscreen,
+  disposeFullscreenTransition,
+} = usePlayerFullscreenTransition({
+  nextTick,
+  prepareOverlay: prepareLyricPage,
+  commitOverlayOpened: commitAmllOpenedChange,
+  getOverlayOpened: () => amllOpened.value,
+  getOverlayHost: () => amllHostRef.value,
+  getMiniShell: () => playerShellRef.value,
+  getMiniCover: getVisibleMiniCover,
+});
+
+function openLyricPage() {
+  void openFullscreen();
+}
+
+function onAmllOpenedChange(nextOpened) {
+  if (nextOpened) {
+    commitAmllOpenedChange(true);
+    return;
+  }
+  void closeFullscreen();
+}
+
 const amllCurrentTimeMsRef = ref(0);
 let amllClockRafId = 0;
 
@@ -1839,6 +1897,7 @@ onBeforeUnmount(() => {
   clearMediaSessionHandlers();
   stopCrossfade();
   disposeRhythmAnalyzer();
+  disposeFullscreenTransition();
   disposeLyricOverlay();
   stopAmllClock();
   clearScheduledPositionStateUpdate();
