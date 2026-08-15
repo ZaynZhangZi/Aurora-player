@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
 	const adminApiProxyTarget = env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8080";
 
 
+
+
 	return {
 		plugins: [vue(), tailwindcss(), ...(mode === "development" ? [vueDevTools()] : [])],
 		build: {
