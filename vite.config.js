@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
 	const neteaseApiProxyTarget = env.VITE_API_PROXY_TARGET || "http://localhost:3000";
 	const adminApiProxyTarget = env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8080";
 
+
 	return {
 		plugins: [vue(), tailwindcss(), ...(mode === "development" ? [vueDevTools()] : [])],
 		build: {
