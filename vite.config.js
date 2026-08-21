@@ -20,12 +20,13 @@ export default defineConfig(({ mode }) => {
 			// 性能优化：代码分割
 			rollupOptions: {
 				output: {
-					manualChunks: {
-						// 将大型库单独打包
-						'vendor-animation': ['gsap', 'motion'],
-						'vendor-3d': ['three', 'pixi.js'],
-						'vendor-ui': ['ant-design-vue', '@headlessui/vue'],
-						'vendor-utils': ['axios', 'chroma-js', 'colorthief'],
+					manualChunks(id) {
+						if (id.includes('node_modules')) {
+							if (/[\\/](gsap|motion)[\\/]/.test(id)) return 'vendor-animation';
+							if (/[\\/](three|pixi\.js|@pixi)[\\/]/.test(id)) return 'vendor-3d';
+							if (/[\\/](ant-design-vue|@headlessui)[\\/]/.test(id)) return 'vendor-ui';
+							if (/[\\/](axios|chroma-js|colorthief)[\\/]/.test(id)) return 'vendor-utils';
+						}
 					},
 				},
 			},

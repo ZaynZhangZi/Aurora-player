@@ -49,42 +49,34 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { createAppPreloader, initResourcePreloading } from '@/utils/resourcePreloader.js'
+import { useRouter } from 'vue-router'
+import { runAppBootstrap } from '@/utils/appBootstrap.js'
 
 const props = defineProps({
   minDuration: {
     type: Number,
-    default: 900,
-  },
-  enableResourcePreload: {
-    type: Boolean,
-    default: true,
+    default: 600,
   },
 })
 
 const emit = defineEmits(['complete'])
 
+const router = useRouter()
+
 const isVisible = ref(true)
 const progress = ref(0)
-
-const loadingSteps = [
-  '正在启动',
-  '加载资源',
-  '准备就绪',
-]
-const stepIndex = ref(0)
-const loadingText = computed(() => loadingSteps[stepIndex.value] || '正在启动')
+const loadingText = ref('正在启动')
 
 let progressRaf = 0
 let startTime = 0
-let preloader = null
-let stepTimer = null
 
-function tickProgress(targetCeiling) {
+// 进度条数值本身是真实的（来自 runAppBootstrap 的阶段权重），
+// 这里只是把"跳变"平滑成动画，不编造额外的时间消耗。
+function animateTo(target) {
   const step = () => {
-    progress.value += Math.max(0.4, (targetCeiling - progress.value) * 0.06)
-    if (progress.value >= targetCeiling - 0.5) {
-      progress.value = targetCeiling
+    progress.value += Math.max(0.6, (target - progress.value) * 0.25)
+    if (progress.value >= target - 0.3) {
+      progress.value = target
       return
     }
     progressRaf = requestAnimationFrame(step)
@@ -93,41 +85,13 @@ function tickProgress(targetCeiling) {
   progressRaf = requestAnimationFrame(step)
 }
 
-async function preloadResources() {
-  if (!props.enableResourcePreload) return
-  try {
-    initResourcePreloading()
-    preloader = createAppPreloader()
-    preloader.onProgress((resourceProgress) => {
-      const target = 70 + (resourceProgress * 30) / 100
-      tickProgress(target)
-    })
-    await preloader.load()
-  } catch {
-    // 预加载失败不阻断启动
-  }
-}
-
-function runLoadingSequence() {
-  tickProgress(45)
-  stepTimer = setTimeout(() => {
-    stepIndex.value = 1
-    tickProgress(70)
-    preloadResources().finally(() => {
-      stepIndex.value = 2
-      finish()
-    })
-  }, 380)
-}
-
 function finish() {
   const elapsed = Date.now() - startTime
   const remaining = Math.max(0, props.minDuration - elapsed)
   setTimeout(() => {
-    tickProgress(100)
     setTimeout(() => {
       isVisible.value = false
-    }, 260)
+    }, 220)
   }, remaining)
 }
 
@@ -135,14 +99,20 @@ function onSplashComplete() {
   emit('complete')
 }
 
-onMounted(() => {
+onMounted(async () => {
   startTime = Date.now()
-  runLoadingSequence()
+  await runAppBootstrap({
+    router,
+    onProgress: (value, label) => {
+      loadingText.value = label
+      animateTo(value)
+    },
+  })
+  finish()
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(progressRaf)
-  if (stepTimer) clearTimeout(stepTimer)
 })
 </script>
 
