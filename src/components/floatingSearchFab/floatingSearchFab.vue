@@ -113,6 +113,7 @@
                     <ChevronDownIcon class="hidden sm:inline size-3.5 transition" :class="[btnToneClass, profileMenuOpen ? 'rotate-180' : 'rotate-0']" />
                     <span
                       v-if="totalMessageBadgeCount > 0"
+                      ref="totalMessageBadgeRef"
                       class="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white shadow-sm"
                     >
                       {{ totalMessageBadgeCount > 99 ? '99+' : totalMessageBadgeCount }}
@@ -147,7 +148,7 @@
                           <BellIcon class="size-4" />
                           <span>通知</span>
                         </span>
-                        <span v-if="noticeBadgeCount > 0" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        <span v-if="noticeBadgeCount > 0" ref="noticeMenuBadgeRef" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
                         </span>
                       </button>
@@ -160,7 +161,7 @@
                           <ChatBubbleLeftRightIcon class="size-4" />
                           <span>私信</span>
                         </span>
-                        <span v-if="privateBadgeCount > 0" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        <span v-if="privateBadgeCount > 0" ref="privateMenuBadgeRef" class="mr-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
                         </span>
                       </button>
@@ -468,18 +469,18 @@
                 class="relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:px-4"
                 type="button" @click="switchMessageTab('notice')">
                 通知
-                <span v-if="noticeBadgeCount > 0" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
-                {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
-              </span>
+                <span v-if="noticeBadgeCount > 0" ref="noticeTabBadgeRef" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
+                  {{ noticeBadgeCount > 99 ? '99+' : noticeBadgeCount }}
+                </span>
               </button>
               <button
                 :class="messageTab === 'private' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
                 class="relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:px-4"
                 type="button" @click="switchMessageTab('private')">
                 私信
-                <span v-if="privateBadgeCount > 0" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
-                {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
-              </span>
+                <span v-if="privateBadgeCount > 0" ref="privateTabBadgeRef" class="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white sm:relative sm:inset-0 sm:ring-0">
+                  {{ privateBadgeCount > 99 ? '99+' : privateBadgeCount }}
+                </span>
               </button>
             </div>
           </div>
@@ -707,6 +708,7 @@ import { markNavigatingBack } from '@/router/index.js'
 import { useFloatingSearch } from '@/composables/useFloatingSearch.js'
 import { useMessageCenter } from '@/composables/useMessageCenter.js'
 import { useQrLogin } from '@/composables/useQrLogin.js'
+import {dissolveElement} from '@/utils/particleDissolve.js'
 
 const props = defineProps({
   modelValue: {type: Boolean, default: false},
@@ -787,6 +789,12 @@ const userNickname = computed(() => userStore.nickname)
 
 const messageDialogOpen = ref(false)
 const privateHistoryScroller = ref(null)
+const totalMessageBadgeRef = ref(null)
+const noticeMenuBadgeRef = ref(null)
+const privateMenuBadgeRef = ref(null)
+const noticeTabBadgeRef = ref(null)
+const privateTabBadgeRef = ref(null)
+const messageBadgeEffectControllers = new Set()
 const fabContrastMode = ref('on-dark')
 const viewportWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
 
@@ -837,6 +845,7 @@ const {
   loadMoreNotices,
   loadMorePrivateMessages,
   refreshMessageBadges,
+  clearMessageBadgeCount,
   debounceSearchPrivateReceiver,
   openPrivateConversation,
   loadMorePrivateHistory,
@@ -915,10 +924,23 @@ watch(messageDialogOpen, (open) => {
   if (messageTab.value === 'notice') fetchNotices({reset: true})
   else fetchPrivateMessages({reset: true})
 })
+watch(
+  [messageDialogOpen, messageTab, noticeBadgeCount, privateBadgeCount],
+  ([open, tab, noticeCount, privateCount]) => {
+    if (!open) return
+    if (tab === 'notice' && noticeCount > 0) {
+      clearMessageBadge('notice', {animate: false})
+    }
+    if (tab === 'private' && privateCount > 0) {
+      clearMessageBadge('private', {animate: false})
+    }
+  },
+)
 watch(isLoggedIn, (value) => {
   if (!value) {
-    noticeBadgeCount.value = 0;
-    privateBadgeCount.value = 0;
+    cancelMessageBadgeEffects()
+    clearMessageBadgeCount('notice')
+    clearMessageBadgeCount('private')
     return
   }
   ;refreshMessageBadges()
@@ -1191,12 +1213,70 @@ function openReleaseNotesPage() {
   collapse()
 }
 
+function isVisibleBadgeElement(element) {
+  const rect = element?.getBoundingClientRect?.()
+  return Boolean(
+    element?.isConnected &&
+    element.getClientRects?.().length &&
+    rect?.width > 0 &&
+    rect?.height > 0,
+  )
+}
+
+function cancelMessageBadgeEffects() {
+  messageBadgeEffectControllers.forEach((controller) => controller.abort())
+  messageBadgeEffectControllers.clear()
+}
+
+function animateClearedMessageBadge(type) {
+  const isNotice = type === 'notice'
+  const clearingCount = Number(
+    isNotice ? noticeBadgeCount.value : privateBadgeCount.value,
+  )
+  if (clearingCount <= 0) return
+
+  const otherCount = Number(
+    isNotice ? privateBadgeCount.value : noticeBadgeCount.value,
+  )
+  const candidates = isNotice
+    ? [noticeMenuBadgeRef.value, noticeTabBadgeRef.value]
+    : [privateMenuBadgeRef.value, privateTabBadgeRef.value]
+  if (otherCount <= 0 && !messageDialogOpen.value) {
+    candidates.push(totalMessageBadgeRef.value)
+  }
+
+  const uniqueBadges = [...new Set(candidates.filter(isVisibleBadgeElement))]
+  if (!uniqueBadges.length) return
+
+  const controller = new AbortController()
+  messageBadgeEffectControllers.add(controller)
+  const effects = uniqueBadges.map((badge) =>
+    dissolveElement(badge, {
+      preset: 'harmony-badge',
+      duration: 260,
+      particleCount: 8,
+      direction: 'right',
+      distance: 18,
+      zIndex: 10050,
+      colors: ['rgba(255, 255, 255, 0.9)', '#FCE7EB', '#F6CBD4', '#DFA6B2'],
+      signal: controller.signal,
+    }).catch(() => null),
+  )
+  void Promise.allSettled(effects).finally(() => {
+    messageBadgeEffectControllers.delete(controller)
+  })
+}
+
+function clearMessageBadge(type, {animate = true} = {}) {
+  if (animate) animateClearedMessageBadge(type)
+  clearMessageBadgeCount(type)
+}
+
 function openMessageCenter(tab = 'notice') {
   if (!isLoggedIn.value) return;
+  clearMessageBadge(tab)
   profileMenuOpen.value = false
   messageTab.value = tab;
-  if (tab === 'notice') noticeBadgeCount.value = 0;
-  if (tab === 'private') privateBadgeCount.value = 0;
   setMessageDialogOpen(true)
 }
 
@@ -1218,20 +1298,26 @@ function handleOutsidePointerDown(event) {
 }
 
 async function setMessageDialogOpen(value) {
+  if (!value && messageDialogOpen.value) {
+    clearMessageBadge(messageTab.value, {animate: false})
+  }
   messageDialogOpen.value = value
 }
 
 function switchMessageTab(tab) {
   if (messageTab.value === tab) return;
+  if (messageDialogOpen.value) {
+    clearMessageBadge(messageTab.value, {animate: false})
+  }
   messageTab.value = tab;
   privateFeedback.value = '';
   if (!messageDialogOpen.value) return;
   if (tab === 'notice') {
+    clearMessageBadge('notice')
     fetchNotices({reset: true});
-    noticeBadgeCount.value = 0
   } else {
+    clearMessageBadge('private')
     fetchPrivateMessages({reset: true});
-    privateBadgeCount.value = 0
   }
 }
 
@@ -1413,6 +1499,7 @@ function onResize() {
 }
 
 onBeforeUnmount(() => {
+  cancelMessageBadgeEffects()
   navTl?.kill();
   backRailTween?.kill();
   window.removeEventListener('scroll', onScroll);

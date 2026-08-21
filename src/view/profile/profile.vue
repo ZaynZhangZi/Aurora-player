@@ -154,7 +154,7 @@
             <button
               class="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-[#1D1D1F] text-white text-xs font-semibold shadow-sm transition hover:bg-zinc-800 active:scale-95 disabled:opacity-40"
               type="button"
-              :disabled="cloudLoading"
+              :disabled="cloudLoading || Boolean(cloudDeletingId)"
               @click="loadCloudSongs(cloudPage)"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -186,7 +186,7 @@
                 v-if="cloudUploadFile"
                 class="rounded-full bg-[#1D1D1F] px-5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:opacity-40"
                 type="button"
-                :disabled="cloudUploading"
+                :disabled="cloudUploading || Boolean(cloudDeletingId)"
                 @click="uploadCloudSong"
               >
                 {{ cloudUploading ? '分片编译中...' : '确认部署上传' }}
@@ -200,10 +200,16 @@
 
           <template v-else>
             <!-- Native Music Track Table rows Framework with Tech Blue Accent -->
-            <div v-if="cloudSongs.length" class="border-t border-b border-black/[0.08] divide-y divide-black/[0.04] bg-white/30 rounded-2xl p-1 backdrop-blur-sm animate-fade-in">
+            <TransitionGroup
+              v-if="cloudSongs.length"
+              name="cloud-row"
+              tag="div"
+              class="relative border-t border-b border-black/[0.08] divide-y divide-black/[0.04] bg-white/30 rounded-2xl p-1 backdrop-blur-sm animate-fade-in"
+            >
               <article
                 v-for="(item, index) in cloudSongs"
                 :key="`cloud-${item.songId}`"
+                :ref="element => setCloudRowRef(item.songId, element)"
                 class="group flex flex-col px-3 py-3 rounded-xl transition-colors duration-100 hover:bg-white/80"
               >
                 <div class="flex items-center justify-between gap-4 cursor-pointer" @click="playCloudSong(item)">
@@ -234,8 +240,11 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                       </button>
                       <button
-                        class="rounded-full bg-white p-1.5 border border-black/[0.04] text-rose-600 transition hover:bg-rose-50 shadow-sm"
+                        class="rounded-full bg-white p-1.5 border border-black/[0.04] text-rose-600 transition hover:bg-rose-50 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                        type="button"
                         title="删除歌曲"
+                        :disabled="Boolean(cloudDeletingId)"
+                        :aria-busy="cloudDeletingId === Number(item.songId)"
                         @click.stop="deleteCloudSong(item)"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
@@ -255,7 +264,7 @@
                   </div>
                 </div>
               </article>
-            </div>
+            </TransitionGroup>
             <p v-else class="text-xs font-semibold text-[#86868B] py-10 text-center border border-dashed border-black/10 rounded-xl bg-white/20">网盘存储区为空</p>
 
             <!-- Table Index Segment Control Pagination Deck -->
@@ -265,7 +274,7 @@
                 <button
                   class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-[#D1D1D6] text-[#1D1D1F] shadow-sm transition hover:bg-zinc-50 disabled:opacity-30"
                   type="button"
-                  :disabled="cloudPage <= 1 || cloudLoading"
+                  :disabled="cloudPage <= 1 || cloudLoading || Boolean(cloudDeletingId)"
                   @click="prevCloudPage"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -273,7 +282,7 @@
                 <button
                   class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-[#D1D1D6] text-[#1D1D1F] shadow-sm transition hover:bg-zinc-50 disabled:opacity-30"
                   type="button"
-                  :disabled="!cloudCanNextPage || cloudLoading"
+                  :disabled="!cloudCanNextPage || cloudLoading || Boolean(cloudDeletingId)"
                   @click="nextCloudPage"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -353,6 +362,7 @@ import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
+import {dissolveElement} from '@/utils/particleDissolve.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 
 const route = useRoute()
@@ -397,6 +407,9 @@ const cloudUploadFile = ref(null)
 const cloudUploading = ref(false)
 const cloudUploadMessage = ref('')
 const cloudFileInputKey = ref(0)
+const cloudRowRefs = new Map()
+let cloudDeleteEffectController = null
+let profileUnmounted = false
 const listeningLoading = ref(false)
 const listeningError = ref('')
 const listeningRange = ref('week')
@@ -419,6 +432,17 @@ const liquidBlobs = [
 const createdPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId === profile.value.userId))
 const subscribedPlaylists = computed(() => playlists.value.filter(item => item.creator?.userId !== profile.value.userId))
 const cloudCanNextPage = computed(() => cloudHasMore.value)
+
+function setCloudRowRef(songId, element) {
+  const sid = Number(songId || 0)
+  if (!sid) return
+  if (element) cloudRowRefs.set(sid, element)
+  else cloudRowRefs.delete(sid)
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+}
 
 const LISTENING_BUCKET_META = {
   mellow: {label: '轻松治愈', color: '#F59E0B'},
@@ -1173,11 +1197,18 @@ function formatDuration(durationMs) {
   return `${minute}:${second}`
 }
 
-async function loadCloudSongs(page = 1) {
-  if (!userStore.userId) return
+async function loadCloudSongs(
+  page = 1,
+  {allowDuringDelete = false, silent = false} = {},
+) {
+  if (!userStore.userId || (cloudDeletingId.value && !allowDuringDelete)) {
+    return false
+  }
 
-  cloudLoading.value = true
-  cloudError.value = ''
+  if (!silent) {
+    cloudLoading.value = true
+    cloudError.value = ''
+  }
   try {
     const offset = (Math.max(1, page) - 1) * cloudLimit
     const res = await userApi.getUserCloud(cloudLimit, offset)
@@ -1186,22 +1217,27 @@ async function loadCloudSongs(page = 1) {
     cloudPage.value = Math.max(1, page)
     cloudHasMore.value = Boolean(res?.data?.hasMore)
     if (!cloudSongs.value.length && cloudPage.value > 1) {
-      await loadCloudSongs(cloudPage.value - 1)
+      return await loadCloudSongs(cloudPage.value - 1, {
+        allowDuringDelete,
+        silent,
+      })
     }
+    return true
   } catch (err) {
-    cloudError.value = err?.message || '云盘加载失败'
+    if (!silent) cloudError.value = err?.message || '云盘加载失败'
+    return false
   } finally {
-    cloudLoading.value = false
+    if (!silent) cloudLoading.value = false
   }
 }
 
 async function prevCloudPage() {
-  if (cloudPage.value <= 1) return
+  if (cloudPage.value <= 1 || cloudDeletingId.value) return
   await loadCloudSongs(cloudPage.value - 1)
 }
 
 async function nextCloudPage() {
-  if (!cloudCanNextPage.value) return
+  if (!cloudCanNextPage.value || cloudDeletingId.value) return
   await loadCloudSongs(cloudPage.value + 1)
 }
 
@@ -1214,7 +1250,7 @@ function onCloudFileChange(event) {
 }
 
 async function uploadCloudSong() {
-  if (!cloudUploadFile.value || cloudUploading.value) return
+  if (!cloudUploadFile.value || cloudUploading.value || cloudDeletingId.value) return
 
   cloudUploading.value = true
   cloudUploadMessage.value = ''
@@ -1267,12 +1303,63 @@ async function deleteCloudSong(item) {
   if (!window.confirm(`确定删除云盘歌曲《${item.songName}》吗？`)) return
 
   cloudDeletingId.value = sid
+  cloudError.value = ''
+  let effectController = null
   try {
     await userApi.deleteUserCloudSong(String(sid))
-    await loadCloudSongs(cloudPage.value)
+    if (profileUnmounted) return
+
+    const row = cloudRowRefs.get(sid)
+    let dissolveEffect = null
+    if (row?.isConnected && !prefersReducedMotion()) {
+      effectController = new AbortController()
+      cloudDeleteEffectController = effectController
+      try {
+        dissolveEffect = dissolveElement(row, {
+          preset: 'harmony-row',
+          duration: 520,
+          particleCount: 52,
+          direction: 'right',
+          colors: ['rgba(255, 255, 255, 0.88)', '#D9DEE7', '#BCC5D1', '#9EAABA'],
+          signal: effectController.signal,
+        })
+        await (dissolveEffect.layoutReady || Promise.resolve())
+      } catch {
+        // 删除已在服务端完成，动画失败不应阻断本地列表收尾。
+      }
+    }
+
+    if (profileUnmounted) return
+
+    const rowIndex = cloudSongs.value.findIndex(song => Number(song?.songId || 0) === sid)
+    if (rowIndex >= 0) cloudSongs.value.splice(rowIndex, 1)
+    cloudRowRefs.delete(sid)
+
+    if (activeCloudDetailId.value === sid) activeCloudDetailId.value = null
+    const nextDetails = {...cloudDetails.value}
+    delete nextDetails[sid]
+    cloudDetails.value = nextDetails
+
+    await nextTick()
+    if (!profileUnmounted) {
+      await loadCloudSongs(cloudPage.value, {
+        allowDuringDelete: true,
+        silent: true,
+      })
+    }
+    if (dissolveEffect) {
+      try {
+        await dissolveEffect
+      } catch {
+        // 列表已完成本地收尾，粒子尾段失败无需回滚删除结果。
+      }
+    }
   } catch (err) {
     cloudError.value = err?.message || '云盘歌曲删除失败'
   } finally {
+    if (cloudDeleteEffectController === effectController) {
+      cloudDeleteEffectController = null
+    }
     cloudDeletingId.value = null
   }
 }
@@ -1365,6 +1452,9 @@ onActivated(() => {
 })
 
 onBeforeUnmount(() => {
+  profileUnmounted = true
+  cloudDeleteEffectController?.abort()
+  cloudDeleteEffectController = null
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
@@ -1374,6 +1464,7 @@ onBeforeUnmount(() => {
     heroResizeObserver.disconnect()
     heroResizeObserver = null
   }
+  cloudRowRefs.clear()
 })
 
 watch(
@@ -1486,5 +1577,35 @@ watch(
 .tab-panel-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+
+.cloud-row-enter-active {
+  transition: opacity 180ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cloud-row-leave-active {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.cloud-row-enter-from,
+.cloud-row-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.99);
+}
+
+.cloud-row-move {
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-row-enter-active,
+  .cloud-row-leave-active,
+  .cloud-row-move {
+    transition-duration: 1ms !important;
+  }
 }
 </style>

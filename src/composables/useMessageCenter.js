@@ -129,6 +129,29 @@ export function useMessageCenter(userStore) {
   let privateReceiverSearchTimer = null
   let privateReceiverSearchRequestId = 0
   let privateHistoryRequestId = 0
+  let noticeBadgeRequestEpoch = 0
+  let privateBadgeRequestEpoch = 0
+
+  function getBadgeUserKey() {
+    return String(userStore.userId || '')
+  }
+
+  function canApplyBadgeResponse(type, epoch, userKey) {
+    const activeEpoch = type === 'notice'
+      ? noticeBadgeRequestEpoch
+      : privateBadgeRequestEpoch
+    return epoch === activeEpoch && userKey === getBadgeUserKey()
+  }
+
+  function clearMessageBadgeCount(type) {
+    if (type === 'notice') {
+      noticeBadgeRequestEpoch += 1
+      noticeBadgeCount.value = 0
+      return
+    }
+    privateBadgeRequestEpoch += 1
+    privateBadgeCount.value = 0
+  }
 
   function normalizeNoticeList(payload) {
     const raw = payload?.notices || payload?.data?.notices || payload?.msgs || []
@@ -196,6 +219,8 @@ export function useMessageCenter(userStore) {
   }
 
   async function fetchNotices({ reset = false } = {}) {
+    const badgeEpoch = noticeBadgeRequestEpoch
+    const badgeUserKey = getBadgeUserKey()
     if (reset) {
       noticeLoading.value = true
       noticeLastTime.value = -1
@@ -209,7 +234,9 @@ export function useMessageCenter(userStore) {
       const list = normalizeNoticeList(payload)
       noticeList.value = reset ? list : mergeById(noticeList.value, list)
       noticeHasMore.value = Boolean(payload?.more)
-      noticeBadgeCount.value = extractNoticeUnread(payload)
+      if (canApplyBadgeResponse('notice', badgeEpoch, badgeUserKey)) {
+        noticeBadgeCount.value = extractNoticeUnread(payload)
+      }
       if (list.length) {
         const nextLast = payload?.lasttime || list[list.length - 1]?.time || noticeLastTime.value
         noticeLastTime.value = Number.isFinite(Number(nextLast)) ? Number(nextLast) : noticeLastTime.value
@@ -289,6 +316,8 @@ export function useMessageCenter(userStore) {
   }
 
   async function fetchPrivateMessages({ reset = false } = {}) {
+    const badgeEpoch = privateBadgeRequestEpoch
+    const badgeUserKey = getBadgeUserKey()
     if (reset) {
       privateLoading.value = true
       privateOffset.value = 0
@@ -302,7 +331,9 @@ export function useMessageCenter(userStore) {
       const list = normalizePrivateList(payload)
       privateList.value = reset ? list : mergeById(privateList.value, list)
       privateHasMore.value = Boolean(payload?.more)
-      privateBadgeCount.value = extractPrivateUnread(payload)
+      if (canApplyBadgeResponse('private', badgeEpoch, badgeUserKey)) {
+        privateBadgeCount.value = extractPrivateUnread(payload)
+      }
       privateOffset.value += 30
       if (reset && window.innerWidth >= 768) {
         const matched = privateList.value[0]
@@ -337,13 +368,20 @@ export function useMessageCenter(userStore) {
   }
 
   async function refreshMessageBadges() {
+    const noticeEpoch = noticeBadgeRequestEpoch
+    const privateEpoch = privateBadgeRequestEpoch
+    const badgeUserKey = getBadgeUserKey()
     try {
       const [noticeRes, privateRes] = await Promise.all([
         userApi.getNotices(10, -1),
         userApi.getPrivateMessages(10, 0),
       ])
-      noticeBadgeCount.value = extractNoticeUnread(noticeRes?.data || {})
-      privateBadgeCount.value = extractPrivateUnread(privateRes?.data || {})
+      if (canApplyBadgeResponse('notice', noticeEpoch, badgeUserKey)) {
+        noticeBadgeCount.value = extractNoticeUnread(noticeRes?.data || {})
+      }
+      if (canApplyBadgeResponse('private', privateEpoch, badgeUserKey)) {
+        privateBadgeCount.value = extractPrivateUnread(privateRes?.data || {})
+      }
     } catch (error) {
       console.warn('消息刷新失败', error)
     }
@@ -414,7 +452,7 @@ export function useMessageCenter(userStore) {
       privateContent.value = ''
       await fetchPrivateMessages({ reset: true })
       await fetchPrivateHistory(String(target), { reset: true })
-      privateBadgeCount.value = 0
+      clearMessageBadgeCount('private')
     } catch (error) {
       privateFeedback.value = error?.message || '发送失败'
       privateFeedbackIsError.value = true
@@ -479,6 +517,7 @@ export function useMessageCenter(userStore) {
     loadMoreNotices,
     loadMorePrivateMessages,
     refreshMessageBadges,
+    clearMessageBadgeCount,
     debounceSearchPrivateReceiver,
     openPrivateConversation,
     loadMorePrivateHistory,
