@@ -2,8 +2,7 @@
 	<!-- 🎬 开屏动画 -->
 	<AppSplashScreen
 		v-if="showSplash"
-		:version="appVersion"
-		:min-duration="2000"
+		:min-duration="900"
 		@complete="onSplashComplete"
 	/>
 
@@ -68,7 +67,6 @@ const canGoBack = computed(() => route.path !== "/home");
 
 // 🎬 开屏动画状态
 const showSplash = ref(true);
-const appVersion = ref(import.meta.env.VITE_APP_VERSION || '0.0.0');
 
 // 开屏动画完成回调
 function onSplashComplete() {
