@@ -1,5 +1,13 @@
 <template>
-	<div class="app-shell">
+	<!-- 🎬 开屏动画 -->
+	<AppSplashScreen
+		v-if="showSplash"
+		:version="appVersion"
+		:min-duration="2000"
+		@complete="onSplashComplete"
+	/>
+
+	<div v-show="!showSplash" class="app-shell">
 		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
@@ -47,6 +55,7 @@ import { consumeNavigatingBack, markNavigatingBack } from "@/router/index.js";
 import { useCounterStore } from "@/stores/userStores.js";
 import { reportApi } from "@/api/reportApi/reportApi.js";
 import { userApi } from "@/api/userApi/userApi.js";
+import AppSplashScreen from "@/components/AppSplashScreen/AppSplashScreen.vue";
 
 const FloatingSearchFab = defineAsyncComponent(() => import("@/components/floatingSearchFab/floatingSearchFab.vue"));
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
@@ -56,6 +65,28 @@ const router = useRouter();
 const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
+
+// 🎬 开屏动画状态
+const showSplash = ref(true);
+const appVersion = ref(import.meta.env.VITE_APP_VERSION || '0.0.0');
+
+// 开屏动画完成回调
+function onSplashComplete() {
+	showSplash.value = false;
+	// 动画完成后触发路由进入动画
+	nextTick(() => {
+		runRouteEnterMotion();
+	});
+}
+
+// 检测是否需要显示开屏动画（首次访问或刷新）
+onMounted(() => {
+	// 如果用户禁用动画，跳过开屏
+	const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (prefersReducedMotion) {
+		showSplash.value = false;
+	}
+});
 
 // 需要 keepAlive 的组件名（对应 defineOptions({ name })）
 const keepAliveNames = computed(() => {
