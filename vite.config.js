@@ -17,11 +17,30 @@ export default defineConfig(({ mode }) => {
 		plugins: [vue(), tailwindcss(), ...(mode === "development" ? [vueDevTools()] : [])],
 		build: {
 			esbuild: mode === "production" ? { drop: ["console", "debugger"] } : {},
+			// 性能优化：代码分割
+			rollupOptions: {
+				output: {
+					manualChunks: {
+						// 将大型库单独打包
+						'vendor-animation': ['gsap', 'motion'],
+						'vendor-3d': ['three', 'pixi.js'],
+						'vendor-ui': ['ant-design-vue', '@headlessui/vue'],
+						'vendor-utils': ['axios', 'chroma-js', 'colorthief'],
+					},
+				},
+			},
+			// 增加代码分割大小限制
+			chunkSizeWarningLimit: 1000,
 		},
 		resolve: {
 			alias: {
 				"@": fileURLToPath(new URL("./src", import.meta.url)),
 			},
+		},
+		// 开发服务器优化
+		optimizeDeps: {
+			include: ['vue', 'vue-router', 'pinia'],
+			exclude: ['vite-plugin-vue-devtools'],
 		},
 		server: {
 			port: 5173,

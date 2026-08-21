@@ -441,32 +441,91 @@
                   队列 {{ playQueue.length }} 首 · {{ playModeLabel }}
                 </p>
               </div>
-              <button
-                class="grid h-8 w-8 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100"
-                type="button"
-                @click="closePlaylistPanel"
-              >
-                <XMarkIcon class="h-4 w-4"/>
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button
+                  v-if="playQueue.length > 1"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  type="button"
+                  :disabled="queueMutationLocked"
+                  @click="clearQueuedSongs"
+                >
+                  <TrashIcon class="h-3.5 w-3.5"/>
+                  清除待播
+                </button>
+                <button
+                  class="grid h-8 w-8 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100"
+                  type="button"
+                  aria-label="关闭播放列表"
+                  @click="closePlaylistPanel"
+                >
+                  <XMarkIcon class="h-4 w-4"/>
+                </button>
+              </div>
             </div>
 
-            <div class="max-h-[56vh] overflow-y-auto p-2">
-              <button
+            <TransitionGroup
+              name="queue-item"
+              tag="div"
+              class="queue-list relative max-h-[56vh] overflow-y-auto p-2"
+            >
+              <div
                 v-for="(song, index) in playQueue"
-                :key="song.id || index"
-                class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition"
-                :class="index === currentQueueIndex ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900' : 'text-zinc-700 hover:bg-black/5 dark:text-zinc-300 dark:hover:bg-white/5'"
-                type="button"
-                @click="playSongAtIndex(index)"
+                :key="song.queueEntryId"
+                :ref="element => setQueueRowRef(song.queueEntryId, element)"
+                class="queue-row relative mb-1 overflow-hidden rounded-xl"
               >
-                <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{
-                    index + 1
-                  }}</span>
-                <span class="truncate text-[14px] font-semibold">{{
-                    song.name || '未知歌曲'
-                  }}</span>
-              </button>
-            </div>
+                <div
+                  v-if="index !== currentQueueIndex"
+                  class="pointer-events-none absolute inset-y-0 right-0 flex w-24 items-center justify-end bg-gradient-to-l from-rose-600 to-rose-500 px-4 text-[11px] font-semibold tracking-wide text-white transition-opacity duration-300"
+                  :class="queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging && queueSwipe.offsetX < 0
+                    ? 'opacity-100'
+                    : 'opacity-0'"
+                  aria-hidden="true"
+                >
+                  松开移除
+                </div>
+                <div
+                  class="queue-row-content relative flex w-full items-center gap-1 text-left"
+                  :class="[
+                    index === currentQueueIndex
+                      ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+                      : 'bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
+                    queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging
+                      ? 'will-change-transform'
+                      : 'transition-transform duration-300',
+                  ]"
+                  :style="queueRowSwipeStyle(song.queueEntryId)"
+                  @pointerdown="onQueueRowPointerDown($event, song, index)"
+                  @pointermove="onQueueRowPointerMove($event, song)"
+                  @pointerup="onQueueRowPointerEnd($event, song, index)"
+                  @pointercancel="onQueueRowPointerCancel($event, song)"
+                  @click.capture="onQueueRowClickCapture"
+                >
+                  <button
+                    class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                    type="button"
+                    @click="onQueueSongClick(index)"
+                  >
+                    <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{
+                        index + 1
+                      }}</span>
+                    <span class="truncate text-[14px] font-semibold">{{
+                        song.name || '未知歌曲'
+                      }}</span>
+                  </button>
+                  <button
+                    v-if="index !== currentQueueIndex"
+                    class="mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-full text-current opacity-45 transition hover:bg-black/5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-20 dark:hover:bg-white/10"
+                    type="button"
+                    :disabled="queueMutationLocked"
+                    :aria-label="`从播放队列移除《${song.name || '未知歌曲'}》`"
+                    @click.stop="removeQueuedSong(song)"
+                  >
+                    <XMarkIcon class="h-4 w-4"/>
+                  </button>
+                </div>
+              </div>
+            </TransitionGroup>
           </div>
         </div>
       </Transition>
@@ -525,7 +584,7 @@
       preload="auto"
       @loadedmetadata="onLoadedMetadata"
       @durationchange="onDurationChange"
-      @timeupdate="onTimeUpdate"
+      @timeupdate="throttledOnTimeUpdate"
       @play="onPlay"
       @pause="onPause"
       @ended="onEnded"
@@ -538,7 +597,7 @@
       preload="auto"
       @loadedmetadata="onLoadedMetadata"
       @durationchange="onDurationChange"
-      @timeupdate="onTimeUpdate"
+      @timeupdate="throttledOnTimeUpdate"
       @play="onPlay"
       @pause="onPause"
       @ended="onEnded"
@@ -547,7 +606,7 @@
 </template>
 
 <script setup>
-import {XMarkIcon} from "@heroicons/vue/24/outline";
+import {TrashIcon, XMarkIcon} from "@heroicons/vue/24/outline";
 import {
   BackwardIcon,
   EllipsisHorizontalIcon,
@@ -602,6 +661,13 @@ import {
   resolveTempoRateForTransition,
 } from "@/utils/automixEngine.js";
 import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
+import {dissolveElement} from "@/utils/particleDissolve.js";
+// 🔧 性能优化：导入性能工具
+import {rafThrottle, getOptimizedConfig, MemoryManager} from "@/utils/performanceOptimizer.js";
+
+// 🔧 获取设备性能配置
+const perfConfig = getOptimizedConfig();
+const memoryManager = new MemoryManager();
 
 const AMLLWrapper = defineAsyncComponent({
   loader: () =>
@@ -624,6 +690,20 @@ const playerShellRef = ref(null);
 const desktopCoverRef = ref(null);
 const mobileCoverRef = ref(null);
 const amllHostRef = ref(null);
+const queueRowRefs = new Map();
+const queueDissolvingEntryIds = ref(new Set());
+const queueClearing = ref(false);
+const queueSwipe = ref({
+  entryId: "",
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  offsetX: 0,
+  dragging: false,
+});
+let queueClickSuppressedUntil = 0;
+let queuePointerCaptureTarget = null;
+let queueEffectAbortController = null;
 let playerResizeObserver = null;
 let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
@@ -639,6 +719,7 @@ const isIOSDevice = ref(false);
 
 let crossfadeActive = false;
 let crossfadePreparing = false;
+const queueCrossfadeBusy = ref(false);
 let crossfadeTriggeredForSongId = null;
 let crossfadeRafId = 0;
 let pendingPromotedStartSec = -1;
@@ -656,6 +737,20 @@ function debugCrossfade(label, payload = {}) {
   } catch {
     console.log(`[CrossfadeDebug] ${label}`, payload);
   }
+}
+
+function syncQueueCrossfadeBusy() {
+  queueCrossfadeBusy.value = crossfadeActive || crossfadePreparing;
+}
+
+function setCrossfadeActiveState(next) {
+  crossfadeActive = Boolean(next);
+  syncQueueCrossfadeBusy();
+}
+
+function setCrossfadePreparingState(next) {
+  crossfadePreparing = Boolean(next);
+  syncQueueCrossfadeBusy();
 }
 
 function getActiveAudio() {
@@ -815,6 +910,13 @@ const lyricTranslateLabel = computed(() =>
   lyricTranslateEnabled.value ? "歌词翻译: 开" : "歌词翻译: 关",
 );
 const crossfadeVisualActive = ref(false);
+const queueMutationLocked = computed(
+  () =>
+    queueClearing.value ||
+    queueDissolvingEntryIds.value.size > 0 ||
+    queueCrossfadeBusy.value ||
+    crossfadeVisualActive.value,
+);
 const suppressTrackSwapAnimation = ref(false);
 const trackSwapTransitionName = computed(() =>
   suppressTrackSwapAnimation.value ? "track-swap-none" : "track-swap",
@@ -1023,9 +1125,7 @@ const {
     if (typeof url === "string") crossfadeCoverUrl.value = url;
     if (typeof isVideo === "boolean") crossfadeCoverIsVideo.value = isVideo;
   },
-  setCrossfadeActive: (next) => {
-    crossfadeActive = next;
-  },
+  setCrossfadeActive: setCrossfadeActiveState,
   setCrossfadeVisualActive: (next) => {
     crossfadeVisualActive.value = next;
   },
@@ -1057,12 +1157,8 @@ const {tryStartAutomixCrossfade} = usePlayerCrossfadeFlow({
   getIdleAudio: () => getIdleAudio(),
   isCrossfadeActive: () => crossfadeActive,
   isCrossfadePreparing: () => crossfadePreparing,
-  setCrossfadeActive: (next) => {
-    crossfadeActive = next;
-  },
-  setCrossfadePreparing: (next) => {
-    crossfadePreparing = next;
-  },
+  setCrossfadeActive: setCrossfadeActiveState,
+  setCrossfadePreparing: setCrossfadePreparingState,
   getCrossfadeTriggeredSongId: () => crossfadeTriggeredForSongId,
   setCrossfadeTriggeredSongId: (next) => {
     crossfadeTriggeredForSongId = next;
@@ -1121,12 +1217,8 @@ const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
   getIdleAudio: () => getIdleAudio(),
   getCrossfadeActive: () => crossfadeActive,
   getCrossfadePreparing: () => crossfadePreparing,
-  setCrossfadeActive: (next) => {
-    crossfadeActive = next;
-  },
-  setCrossfadePreparing: (next) => {
-    crossfadePreparing = next;
-  },
+  setCrossfadeActive: setCrossfadeActiveState,
+  setCrossfadePreparing: setCrossfadePreparingState,
   setCrossfadeVisualActive: (next) => {
     crossfadeVisualActive.value = next;
   },
@@ -1504,11 +1596,300 @@ function toggleLyricTranslate() {
 }
 
 function togglePlaylistPanel() {
+  if (playlistPanelOpen.value) {
+    closePlaylistPanel();
+    return;
+  }
   playerStore.togglePlaylistPanel();
 }
 
 function closePlaylistPanel() {
+  cancelQueueEffects();
+  resetQueueSwipe();
   playerStore.setPlaylistPanelOpen(false);
+}
+
+function setQueueRowRef(queueEntryId, element) {
+  const entryId = String(queueEntryId || "").trim();
+  if (!entryId) return;
+  if (element instanceof HTMLElement) {
+    queueRowRefs.set(entryId, element);
+  } else {
+    queueRowRefs.delete(entryId);
+  }
+}
+
+function updateQueueDissolvingEntry(entryId, dissolving) {
+  const next = new Set(queueDissolvingEntryIds.value);
+  if (dissolving) next.add(entryId);
+  else next.delete(entryId);
+  queueDissolvingEntryIds.value = next;
+}
+
+function queueEffectsBusy() {
+  return queueMutationLocked.value || crossfadeActive || crossfadePreparing;
+}
+
+function queueParticleColors() {
+  const toRgba = (channels, alpha) =>
+    `rgba(${channels.join(", ")}, ${alpha})`;
+  return [
+    toRgba(themeBaseRgb.value, 0.56),
+    toRgba(themeAccentRgb.value, 0.46),
+    toRgba(themeGlowRgb.value, 0.36),
+    "rgba(255, 255, 255, 0.72)",
+    "rgba(226, 232, 240, 0.42)",
+  ];
+}
+
+function queueRowSwipeStyle(queueEntryId) {
+  if (queueSwipe.value.entryId !== queueEntryId || !queueSwipe.value.offsetX) {
+    return undefined;
+  }
+  return {transform: `translate3d(${queueSwipe.value.offsetX}px, 0, 0)`};
+}
+
+function releaseQueuePointerCapture(pointerId = queueSwipe.value.pointerId) {
+  const target = queuePointerCaptureTarget;
+  queuePointerCaptureTarget = null;
+  if (!target || pointerId === null || pointerId === undefined) return;
+  try {
+    if (target.hasPointerCapture?.(pointerId)) {
+      target.releasePointerCapture(pointerId);
+    }
+  } catch {
+    // Pointer capture may already have been released by the browser.
+  }
+}
+
+function resetQueueSwipe() {
+  releaseQueuePointerCapture();
+  queueSwipe.value = {
+    entryId: "",
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    offsetX: 0,
+    dragging: false,
+  };
+}
+
+function onQueueRowPointerDown(event, song, index) {
+  if (
+    queueEffectsBusy() ||
+    index === currentQueueIndex.value ||
+    !song?.queueEntryId ||
+    (event.pointerType === "mouse" && event.button !== 0)
+  ) {
+    return;
+  }
+  resetQueueSwipe();
+  queueSwipe.value = {
+    entryId: song.queueEntryId,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    offsetX: 0,
+    dragging: false,
+  };
+  queuePointerCaptureTarget = event.currentTarget || null;
+  try {
+    queuePointerCaptureTarget?.setPointerCapture?.(event.pointerId);
+  } catch {
+    queuePointerCaptureTarget = null;
+  }
+}
+
+function onQueueRowPointerMove(event, song) {
+  const swipe = queueSwipe.value;
+  if (
+    swipe.entryId !== song?.queueEntryId ||
+    swipe.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+
+  const deltaX = event.clientX - swipe.startX;
+  const deltaY = event.clientY - swipe.startY;
+  if (!swipe.dragging) {
+    if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      queueClickSuppressedUntil = Date.now() + 360;
+      resetQueueSwipe();
+      return;
+    }
+    if (Math.abs(deltaX) < 6 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+  }
+
+  event.preventDefault();
+  queueSwipe.value = {
+    ...swipe,
+    offsetX: Math.max(-88, Math.min(0, deltaX)),
+    dragging: true,
+  };
+}
+
+function onQueueRowPointerEnd(event, song, index) {
+  const swipe = queueSwipe.value;
+  if (
+    swipe.entryId !== song?.queueEntryId ||
+    swipe.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+  if (swipe.dragging) {
+    event.preventDefault();
+    queueClickSuppressedUntil = Date.now() + 360;
+  }
+  if (
+    swipe.dragging &&
+    swipe.offsetX <= -56 &&
+    index !== currentQueueIndex.value
+  ) {
+    void removeQueuedSong(song, {direction: "left"});
+  }
+  resetQueueSwipe();
+}
+
+function onQueueRowPointerCancel(event, song) {
+  if (
+    queueSwipe.value.entryId !== song?.queueEntryId ||
+    queueSwipe.value.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+  resetQueueSwipe();
+}
+
+function onQueueRowClickCapture(event) {
+  if (Date.now() >= queueClickSuppressedUntil) return;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function onQueueSongClick(index) {
+  if (Date.now() < queueClickSuppressedUntil || queueMutationLocked.value) return;
+  void playSongAtIndex(index);
+}
+
+function beginQueueEffectRun() {
+  queueEffectAbortController?.abort();
+  const controller = new AbortController();
+  queueEffectAbortController = controller;
+  return controller;
+}
+
+function finishQueueEffectRun(controller) {
+  if (queueEffectAbortController === controller) {
+    queueEffectAbortController = null;
+  }
+}
+
+function cancelQueueEffects() {
+  queueEffectAbortController?.abort();
+  queueEffectAbortController = null;
+}
+
+async function removeQueuedSong(song, {direction = "right"} = {}) {
+  const entryId = String(song?.queueEntryId || "").trim();
+  const targetIndex = playQueue.value.findIndex(
+    (item) => item?.queueEntryId === entryId,
+  );
+  if (
+    !entryId ||
+    targetIndex < 0 ||
+    targetIndex === currentQueueIndex.value ||
+    queueEffectsBusy()
+  ) {
+    return false;
+  }
+
+  const row = queueRowRefs.get(entryId);
+  const controller = beginQueueEffectRun();
+  updateQueueDissolvingEntry(entryId, true);
+  let effectResult = null;
+  try {
+    let effect = Promise.resolve(null);
+    let layoutReady = Promise.resolve();
+    try {
+      effect = dissolveElement(row, {
+        preset: "harmony-row",
+        duration: 520,
+        particleCount: 52,
+        direction,
+        distance: 64,
+        colors: queueParticleColors(),
+        keepSourceHidden: true,
+        zIndex: 4100,
+        signal: controller.signal,
+      });
+      layoutReady = effect.layoutReady || layoutReady;
+    } catch {
+      // The queue mutation remains usable if the optional visual effect fails.
+    }
+    await layoutReady.catch(() => null);
+    const removed = playerStore.removeQueueEntry(entryId);
+    effectResult = await effect.catch(() => null);
+    return removed;
+  } finally {
+    effectResult?.restoreSource?.();
+    updateQueueDissolvingEntry(entryId, false);
+    finishQueueEffectRun(controller);
+  }
+}
+
+async function clearQueuedSongs() {
+  if (queueEffectsBusy() || playQueue.value.length <= 1) return;
+  const currentEntryId = playQueue.value[currentQueueIndex.value]?.queueEntryId;
+  if (!currentEntryId) return;
+
+  resetQueueSwipe();
+  const targets = playQueue.value.filter(
+    (song) => song?.queueEntryId && song.queueEntryId !== currentEntryId,
+  );
+  const firstRow = queueRowRefs.get(currentEntryId) ||
+    queueRowRefs.get(targets[0]?.queueEntryId);
+  const listRect = firstRow?.closest?.(".queue-list")?.getBoundingClientRect();
+  const visibleTargets = targets
+    .filter((song) => {
+      const rect = queueRowRefs.get(song.queueEntryId)?.getBoundingClientRect();
+      if (!rect || !listRect) return false;
+      return rect.bottom > listRect.top && rect.top < listRect.bottom;
+    })
+    .slice(0, 6);
+
+  const controller = beginQueueEffectRun();
+  queueClearing.value = true;
+  const effectResults = [];
+  try {
+    const effects = visibleTargets.map((song, index) => {
+      try {
+        return dissolveElement(queueRowRefs.get(song.queueEntryId), {
+          preset: "harmony-row",
+          duration: 540,
+          delay: prefersReducedMotion.value ? 0 : Math.min(index * 24, 120),
+          particleCount: 36,
+          direction: "right",
+          distance: 62,
+          colors: queueParticleColors(),
+          keepSourceHidden: true,
+          zIndex: 4100,
+          signal: controller.signal,
+        });
+      } catch {
+        return Promise.resolve(null);
+      }
+    });
+    await Promise.all(
+      effects.map((effect) => effect.layoutReady?.catch(() => null)),
+    );
+    playerStore.clearQueueExceptCurrent();
+    const results = await Promise.all(effects.map((effect) => effect.catch(() => null)));
+    effectResults.push(...results);
+  } finally {
+    effectResults.forEach((result) => result?.restoreSource?.());
+    queueClearing.value = false;
+    finishQueueEffectRun(controller);
+  }
 }
 
 function onClickMoreAutomix() {
@@ -1557,6 +1938,9 @@ function onTimeUpdate(event) {
   playerStore.setCurrentTimeMs(Math.floor((active.currentTime || 0) * 1000));
   scheduleMediaSessionPositionStateUpdate();
 }
+
+// 🔧 性能优化：节流 timeUpdate 事件（每 100ms 最多触发一次）
+const throttledOnTimeUpdate = rafThrottle(onTimeUpdate);
 
 function onPlay(event) {
   if (!isEventFromActiveDeck(event)) return;
@@ -1894,6 +2278,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  cancelQueueEffects();
+  queueRowRefs.clear();
+  resetQueueSwipe();
   clearMediaSessionHandlers();
   stopCrossfade();
   disposeRhythmAnalyzer();
@@ -1901,6 +2288,9 @@ onBeforeUnmount(() => {
   disposeLyricOverlay();
   stopAmllClock();
   clearScheduledPositionStateUpdate();
+
+  // 🔧 性能优化：清理所有定时器和监听器
+  memoryManager.cleanup();
 
   if (mediaQueryMotion) {
     if (mediaQueryMotionHandler) {
@@ -2220,6 +2610,39 @@ onBeforeUnmount(() => {
 .playlist-dialog-leave-to .playlist-dialog-panel {
   opacity: 0;
   transform: translateY(14px) scale(0.98);
+}
+
+.queue-row-content {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.queue-item-move,
+.queue-item-enter-active,
+.queue-item-leave-active {
+  transition: opacity 0.28s ease,
+  transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.queue-item-enter-from,
+.queue-item-leave-to {
+  opacity: 0;
+  transform: translateX(28px) scale(0.98);
+}
+
+.queue-item-leave-active {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-item-move,
+  .queue-item-enter-active,
+  .queue-item-leave-active {
+    transition-duration: 0.12s;
+  }
 }
 
 .artist-marquee {

@@ -6,14 +6,57 @@ export const PLAY_MODE = {
   SHUFFLE: 'shuffle',
 }
 
+let queueEntrySequence = 0
+
+function createQueueEntryId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    try {
+      return `queue-${globalThis.crypto.randomUUID()}`
+    } catch {
+      // Fall through to the browser-compatible fallback below.
+    }
+  }
+
+  // 🔧 防止内存泄漏：每 100 万次重置计数器
+  if (queueEntrySequence > 1_000_000) {
+    queueEntrySequence = 0
+  }
+
+  queueEntrySequence += 1
+  const timestamp = Date.now().toString(36)
+  const sequence = queueEntrySequence.toString(36)
+  const random = Math.random().toString(36).slice(2, 10)
+  return `queue-${timestamp}-${sequence}-${random}`
+}
+
+function claimQueueEntryId(candidate, usedIds) {
+  const requestedId = String(candidate || '').trim()
+  let queueEntryId = requestedId
+
+  while (!queueEntryId || usedIds.has(queueEntryId)) {
+    queueEntryId = createQueueEntryId()
+  }
+
+  usedIds.add(queueEntryId)
+  return queueEntryId
+}
+
+function ensureQueueEntryIds(queue = []) {
+  const usedIds = new Set()
+  return (Array.isArray(queue) ? queue : []).map(item => ({
+    ...(item && typeof item === 'object' ? item : {}),
+    queueEntryId: claimQueueEntryId(item?.queueEntryId, usedIds),
+  }))
+}
+
 function normalizeCoverUrlProtocol(url = '') {
   const raw = String(url || '').trim()
   if (!raw) return ''
-  if (/^\/\//.test(raw)) return `https:${raw}`
+  if (raw.startsWith('//')) return `https:${raw}`
   return raw.replace(/^http:\/\//i, 'https://')
 }
 
-function normalizeQueueItem(song) {
+function normalizeQueueItem(song, usedQueueEntryIds = new Set()) {
   const songDurationSec = Number(song?.dt) / 1000
   const durationCandidate = song?.mixProfile?.duration ?? song?.duration ?? songDurationSec
   const durationSecRaw = Number(durationCandidate)
@@ -36,6 +79,7 @@ function normalizeQueueItem(song) {
   }
 
   return {
+    queueEntryId: claimQueueEntryId(song?.queueEntryId, usedQueueEntryIds),
     id: song?.id ?? null,
     name: song?.name || '',
     artists: song?.artists || song?.ar || [],
@@ -117,9 +161,10 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setQueue(queue = [], {startIndex = 0} = {}) {
+      const usedQueueEntryIds = new Set()
       const normalized = Array.isArray(queue)
         ? queue
-            .map(normalizeQueueItem)
+            .map(song => normalizeQueueItem(song, usedQueueEntryIds))
             .filter(item => Number.isFinite(Number(item.id)) && Number(item.id) > 0)
         : []
       this.playQueue = normalized
@@ -150,6 +195,68 @@ export const usePlayerStore = defineStore('global-player', {
       if (!id || !this.playQueue.length) return
       const nextIndex = this.playQueue.findIndex(item => String(item.id) === id)
       if (nextIndex >= 0) this.currentQueueIndex = nextIndex
+    },
+
+    removeQueueEntry(queueEntryId) {
+      const targetEntryId = String(queueEntryId || '').trim()
+      if (!targetEntryId || !this.playQueue.length) return false
+
+      const targetIndex = this.playQueue.findIndex(
+        item => String(item?.queueEntryId || '') === targetEntryId,
+      )
+      if (targetIndex < 0) return false
+
+      const storedCurrentIndex = Number(this.currentQueueIndex)
+      const hasValidCurrentIndex =
+        Number.isInteger(storedCurrentIndex) &&
+        storedCurrentIndex >= 0 &&
+        storedCurrentIndex < this.playQueue.length
+      const inferredCurrentIndex = hasValidCurrentIndex
+        ? storedCurrentIndex
+        : this.playQueue.findIndex(
+            item => String(item?.id || '') === String(this.currentSong?.id || ''),
+          )
+
+      if (targetIndex === inferredCurrentIndex) return false
+
+      this.playQueue.splice(targetIndex, 1)
+
+      if (inferredCurrentIndex >= 0) {
+        this.currentQueueIndex =
+          targetIndex < inferredCurrentIndex
+            ? inferredCurrentIndex - 1
+            : inferredCurrentIndex
+      } else if (!this.playQueue.length) {
+        this.currentQueueIndex = -1
+      }
+
+      return true
+    },
+
+    clearQueueExceptCurrent() {
+      if (!this.playQueue.length) {
+        this.currentQueueIndex = -1
+        return 0
+      }
+
+      const storedCurrentIndex = Number(this.currentQueueIndex)
+      const hasValidCurrentIndex =
+        Number.isInteger(storedCurrentIndex) &&
+        storedCurrentIndex >= 0 &&
+        storedCurrentIndex < this.playQueue.length
+      const currentIndex = hasValidCurrentIndex
+        ? storedCurrentIndex
+        : this.playQueue.findIndex(
+            item => String(item?.id || '') === String(this.currentSong?.id || ''),
+          )
+
+      if (currentIndex < 0) return 0
+
+      const currentEntry = this.playQueue[currentIndex]
+      const removedCount = this.playQueue.length - 1
+      this.playQueue = [currentEntry]
+      this.currentQueueIndex = 0
+      return removedCount
     },
 
     setPlayMode(mode) {
@@ -205,6 +312,7 @@ export const usePlayerStore = defineStore('global-player', {
     afterHydrate(ctx) {
       ctx.store.isPlaying = false
       ctx.store.autoPlayOnLoad = false
+      ctx.store.playQueue = ensureQueueEntryIds(ctx.store.playQueue)
     },
   },
 })
