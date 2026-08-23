@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { runAppBootstrap } from '@/utils/appBootstrap.js'
 
@@ -62,36 +62,48 @@ const props = defineProps({
 const emit = defineEmits(['complete'])
 
 const router = useRouter()
-
 const isVisible = ref(true)
 const progress = ref(0)
 const loadingText = ref('正在启动')
 
-let progressRaf = 0
-let startTime = 0
+// 持续运行的动画循环，只暴露 setTarget 接口。
+// 频繁调用 setTarget 只更新目标值，不打断循环。
+let displayProgress = 0
+let targetProgress = 0
+let rafId = 0
 
-// 进度条数值本身是真实的（来自 runAppBootstrap 的阶段权重），
-// 这里只是把"跳变"平滑成动画，不编造额外的时间消耗。
-function animateTo(target) {
-  const step = () => {
-    progress.value += Math.max(0.6, (target - progress.value) * 0.25)
-    if (progress.value >= target - 0.3) {
-      progress.value = target
-      return
-    }
-    progressRaf = requestAnimationFrame(step)
-  }
-  cancelAnimationFrame(progressRaf)
-  progressRaf = requestAnimationFrame(step)
+function setTarget(value) {
+  targetProgress = Math.max(targetProgress, Math.min(100, value))
+  if (!rafId) runLoop()
 }
+
+function runLoop() {
+  const tick = () => {
+    const gap = targetProgress - displayProgress
+    if (gap > 0.15) {
+      displayProgress += Math.max(0.4, gap * 0.15)
+      if (displayProgress > targetProgress) displayProgress = targetProgress
+    } else {
+      displayProgress = targetProgress
+    }
+    progress.value = Math.round(displayProgress)
+    if (displayProgress < 100) {
+      rafId = requestAnimationFrame(tick)
+    } else {
+      rafId = 0
+    }
+  }
+  rafId = requestAnimationFrame(tick)
+}
+
+let startTime = 0
 
 function finish() {
   const elapsed = Date.now() - startTime
   const remaining = Math.max(0, props.minDuration - elapsed)
   setTimeout(() => {
-    setTimeout(() => {
-      isVisible.value = false
-    }, 220)
+    setTarget(100)
+    setTimeout(() => { isVisible.value = false }, 220)
   }, remaining)
 }
 
@@ -105,14 +117,15 @@ onMounted(async () => {
     router,
     onProgress: (value, label) => {
       loadingText.value = label
-      animateTo(value)
+      setTarget(value)
     },
   })
   finish()
 })
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(progressRaf)
+  cancelAnimationFrame(rafId)
+  rafId = 0
 })
 </script>
 

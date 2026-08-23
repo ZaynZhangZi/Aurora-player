@@ -10,7 +10,12 @@
       "Bash(python3 /tmp/patch_cjk.py)",
       "Bash(npm list *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5174 -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(jobs -p)",
+      "Bash(xargs -r kill)",
+      "Bash(git reset *)"
     ]
   }
 }
