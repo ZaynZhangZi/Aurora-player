@@ -82,7 +82,7 @@ export const songsApi = {
 
 	//推荐新音乐可选参数 : limit: 取出数量 , 默认为 10 (不支持 offset)
 	getNewSongs() {
-		return apiClient.get(`/personalized/newsong?limit=3`);
+		return apiClient.get(`/personalized/newsong?limit=8`);
 	},
 
 	//获取精品歌单

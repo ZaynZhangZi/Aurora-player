@@ -77,8 +77,6 @@
             v-if="hero.media"
             :src="hero.media"
             :media-type="hero.mediaType"
-            :title="hero.title"
-            :content="hero.subtitle"
             :alt="hero.title ? `${hero.title} 首页推荐` : 'Aurora 首页推荐'"
             :image-width="1440"
             :lock-muted="true"
@@ -94,19 +92,7 @@
           </div>
           <div class="home-hero-shade" />
           <div class="home-hero-content">
-            <span class="home-hero-badge">CURATED FOR YOU</span>
-            <p class="home-greeting">{{ greeting }}</p>
             <h1 id="home-hero-title">{{ heroDisplayTitle }}</h1>
-            <p class="home-hero-description">{{ heroDisplaySubtitle }}</p>
-            <div class="home-hero-actions">
-              <button class="hero-button hero-button-primary" type="button" @click="startHeroPlayback">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                立即播放
-              </button>
-              <button class="hero-button hero-button-secondary" type="button" @click="scrollToSection('recommended')">
-                浏览推荐
-              </button>
-            </div>
           </div>
         </article>
 
@@ -120,7 +106,7 @@
           </div>
 
           <div v-if="continueLoading" class="continue-skeleton" aria-label="正在加载歌曲">
-            <span v-for="index in 3" :key="index" />
+            <span v-for="index in 5" :key="index" />
           </div>
           <div v-else-if="continueSongs.length" class="continue-list">
             <HomeSongRow
@@ -560,20 +546,13 @@ const {
 setupHomeSearchWatchers()
 
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
-const greeting = computed(() => {
-  const hour = new Date().getHours()
-  const timeGreeting = hour < 6 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好'
-  const name = String(userStore.nickname || '').trim()
-  return name ? `${timeGreeting}，${name}` : timeGreeting
-})
 const heroDisplayTitle = computed(() => {
   const dynamic = String(hero.value.title || '').trim()
   return dynamic && dynamic !== 'Now Playing' ? dynamic : '今天，听点不一样的'
 })
-const heroDisplaySubtitle = computed(() => String(hero.value.subtitle || '').trim() || '从熟悉的旋律出发，也为偶然遇见留一点位置。')
 const continueSongs = computed(() => {
-  const recent = recentListenSongs.value.slice(0, 3)
-  return recent.length ? recent : newSongs.value.slice(0, 3)
+  const recent = recentListenSongs.value.slice(0, 5)
+  return recent.length ? recent : newSongs.value.slice(0, 5)
 })
 const continuePanelTitle = computed(() => recentListenSongs.value.length ? '继续播放' : '先听这些')
 const continueLoading = computed(() => {
@@ -665,17 +644,6 @@ const homeSearchPopoverVisible = computed(() => (
 
 function openProfile() {
   router.push('/profile')
-}
-
-async function startHeroPlayback() {
-  const songs = continueSongs.value
-  if (songs.length) {
-    const source = recentListenSongs.value.length ? recentListenSongs.value : newSongs.value
-    await playSongWithQueue(songs[0], source, 0)
-    return
-  }
-  const playlist = recommendPlaylists.value[0]
-  if (playlist) await openPlaylist(playlist)
 }
 
 async function playContinueSong(song, index = 0) {
@@ -937,33 +905,27 @@ button { font-family: inherit; }
 .fallback-orbit-one { width: 560px; height: 560px; top: -210px; right: -80px; }
 .fallback-orbit-two { width: 370px; height: 370px; right: 20px; bottom: -200px; }
 .fallback-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
-.home-hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.42) 46%, rgba(14, 15, 19, 0.06) 78%), linear-gradient(0deg, rgba(14, 15, 19, 0.44), transparent 58%); }
+.home-hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 15, 19, 0.62) 0%, rgba(14, 15, 19, 0.3) 44%, rgba(14, 15, 19, 0.025) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.32), transparent 56%); }
 .home-hero-content { position: absolute; inset: auto auto 0 0; width: min(100%, 660px); padding: clamp(30px, 5vw, 62px); color: #fff; }
-.home-hero-badge { display: inline-flex; padding: 7px 11px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; background: rgba(255, 255, 255, 0.1); font-size: 9px; font-weight: 850; letter-spacing: 0.16em; backdrop-filter: blur(12px); }
-.home-greeting { margin: 22px 0 7px; color: rgba(255, 255, 255, 0.75); font-size: 14px; font-weight: 700; }
-.home-hero-content h1 { max-width: 590px; margin: 0; font-size: clamp(39px, 5.4vw, 68px); font-weight: 900; letter-spacing: -0.06em; line-height: 1.02; text-wrap: balance; }
-.home-hero-description { max-width: 470px; margin: 18px 0 0; color: rgba(255, 255, 255, 0.76); font-size: 13px; font-weight: 560; line-height: 1.7; }
-.home-hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 27px; }
-.hero-button { display: inline-flex; height: 46px; align-items: center; justify-content: center; gap: 8px; padding: 0 21px; cursor: pointer; border-radius: 999px; font-size: 13px; font-weight: 800; transition: transform 180ms ease, box-shadow 180ms ease; }
-.hero-button:hover { transform: translateY(-2px); }
-.hero-button svg { width: 15px; height: 15px; }
-.hero-button-primary { color: #fff; border: 0; background: linear-gradient(135deg, #f17483, #ef8c66); box-shadow: 0 14px 30px rgba(235, 100, 115, 0.32); }
-.hero-button-secondary { color: #fff; border: 1px solid rgba(255, 255, 255, 0.56); background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); }
+.home-hero-content h1 { max-width: 590px; margin: 0; font-size: clamp(34px, 4.5vw, 58px); font-weight: 900; letter-spacing: -0.055em; line-height: 1.04; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
 .continue-panel { display: grid; min-height: 410px; grid-template-rows: auto minmax(0, 1fr) auto; padding: 26px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 34px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 24px 65px rgba(52, 42, 40, 0.1); backdrop-filter: blur(20px); }
 .continue-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid rgba(24, 24, 27, 0.055); }
 .continue-heading p { margin: 0 0 6px; color: #e85769; font-size: 9px; font-weight: 850; letter-spacing: 0.16em; }
 .continue-heading h2 { margin: 0; color: #27272a; font-size: 24px; font-weight: 900; letter-spacing: -0.04em; }
 .continue-status { display: inline-flex; align-items: center; gap: 6px; color: #a1a1aa; font-size: 9px; font-weight: 720; }
 .continue-status i { width: 6px; height: 6px; border-radius: 50%; background: #6fcf97; box-shadow: 0 0 0 4px rgba(111, 207, 151, 0.14); }
-.continue-list { display: grid; align-content: center; gap: 2px; padding-block: 10px; }
+.continue-list { display: grid; height: 100%; min-height: 0; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 2px; padding-block: 7px; }
+.continue-list :deep(.song-row-compact) { box-sizing: border-box; height: 100%; min-height: 0; grid-template-columns: 48px minmax(0, 1fr) 34px; padding: 6px 4px; }
+.continue-list :deep(.song-row-compact .song-cover) { width: 48px; border-radius: 12px; }
+.continue-list :deep(.song-row-compact .song-play) { width: 30px; }
 .continue-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; color: #a1a1aa; border-top: 1px solid rgba(24, 24, 27, 0.055); font-size: 9px; font-weight: 650; }
 .continue-footer button { padding: 0; cursor: pointer; color: #e85769; border: 0; background: transparent; font: inherit; font-weight: 800; }
 .continue-empty { display: grid; place-content: center; justify-items: center; color: #a1a1aa; text-align: center; }
 .continue-empty-icon { display: grid; width: 48px; aspect-ratio: 1; place-items: center; color: #e85769; border-radius: 50%; background: #fff0f2; font-size: 22px; }
 .continue-empty p { margin: 11px 0; font-size: 12px; font-weight: 700; }
 .continue-empty button { padding: 8px 12px; cursor: pointer; color: #52525b; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 999px; background: #fff; font: inherit; font-size: 10px; font-weight: 750; }
-.continue-skeleton { display: grid; align-content: center; gap: 12px; }
-.continue-skeleton span { height: 68px; border-radius: 17px; background: linear-gradient(100deg, #f1f1f2 20%, #fff 45%, #f1f1f2 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
+.continue-skeleton { display: grid; height: 100%; min-height: 0; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 5px; padding-block: 7px; }
+.continue-skeleton span { min-height: 0; border-radius: 14px; background: linear-gradient(100deg, #f1f1f2 20%, #fff 45%, #f1f1f2 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
 .category-rail { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .category-rail button,
 .tag-list button,
@@ -1194,6 +1156,9 @@ button { font-family: inherit; }
   .discovery-studio { padding-inline: 4px; }
   .discovery-intro { grid-template-columns: minmax(210px, 0.62fr) minmax(240px, 1fr) auto; gap: 8px 24px; }
   .discovery-tabs button { padding-inline: 10px; }
+  .continue-list :deep(.song-row-compact) { grid-template-columns: 42px minmax(0, 1fr) 32px; padding-block: 5px; }
+  .continue-list :deep(.song-row-compact .song-cover) { width: 42px; border-radius: 11px; }
+  .continue-list :deep(.song-row-compact .song-play) { width: 28px; }
   .podcast-list button { grid-template-columns: 18px 76px minmax(0, 1fr) 16px; gap: 9px; }
   .podcast-cover { width: 76px; }
 }
@@ -1264,7 +1229,6 @@ button { font-family: inherit; }
   .home-hero-card { min-height: 510px; border-radius: 26px; }
   .home-hero-content { padding: 25px; }
   .home-hero-content h1 { font-size: 42px; }
-  .home-hero-description { font-size: 12px; }
   .continue-panel { padding: 20px; border-radius: 26px; }
   .category-rail { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
   .category-rail::-webkit-scrollbar { display: none; }
