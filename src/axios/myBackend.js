@@ -25,10 +25,14 @@ const requestLocal = axios.create({
 
 requestLocal.interceptors.request.use(
   (config) => {
-    config.params = {
-      ...config.params,
-      timestamp: Date.now(),
+    const cacheBust = Boolean(config.cacheBust)
+    if (cacheBust) {
+      config.params = {
+        ...config.params,
+        timestamp: Date.now(),
+      }
     }
+    delete config.cacheBust
 
     const userStore = useCounterStore()
     const token = userStore?.token || userStore?.getUserCookie

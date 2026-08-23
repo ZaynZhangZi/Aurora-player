@@ -8,7 +8,12 @@
         :media-type="hero.mediaType"
         :title="hero.title"
         :content="hero.subtitle"
+        :alt="hero.title ? `${hero.title} 首页推荐` : 'Aurora Player 首页推荐'"
+        :image-width="1600"
         :lock-muted="true"
+        img-loading="eager"
+        fetch-priority="high"
+        sizes="100vw"
       />
       <!-- Soft Light Mask Gradients -->
       <div class="absolute inset-0 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/40 to-black/[0.02]" />
@@ -53,10 +58,21 @@
             :key="item.id"
             class="motion-card group cursor-pointer"
             :style="getPlaylistCardTransitionStyle(item)"
+            role="button"
+            tabindex="0"
+            :aria-label="`打开歌单：${item.name}`"
             @click="openPlaylist(item, $event)"
+            @keydown.enter.prevent="openPlaylist(item, $event)"
+            @keydown.space.prevent="openPlaylist(item, $event)"
           >
             <div class="relative aspect-square overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-black/[0.04] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_30px_60px_rgba(0,0,0,0.08)] group-hover:ring-black/[0.08]" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <SmartMedia
+                :src="item.picUrl"
+                :alt="`${item.name} 封面`"
+                :image-width="480"
+                sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
               <!-- Glass Hover Dynamic Overlay -->
               <div class="absolute inset-0 bg-black/[0.02] opacity-0 transition-opacity duration-500 group-hover:opacity-100 flex items-center justify-center">
                 <div class="scale-90 opacity-0 transition-all duration-500 group-hover:scale-100 group-hover:opacity-100 flex h-14 w-14 items-center justify-center rounded-full bg-white text-zinc-900 shadow-xl border border-black/[0.04]">
@@ -99,14 +115,19 @@
             :key="item.id"
             class="motion-card group flex cursor-pointer items-center gap-5 rounded-[24px] p-3.5 bg-white border border-black/[0.02] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-300 hover:bg-white hover:shadow-[0_20px_40px_rgba(0,0,0,0.05)] hover:border-black/[0.06]"
             :style="getPlaylistCardTransitionStyle(item)"
+            role="button"
+            tabindex="0"
+            :aria-label="`打开歌单：${item.name}`"
             @click="openPlaylist(item, $event)"
+            @keydown.enter.prevent="openPlaylist(item, $event)"
+            @keydown.space.prevent="openPlaylist(item, $event)"
           >
             <div class="h-22 w-22 shrink-0 overflow-hidden rounded-[18px] shadow-sm ring-1 ring-black/[0.04] transition-transform duration-500 group-hover:scale-[1.03]" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.coverImgUrl" class="h-full w-full object-cover" />
+              <SmartMedia :src="item.coverImgUrl" :alt="`${item.name} 封面`" :image-width="192" sizes="88px" class="h-full w-full object-cover" />
             </div>
             <div class="min-w-0 flex-1 pr-2">
               <p class="truncate text-base font-bold text-zinc-900 group-hover:text-zinc-700 transition-colors">{{ item.name }}</p>
-              <p class="mt-1.5 line-clamp-2 text-[13px] font-medium leading-relaxed text-zinc-400">{{ item.copywriter || item.description || '精选音乐集合' }}</p>
+              <p class="mt-1.5 line-clamp-2 text-[13px] font-medium leading-relaxed text-zinc-600">{{ item.copywriter || item.description || '精选音乐集合' }}</p>
             </div>
           </article>
         </div>
@@ -118,7 +139,7 @@
           <h2 class="text-xl font-bold tracking-tight text-zinc-900">最近听歌</h2>
 
           <div v-if="recentListenSongs.length > 0" class="flex items-center gap-2.5 text-xs animate-fade-in">
-            <span class="text-[11px] font-bold text-zinc-400 bg-white border border-black/[0.04] px-2.5 py-1 rounded shadow-sm">
+            <span class="text-[11px] font-bold text-zinc-600 bg-white border border-black/[0.04] px-2.5 py-1 rounded shadow-sm">
               {{ recentScrollPage }} / {{ recentScrollTotalPages }}
             </span>
 
@@ -127,6 +148,7 @@
                 class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-zinc-200 text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed"
                 type="button"
                 :disabled="recentScrollPage <= 1"
+                aria-label="最近听歌上一页"
                 @click="scrollRecent(-1)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
@@ -136,6 +158,7 @@
                 class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-zinc-200 text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed"
                 type="button"
                 :disabled="recentScrollPage >= recentScrollTotalPages"
+                aria-label="最近听歌下一页"
                 @click="scrollRecent(1)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
@@ -168,7 +191,13 @@
               @click="handleRecentSongClick(song, index, $event)"
             >
               <div class="relative aspect-square w-full overflow-hidden rounded-xl border border-black/[0.04] shadow-sm bg-white/40 backdrop-blur-sm mb-3">
-                <SmartMedia :src="song.cover || song.al?.picUrl || song.album?.picUrl || ''" class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]" />
+                <SmartMedia
+                  :src="song.cover || song.al?.picUrl || song.album?.picUrl || ''"
+                  :alt="`${song.name} 封面`"
+                  :image-width="320"
+                  sizes="160px"
+                  class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                />
 
                 <div class="absolute inset-0 bg-black/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
                   <div class="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-[#0071E3] shadow-md border border-black/[0.02] backdrop-blur-md transform scale-95 group-hover:scale-100 transition-transform duration-300">
@@ -179,7 +208,7 @@
 
               <div class="px-0.5">
                 <p class="truncate text-[13.5px] font-semibold text-zinc-900 transition-colors duration-200 group-hover:text-[#0071E3]">{{ song.name }}</p>
-                <ArtistLinks :artists="getSongArtists(song)" class="mt-0.5 truncate text-[11.5px] font-medium text-zinc-400 block" />
+                <ArtistLinks :artists="getSongArtists(song)" class="mt-0.5 truncate text-[11.5px] font-medium text-zinc-600 block" />
               </div>
             </button>
 
@@ -195,7 +224,7 @@
             <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">热门榜单</h2>
             <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
           </div>
-          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 bg-white border border-black/[0.04] px-2.5 py-1 rounded-md shadow-sm">Top Charts</span>
+          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 bg-white border border-black/[0.04] px-2.5 py-1 rounded-md shadow-sm">Top Charts</span>
         </div>
 
         <p v-if="loading.rank" class="animate-pulse text-sm font-semibold text-zinc-400">正在分析流行数据...</p>
@@ -207,21 +236,26 @@
             :key="rank.id"
             class="group cursor-pointer rounded-[32px] bg-white p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] ring-1 ring-black/[0.03] transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_rgba(0,0,0,0.06)] hover:ring-black/[0.06]"
             :style="getPlaylistCardTransitionStyle(rank)"
+            role="button"
+            tabindex="0"
+            :aria-label="`打开榜单：${rank.name}`"
             @click="openPlaylist(rank, $event)"
+            @keydown.enter.prevent="openPlaylist(rank, $event)"
+            @keydown.space.prevent="openPlaylist(rank, $event)"
           >
             <div class="mb-6 flex items-center gap-5">
               <div class="h-20 w-20 shrink-0 overflow-hidden rounded-[20px] shadow-sm ring-1 ring-black/[0.04]" data-playlist-hero-cover :data-playlist-id="rank.id" :style="getPlaylistCoverTransitionStyle(rank)">
-                <SmartMedia :src="rank.coverImgUrl" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                <SmartMedia :src="rank.coverImgUrl" :alt="`${rank.name} 封面`" :image-width="160" sizes="80px" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               </div>
               <div>
                 <p class="text-xl font-black tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700">{{ rank.name }}</p>
-                <p class="mt-1 text-[12px] font-bold text-zinc-400 bg-zinc-50 border border-black/[0.03] px-2 py-0.5 rounded inline-block">{{ rank.updateFrequency || '实时更新' }}</p>
+                <p class="mt-1 text-[12px] font-bold text-zinc-600 bg-zinc-50 border border-black/[0.03] px-2 py-0.5 rounded inline-block">{{ rank.updateFrequency || '实时更新' }}</p>
               </div>
             </div>
             <div class="space-y-3 rounded-2xl bg-zinc-50/60 border border-black/[0.01] p-4.5">
               <p v-for="(item, idx) in rank.tracks || []" :key="`${rank.id}-${idx}`" class="truncate text-[13px] font-semibold text-zinc-700 flex items-center">
-                <span class="mr-3.5 font-black text-center w-4 text-[14px]" :class="idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-zinc-400' : idx === 2 ? 'text-amber-700' : 'text-zinc-300'">{{ idx + 1 }}</span>
-                <span class="truncate flex-1 group-hover:text-zinc-900 transition-colors">{{ item.first }} <span class="text-zinc-400 font-medium">- {{ item.second }}</span></span>
+                <span class="mr-3.5 font-black text-center w-4 text-[14px]" :class="idx === 0 ? 'text-amber-600' : idx === 1 ? 'text-zinc-600' : idx === 2 ? 'text-amber-700' : 'text-zinc-500'">{{ idx + 1 }}</span>
+                <span class="truncate flex-1 group-hover:text-zinc-900 transition-colors">{{ item.first }} <span class="text-zinc-600 font-medium">- {{ item.second }}</span></span>
               </p>
             </div>
           </article>
@@ -243,16 +277,21 @@
             v-for="item in podcastPrograms"
             :key="item.id"
             class="group cursor-pointer overflow-hidden rounded-[28px] bg-white border border-black/[0.03] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_rgba(0,0,0,0.05)] hover:border-black/[0.06]"
+            role="button"
+            tabindex="0"
+            :aria-label="`播放播客：${item.name}`"
             @click="openPodcast(item)"
+            @keydown.enter.prevent="openPodcast(item)"
+            @keydown.space.prevent="openPodcast(item)"
           >
             <div class="aspect-[16/10] overflow-hidden relative border-b border-black/[0.02]">
-              <SmartMedia :src="item.picUrl" class="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              <SmartMedia :src="item.picUrl" :alt="`${item.name} 封面`" :image-width="640" sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" class="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
             </div>
             <div class="p-6">
               <p class="line-clamp-2 text-base font-bold leading-snug text-zinc-900 transition-colors group-hover:text-zinc-700">{{ item.name }}</p>
               <div class="mt-5 flex items-center justify-between gap-4 border-t border-zinc-100 pt-4">
-                <p class="truncate text-[13px] font-semibold text-zinc-400">{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</p>
-                <span class="shrink-0 rounded-full bg-zinc-50 border border-black/[0.03] px-2.5 py-0.5 text-[11px] font-bold text-zinc-400 tracking-wide">{{ formatPodcastDuration(item.program?.duration) }}</span>
+                <p class="truncate text-[13px] font-semibold text-zinc-600">{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</p>
+                <span class="shrink-0 rounded-full bg-zinc-50 border border-black/[0.03] px-2.5 py-0.5 text-[11px] font-bold text-zinc-600 tracking-wide">{{ formatPodcastDuration(item.program?.duration) }}</span>
               </div>
             </div>
           </article>
@@ -283,17 +322,17 @@
         <!-- Secondary Filters Bar -->
         <div class="mb-8 flex flex-wrap items-center gap-3" v-if="activeMvSource === 'all' || activeMvSource === 'latest'">
           <div class="relative">
-            <select v-model="mvArea" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
+            <select v-model="mvArea" aria-label="MV 地区" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
               <option v-for="area in mvAreas" :key="area" :value="area">地区: {{ area }}</option>
             </select>
           </div>
           <div class="relative" v-if="activeMvSource === 'all'">
-            <select v-model="mvType" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
+            <select v-model="mvType" aria-label="MV 类型" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
               <option v-for="type in mvTypes" :key="type" :value="type">类型: {{ type }}</option>
             </select>
           </div>
           <div class="relative" v-if="activeMvSource === 'all'">
-            <select v-model="mvOrder" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
+            <select v-model="mvOrder" aria-label="MV 排序方式" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
               <option v-for="order in mvOrders" :key="order" :value="order">排序: {{ order }}</option>
             </select>
           </div>
@@ -302,6 +341,7 @@
             type="button"
             @click="loadMvList({reset: true})"
             title="刷新"
+            aria-label="刷新 MV 列表"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
           </button>
@@ -315,10 +355,15 @@
             v-for="item in mvList"
             :key="item.id"
             class="motion-card group cursor-pointer"
+            role="button"
+            tabindex="0"
+            :aria-label="`播放 MV：${item.name}`"
             @click="openMv(item)"
+            @keydown.enter.prevent="openMv(item)"
+            @keydown.space.prevent="openMv(item)"
           >
             <div class="relative aspect-video overflow-hidden rounded-[24px] bg-white border border-black/[0.03] shadow-md transition-all duration-500 group-hover:-translate-y-1.5 group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] group-hover:border-black/[0.06]">
-              <SmartMedia :src="item.cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <SmartMedia :src="item.cover" :alt="`${item.name} 封面`" :image-width="640" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
               <!-- Modern Light Play Counter Badge -->
               <div class="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-zinc-900 shadow-sm backdrop-blur-md border border-black/[0.04]">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="text-zinc-800"><path d="M8 5v14l11-7z" /></svg>
@@ -327,7 +372,7 @@
             </div>
             <div class="mt-4 px-1">
               <p class="truncate text-[15px] font-bold text-zinc-900 transition-colors group-hover:text-zinc-700">{{ item.name }}</p>
-              <p class="mt-1 truncate text-[13px] font-semibold text-zinc-400">{{ item.artistName || '未知歌手' }}</p>
+              <p class="mt-1 truncate text-[13px] font-semibold text-zinc-600">{{ item.artistName || '未知歌手' }}</p>
             </div>
           </article>
           <p v-if="!mvList.length" class="text-sm font-semibold text-zinc-400 py-6">暂无 MV 数据</p>
@@ -339,6 +384,7 @@
             class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:bg-zinc-50 disabled:opacity-30"
             type="button"
             :disabled="mvOffset <= 0 || loading.mv"
+            aria-label="MV 上一页"
             @click="prevMvPage"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
@@ -348,6 +394,7 @@
             class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:bg-zinc-50 disabled:opacity-30"
             type="button"
             :disabled="!mvHasMore || loading.mv"
+            aria-label="MV 下一页"
             @click="nextMvPage"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
@@ -370,14 +417,19 @@
             v-for="artist in hotArtists"
             :key="artist.id"
             class="group cursor-pointer text-center"
+            role="button"
+            tabindex="0"
+            :aria-label="`打开艺人：${artist.name}`"
             @click="openArtist(artist, $event)"
+            @keydown.enter.prevent="openArtist(artist, $event)"
+            @keydown.space.prevent="openArtist(artist, $event)"
           >
             <div
               class="mx-auto aspect-square w-full max-w-[150px] overflow-hidden rounded-full shadow-[0_12px_28px_rgba(0,0,0,0.04)] border border-white transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] group-hover:ring-zinc-900"
               data-artist-hero-cover
               :data-artist-id="artist.id"
             >
-              <SmartMedia :src="artist.picUrl" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <SmartMedia :src="artist.picUrl" :alt="`${artist.name} 头像`" :image-width="320" sizes="150px" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             </div>
             <p class="mt-5 truncate text-[15px] font-black text-zinc-900 transition-colors group-hover:text-zinc-600">{{ artist.name }}</p>
           </article>
@@ -400,6 +452,7 @@
               <div class="relative" v-if="mvResolutions.length">
                 <select
                   v-model="selectedMvResolution"
+                  aria-label="MV 清晰度"
                   class="appearance-none rounded-full bg-zinc-50 border border-zinc-200 pl-4 pr-8 py-1.5 text-xs font-bold text-zinc-700 outline-none transition hover:bg-zinc-100 cursor-pointer"
                   @change="changeMvResolution"
                 >
@@ -830,6 +883,69 @@ function openReleaseNotesPanel() {
   }
 }
 
+let deferredHomeTask = null
+let deferredHomeLoadsCancelled = false
+
+function cancelDeferredHomeTask() {
+  deferredHomeLoadsCancelled = true
+  if (!deferredHomeTask) return
+  if (deferredHomeTask.type === 'idle') {
+    window.cancelIdleCallback?.(deferredHomeTask.id)
+  } else {
+    window.clearTimeout(deferredHomeTask.id)
+  }
+  deferredHomeTask = null
+}
+
+function scheduleDeferredHomeLoads() {
+  deferredHomeLoadsCancelled = false
+  const loaders = [
+    loadTopPlaylists,
+    loadRecentListenSongs,
+    loadTopRanks,
+    loadNewSongs,
+    loadPodcastPrograms,
+    () => loadMvList({reset: true}),
+    loadHotArtists,
+    loadHighQualityPlaylists,
+  ]
+  let index = 0
+
+  const scheduleNext = () => {
+    if (deferredHomeLoadsCancelled || index >= loaders.length) return
+
+    const run = async () => {
+      deferredHomeTask = null
+      const loader = loaders[index]
+      index += 1
+      try {
+        await loader()
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[home] deferred section load failed', error)
+        }
+      } finally {
+        scheduleNext()
+      }
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      deferredHomeTask = {
+        type: 'idle',
+        id: window.requestIdleCallback(run, {timeout: 1200}),
+      }
+      return
+    }
+
+    deferredHomeTask = {
+      type: 'timeout',
+      id: window.setTimeout(run, 300),
+    }
+  }
+
+  scheduleNext()
+}
+
 onMounted(() => {
   requestAnimationFrame(() => {
     setupMotionEffects()
@@ -840,14 +956,7 @@ onMounted(() => {
   loadHomeBanner()
   loadReleaseNotes()
   loadRecommendPlaylists()
-  loadTopPlaylists()
-  loadNewSongs()
-  loadRecentListenSongs()
-  loadTopRanks()
-  loadPodcastPrograms()
-  loadMvList({reset: true})
-  loadHotArtists()
-  loadHighQualityPlaylists()
+  scheduleDeferredHomeLoads()
 
   nextTick(updateRecentScrollState)
   window.addEventListener('resize', updateRecentScrollState)
@@ -894,6 +1003,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  cancelDeferredHomeTask()
   cleanupMotionEffects()
   stopHeroCopyCycle()
   closeMvPlayer()
@@ -908,7 +1018,7 @@ onBeforeUnmount(() => {
 
 .hero-copy-block {
   transform-origin: left bottom;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
 }
 
 .hero-copy-spring-enter-active {
@@ -925,17 +1035,14 @@ onBeforeUnmount(() => {
 @keyframes hero-copy-spring-in {
   0% {
     opacity: 0;
-    filter: blur(16px);
     transform: translate3d(0, 24px, 0) scale(0.965);
   }
   58% {
     opacity: 1;
-    filter: blur(1px);
     transform: translate3d(0, -4px, 0) scale(1.018);
   }
   100% {
     opacity: 1;
-    filter: blur(0);
     transform: translate3d(0, 0, 0) scale(1);
   }
 }
@@ -943,12 +1050,10 @@ onBeforeUnmount(() => {
 @keyframes hero-copy-spring-out {
   0% {
     opacity: 1;
-    filter: blur(0);
     transform: translate3d(0, 0, 0) scale(1);
   }
   100% {
     opacity: 0;
-    filter: blur(14px);
     transform: translate3d(0, -22px, 0) scale(1.028);
   }
 }
@@ -1005,6 +1110,7 @@ onBeforeUnmount(() => {
 
 @supports (content-visibility: auto) {
   .motion-section {
+    content-visibility: auto;
     contain-intrinsic-size: 1px 760px;
   }
 }

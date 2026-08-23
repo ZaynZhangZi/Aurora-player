@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { visitApi } from '@/api/visitApi/visitApi.js'
+import SystemStatus from '@/view/systemStatus.vue'
 
 const routeScrollPositionMap = new Map()
 let navigatingBackMarkedAt = 0
@@ -92,6 +93,20 @@ const router = createRouter({
       name: 'releaseNotes',
       component: () => import('@/view/releaseNotes/releaseNotes.vue'),
     },
+    {
+      path: '/error',
+      name: 'routeError',
+      component: SystemStatus,
+      props: { type: 'error' },
+      meta: { title: '页面出错' },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'notFound',
+      component: SystemStatus,
+      props: { type: 'not-found' },
+      meta: { title: '页面未找到' },
+    },
   ],
 })
 
@@ -103,7 +118,36 @@ router.beforeEach((to, from, next) => {
 })
 
 router.afterEach((to) => {
+  document.title = to.meta?.title ? `${to.meta.title} - AuroraPlayer` : 'AuroraPlayer'
   visitApi.report(to).catch(() => {})
+})
+
+const ROUTE_ERROR_STORAGE_KEY = 'aurora-route-error'
+
+export function showRouteError(error, from = '') {
+  try {
+    window.sessionStorage.setItem(ROUTE_ERROR_STORAGE_KEY, JSON.stringify({
+      message: error instanceof Error ? error.message : String(error || '未知错误'),
+      from,
+      occurredAt: Date.now(),
+    }))
+  } catch {
+    // Storage may be disabled; the fallback page remains available.
+  }
+
+  if (router.currentRoute.value.name === 'routeError') return Promise.resolve()
+
+  return router.replace({
+    name: 'routeError',
+    query: from ? { from } : {},
+  })
+}
+
+router.onError((error, to) => {
+  if (import.meta.env.DEV) {
+    console.error('[router] navigation failed', error)
+  }
+  void showRouteError(error, to?.fullPath || router.currentRoute.value.fullPath).catch(() => {})
 })
 
 export default router

@@ -16,7 +16,7 @@ export function useHomeMotion() {
         () => {
           animate(
             el,
-            { opacity: [0, 1], y: [24, -3, 0], scale: [0.985, 1.01, 1], filter: ['blur(10px)', 'blur(1px)', 'blur(0px)'] },
+            { opacity: [0, 1], y: [24, -3, 0], scale: [0.985, 1.01, 1] },
             { type: 'spring', stiffness: 210, damping: 25, mass: 0.72 },
           )
         },

@@ -2,11 +2,15 @@
 	<!-- 🎬 开屏动画 -->
 	<AppSplashScreen
 		v-if="showSplash"
-		:min-duration="900"
+		:min-duration="280"
 		@complete="onSplashComplete"
 	/>
 
-	<div v-show="!showSplash" class="app-shell">
+	<div
+		class="app-shell"
+		:inert="showSplash ? '' : null"
+		:aria-hidden="showSplash ? 'true' : null"
+	>
 		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
 		<floatingSearchFab />
 		<div ref="contentRef" class="app-content">
@@ -65,12 +69,28 @@ const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
 
-// 🎬 开屏动画状态
-const showSplash = ref(true);
+const SPLASH_SESSION_KEY = "aurora-splash-seen";
+
+function shouldShowSplash() {
+	try {
+		return window.sessionStorage.getItem(SPLASH_SESSION_KEY) !== "1";
+	} catch (error) {
+		void error;
+		return true;
+	}
+}
+
+// 每个会话只展示一次短开屏；页面主体会在遮罩后正常渲染。
+const showSplash = ref(shouldShowSplash());
 
 // 开屏动画完成回调
 function onSplashComplete() {
 	showSplash.value = false;
+	try {
+		window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
+	} catch (error) {
+		void error;
+	}
 	// 动画完成后触发路由进入动画
 	nextTick(() => {
 		runRouteEnterMotion();
@@ -83,6 +103,11 @@ onMounted(() => {
 	const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	if (prefersReducedMotion) {
 		showSplash.value = false;
+		try {
+			window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
+		} catch (error) {
+			void error;
+		}
 	}
 });
 
@@ -241,7 +266,8 @@ async function forceLogoutForRestriction(statusInfo) {
 	stopUserStatusPolling();
 	try {
 		await userApi.logout();
-	} catch {
+	} catch (error) {
+		void error;
 	}
 	userStore.logout();
 	showRestrictionDialog(statusInfo);
@@ -258,7 +284,8 @@ async function checkCurrentUserStatus() {
 		if (isRestrictedStatus(statusInfo?.status)) {
 			await forceLogoutForRestriction(statusInfo);
 		}
-	} catch {
+	} catch (error) {
+		void error;
 	} finally {
 		checkingUserStatus = false;
 	}
@@ -282,7 +309,7 @@ function runRouteEnterMotion() {
   if (!contentRef.value) return;
   animate(
     contentRef.value,
-    { opacity: [0, 1], y: [16, -2, 0], scale: [0.992, 1.004, 1], filter: ["blur(8px)", "blur(1px)", "blur(0px)"] },
+    { opacity: [0, 1], y: [16, -2, 0], scale: [0.992, 1.004, 1] },
 		{ type: "spring", stiffness: 240, damping: 28, mass: 0.68 },
 	);
 }

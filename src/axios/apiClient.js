@@ -68,15 +68,22 @@ axiosInstance.interceptors.request.use(
         const loginCookie = normalizeCookieString(store.getUserCookie || readStoredCookieFallback());
         const noCookie = Boolean(config.params?.noCookie);
 
-        // 添加时间戳参数
-        config.params = {
-            ...config.params,
-            timestamp: new Date().getTime(),
-        };
+        // 默认保留 GET/HEAD 缓存；确实需要强制刷新的接口可显式传 cacheBust: true。
+        const cacheBust = Boolean(config.cacheBust);
+        if (cacheBust) {
+            config.params = {
+                ...config.params,
+                timestamp: Date.now(),
+            };
+        }
+        delete config.cacheBust;
 
         // 关键：通过 query 透传 cookie，避免浏览器端无法可靠写入后端域 Cookie
-        if (loginCookie && !config.params.cookie && !noCookie) {
-            config.params.cookie = loginCookie;
+        if (loginCookie && !config.params?.cookie && !noCookie) {
+            config.params = {
+                ...config.params,
+                cookie: loginCookie,
+            };
         }
 
         // 检查是否存在 Cookie，存在时可在请求头中添加

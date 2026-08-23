@@ -35,6 +35,7 @@
             <button
               ref="btn"
               :aria-pressed="expanded"
+              :aria-label="expanded ? '关闭导航与搜索' : '打开导航与搜索'"
               :class="[expanded ? 'scale-95' : 'scale-100', btnToneClass]"
               class="grid place-items-center size-12 transition-transform duration-300 will-change-transform"
               type="button"
@@ -74,6 +75,7 @@
                   :class="inputToneClass"
                   class="w-full h-full text-base sm:text-sm bg-transparent outline-none ring-0 focus:ring-0 focus:outline-none transition-all duration-300 placeholder:text-sm"
                   type="text"
+                  aria-label="搜索音乐、歌手或歌单"
                   @keydown.enter="handleSearchEnter"
                   @keydown.down.prevent="moveSelection(1)"
                   @keydown.up.prevent="moveSelection(-1)"
@@ -100,6 +102,7 @@
                     :class="chipSoftToneClass"
                     class="relative flex items-center gap-1.5 rounded-full p-0.5 pr-2 sm:px-2.5 sm:py-1.5 transition"
                     type="button"
+                    aria-label="打开账户菜单"
                     @click.stop="toggleProfileMenu"
                   >
                     <img
@@ -397,7 +400,7 @@
                    class="panel-anim relative w-full max-w-[95vw] sm:max-w-sm rounded-2xl bg-white p-5 sm:p-6 shadow-2xl">
         <button ref="closeBtn"
                 :class="['absolute right-3 top-3 sm:right-4 sm:top-4 p-2 text-gray-400 transition-transform hover:scale-110 hover:text-gray-600 focus:outline-none rounded-full', { 'no-hover': isClosing }]"
-                type="button" @click="setIsOpen(false)">
+                type="button" aria-label="关闭扫码登录" @click="setIsOpen(false)">
           <XMarkIcon class="size-5 sm:size-6"/>
         </button>
         <DialogTitle class="text-lg font-semibold text-gray-900 mt-2 sm:mt-0">扫码登录</DialogTitle>

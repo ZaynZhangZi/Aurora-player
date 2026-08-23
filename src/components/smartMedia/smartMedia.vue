@@ -12,9 +12,12 @@
       :key="imgSrc"
       class="relative z-1 block w-full h-full"
       :src="imgSrc"
+      :srcset="imgSrcSet || undefined"
+      :sizes="sizes || undefined"
       :alt="alt"
       :decoding="decoding"
       :loading="imgLoading"
+      :fetchpriority="fetchPriority"
       :referrerpolicy="referrerPolicy"
       :style="mediaStyle"
       @load="onLoaded"
@@ -27,7 +30,7 @@
       :key="videoPrimarySrc"
       class="relative z-1 block w-full h-full"
       :src="videoPrimarySrc"
-      :poster="poster"
+      :poster="optimizedPoster"
       :autoplay="autoplay"
       :muted="muted"
       :loop="loop"
@@ -101,6 +104,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch, onBeforeUnmount, onMounted } from 'vue'
+import { buildImageSrcSet, getOptimizedImageUrl, normalizeMediaUrl } from '@/utils/mediaUrl.js'
 
 /**
  * 允许的扩展名
@@ -143,7 +147,15 @@ const props = defineProps({
 
   // 图片控制
   imgLoading: { type: String, default: 'lazy' }, // eager/lazy
-  decoding: { type: String, default: 'auto' }, // sync/async/auto
+  decoding: { type: String, default: 'async' }, // sync/async/auto
+  fetchPriority: { type: String, default: 'auto' }, // high/low/auto
+  imageWidth: { type: Number, default: 640 },
+  imageHeight: { type: Number, default: 0 },
+  responsiveWidths: {
+    type: Array,
+    default: () => [160, 240, 320, 480, 640, 960, 1280, 1600],
+  },
+  sizes: { type: String, default: '' },
   referrerPolicy: { type: String, default: undefined },
 
   // 交互
@@ -325,14 +337,28 @@ function revokeAll() {
  */
 const imgSrc = computed(() => {
   const firstImg = srcList.value.find(isImageSrc)
-  return firstImg ? toUrl(firstImg) : (srcList.value[0] ? toUrl(srcList.value[0]) : '')
+  const value = firstImg ? toUrl(firstImg) : (srcList.value[0] ? toUrl(srcList.value[0]) : '')
+  if (!value || isBlobLike(firstImg)) return value
+  return getOptimizedImageUrl(value, {
+    width: props.imageWidth,
+    height: props.imageHeight || props.imageWidth,
+  })
 })
+
+const imgSrcSet = computed(() => {
+  if (!props.sizes) return ''
+  const firstImg = srcList.value.find(isImageSrc)
+  if (!firstImg || isBlobLike(firstImg)) return ''
+  return buildImageSrcSet(firstImg, props.responsiveWidths)
+})
+
+const optimizedPoster = computed(() => getOptimizedImageUrl(props.poster, {width: props.imageWidth}))
 
 const rawVideoSources = computed(() => srcList.value.filter(isVideoSrc))
 
 const videoPrimarySrc = computed(() => {
-  if (rawVideoSources.value.length) return toUrl(rawVideoSources.value[0])
-  return srcList.value[0] ? toUrl(srcList.value[0]) : ''
+  if (rawVideoSources.value.length) return normalizeMediaUrl(toUrl(rawVideoSources.value[0]))
+  return srcList.value[0] ? normalizeMediaUrl(toUrl(srcList.value[0])) : ''
 })
 
 /**
@@ -340,7 +366,7 @@ const videoPrimarySrc = computed(() => {
  */
 const videoSourceList = computed(() => {
   return rawVideoSources.value.map(s => {
-    const url = toUrl(s)
+    const url = normalizeMediaUrl(toUrl(s))
     return { url, type: guessMimeFromUrl(url) }
   })
 })

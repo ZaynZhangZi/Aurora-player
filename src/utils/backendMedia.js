@@ -1,3 +1,5 @@
+import { normalizeMediaUrl } from '@/utils/mediaUrl.js'
+
 const DEFAULT_BACKEND_BASE = '/backend-api'
 
 function trimRightSlash(value) {
@@ -17,7 +19,7 @@ export function toBackendMediaUrl(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
   if (/^blob:|^data:/i.test(raw)) return raw
-  if (/^https?:\/\//i.test(raw)) return raw
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('//')) return normalizeMediaUrl(raw)
   const base = backendBaseUrl()
   if (raw.startsWith(`${base}/`)) return raw
   if (raw.startsWith('/api/')) return `${base}${raw}`

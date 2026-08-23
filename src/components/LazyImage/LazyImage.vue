@@ -90,18 +90,21 @@ function startObserving() {
   observer = createImageObserver((target) => {
     if (target === containerRef.value) {
       loadImage()
+      observer?.unobserve(target)
     }
   })
 
   if (observer && containerRef.value) {
     observer.observe(containerRef.value)
+    return
   }
+
+  loadImage()
 }
 
 function stopObserving() {
-  if (observer && containerRef.value) {
-    observer.unobserve(containerRef.value)
-  }
+  observer?.disconnect()
+  observer = null
 }
 
 watch(() => props.src, () => {

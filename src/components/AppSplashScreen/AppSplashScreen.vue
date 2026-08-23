@@ -103,7 +103,7 @@ function finish() {
   const remaining = Math.max(0, props.minDuration - elapsed)
   setTimeout(() => {
     setTarget(100)
-    setTimeout(() => { isVisible.value = false }, 220)
+    setTimeout(() => { isVisible.value = false }, 80)
   }, remaining)
 }
 
@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .splash-fade-leave-active {
-  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .splash-fade-leave-to {
@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
 }
 
 .splash-logo {
-  animation: logoIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: logoIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes logoIn {
@@ -154,15 +154,15 @@ onBeforeUnmount(() => {
 }
 
 .splash-title {
-  animation: fadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+  animation: fadeUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
 }
 
 .splash-bar-track {
-  animation: fadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+  animation: fadeUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
 }
 
 .splash-text {
-  animation: fadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+  animation: fadeUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
 }
 
 @keyframes fadeUp {

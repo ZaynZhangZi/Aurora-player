@@ -58,18 +58,14 @@ export function rafThrottle(func) {
 }
 
 // 4. 图片懒加载观察器
-let imageObserver = null
-
 export function createImageObserver(callback) {
-  if (imageObserver) return imageObserver
-
   if ('IntersectionObserver' in window) {
-    imageObserver = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             callback(entry.target)
-            imageObserver.unobserve(entry.target)
+            observer.unobserve(entry.target)
           }
         })
       },
@@ -78,9 +74,10 @@ export function createImageObserver(callback) {
         threshold: 0.01,
       }
     )
+    return observer
   }
 
-  return imageObserver
+  return null
 }
 
 // 5. 检测设备性能等级

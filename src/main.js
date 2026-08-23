@@ -3,8 +3,7 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { createApp } from "vue";
 
 import App from "./App.vue";
-import router from "./router";
-import { prewarmAutomixEngine } from "./utils/automixEngine.js";
+import router, { showRouteError } from "./router";
 import { installBehaviorTracker } from "./utils/behaviorTracker.js";
 
 import "./index.css";
@@ -20,6 +19,13 @@ if (import.meta.env.DEV) {
 
 const app = createApp(App);
 
+app.config.errorHandler = (error, _instance, info) => {
+  if (import.meta.env.DEV) {
+    console.error(`[vue] ${info}`, error);
+  }
+  void showRouteError(error, router.currentRoute.value.fullPath).catch(() => {});
+};
+
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
 
@@ -28,6 +34,3 @@ app.use(pinia);
 app.use(router);
 installBehaviorTracker(router);
 app.mount("#app");
-
-
-prewarmAutomixEngine({ idle: true });

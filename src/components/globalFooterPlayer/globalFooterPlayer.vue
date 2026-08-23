@@ -137,6 +137,7 @@
               class="player-soft-btn grid h-7 w-7 place-items-center rounded-full transition disabled:opacity-50"
               type="button"
               :disabled="!canPlayPrev"
+              aria-label="播放上一首"
               @click="playPrevSong"
             >
               <BackwardIcon class="h-3.5 w-3.5"/>
@@ -145,6 +146,7 @@
               class="player-main-btn grid h-9 w-9 place-items-center rounded-full transition disabled:opacity-40"
               type="button"
               :disabled="!hasSong"
+              :aria-label="isPlaying ? '暂停播放' : '开始播放'"
               @click="togglePlay"
             >
               <PauseIcon v-if="isPlaying" class="h-[18px] w-[18px]"/>
@@ -154,6 +156,7 @@
               class="player-soft-btn grid h-7 w-7 place-items-center rounded-full transition disabled:opacity-50"
               type="button"
               :disabled="!canPlayNext"
+              aria-label="播放下一首"
               @click="playNextSong"
             >
               <ForwardIcon class="h-3.5 w-3.5"/>
@@ -169,6 +172,7 @@
             min="0"
             :max="Math.max(durationMs, 1)"
             :value="Math.min(currentTimeMs, durationMs || 0)"
+            aria-label="播放进度"
             @input="seekByInput"
           >
           <span class="w-10">{{ formatMs(durationMs) }}</span>
@@ -194,6 +198,7 @@
             max="1"
             step="0.01"
             :value="volume"
+            aria-label="播放音量"
             @input="changeVolume"
           >
         </div>
@@ -320,6 +325,7 @@
                 class="player-soft-btn grid h-7 w-7 place-items-center rounded-full disabled:opacity-50"
                 type="button"
                 :disabled="!canPlayPrev"
+                aria-label="播放上一首"
                 @click="playPrevSong"
               >
                 <BackwardIcon class="h-3.5 w-3.5"/>
@@ -328,6 +334,7 @@
                 class="player-main-btn grid h-8 w-8 place-items-center rounded-full"
                 type="button"
                 :disabled="!hasSong"
+                :aria-label="isPlaying ? '暂停播放' : '开始播放'"
                 @click="togglePlay"
               >
                 <PauseIcon v-if="isPlaying" class="h-4 w-4"/>
@@ -337,6 +344,7 @@
                 class="player-soft-btn grid h-7 w-7 place-items-center rounded-full disabled:opacity-50"
                 type="button"
                 :disabled="!canPlayNext"
+                aria-label="播放下一首"
                 @click="playNextSong"
               >
                 <ForwardIcon class="h-3.5 w-3.5"/>
@@ -374,6 +382,7 @@
             max="1"
             step="0.01"
             :value="volume"
+            aria-label="播放音量"
             @input="changeVolume"
           >
         </div>
@@ -386,6 +395,7 @@
             min="0"
             :max="Math.max(durationMs, 1)"
             :value="Math.min(currentTimeMs, durationMs || 0)"
+            aria-label="播放进度"
             @input="seekByInput"
           >
           <span class="w-9">{{ formatMs(durationMs) }}</span>
@@ -427,6 +437,9 @@
         <div
           v-if="playlistPanelOpen"
           class="playlist-dialog-backdrop fixed inset-0 z-[1001] bg-black/35 p-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="播放列表"
           @click.self="closePlaylistPanel"
         >
           <div
@@ -536,6 +549,9 @@
         <div
           v-if="morePanelOpen"
           class="more-dialog-backdrop fixed inset-0 z-[1000]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="更多播放设置"
           @click.self="closeMorePanel"
         >
           <div
@@ -1998,6 +2014,14 @@ async function onEnded(event) {
     playerStore.setPlaying(false);
   }
 }
+
+watch(
+  hasSong,
+  (has) => {
+    if (has) prepareLyricPage();
+  },
+  {immediate: true},
+);
 
 watch(
   currentSongUrl,
