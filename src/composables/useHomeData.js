@@ -1,12 +1,12 @@
-import { computed, ref } from 'vue'
-import { playListsApi } from '@/api/playListsApi/playListsApi.js'
-import { songsApi } from '@/api/songsApi/songsApi.js'
-import { artistApi } from '@/api/artistApi/artistApi.js'
-import { homeIndexApi } from '@/api/home/homeIndexApi.js'
-import { toBackendMediaUrl } from '@/utils/backendMedia.js'
+import {ref} from 'vue'
+import {playListsApi} from '@/api/playListsApi/playListsApi.js'
+import {songsApi} from '@/api/songsApi/songsApi.js'
+import {artistApi} from '@/api/artistApi/artistApi.js'
+import {homeIndexApi} from '@/api/home/homeIndexApi.js'
+import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 
 export function useHomeData(userStore) {
-  const hero = ref({ media: '', title: '', subtitle: '' })
+  const hero = ref({media: '', title: '', subtitle: ''})
   const releaseNotes = ref([])
   const recommendPlaylists = ref([])
   const topPlaylists = ref([])
@@ -15,22 +15,9 @@ export function useHomeData(userStore) {
   const topRanks = ref([])
   const podcastPrograms = ref([])
   const hotArtists = ref([])
-  const highQualityPlaylists = ref([])
 
   const playlistTags = ['全部', '华语', '欧美', '流行', '电子']
   const activePlaylistTag = ref('全部')
-
-  const RECENT_PAGE_SIZE = 12
-  const recentCurrentPage = ref(1)
-  const recentTotalPages = computed(() => {
-    const total = recentListenSongs.value.length
-    return Math.max(1, Math.ceil(total / RECENT_PAGE_SIZE))
-  })
-  const recentPageStartIndex = computed(() => (recentCurrentPage.value - 1) * RECENT_PAGE_SIZE)
-  const pagedRecentListenSongs = computed(() => {
-    const start = recentPageStartIndex.value
-    return recentListenSongs.value.slice(start, start + RECENT_PAGE_SIZE)
-  })
 
   const loading = ref({
     banner: true,
@@ -42,7 +29,6 @@ export function useHomeData(userStore) {
     rank: true,
     podcast: true,
     artist: true,
-    hq: true,
     mv: true,
   })
 
@@ -56,11 +42,10 @@ export function useHomeData(userStore) {
     rank: '',
     podcast: '',
     artist: '',
-    hq: '',
     mv: '',
   })
 
-  function normalizeRecentSongItem(item) {
+  function normalizeSongItem(item) {
     const song = item?.data || item?.song || item || {}
     const album = song?.al || song?.album || {}
     return {
@@ -69,8 +54,9 @@ export function useHomeData(userStore) {
       name: song?.name || item?.name || '未知歌曲',
       ar: song?.ar || song?.artists || item?.artists || [],
       artists: song?.artists || song?.ar || item?.artists || [],
-      al: album,
-      cover: song?.cover || album?.picUrl || song?.picUrl || item?.cover || item?.picUrl || '',
+      al: song?.al || song?.album || album,
+      album: song?.album || song?.al || album,
+      cover: song?.cover || item?.picUrl || album?.picUrl || song?.picUrl || item?.cover || '',
     }
   }
 
@@ -84,33 +70,26 @@ export function useHomeData(userStore) {
       media,
       mediaType: item?.mediaType || '',
       title: item?.typeTitle || item?.title || 'Now Playing',
-      subtitle: subtitleFromList || item?.copywriter || item?.description || hero.value.subtitle,
+      subtitle: subtitleFromList || item?.copywriter || item?.description || '',
     }
   }
 
   function normalizeReleaseNoteItem(item, index = 0) {
     const timeSource = item?.createdAt || item?.updatedAt || item?.time || item?.date || 0
-    const ts = Number.isFinite(Number(timeSource)) ? Number(timeSource) : Date.parse(String(timeSource || ''))
+    const timestamp = Number.isFinite(Number(timeSource)) ? Number(timeSource) : Date.parse(String(timeSource || ''))
     const title = item?.title || item?.name || `更新 ${index + 1}`
-    const explicitContent = item?.content || item?.description || item?.body || ''
     const highlights = Array.isArray(item?.highlights) ? item.highlights.filter(Boolean) : []
     const bugFixes = Array.isArray(item?.bugFixes) ? item.bugFixes.filter(Boolean) : []
     const knownIssues = Array.isArray(item?.knownIssues) ? item.knownIssues.filter(Boolean) : []
-    const mergedBlocks = [
-      highlights.length ? `亮点：${highlights.join('；')}` : '',
-      bugFixes.length ? `修复：${bugFixes.join('；')}` : '',
-      knownIssues.length ? `已知问题：${knownIssues.join('；')}` : '',
-    ].filter(Boolean)
-    const content = explicitContent || mergedBlocks.join('\n')
     return {
       id: item?.id || `${title}-${index}`,
       title,
-      content,
+      content: item?.content || item?.description || item?.body || '',
       version: item?.version || item?.tag || item?.release || '',
       highlights,
       bugFixes,
       knownIssues,
-      dateText: Number.isFinite(ts) && ts > 0 ? new Date(ts).toLocaleDateString() : '-',
+      dateText: Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp).toLocaleDateString() : '-',
     }
   }
 
@@ -121,10 +100,8 @@ export function useHomeData(userStore) {
       const res = await homeIndexApi.getBanner()
       const raw = res?.banners || res?.data?.banners || res?.data?.data?.banners || res?.data?.data || res?.data || res || []
       const list = Array.isArray(raw) ? raw.map(normalizeBannerItem) : []
-      if (list.length) {
-        const firstUsable = list.find((item) => String(item?.media || '').trim()) || list[0]
-        hero.value = { ...hero.value, ...firstUsable }
-      }
+      const firstUsable = list.find((item) => String(item?.media || '').trim()) || list[0]
+      if (firstUsable) hero.value = {...hero.value, ...firstUsable}
     } catch (error) {
       errors.value.banner = error?.message || 'Banner 加载失败'
     } finally {
@@ -136,7 +113,7 @@ export function useHomeData(userStore) {
     loading.value.releaseNotes = true
     errors.value.releaseNotes = ''
     try {
-      const res = await homeIndexApi.getReleaseNotes({ limit: 6 })
+      const res = await homeIndexApi.getReleaseNotes({limit: 6})
       const raw = res?.list || res?.data?.list || res?.data?.data?.list || res?.data?.data || res?.data || res || []
       releaseNotes.value = Array.isArray(raw) ? raw.map(normalizeReleaseNoteItem) : []
     } catch (error) {
@@ -148,6 +125,8 @@ export function useHomeData(userStore) {
   }
 
   async function loadRecommendPlaylists() {
+    loading.value.recommend = true
+    errors.value.recommend = ''
     try {
       const res = await playListsApi.getRecommendPlayList()
       recommendPlaylists.value = res?.data?.result || []
@@ -165,7 +144,7 @@ export function useHomeData(userStore) {
       const res = await playListsApi.getPlayList(tag, 9, 0)
       topPlaylists.value = res?.data?.playlists || []
     } catch {
-      errors.value.top = '网友精选碟加载失败'
+      errors.value.top = '精选歌单加载失败'
     } finally {
       loading.value.top = false
     }
@@ -174,13 +153,16 @@ export function useHomeData(userStore) {
   function changePlaylistTag(tag) {
     if (activePlaylistTag.value === tag) return
     activePlaylistTag.value = tag
-    loadTopPlaylists(tag)
+    void loadTopPlaylists(tag)
   }
 
   async function loadNewSongs() {
+    loading.value.songs = true
+    errors.value.songs = ''
     try {
       const res = await songsApi.getNewSongs()
-      newSongs.value = res?.data?.result || []
+      const list = Array.isArray(res?.data?.result) ? res.data.result : []
+      newSongs.value = list.map(normalizeSongItem).filter((item) => item.id)
     } catch {
       errors.value.songs = '新音乐加载失败'
     } finally {
@@ -191,9 +173,8 @@ export function useHomeData(userStore) {
   async function loadRecentListenSongs() {
     if (!userStore.isLoggedIn) {
       loading.value.recent = false
-      errors.value.recent = '请先登录账号查看最近听歌'
+      errors.value.recent = ''
       recentListenSongs.value = []
-      recentCurrentPage.value = 1
       return
     }
 
@@ -202,12 +183,9 @@ export function useHomeData(userStore) {
     try {
       const res = await songsApi.getRecentListenList(12)
       const list = res?.data?.data?.list || res?.data?.list || res?.data?.data || []
-      recentListenSongs.value = Array.isArray(list)
-        ? list.map(normalizeRecentSongItem).filter((item) => item?.id)
-        : []
-      recentCurrentPage.value = 1
+      recentListenSongs.value = Array.isArray(list) ? list.map(normalizeSongItem).filter((item) => item.id) : []
     } catch {
-      errors.value.recent = '最近听歌加载失败，请先登录账号'
+      errors.value.recent = '最近听歌加载失败'
       recentListenSongs.value = []
     } finally {
       loading.value.recent = false
@@ -215,6 +193,8 @@ export function useHomeData(userStore) {
   }
 
   async function loadTopRanks() {
+    loading.value.rank = true
+    errors.value.rank = ''
     try {
       const res = await songsApi.getTopListDetail()
       const list = res?.data?.list || []
@@ -227,6 +207,8 @@ export function useHomeData(userStore) {
   }
 
   async function loadPodcastPrograms() {
+    loading.value.podcast = true
+    errors.value.podcast = ''
     try {
       const res = await songsApi.getPodcastPrograms(6)
       podcastPrograms.value = res?.data?.result || []
@@ -238,34 +220,16 @@ export function useHomeData(userStore) {
   }
 
   async function loadHotArtists() {
+    loading.value.artist = true
+    errors.value.artist = ''
     try {
       const res = await artistApi.getHotArtist()
       hotArtists.value = res?.data?.artists || []
     } catch {
-      errors.value.artist = '热门歌手加载失败'
+      errors.value.artist = '热门艺人加载失败'
     } finally {
       loading.value.artist = false
     }
-  }
-
-  async function loadHighQualityPlaylists() {
-    try {
-      const res = await songsApi.getHighQualitySongs()
-      highQualityPlaylists.value = res?.data?.playlists || []
-    } catch {
-      errors.value.hq = '高品质歌单加载失败'
-    } finally {
-      loading.value.hq = false
-    }
-  }
-
-  function goRecentPage(page) {
-    const next = Math.min(recentTotalPages.value, Math.max(1, Number(page) || 1))
-    recentCurrentPage.value = next
-  }
-
-  function asList(value) {
-    return Array.isArray(value) ? value : []
   }
 
   function formatPodcastDuration(durationMs) {
@@ -285,17 +249,10 @@ export function useHomeData(userStore) {
     topRanks,
     podcastPrograms,
     hotArtists,
-    highQualityPlaylists,
     playlistTags,
     activePlaylistTag,
-    recentCurrentPage,
-    recentTotalPages,
-    recentPageStartIndex,
-    pagedRecentListenSongs,
     loading,
     errors,
-    asList,
-    goRecentPage,
     formatPodcastDuration,
     loadHomeBanner,
     loadReleaseNotes,
@@ -307,6 +264,5 @@ export function useHomeData(userStore) {
     loadTopRanks,
     loadPodcastPrograms,
     loadHotArtists,
-    loadHighQualityPlaylists,
   }
 }

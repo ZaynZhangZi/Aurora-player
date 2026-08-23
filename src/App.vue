@@ -8,11 +8,16 @@
 
 	<div
 		class="app-shell"
+		:class="{ 'global-search-expanded': globalSearchExpanded && route.name !== 'home', 'is-home-route': route.name === 'home' }"
 		:inert="showSplash ? '' : null"
 		:aria-hidden="showSplash ? 'true' : null"
 	>
 		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
-		<floatingSearchFab />
+		<floatingSearchFab
+			v-if="route.name !== 'home'"
+			ref="floatingSearchRef"
+			@update:model-value="globalSearchExpanded = $event"
+		/>
 		<div ref="contentRef" class="app-content">
 			<router-view v-slot="{ Component }">
 				<keep-alive :include="keepAliveNames">
@@ -67,6 +72,8 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useCounterStore();
 const contentRef = ref(null);
+const floatingSearchRef = ref(null);
+const globalSearchExpanded = ref(false);
 const canGoBack = computed(() => route.path !== "/home");
 
 const SPLASH_SESSION_KEY = "aurora-splash-seen";
@@ -116,8 +123,7 @@ const keepAliveNames = computed(() => {
   const names = [];
   for (const record of route.matched) {
     if (record.meta?.keepAlive) {
-      // 组件 name 与路由 name 相同（home / profile）
-      names.push(record.name);
+		names.push(record.meta?.keepAliveName || record.name);
     }
   }
   return names;
@@ -305,6 +311,21 @@ function stopUserStatusPolling() {
 	}
 }
 
+function openGlobalSearch() {
+	if (route.name === "home") {
+		window.dispatchEvent(new CustomEvent("aurora:focus-home-search"));
+		return;
+	}
+	floatingSearchRef.value?.expand?.();
+	nextTick(() => floatingSearchRef.value?.focus?.());
+}
+
+function handleGlobalSearchShortcut(event) {
+	if (!(event.metaKey || event.ctrlKey) || String(event.key).toLowerCase() !== "k") return;
+	event.preventDefault();
+	openGlobalSearch();
+}
+
 function runRouteEnterMotion() {
   if (!contentRef.value) return;
   animate(
@@ -318,11 +339,15 @@ onMounted(() => {
 	runRouteEnterMotion();
 	bindGlobalBackGesture();
 	startUserStatusPolling();
+	window.addEventListener("aurora:open-search", openGlobalSearch);
+	window.addEventListener("keydown", handleGlobalSearchShortcut);
 });
 
 onBeforeUnmount(() => {
 	unbindGlobalBackGesture();
 	stopUserStatusPolling();
+	window.removeEventListener("aurora:open-search", openGlobalSearch);
+	window.removeEventListener("keydown", handleGlobalSearchShortcut);
 });
 
 watch(
@@ -358,6 +383,20 @@ watch(
 	background: transparent;
 	position: relative;
 	z-index: 1;
+}
+
+.app-shell .home-topbar-inner {
+	transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell.global-search-expanded .home-topbar-inner {
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-8px);
+}
+
+.app-shell.is-home-route .top-blur-gradient {
+	opacity: 0;
 }
 
 .top-blur-gradient {

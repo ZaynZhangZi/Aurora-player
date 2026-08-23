@@ -49,6 +49,7 @@ const router = createRouter({
       component: () => import('@/view/home/home.vue'),
       meta: {
         keepAlive: true,
+        keepAliveName: 'HomePage',
       },
       children:[
         {

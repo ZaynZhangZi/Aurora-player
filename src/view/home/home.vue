@@ -1,582 +1,483 @@
 <template>
-  <div class="min-h-screen bg-[#F5F5F7] text-zinc-900 selection:bg-zinc-900 selection:text-white font-sans antialiased">
-    <!-- Immersive Apple-Style Hero Section -->
-    <section class="relative h-[60vh] min-h-[480px] overflow-hidden sm:h-[70vh]">
-      <SmartMedia
-        class="absolute inset-0 h-full w-full object-cover scale-105 transition-transform duration-[8s] ease-out"
-        :src="hero.media"
-        :media-type="hero.mediaType"
-        :title="hero.title"
-        :content="hero.subtitle"
-        :alt="hero.title ? `${hero.title} 首页推荐` : 'Aurora Player 首页推荐'"
-        :image-width="1600"
-        :lock-muted="true"
-        img-loading="eager"
-        fetch-priority="high"
-        sizes="100vw"
-      />
-      <!-- Soft Light Mask Gradients -->
-      <div class="absolute inset-0 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/40 to-black/[0.02]" />
-      <div class="absolute inset-0 bg-gradient-to-r from-[#F5F5F7]/60 via-transparent to-transparent" />
+  <div class="home-page">
+    <header class="home-topbar">
+      <div class="home-topbar-inner">
+        <button class="home-brand" type="button" @click="scrollToSection('home-top')">
+          <span class="home-brand-mark" aria-hidden="true">A</span>
+          <span>AURORA</span>
+        </button>
 
-      <div class="relative mx-auto flex h-full max-w-7xl items-end px-6 pb-16 sm:px-10 sm:pb-24">
-        <div class="motion-section home-hero-copy max-w-3xl">
-          <span class="inline-flex items-center rounded-full bg-zinc-900/5 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.3em] text-zinc-600 backdrop-blur-md ring-1 ring-black/[0.04] mb-4">
-            My Music Demo
-          </span>
-          <Transition name="hero-copy-spring" mode="out-in">
-            <div :key="heroCopyKey" class="hero-copy-block">
-              <h1 class="text-5xl font-black tracking-tight text-zinc-900 sm:text-7xl lg:text-8xl">
-                {{ heroCopyLine.title }}
-              </h1>
-              <p class="mt-5 max-w-md text-sm font-semibold leading-relaxed text-zinc-500 sm:text-base">
-                {{ heroCopyLine.subtitle }}
-              </p>
+        <nav class="home-nav" aria-label="主页导航">
+          <button class="is-active" type="button" @click="scrollToSection('home-top')">首页</button>
+          <button type="button" @click="scrollToSection('discovery')">发现</button>
+          <button type="button" @click="openProfile">音乐库</button>
+        </nav>
+
+        <div ref="homeSearchRoot" class="home-search" :class="{ 'is-focused': homeSearchFocused }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            ref="homeSearchInput"
+            v-model="homeSearchQuery"
+            type="search"
+            autocomplete="off"
+            aria-label="搜索歌曲、歌手或歌单"
+            placeholder="搜索歌曲、歌手或歌单"
+            @focus="homeSearchFocused = true"
+            @keydown.enter.prevent="submitHomeSearch"
+            @keydown.esc="closeHomeSearch"
+          >
+          <button v-if="homeSearchQuery" class="home-search-clear" type="button" aria-label="清空搜索" @click="clearHomeSearch">×</button>
+          <kbd v-else>⌘ K</kbd>
+
+          <Transition name="home-search-pop">
+            <div v-if="homeSearchPopoverVisible" class="home-search-popover">
+              <div v-if="homeSearching" class="home-search-state home-search-state-loading">正在搜索…</div>
+              <div v-else-if="homeSearchError" class="home-search-state home-search-state-error">{{ homeSearchError }}</div>
+              <div v-else-if="homeSearchEmpty" class="home-search-state">没有找到相关音乐</div>
+              <template v-else>
+                <section v-if="homeSongEntries.length" class="home-search-section">
+                  <div class="home-search-section-title"><span>歌曲</span><small>{{ homeSongEntries.length }} 个结果</small></div>
+                  <button v-for="(song, index) in homeSongEntries.slice(0, 4)" :key="`home-search-song-${song.id}`" type="button" class="home-search-result" @click="openHomeSearchSong(song, index)">
+                    <span class="home-search-result-cover"><SmartMedia :src="song.al?.picUrl || song.album?.picUrl || song.cover" :alt="`${song.name}封面`" :image-width="96" sizes="42px" /></span>
+                    <span class="home-search-result-copy"><strong>{{ song.name }}</strong><small>{{ formatSearchArtists(song) }}</small></span>
+                    <span class="home-search-result-action">播放</span>
+                  </button>
+                </section>
+                <section v-if="homeArtistEntries.length" class="home-search-section home-search-section-compact">
+                  <div class="home-search-section-title"><span>艺人</span></div>
+                  <button v-for="artist in homeArtistEntries.slice(0, 3)" :key="`home-search-artist-${artist.id}`" type="button" class="home-search-chip" @click="openHomeSearchArtist(artist)">
+                    <span><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="72" sizes="32px" /></span>{{ artist.name }}
+                  </button>
+                </section>
+                <section v-if="homePlaylistEntries.length" class="home-search-section home-search-section-compact">
+                  <div class="home-search-section-title"><span>歌单</span></div>
+                  <button v-for="playlist in homePlaylistEntries.slice(0, 3)" :key="`home-search-playlist-${playlist.id}`" type="button" class="home-search-chip" @click="openHomeSearchPlaylist(playlist)">
+                    <span><SmartMedia :src="playlist.coverImgUrl" :alt="`${playlist.name}封面`" :image-width="72" sizes="32px" /></span>{{ playlist.name }}
+                  </button>
+                </section>
+              </template>
             </div>
           </Transition>
         </div>
+
+        <button class="home-profile" type="button" :aria-label="userStore.isLoggedIn ? '打开个人音乐库' : '打开登录入口'" @click="openProfile">
+          <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像">
+          <span v-else>{{ profileInitial }}</span>
+        </button>
       </div>
-    </section>
+    </header>
 
-    <!-- Main Dynamic Container -->
-    <main class="relative z-10 mx-auto -mt-10 max-w-7xl px-6 pb-32 sm:px-10">
-      <!-- Section: Recommended Playlists -->
-      <section class="motion-section mb-20 sm:mb-24">
-        <div class="mb-8 flex items-end justify-between">
-          <div>
-            <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">推荐歌单</h2>
-            <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
+    <main class="home-main">
+      <section id="home-top" class="home-lobby" aria-labelledby="home-hero-title">
+        <article class="home-hero-card">
+          <SmartMedia
+            v-if="hero.media"
+            :src="hero.media"
+            :media-type="hero.mediaType"
+            :title="hero.title"
+            :content="hero.subtitle"
+            :alt="hero.title ? `${hero.title} 首页推荐` : 'Aurora 首页推荐'"
+            :image-width="1440"
+            :lock-muted="true"
+            img-loading="eager"
+            fetch-priority="high"
+            sizes="(min-width: 980px) 70vw, 100vw"
+            class="home-hero-media"
+          />
+          <div v-else class="home-hero-fallback" aria-hidden="true">
+            <span class="fallback-orbit fallback-orbit-one" />
+            <span class="fallback-orbit fallback-orbit-two" />
+            <span class="fallback-disc" />
           </div>
-        </div>
-
-        <p v-if="loading.recommend" class="animate-pulse text-sm font-semibold text-zinc-400">正在为你打磨专属乐单...</p>
-        <p v-else-if="errors.recommend" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.recommend }}</p>
-
-        <div v-else class="grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-4">
-          <article
-            v-for="item in recommendPlaylists"
-            :key="item.id"
-            class="motion-card group cursor-pointer"
-            :style="getPlaylistCardTransitionStyle(item)"
-            role="button"
-            tabindex="0"
-            :aria-label="`打开歌单：${item.name}`"
-            @click="openPlaylist(item, $event)"
-            @keydown.enter.prevent="openPlaylist(item, $event)"
-            @keydown.space.prevent="openPlaylist(item, $event)"
-          >
-            <div class="relative aspect-square overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-black/[0.04] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_30px_60px_rgba(0,0,0,0.08)] group-hover:ring-black/[0.08]" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia
-                :src="item.picUrl"
-                :alt="`${item.name} 封面`"
-                :image-width="480"
-                sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <!-- Glass Hover Dynamic Overlay -->
-              <div class="absolute inset-0 bg-black/[0.02] opacity-0 transition-opacity duration-500 group-hover:opacity-100 flex items-center justify-center">
-                <div class="scale-90 opacity-0 transition-all duration-500 group-hover:scale-100 group-hover:opacity-100 flex h-14 w-14 items-center justify-center rounded-full bg-white text-zinc-900 shadow-xl border border-black/[0.04]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                </div>
-              </div>
-            </div>
-            <p class="mt-4 px-1 line-clamp-2 text-[15px] font-bold leading-snug text-zinc-800 transition-colors duration-300 group-hover:text-zinc-600">{{ item.name }}</p>
-          </article>
-        </div>
-      </section>
-
-      <!-- Section: Web Selection -->
-      <section class="motion-section mb-20 sm:mb-24">
-        <div class="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">网友精选碟</h2>
-            <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
-          </div>
-          <div class="flex flex-wrap items-center gap-1.5 rounded-full bg-white/60 p-1.5 backdrop-blur-xl ring-1 ring-black/[0.04] shadow-sm">
-            <button
-              v-for="tag in playlistTags"
-              :key="tag"
-              :class="activePlaylistTag === tag ? 'bg-zinc-900 text-white shadow-md font-bold' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/50'"
-              class="rounded-full px-5 py-2 text-xs font-bold transition-all duration-300"
-              type="button"
-              @click="changePlaylistTag(tag)"
-            >
-              {{ tag }}
-            </button>
-          </div>
-        </div>
-
-        <p v-if="loading.top" class="animate-pulse text-sm font-semibold text-zinc-400">正在搜罗精选内容...</p>
-        <p v-else-if="errors.top" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.top }}</p>
-
-        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="item in topPlaylists"
-            :key="item.id"
-            class="motion-card group flex cursor-pointer items-center gap-5 rounded-[24px] p-3.5 bg-white border border-black/[0.02] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-300 hover:bg-white hover:shadow-[0_20px_40px_rgba(0,0,0,0.05)] hover:border-black/[0.06]"
-            :style="getPlaylistCardTransitionStyle(item)"
-            role="button"
-            tabindex="0"
-            :aria-label="`打开歌单：${item.name}`"
-            @click="openPlaylist(item, $event)"
-            @keydown.enter.prevent="openPlaylist(item, $event)"
-            @keydown.space.prevent="openPlaylist(item, $event)"
-          >
-            <div class="h-22 w-22 shrink-0 overflow-hidden rounded-[18px] shadow-sm ring-1 ring-black/[0.04] transition-transform duration-500 group-hover:scale-[1.03]" data-playlist-hero-cover :data-playlist-id="item.id" :style="getPlaylistCoverTransitionStyle(item)">
-              <SmartMedia :src="item.coverImgUrl" :alt="`${item.name} 封面`" :image-width="192" sizes="88px" class="h-full w-full object-cover" />
-            </div>
-            <div class="min-w-0 flex-1 pr-2">
-              <p class="truncate text-base font-bold text-zinc-900 group-hover:text-zinc-700 transition-colors">{{ item.name }}</p>
-              <p class="mt-1.5 line-clamp-2 text-[13px] font-medium leading-relaxed text-zinc-600">{{ item.copywriter || item.description || '精选音乐集合' }}</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- Section: Recent Listening -->
-      <section class="motion-section mb-20 sm:mb-24">
-        <div class="mb-6 border-b border-black/[0.06] pb-4 flex items-center justify-between">
-          <h2 class="text-xl font-bold tracking-tight text-zinc-900">最近听歌</h2>
-
-          <div v-if="recentListenSongs.length > 0" class="flex items-center gap-2.5 text-xs animate-fade-in">
-            <span class="text-[11px] font-bold text-zinc-600 bg-white border border-black/[0.04] px-2.5 py-1 rounded shadow-sm">
-              {{ recentScrollPage }} / {{ recentScrollTotalPages }}
-            </span>
-
-            <div class="flex items-center gap-1">
-              <button
-                class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-zinc-200 text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                type="button"
-                :disabled="recentScrollPage <= 1"
-                aria-label="最近听歌上一页"
-                @click="scrollRecent(-1)"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          <div class="home-hero-shade" />
+          <div class="home-hero-content">
+            <span class="home-hero-badge">CURATED FOR YOU</span>
+            <p class="home-greeting">{{ greeting }}</p>
+            <h1 id="home-hero-title">{{ heroDisplayTitle }}</h1>
+            <p class="home-hero-description">{{ heroDisplaySubtitle }}</p>
+            <div class="home-hero-actions">
+              <button class="hero-button hero-button-primary" type="button" @click="startHeroPlayback">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                立即播放
               </button>
-
-              <button
-                class="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-zinc-200 text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                type="button"
-                :disabled="recentScrollPage >= recentScrollTotalPages"
-                aria-label="最近听歌下一页"
-                @click="scrollRecent(1)"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <button class="hero-button hero-button-secondary" type="button" @click="scrollToSection('recommended')">
+                浏览推荐
               </button>
             </div>
           </div>
-        </div>
+        </article>
 
-        <p v-if="loading.recent" class="animate-pulse text-xs font-semibold text-zinc-400 py-6">正在回溯聆听印记...</p>
-        <p v-else-if="errors.recent" class="text-xs font-semibold text-rose-600 bg-rose-50 rounded-xl p-3.5 border border-rose-100">{{ errors.recent }}</p>
-
-        <div v-else class="relative">
-          <div
-            ref="recentScroller"
-            class="flex gap-5 overflow-x-auto pb-4 scroll-smooth snap-x snap-mandatory select-none touch-pan-y [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            :class="isRecentDragging ? 'cursor-grabbing' : 'cursor-grab'"
-            @scroll.passive="updateRecentScrollState"
-            @pointerdown="handleRecentPointerDown"
-            @pointermove="handleRecentPointerMove"
-            @pointerup="handleRecentPointerUp"
-            @pointercancel="handleRecentPointerUp"
-            @pointerleave="handleRecentPointerUp"
-            @dragstart.prevent
-          >
-            <button
-              v-for="(song, index) in recentListenSongs"
-              :key="`recent-${song.id}-${index}`"
-              class="flex-none w-36 sm:w-40 snap-start group text-left focus:outline-none"
-              type="button"
-              @click="handleRecentSongClick(song, index, $event)"
-            >
-              <div class="relative aspect-square w-full overflow-hidden rounded-xl border border-black/[0.04] shadow-sm bg-white/40 backdrop-blur-sm mb-3">
-                <SmartMedia
-                  :src="song.cover || song.al?.picUrl || song.album?.picUrl || ''"
-                  :alt="`${song.name} 封面`"
-                  :image-width="320"
-                  sizes="160px"
-                  class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
-                />
-
-                <div class="absolute inset-0 bg-black/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
-                  <div class="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-[#0071E3] shadow-md border border-black/[0.02] backdrop-blur-md transform scale-95 group-hover:scale-100 transition-transform duration-300">
-                    <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                  </div>
-                </div>
-              </div>
-
-              <div class="px-0.5">
-                <p class="truncate text-[13.5px] font-semibold text-zinc-900 transition-colors duration-200 group-hover:text-[#0071E3]">{{ song.name }}</p>
-                <ArtistLinks :artists="getSongArtists(song)" class="mt-0.5 truncate text-[11.5px] font-medium text-zinc-600 block" />
-              </div>
-            </button>
-
-            <p v-if="!recentListenSongs.length" class="text-xs font-semibold text-zinc-400 py-10 w-full text-center border border-dashed border-black/10 rounded-xl bg-white/10">暂无近期的播放记录</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Section: Hot Charts (Editorial Look) -->
-      <section class="motion-section mb-20 sm:mb-24">
-        <div class="mb-8 flex items-end justify-between">
-          <div>
-            <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">热门榜单</h2>
-            <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
-          </div>
-          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 bg-white border border-black/[0.04] px-2.5 py-1 rounded-md shadow-sm">Top Charts</span>
-        </div>
-
-        <p v-if="loading.rank" class="animate-pulse text-sm font-semibold text-zinc-400">正在分析流行数据...</p>
-        <p v-else-if="errors.rank" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.rank }}</p>
-
-        <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="rank in topRanks"
-            :key="rank.id"
-            class="group cursor-pointer rounded-[32px] bg-white p-6 shadow-[0_8px_30px_rgba(0,0,0,0.02)] ring-1 ring-black/[0.03] transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_rgba(0,0,0,0.06)] hover:ring-black/[0.06]"
-            :style="getPlaylistCardTransitionStyle(rank)"
-            role="button"
-            tabindex="0"
-            :aria-label="`打开榜单：${rank.name}`"
-            @click="openPlaylist(rank, $event)"
-            @keydown.enter.prevent="openPlaylist(rank, $event)"
-            @keydown.space.prevent="openPlaylist(rank, $event)"
-          >
-            <div class="mb-6 flex items-center gap-5">
-              <div class="h-20 w-20 shrink-0 overflow-hidden rounded-[20px] shadow-sm ring-1 ring-black/[0.04]" data-playlist-hero-cover :data-playlist-id="rank.id" :style="getPlaylistCoverTransitionStyle(rank)">
-                <SmartMedia :src="rank.coverImgUrl" :alt="`${rank.name} 封面`" :image-width="160" sizes="80px" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-              </div>
-              <div>
-                <p class="text-xl font-black tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700">{{ rank.name }}</p>
-                <p class="mt-1 text-[12px] font-bold text-zinc-600 bg-zinc-50 border border-black/[0.03] px-2 py-0.5 rounded inline-block">{{ rank.updateFrequency || '实时更新' }}</p>
-              </div>
+        <aside class="continue-panel" aria-labelledby="continue-title">
+          <div class="continue-heading">
+            <div>
+              <p>YOUR MOMENT</p>
+              <h2 id="continue-title">{{ continuePanelTitle }}</h2>
             </div>
-            <div class="space-y-3 rounded-2xl bg-zinc-50/60 border border-black/[0.01] p-4.5">
-              <p v-for="(item, idx) in rank.tracks || []" :key="`${rank.id}-${idx}`" class="truncate text-[13px] font-semibold text-zinc-700 flex items-center">
-                <span class="mr-3.5 font-black text-center w-4 text-[14px]" :class="idx === 0 ? 'text-amber-600' : idx === 1 ? 'text-zinc-600' : idx === 2 ? 'text-amber-700' : 'text-zinc-500'">{{ idx + 1 }}</span>
-                <span class="truncate flex-1 group-hover:text-zinc-900 transition-colors">{{ item.first }} <span class="text-zinc-600 font-medium">- {{ item.second }}</span></span>
-              </p>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- Section: Premium Podcasts -->
-      <section class="motion-section mb-20 sm:mb-24">
-        <div class="mb-8">
-          <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">精选播客</h2>
-          <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
-        </div>
-
-        <p v-if="loading.podcast" class="animate-pulse text-sm font-semibold text-zinc-400">正在链接声波宇宙...</p>
-        <p v-else-if="errors.podcast" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.podcast }}</p>
-
-        <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="item in podcastPrograms"
-            :key="item.id"
-            class="group cursor-pointer overflow-hidden rounded-[28px] bg-white border border-black/[0.03] shadow-[0_8px_24px_rgba(0,0,0,0.02)] transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_rgba(0,0,0,0.05)] hover:border-black/[0.06]"
-            role="button"
-            tabindex="0"
-            :aria-label="`播放播客：${item.name}`"
-            @click="openPodcast(item)"
-            @keydown.enter.prevent="openPodcast(item)"
-            @keydown.space.prevent="openPodcast(item)"
-          >
-            <div class="aspect-[16/10] overflow-hidden relative border-b border-black/[0.02]">
-              <SmartMedia :src="item.picUrl" :alt="`${item.name} 封面`" :image-width="640" sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" class="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-            </div>
-            <div class="p-6">
-              <p class="line-clamp-2 text-base font-bold leading-snug text-zinc-900 transition-colors group-hover:text-zinc-700">{{ item.name }}</p>
-              <div class="mt-5 flex items-center justify-between gap-4 border-t border-zinc-100 pt-4">
-                <p class="truncate text-[13px] font-semibold text-zinc-600">{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</p>
-                <span class="shrink-0 rounded-full bg-zinc-50 border border-black/[0.03] px-2.5 py-0.5 text-[11px] font-bold text-zinc-600 tracking-wide">{{ formatPodcastDuration(item.program?.duration) }}</span>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- Section: Music Video Zone -->
-      <section class="mb-20 sm:mb-24">
-        <div class="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">MV 专区</h2>
-            <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
-          </div>
-          <div class="flex flex-wrap items-center gap-1.5 rounded-full bg-white/60 p-1.5 backdrop-blur-xl ring-1 ring-black/[0.04] shadow-sm">
-            <button
-              v-for="source in mvSourceOptions"
-              :key="source.value"
-              class="rounded-full px-5 py-2 text-xs font-bold transition-all duration-300"
-              :class="activeMvSource === source.value ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/50'"
-              type="button"
-              @click="switchMvSource(source.value)"
-            >
-              {{ source.label }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Secondary Filters Bar -->
-        <div class="mb-8 flex flex-wrap items-center gap-3" v-if="activeMvSource === 'all' || activeMvSource === 'latest'">
-          <div class="relative">
-            <select v-model="mvArea" aria-label="MV 地区" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
-              <option v-for="area in mvAreas" :key="area" :value="area">地区: {{ area }}</option>
-            </select>
-          </div>
-          <div class="relative" v-if="activeMvSource === 'all'">
-            <select v-model="mvType" aria-label="MV 类型" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
-              <option v-for="type in mvTypes" :key="type" :value="type">类型: {{ type }}</option>
-            </select>
-          </div>
-          <div class="relative" v-if="activeMvSource === 'all'">
-            <select v-model="mvOrder" aria-label="MV 排序方式" class="cursor-pointer appearance-none rounded-full bg-white text-zinc-700 pl-5 pr-10 py-2.5 text-[13px] font-bold outline-none shadow-sm ring-1 ring-black/[0.04] transition hover:bg-zinc-50">
-              <option v-for="order in mvOrders" :key="order" :value="order">排序: {{ order }}</option>
-            </select>
-          </div>
-          <button
-            class="flex items-center justify-center rounded-full bg-zinc-900 p-2.5 text-white shadow-md transition hover:bg-zinc-800 active:scale-95"
-            type="button"
-            @click="loadMvList({reset: true})"
-            title="刷新"
-            aria-label="刷新 MV 列表"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-          </button>
-        </div>
-
-        <p v-if="loading.mv" class="animate-pulse text-sm font-semibold text-zinc-400">正在调谐高清画幅...</p>
-        <p v-else-if="errors.mv" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.mv }}</p>
-
-        <div v-else class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="item in mvList"
-            :key="item.id"
-            class="motion-card group cursor-pointer"
-            role="button"
-            tabindex="0"
-            :aria-label="`播放 MV：${item.name}`"
-            @click="openMv(item)"
-            @keydown.enter.prevent="openMv(item)"
-            @keydown.space.prevent="openMv(item)"
-          >
-            <div class="relative aspect-video overflow-hidden rounded-[24px] bg-white border border-black/[0.03] shadow-md transition-all duration-500 group-hover:-translate-y-1.5 group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] group-hover:border-black/[0.06]">
-              <SmartMedia :src="item.cover" :alt="`${item.name} 封面`" :image-width="640" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-              <!-- Modern Light Play Counter Badge -->
-              <div class="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-zinc-900 shadow-sm backdrop-blur-md border border-black/[0.04]">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="text-zinc-800"><path d="M8 5v14l11-7z" /></svg>
-                {{ Number(item.playCount || 0).toLocaleString() }}
-              </div>
-            </div>
-            <div class="mt-4 px-1">
-              <p class="truncate text-[15px] font-bold text-zinc-900 transition-colors group-hover:text-zinc-700">{{ item.name }}</p>
-              <p class="mt-1 truncate text-[13px] font-semibold text-zinc-600">{{ item.artistName || '未知歌手' }}</p>
-            </div>
-          </article>
-          <p v-if="!mvList.length" class="text-sm font-semibold text-zinc-400 py-6">暂无 MV 数据</p>
-        </div>
-
-        <!-- Pagination Buttons Bar -->
-        <div v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'" class="mt-10 flex items-center justify-end gap-4">
-          <button
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:bg-zinc-50 disabled:opacity-30"
-            type="button"
-            :disabled="mvOffset <= 0 || loading.mv"
-            aria-label="MV 上一页"
-            @click="prevMvPage"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <span class="text-[13px] font-bold text-zinc-500 bg-white border border-black/[0.04] px-3 py-1.5 rounded-full shadow-sm tracking-wide">PAGE {{ Math.floor(mvOffset / mvLimit) + 1 }}</span>
-          <button
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:bg-zinc-50 disabled:opacity-30"
-            type="button"
-            :disabled="!mvHasMore || loading.mv"
-            aria-label="MV 下一页"
-            @click="nextMvPage"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-          </button>
-        </div>
-      </section>
-
-      <!-- Section: Hot Artists -->
-      <section class="mb-10">
-        <div class="mb-8">
-          <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">热门艺人</h2>
-          <div class="mt-1.5 h-1 w-6 rounded-full bg-zinc-900" />
-        </div>
-
-        <p v-if="loading.artist" class="animate-pulse text-sm font-semibold text-zinc-400">正在群星破晓时...</p>
-        <p v-else-if="errors.artist" class="text-sm font-semibold text-rose-600 bg-rose-50 rounded-2xl p-4 ring-1 ring-rose-200">{{ errors.artist }}</p>
-
-        <div v-else class="grid grid-cols-2 gap-x-4 gap-y-12 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          <article
-            v-for="artist in hotArtists"
-            :key="artist.id"
-            class="group cursor-pointer text-center"
-            role="button"
-            tabindex="0"
-            :aria-label="`打开艺人：${artist.name}`"
-            @click="openArtist(artist, $event)"
-            @keydown.enter.prevent="openArtist(artist, $event)"
-            @keydown.space.prevent="openArtist(artist, $event)"
-          >
-            <div
-              class="mx-auto aspect-square w-full max-w-[150px] overflow-hidden rounded-full shadow-[0_12px_28px_rgba(0,0,0,0.04)] border border-white transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] group-hover:ring-zinc-900"
-              data-artist-hero-cover
-              :data-artist-id="artist.id"
-            >
-              <SmartMedia :src="artist.picUrl" :alt="`${artist.name} 头像`" :image-width="320" sizes="150px" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-            </div>
-            <p class="mt-5 truncate text-[15px] font-black text-zinc-900 transition-colors group-hover:text-zinc-600">{{ artist.name }}</p>
-          </article>
-        </div>
-      </section>
-    </main>
-
-    <!-- Overlay Core Layers -->
-    <Teleport to="body">
-      <!-- 1. Soft Studio-Glass MV Player Modal -->
-      <div
-        v-if="mvPlayerOpen"
-        class="fixed inset-0 z-[1002] bg-zinc-950/40 p-4 backdrop-blur-3xl flex items-center justify-center animate-fade-in"
-        @click.self="closeMvPlayer"
-      >
-        <div class="w-full max-w-5xl overflow-hidden rounded-[32px] bg-white border border-black/[0.04] shadow-2xl">
-          <div class="flex items-center justify-between gap-4 border-b border-zinc-100 px-6 py-4.5 text-zinc-900">
-            <p class="truncate text-[15px] font-black tracking-wide">{{ currentMv?.name || 'MV 播放' }}</p>
-            <div class="flex items-center gap-3">
-              <div class="relative" v-if="mvResolutions.length">
-                <select
-                  v-model="selectedMvResolution"
-                  aria-label="MV 清晰度"
-                  class="appearance-none rounded-full bg-zinc-50 border border-zinc-200 pl-4 pr-8 py-1.5 text-xs font-bold text-zinc-700 outline-none transition hover:bg-zinc-100 cursor-pointer"
-                  @change="changeMvResolution"
-                >
-                  <option v-for="r in mvResolutions" :key="r" :value="r" class="bg-white">{{ r }}P</option>
-                </select>
-              </div>
-              <button
-                class="flex h-8 items-center justify-center rounded-full bg-zinc-900 text-white px-5 text-xs font-bold transition hover:bg-zinc-800 active:scale-95 shadow-sm"
-                type="button"
-                @click="closeMvPlayer"
-              >
-                关闭
-              </button>
-            </div>
+            <span class="continue-status"><i /> {{ userStore.isLoggedIn ? '已同步' : '为你精选' }}</span>
           </div>
 
-          <div class="aspect-video w-full bg-stone-950 relative">
-            <div v-if="mvPlayerLoading" class="absolute inset-0 grid place-items-center text-sm font-semibold text-zinc-400 bg-zinc-950">影音就绪中...</div>
-            <div v-else-if="mvPlayerError" class="absolute inset-0 grid place-items-center px-6 text-center text-sm font-bold text-rose-500 bg-zinc-950">{{ mvPlayerError }}</div>
-            <video
-              v-else-if="currentMvUrl"
-              :src="currentMvUrl"
-              :poster="currentMv?.cover || ''"
-              controls
-              autoplay
-              playsinline
-              class="h-full w-full outline-none animate-fade-in"
+          <div v-if="continueLoading" class="continue-skeleton" aria-label="正在加载歌曲">
+            <span v-for="index in 3" :key="index" />
+          </div>
+          <div v-else-if="continueSongs.length" class="continue-list">
+            <HomeSongRow
+              v-for="(song, index) in continueSongs"
+              :key="`continue-${song.id}-${index}`"
+              :song="song"
+              :index="index"
+              compact
+              :show-index="false"
+              @play="playContinueSong"
             />
           </div>
-        </div>
-      </div>
+          <div v-else class="continue-empty">
+            <span class="continue-empty-icon">♪</span>
+            <p>还没有播放记录</p>
+            <button type="button" @click="scrollToSection('recommended')">从推荐开始</button>
+          </div>
 
-      <!-- 2. Minimalist Release Notes Sliding Board -->
-      <Transition name="release-notes">
-        <div
-          v-if="releaseNotesOpen"
-          class="fixed inset-0 z-[1003] bg-zinc-950/10 p-4 backdrop-blur-xl flex justify-end"
-          @click.self="releaseNotesOpen = false"
+          <div class="continue-footer">
+            <span>{{ userStore.isLoggedIn ? '最近播放会自动同步' : '登录后可同步你的聆听记录' }}</span>
+            <button v-if="!userStore.isLoggedIn" type="button" @click="openSearch">去登录</button>
+          </div>
+        </aside>
+      </section>
+
+      <nav class="category-rail" aria-label="主页内容快捷入口">
+        <button class="is-active" type="button" @click="scrollToSection('recommended')"><span>✦</span>推荐</button>
+        <button type="button" @click="setDiscoveryTab('playlists')"><span>♫</span>歌单</button>
+        <button type="button" @click="setDiscoveryTab('ranks')"><span>▥</span>排行榜</button>
+        <button type="button" @click="scrollToSection('media')"><span>▣</span>MV</button>
+        <button type="button" @click="scrollToSection('media')"><span>◉</span>播客</button>
+      </nav>
+
+      <section id="recommended" class="home-section">
+        <HomeSectionHeader
+          eyebrow="PERSONALIZED"
+          title="为你推荐"
+          description="从当下的热门与编辑精选里，挑出更容易开始播放的一组。"
         >
-          <div class="release-notes-panel h-full w-full max-w-2xl overflow-hidden rounded-[32px] bg-[#F5F5F7] border border-black/[0.04] shadow-2xl">
-            <div class="border-b border-zinc-200/60 px-8 py-6 bg-white/60 backdrop-blur-md">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <p class="text-2xl font-black tracking-tight text-zinc-900">版本更新</p>
-                  <p class="mt-1 text-[13px] font-semibold text-zinc-400">展示每个版本的更新亮点与修复记录</p>
-                </div>
-                <span class="inline-flex items-center rounded-full bg-zinc-900 text-white px-4 py-2 text-[11px] font-bold shadow-md">
-                  最新版本 {{ latestReleaseTag }}
-                </span>
-              </div>
-            </div>
+          <template #actions>
+            <button class="section-link" type="button" @click="openReleaseNotesPanel">
+              新版本 {{ latestReleaseTag }}
+            </button>
+          </template>
+        </HomeSectionHeader>
 
-            <!-- Scrollable Notes Area -->
-            <div class="custom-scrollbar h-[calc(100%-110px)] overflow-y-auto p-8 space-y-6">
-              <p v-if="loading.releaseNotes" class="animate-pulse text-center text-sm font-semibold text-zinc-400 py-10">正在调理更新档案...</p>
-              <p v-else-if="errors.releaseNotes" class="text-center text-sm font-semibold text-rose-600 py-10">{{ errors.releaseNotes }}</p>
+        <div v-if="loading.recommend" class="playlist-skeleton" aria-label="推荐歌单加载中">
+          <span v-for="index in 5" :key="index" />
+        </div>
+        <div v-else-if="errors.recommend" class="section-state section-state-error">
+          <p>{{ errors.recommend }}</p>
+          <button type="button" @click="loadRecommendPlaylists">重新加载</button>
+        </div>
+        <div v-else-if="recommendPlaylists.length" class="playlist-strip">
+          <HomePlaylistCard
+            v-for="item in recommendPlaylists.slice(0, 8)"
+            :key="item.id"
+            :item="item"
+            @open="openPlaylist"
+          />
+        </div>
+        <div v-else class="section-state"><p>暂时没有推荐歌单</p></div>
+      </section>
 
-              <div v-else-if="releaseNotes.length" class="space-y-8">
-                <article
-                  v-for="item in releaseNotes"
-                  :key="item.id"
-                  class="rounded-3xl bg-white p-6 border border-black/[0.02] shadow-[0_4px_20px_rgba(0,0,0,0.01)]"
-                >
-                  <div class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-5">
-                    <div>
-                      <span class="inline-flex items-center rounded-md bg-zinc-100 border border-black/[0.02] px-2.5 py-1 text-[11px] font-black tracking-wider text-zinc-600">
-                        v{{ item.version || '0.0.0' }}
-                      </span>
-                      <p class="mt-3.5 text-lg font-black tracking-tight text-zinc-900">{{ item.title }}</p>
-                    </div>
-                    <span class="shrink-0 text-xs font-semibold text-zinc-400 mt-1">{{ item.dateText }}</span>
-                  </div>
-
-                  <div class="mt-6 grid grid-cols-1 gap-4">
-                    <section v-if="asList(item.highlights).length > 0" class="rounded-2xl bg-zinc-50/60 p-4 border border-black/[0.01]">
-                      <h4 class="text-[13px] font-black text-zinc-800 tracking-wide flex items-center gap-1.5">✨ 更新亮点</h4>
-                      <ul class="mt-3 space-y-2 text-[13px] font-medium text-zinc-500 leading-relaxed">
-                        <li v-for="(text, idx) in asList(item.highlights)" :key="`h-${item.id}-${idx}`" class="flex items-start gap-1"><span class="text-zinc-300">-</span> {{ text }}</li>
-                      </ul>
-                    </section>
-
-                    <section v-if="asList(item.knownIssues).length > 0" class="rounded-2xl bg-zinc-50/60 p-4 border border-black/[0.01]">
-                      <h4 class="text-[13px] font-black text-amber-700 tracking-wide flex items-center gap-1.5">⚠️ 已知问题</h4>
-                      <ul class="mt-3 space-y-2 text-[13px] font-medium text-zinc-500 leading-relaxed">
-                        <li v-for="(text, idx) in asList(item.knownIssues)" :key="`k-${item.id}-${idx}`" class="flex items-start gap-1"><span class="text-zinc-300">-</span> {{ text }}</li>
-                      </ul>
-                    </section>
-
-                    <section v-if="asList(item.bugFixes).length > 0" class="rounded-2xl bg-zinc-50/60 p-4 border border-black/[0.01]">
-                      <h4 class="text-[13px] font-black text-rose-600 tracking-wide flex items-center gap-1.5">🐛 Bug 修复</h4>
-                      <ul class="mt-3 space-y-2 text-[13px] font-medium text-zinc-500 leading-relaxed">
-                        <li v-for="(text, idx) in asList(item.bugFixes)" :key="`b-${item.id}-${idx}`" class="flex items-start gap-1"><span class="text-zinc-300">-</span> {{ text }}</li>
-                      </ul>
-                    </section>
-                  </div>
-                </article>
-              </div>
-              <p v-else class="text-center text-sm font-semibold text-zinc-400 py-10">暂无更新日志</p>
-            </div>
+      <section id="discovery" class="home-section discovery-studio">
+        <div class="discovery-intro">
+          <div class="section-sequence"><span>01</span><i /> DISCOVER</div>
+          <h2>发现音乐</h2>
+          <p>把今天值得听的内容铺开。歌单、榜单与艺人，各自保留最适合浏览的节奏。</p>
+          <div class="discovery-tabs" role="tablist" aria-label="发现音乐分类">
+            <button
+              v-for="tab in discoveryTabs"
+              :key="tab.value"
+              type="button"
+              role="tab"
+              :aria-selected="activeDiscoveryTab === tab.value"
+              :class="{ 'is-active': activeDiscoveryTab === tab.value }"
+              @click="activeDiscoveryTab = tab.value"
+            >
+              <span>{{ String(discoveryTabs.indexOf(tab) + 1).padStart(2, '0') }}</span>
+              {{ tab.label }}
+              <i aria-hidden="true">↗</i>
+            </button>
           </div>
         </div>
-      </Transition>
-    </Teleport>
 
-    <!-- Global Modal Router Layer -->
+        <div class="discovery-stage">
+          <Transition name="discovery-swap" mode="out-in">
+          <div v-if="activeDiscoveryTab === 'playlists'" class="discovery-content">
+            <div class="tag-list" aria-label="歌单分类">
+              <button
+                v-for="tag in playlistTags"
+                :key="tag"
+                type="button"
+                :class="{ 'is-active': activePlaylistTag === tag }"
+                @click="changePlaylistTag(tag)"
+              >
+                {{ tag }}
+              </button>
+            </div>
+            <div v-if="loading.top" class="row-skeleton"><span v-for="index in 5" :key="index" /></div>
+            <div v-else-if="errors.top" class="section-state section-state-error">
+              <p>{{ errors.top }}</p>
+              <button type="button" @click="loadTopPlaylists(activePlaylistTag)">重新加载</button>
+            </div>
+            <div v-else-if="topPlaylists.length" class="discovery-playlists">
+              <button
+                v-for="(item, index) in topPlaylists.slice(0, 5)"
+                :key="item.id"
+                class="discovery-playlist-tile"
+                :class="{ 'is-featured': index === 0 }"
+                type="button"
+                @click="openPlaylist(item, $event)"
+              >
+                <span class="discovery-playlist-tile-cover" data-playlist-hero-cover :data-playlist-id="item.id">
+                  <SmartMedia
+                    :src="item.coverImgUrl"
+                    :alt="`${item.name}封面`"
+                    :image-width="index === 0 ? 720 : 360"
+                    sizes="(min-width: 900px) 32vw, (min-width: 560px) 42vw, 78vw"
+                  />
+                </span>
+                <span class="discovery-playlist-tile-shade" />
+                <span class="discovery-playlist-tile-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="discovery-playlist-tile-copy">
+                  <small>{{ index === 0 ? "EDITOR'S PICK" : activePlaylistTag }}</small>
+                  <strong>{{ item.name }}</strong>
+                  <span v-if="index === 0">{{ item.copywriter || item.description || '今天值得完整听完的一张歌单' }}</span>
+                </span>
+                <span class="discovery-playlist-tile-play" aria-hidden="true">▶</span>
+              </button>
+            </div>
+            <div v-else class="section-state"><p>暂时没有歌单数据</p></div>
+          </div>
+
+          <div v-else-if="activeDiscoveryTab === 'ranks'" class="discovery-content">
+            <div v-if="loading.rank" class="rank-skeleton"><span v-for="index in 3" :key="index" /></div>
+            <div v-else-if="errors.rank" class="section-state section-state-error">
+              <p>{{ errors.rank }}</p>
+              <button type="button" @click="loadTopRanks">重新加载</button>
+            </div>
+            <div v-else class="rank-grid">
+              <button
+                v-for="(rank, rankIndex) in topRanks.slice(0, 3)"
+                :key="rank.id"
+                class="rank-card"
+                type="button"
+                @click="openPlaylist(rank, $event)"
+              >
+                <span class="rank-number">0{{ rankIndex + 1 }}</span>
+                <span class="rank-cover" data-playlist-hero-cover :data-playlist-id="rank.id">
+                  <SmartMedia :src="rank.coverImgUrl" :alt="`${rank.name}封面`" :image-width="180" sizes="72px" />
+                </span>
+                <span class="rank-meta">
+                  <strong>{{ rank.name }}</strong>
+                  <small>{{ rank.updateFrequency || '实时更新' }}</small>
+                </span>
+                <span class="rank-tracks">
+                  <span v-for="(track, index) in (rank.tracks || []).slice(0, 3)" :key="`${rank.id}-${index}`">
+                    <b>{{ index + 1 }}</b>{{ track.first }} <small>· {{ track.second }}</small>
+                  </span>
+                </span>
+                <span class="rank-open" aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="discovery-content">
+            <div v-if="loading.artist" class="artist-skeleton"><span v-for="index in 9" :key="index" /></div>
+            <div v-else-if="errors.artist" class="section-state section-state-error">
+              <p>{{ errors.artist }}</p>
+              <button type="button" @click="loadHotArtists">重新加载</button>
+            </div>
+            <div v-else-if="hotArtists.length" class="artist-showcase">
+              <button
+                class="artist-featured"
+                type="button"
+                @click="openArtist(hotArtists[0], $event)"
+              >
+                <span class="artist-featured-cover" data-artist-hero-cover :data-artist-id="hotArtists[0].id">
+                  <SmartMedia :src="hotArtists[0].picUrl || hotArtists[0].img1v1Url" :alt="`${hotArtists[0].name}头像`" :image-width="640" sizes="(min-width: 820px) 34vw, 76vw" />
+                </span>
+                <span class="artist-featured-shade" />
+                <span class="artist-featured-index">01</span>
+                <span class="artist-featured-copy">
+                  <small><i /> ARTIST SPOTLIGHT</small>
+                  <strong>{{ hotArtists[0].name }}</strong>
+                  <span>从代表作开始，进入他的声音世界</span>
+                </span>
+                <span class="artist-featured-open" aria-hidden="true">↗</span>
+              </button>
+              <div class="artist-directory">
+                <button
+                  v-for="(artist, index) in hotArtists.slice(1, 9)"
+                  :key="artist.id"
+                  class="artist-directory-card"
+                  type="button"
+                  @click="openArtist(artist, $event)"
+                >
+                  <span class="artist-directory-index">{{ String(index + 2).padStart(2, '0') }}</span>
+                  <span class="artist-directory-cover" data-artist-hero-cover :data-artist-id="artist.id">
+                    <SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="360" sizes="(min-width: 821px) 52px, 76vw" />
+                  </span>
+                  <span class="artist-directory-copy">
+                    <strong>{{ artist.name }}</strong>
+                    <small>HOT ARTIST</small>
+                  </span>
+                  <span class="artist-directory-open" aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </div>
+            <div v-else class="section-state">
+              <p>暂时没有艺人数据</p>
+            </div>
+          </div>
+          </Transition>
+        </div>
+      </section>
+
+      <section id="new-songs" class="home-section release-section">
+        <div class="release-intro">
+          <div class="section-sequence section-sequence-light"><span>02</span><i /> FRESH RELEASES</div>
+          <h2>新歌速递</h2>
+          <p>今天更新的声音已经排好队。按顺序听，或者从一首吸引你的封面开始。</p>
+          <button v-if="newSongs.length" type="button" class="release-play-all" @click="playAllNewSongs">
+            <span>▶</span> 播放全部
+          </button>
+          <div class="release-decoration" aria-hidden="true"><span /><span /><span /><span /></div>
+        </div>
+        <div class="release-content">
+          <div v-if="loading.songs" class="song-skeleton"><span v-for="index in 8" :key="index" /></div>
+          <div v-else-if="errors.songs" class="section-state section-state-error">
+            <p>{{ errors.songs }}</p>
+            <button type="button" @click="loadNewSongs">重新加载</button>
+          </div>
+          <div v-else-if="newSongs.length" class="new-song-panel">
+            <HomeSongRow
+              v-for="(song, index) in newSongs.slice(0, 8)"
+              :key="`new-${song.id}-${index}`"
+              :song="song"
+              :index="index"
+              @play="openSong"
+            />
+          </div>
+          <div v-else class="section-state"><p>暂时没有新歌数据</p></div>
+        </div>
+      </section>
+
+      <section id="media" class="home-section media-studio">
+        <div class="media-section-header">
+          <div>
+            <div class="section-sequence"><span>03</span><i /> AUDIO &amp; VISUAL</div>
+            <h2>声音，也有画面</h2>
+          </div>
+          <p>把 MV 和播客分成两种浏览节奏：先沉浸观看，再慢下来听一个故事。</p>
+        </div>
+
+        <article class="mv-showcase">
+          <div class="media-subheading">
+            <div><span>WATCH NOW</span><h3>MV 精选</h3></div>
+            <p>本周值得打开全屏的三个现场</p>
+          </div>
+          <div v-if="loading.mv" class="media-skeleton"><span v-for="index in 3" :key="index" /></div>
+          <div v-else-if="errors.mv" class="section-state section-state-error">
+            <p>{{ errors.mv }}</p>
+            <button type="button" @click="loadMvList({reset: true})">重新加载</button>
+          </div>
+          <div v-else class="mv-grid">
+            <button v-for="(item, index) in mvList.slice(0, 3)" :key="item.id" type="button" class="mv-card" :class="{ 'mv-card-featured': index === 0 }" @click="openMv(item)">
+              <span class="mv-cover">
+                <SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="index === 0 ? 960 : 520" sizes="(min-width: 900px) 55vw, 100vw" />
+                <span class="mv-shade" />
+                <span class="mv-order">0{{ index + 1 }}</span>
+                <span class="mv-card-copy"><small>{{ item.artistName || '未知艺人' }}</small><strong>{{ item.name }}</strong></span>
+                <i aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></i>
+              </span>
+            </button>
+          </div>
+        </article>
+
+        <article class="podcast-showcase">
+          <div class="media-subheading">
+            <div><span>LISTEN SLOWLY</span><h3>播客精选</h3></div>
+            <p>给通勤、散步和独处时刻留一点声音</p>
+          </div>
+          <div v-if="loading.podcast" class="podcast-skeleton"><span v-for="index in 3" :key="index" /></div>
+          <div v-else-if="errors.podcast" class="section-state section-state-error">
+            <p>{{ errors.podcast }}</p>
+            <button type="button" @click="loadPodcastPrograms">重新加载</button>
+          </div>
+          <div v-else class="podcast-list">
+            <button v-for="(item, index) in podcastPrograms.slice(0, 3)" :key="item.id" type="button" @click="openPodcast(item)">
+              <span class="podcast-index">0{{ index + 1 }}</span>
+              <span class="podcast-cover"><SmartMedia :src="item.picUrl" :alt="`${item.name}封面`" :image-width="280" sizes="120px" /></span>
+              <span class="podcast-copy">
+                <small>{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</small>
+                <strong>{{ item.name }}</strong>
+                <span><i aria-hidden="true">▶</i> {{ formatPodcastDuration(item.program?.duration) || '立即收听' }}</span>
+              </span>
+              <span class="podcast-arrow" aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <footer class="home-footer">
+        <div><strong>AURORA</strong><span>让每一次打开，都更快遇到下一首歌。</span></div>
+        <button type="button" @click="openReleaseNotesPanel">查看版本更新</button>
+      </footer>
+    </main>
+
+    <HomeMvModal
+      :open="mvPlayerOpen"
+      :loading="mvPlayerLoading"
+      :error="mvPlayerError"
+      :mv="currentMv"
+      :url="currentMvUrl"
+      :resolutions="mvResolutions"
+      :resolution="selectedMvResolution"
+      @update:resolution="selectedMvResolution = $event"
+      @change-resolution="changeMvResolution"
+      @close="closeMvPlayer"
+    />
+
+    <HomeReleaseNotesPanel
+      :open="releaseNotesOpen"
+      :notes="releaseNotes"
+      :loading="loading.releaseNotes"
+      :error="errors.releaseNotes"
+      :latest-tag="latestReleaseTag"
+      @close="releaseNotesOpen = false"
+      @retry="loadReleaseNotes"
+    />
+
     <ModalRouterView content-width="85vw" content-height="80vh" />
   </div>
 </template>
 
 <script setup>
-defineOptions({ name: 'home' })
+defineOptions({name: 'HomePage'})
+
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
-import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
+import HomeMvModal from '@/components/home/HomeMvModal.vue'
+import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
+import HomeReleaseNotesPanel from '@/components/home/HomeReleaseNotesPanel.vue'
+import HomeSectionHeader from '@/components/home/HomeSectionHeader.vue'
+import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useHomeData} from '@/composables/useHomeData.js'
 import {useHomeMv} from '@/composables/useHomeMv.js'
-import {useHomeHero} from '@/composables/useHomeHero.js'
-import {useHomeMotion} from '@/composables/useHomeMotion.js'
+import {useFloatingSearch} from '@/composables/useFloatingSearch.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
   playPlaylistHeroEnter,
@@ -588,6 +489,7 @@ const router = useRouter()
 const route = useRoute()
 const playerStore = usePlayerStore()
 const userStore = useCounterStore()
+
 const {
   hero,
   releaseNotes,
@@ -598,12 +500,10 @@ const {
   topRanks,
   podcastPrograms,
   hotArtists,
-  highQualityPlaylists,
   playlistTags,
   activePlaylistTag,
   loading,
   errors,
-  asList,
   formatPodcastDuration,
   loadHomeBanner,
   loadReleaseNotes,
@@ -615,45 +515,10 @@ const {
   loadTopRanks,
   loadPodcastPrograms,
   loadHotArtists,
-  loadHighQualityPlaylists,
 } = useHomeData(userStore)
-const {
-  heroCopyItems,
-  heroCopyLine,
-  heroCopyKey,
-  startHeroCopyCycle,
-  stopHeroCopyCycle,
-  resetHeroCopyCycle,
-} = useHomeHero(hero)
-const {
-  setupMotionEffects,
-  cleanupMotionEffects,
-} = useHomeMotion()
-
-const releaseNotesOpen = ref(false)
-const latestReleaseTag = computed(() => {
-  const first = releaseNotes.value[0]
-  const explicitTag = String(first?.version || first?.tag || '').trim()
-  if (explicitTag) return explicitTag
-  const title = String(first?.title || '')
-  const match = title.match(/v?\d+(?:\.\d+){0,3}(?:[-._a-zA-Z0-9]+)?/)
-  if (match?.[0]) return match[0]
-  return releaseNotes.value.length ? 'NEW' : '...'
-})
 
 const {
   mvList,
-  mvSourceOptions,
-  mvAreas,
-  mvTypes,
-  mvOrders,
-  activeMvSource,
-  mvArea,
-  mvType,
-  mvOrder,
-  mvLimit,
-  mvOffset,
-  mvHasMore,
   mvPlayerOpen,
   mvPlayerLoading,
   mvPlayerError,
@@ -662,110 +527,176 @@ const {
   mvResolutions,
   selectedMvResolution,
   loadMvList,
-  switchMvSource,
-  nextMvPage,
-  prevMvPage,
   openMv,
   changeMvResolution,
   closeMvPlayer,
 } = useHomeMv(playerStore, loading, errors)
 
-const HOME_SCROLL_TOP_STORAGE_KEY = 'aurora:home-scroll-top'
+const discoveryTabs = [
+  {label: '精选歌单', value: 'playlists'},
+  {label: '热门榜单', value: 'ranks'},
+  {label: '热门艺人', value: 'artists'},
+]
+const activeDiscoveryTab = ref('playlists')
+const releaseNotesOpen = ref(false)
+const homeSearchRoot = ref(null)
+const homeSearchInput = ref(null)
+const homeSearchQuery = ref('')
+const homeSearchFocused = ref(false)
+const homeSearchEnabled = ref(true)
+const homeSearchDialogOpen = ref(false)
 
-const recentScroller = ref(null)
-const recentScrollPage = ref(1)
-const recentScrollTotalPages = ref(1)
-const isRecentDragging = ref(false)
-const recentDragStartX = ref(0)
-const recentDragStartScrollLeft = ref(0)
-const recentSuppressClick = ref(false)
-const recentHasMoved = ref(false)
+const {
+  searching: homeSearching,
+  searchError: homeSearchError,
+  artistEntries: homeArtistEntries,
+  songEntries: homeSongEntries,
+  playlistEntries: homePlaylistEntries,
+  isSearchEmpty: homeSearchEmpty,
+  clearSearchState: clearHomeSearchState,
+  setupSearchWatchers: setupHomeSearchWatchers,
+} = useFloatingSearch(homeSearchQuery, homeSearchEnabled, homeSearchDialogOpen)
+
+setupHomeSearchWatchers()
+
+const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  const timeGreeting = hour < 6 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好'
+  const name = String(userStore.nickname || '').trim()
+  return name ? `${timeGreeting}，${name}` : timeGreeting
+})
+const heroDisplayTitle = computed(() => {
+  const dynamic = String(hero.value.title || '').trim()
+  return dynamic && dynamic !== 'Now Playing' ? dynamic : '今天，听点不一样的'
+})
+const heroDisplaySubtitle = computed(() => String(hero.value.subtitle || '').trim() || '从熟悉的旋律出发，也为偶然遇见留一点位置。')
+const continueSongs = computed(() => {
+  const recent = recentListenSongs.value.slice(0, 3)
+  return recent.length ? recent : newSongs.value.slice(0, 3)
+})
+const continuePanelTitle = computed(() => recentListenSongs.value.length ? '继续播放' : '先听这些')
+const continueLoading = computed(() => {
+  if (userStore.isLoggedIn && loading.value.recent && !recentListenSongs.value.length) return true
+  return loading.value.songs && !newSongs.value.length
+})
+const latestReleaseTag = computed(() => {
+  const first = releaseNotes.value[0]
+  const explicitTag = String(first?.version || first?.tag || '').trim()
+  if (explicitTag) return explicitTag
+  const match = String(first?.title || '').match(/v?\d+(?:\.\d+){0,3}(?:[-._a-zA-Z0-9]+)?/)
+  return match?.[0] || (releaseNotes.value.length ? 'NEW' : '...')
+})
+
+function scrollToSection(id) {
+  if (id === 'home-top') {
+    window.scrollTo({top: 0, behavior: 'smooth'})
+    return
+  }
+  document.getElementById(id)?.scrollIntoView({behavior: 'smooth', block: 'start'})
+}
+
+function setDiscoveryTab(tab) {
+  activeDiscoveryTab.value = tab
+  scrollToSection('discovery')
+}
+
+function openSearch() {
+  window.dispatchEvent(new CustomEvent('aurora:open-search'))
+}
+
+function focusHomeSearch() {
+  homeSearchFocused.value = true
+  nextTick(() => homeSearchInput.value?.focus())
+}
+
+function closeHomeSearch() {
+  homeSearchFocused.value = false
+  homeSearchInput.value?.blur()
+}
+
+function clearHomeSearch() {
+  homeSearchQuery.value = ''
+  clearHomeSearchState()
+  focusHomeSearch()
+}
+
+function handleHomeSearchOutside(event) {
+  if (!homeSearchRoot.value?.contains(event.target)) closeHomeSearch()
+}
+
+function formatSearchArtists(song) {
+  const artists = song?.ar || song?.artists || []
+  return artists.map((artist) => artist?.name || artist).filter(Boolean).join(' / ') || '未知艺人'
+}
+
+async function openHomeSearchSong(song, index = 0) {
+  await playSongWithQueue(song, homeSongEntries.value, index)
+  closeHomeSearch()
+}
+
+function openHomeSearchArtist(artist) {
+  closeHomeSearch()
+  openArtist(artist)
+}
+
+function openHomeSearchPlaylist(playlist) {
+  closeHomeSearch()
+  void openPlaylist(playlist)
+}
+
+function submitHomeSearch() {
+  if (homeSongEntries.value[0]) {
+    void openHomeSearchSong(homeSongEntries.value[0], 0)
+    return
+  }
+  if (homeArtistEntries.value[0]) {
+    openHomeSearchArtist(homeArtistEntries.value[0])
+    return
+  }
+  if (homePlaylistEntries.value[0]) openHomeSearchPlaylist(homePlaylistEntries.value[0])
+}
+
+const homeSearchPopoverVisible = computed(() => (
+  homeSearchFocused.value
+  && Boolean(homeSearchQuery.value.trim())
+  && (homeSearching.value || Boolean(homeSearchError.value) || homeSearchEmpty.value || homeSongEntries.value.length || homeArtistEntries.value.length || homePlaylistEntries.value.length)
+))
+
+function openProfile() {
+  router.push('/profile')
+}
+
+async function startHeroPlayback() {
+  const songs = continueSongs.value
+  if (songs.length) {
+    const source = recentListenSongs.value.length ? recentListenSongs.value : newSongs.value
+    await playSongWithQueue(songs[0], source, 0)
+    return
+  }
+  const playlist = recommendPlaylists.value[0]
+  if (playlist) await openPlaylist(playlist)
+}
+
+async function playContinueSong(song, index = 0) {
+  const source = recentListenSongs.value.length ? recentListenSongs.value : newSongs.value
+  await playSongWithQueue(song, source, index)
+}
 
 function saveHomeScrollTop() {
-  if (typeof window === 'undefined') return
   const top = Math.max(0, Math.round(window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0))
   try {
-    window.sessionStorage.setItem(HOME_SCROLL_TOP_STORAGE_KEY, String(top))
+    window.sessionStorage.setItem('aurora:home-scroll-top', String(top))
   } catch (error) {
     void error
   }
 }
 
-function updateRecentScrollState() {
-  const el = recentScroller.value
-  if (!el) return
-
-  const pageWidth = el.clientWidth || 1
-  const total = Math.max(1, Math.ceil(el.scrollWidth / pageWidth))
-  const current = Math.min(total, Math.max(1, Math.round(el.scrollLeft / pageWidth) + 1))
-
-  recentScrollTotalPages.value = total
-  recentScrollPage.value = current
-}
-
-function scrollRecent(direction = 1) {
-  const el = recentScroller.value
-  if (!el) return
-
-  el.scrollBy({
-    left: direction * el.clientWidth * 0.85,
-    behavior: 'smooth',
-  })
-
-  window.setTimeout(updateRecentScrollState, 300)
-}
-
-function handleRecentPointerDown(event) {
-  const el = recentScroller.value
-  if (!el) return
-
-  if (event.button !== undefined && event.button !== 0) return
-
-  isRecentDragging.value = true
-  recentHasMoved.value = false
-  recentSuppressClick.value = false
-  recentDragStartX.value = event.clientX
-  recentDragStartScrollLeft.value = el.scrollLeft
-}
-
-function handleRecentPointerMove(event) {
-  const el = recentScroller.value
-  if (!el || !isRecentDragging.value) return
-
-  const moveX = event.clientX - recentDragStartX.value
-
-  if (Math.abs(moveX) < 10) return
-
-  recentHasMoved.value = true
-  recentSuppressClick.value = true
-  el.scrollLeft = recentDragStartScrollLeft.value - moveX
-  updateRecentScrollState()
-}
-
-function handleRecentPointerUp() {
-  isRecentDragging.value = false
-
-  if (recentHasMoved.value) {
-    window.setTimeout(() => {
-      recentSuppressClick.value = false
-      recentHasMoved.value = false
-    }, 120)
-    return
-  }
-
-  recentSuppressClick.value = false
-  recentHasMoved.value = false
-}
-
 function openArtist(artist, event) {
   const artistId = Number(artist?.id || 0)
-  if (!artistId) {
-    router.push({path: '/artistDetial', query: {id: artist.id || ''}})
-    return
-  }
-
+  if (!artistId) return
   const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  const coverEl = cardEl ? cardEl.querySelector('[data-artist-hero-cover]') : null
+  const coverEl = cardEl?.querySelector('[data-artist-hero-cover]')
   if (coverEl instanceof HTMLElement) {
     setPendingTransition('artist', artistId, {
       coverRect: coverEl.getBoundingClientRect(),
@@ -773,24 +704,23 @@ function openArtist(artist, event) {
       name: artist.name || '',
     })
   }
-
   router.push({path: '/artistDetial', query: {id: artistId}})
 }
 
 async function openPlaylist(playlist, event) {
   const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
   if (!playlistId) return
-  reportApi.reportBehavior({
+  void reportApi.reportBehavior({
     actionType: 'OPEN_PLAYLIST',
     actionTarget: String(playlistId),
     actionDetail: playlist?.name || '',
-  })
-  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  saveHomeScrollTop(cardEl)
+  }).catch(() => {})
 
-  const coverEl = cardEl ? cardEl.querySelector('[data-playlist-hero-cover]') : null
+  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const coverEl = cardEl?.querySelector('[data-playlist-hero-cover]')
   const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
   const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
+  saveHomeScrollTop()
 
   setPendingPlaylistHeroTransition(playlistId, {
     cardRect: cardEl?.getBoundingClientRect?.(),
@@ -802,67 +732,35 @@ async function openPlaylist(playlist, event) {
     coverRadius: coverStyle?.borderRadius || '24px',
     coverShadow: coverStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
   })
-
   await router.push({name: 'playlistDetail', query: {id: playlistId}})
-}
-
-function getPlaylistCardTransitionStyle(playlist) {
-  void playlist
-  return {}
-}
-
-function getPlaylistCoverTransitionStyle(playlist) {
-  void playlist
-  return {}
 }
 
 async function runPlaylistHeroReturn() {
   if (route.name !== 'home') return
   const payload = consumeLatestPendingPlaylistHeroTransition()
   if (!payload?.id) return
-
   await nextTick()
-  const targetCoverEl = document.querySelector(`[data-playlist-hero-cover][data-playlist-id="${payload.id}"]`)
-  if (!(targetCoverEl instanceof HTMLElement)) return
-
-  await playPlaylistHeroEnter({
-    payload,
-    targetCoverEl,
-  })
+  const target = document.querySelector(`[data-playlist-hero-cover][data-playlist-id="${payload.id}"]`)
+  if (target instanceof HTMLElement) await playPlaylistHeroEnter({payload, targetCoverEl: target})
 }
 
 async function runArtistHeroReturn() {
   if (route.name !== 'home') return
   const payload = consumeLatestPendingTransition('artist')
   if (!payload?.id) return
-
   await nextTick()
-  const targetCoverEl = document.querySelector(`[data-artist-hero-cover][data-artist-id="${payload.id}"]`)
-  if (!(targetCoverEl instanceof HTMLElement)) return
-
-  await playHeroEnter({payload, targetCoverEl})
+  const target = document.querySelector(`[data-artist-hero-cover][data-artist-id="${payload.id}"]`)
+  if (target instanceof HTMLElement) await playHeroEnter({payload, targetCoverEl: target})
 }
 
 async function openSong(song, index = 0) {
   await playSongWithQueue(song, newSongs.value, index)
 }
 
-async function openRecentSong(song, index = 0) {
-  await playSongWithQueue(song, recentListenSongs.value, index)
-}
-
-async function handleRecentSongClick(song, index, event) {
-  if (recentSuppressClick.value) {
-    event?.preventDefault?.()
-    event?.stopPropagation?.()
-    return
-  }
-
-  await openRecentSong(song, index)
-}
-
-function getSongArtists(song) {
-  return song?.artists || song?.ar || []
+async function playAllNewSongs() {
+  const queue = newSongs.value.slice(0, 8)
+  if (!queue.length) return
+  await playSongWithQueue(queue[0], queue, 0)
 }
 
 async function openPodcast(item) {
@@ -878,9 +776,7 @@ async function openPodcast(item) {
 
 function openReleaseNotesPanel() {
   releaseNotesOpen.value = true
-  if (!releaseNotes.value.length && !loading.value.releaseNotes) {
-    loadReleaseNotes()
-  }
+  if (!releaseNotes.value.length) void loadReleaseNotes()
 }
 
 let deferredHomeTask = null
@@ -889,31 +785,17 @@ let deferredHomeLoadsCancelled = false
 function cancelDeferredHomeTask() {
   deferredHomeLoadsCancelled = true
   if (!deferredHomeTask) return
-  if (deferredHomeTask.type === 'idle') {
-    window.cancelIdleCallback?.(deferredHomeTask.id)
-  } else {
-    window.clearTimeout(deferredHomeTask.id)
-  }
+  if (deferredHomeTask.type === 'idle') window.cancelIdleCallback?.(deferredHomeTask.id)
+  else window.clearTimeout(deferredHomeTask.id)
   deferredHomeTask = null
 }
 
 function scheduleDeferredHomeLoads() {
   deferredHomeLoadsCancelled = false
-  const loaders = [
-    loadTopPlaylists,
-    loadRecentListenSongs,
-    loadTopRanks,
-    loadNewSongs,
-    loadPodcastPrograms,
-    () => loadMvList({reset: true}),
-    loadHotArtists,
-    loadHighQualityPlaylists,
-  ]
+  const loaders = [loadTopPlaylists, loadTopRanks, loadHotArtists, loadPodcastPrograms, () => loadMvList({reset: true}), loadReleaseNotes]
   let index = 0
-
   const scheduleNext = () => {
     if (deferredHomeLoadsCancelled || index >= loaders.length) return
-
     const run = async () => {
       deferredHomeTask = null
       const loader = loaders[index]
@@ -921,45 +803,27 @@ function scheduleDeferredHomeLoads() {
       try {
         await loader()
       } catch (error) {
-        if (import.meta.env.DEV) {
-          console.warn('[home] deferred section load failed', error)
-        }
+        if (import.meta.env.DEV) console.warn('[home] deferred section load failed', error)
       } finally {
         scheduleNext()
       }
     }
-
-    if (typeof window.requestIdleCallback === 'function') {
-      deferredHomeTask = {
-        type: 'idle',
-        id: window.requestIdleCallback(run, {timeout: 1200}),
-      }
-      return
-    }
-
-    deferredHomeTask = {
-      type: 'timeout',
-      id: window.setTimeout(run, 300),
-    }
+    if (typeof window.requestIdleCallback === 'function') deferredHomeTask = {type: 'idle', id: window.requestIdleCallback(run, {timeout: 900})}
+    else deferredHomeTask = {type: 'timeout', id: window.setTimeout(run, 220)}
   }
-
   scheduleNext()
 }
 
 onMounted(() => {
-  requestAnimationFrame(() => {
-    setupMotionEffects()
-  })
-  startHeroCopyCycle()
   runPlaylistHeroReturn()
   runArtistHeroReturn()
-  loadHomeBanner()
-  loadReleaseNotes()
-  loadRecommendPlaylists()
+  void loadHomeBanner()
+  void loadRecommendPlaylists()
+  void loadNewSongs()
+  void loadRecentListenSongs()
   scheduleDeferredHomeLoads()
-
-  nextTick(updateRecentScrollState)
-  window.addEventListener('resize', updateRecentScrollState)
+  window.addEventListener('aurora:focus-home-search', focusHomeSearch)
+  document.addEventListener('pointerdown', handleHomeSearchOutside)
 })
 
 watch(
@@ -973,145 +837,497 @@ watch(
 )
 
 watch(
-  () => heroCopyItems.value.length,
-  () => {
-    resetHeroCopyCycle()
-  },
-)
-
-watch(
-  () => recentListenSongs.value.length,
-  async () => {
-    await nextTick()
-    updateRecentScrollState()
-  },
-)
-
-watch(
   () => userStore.isLoggedIn,
   (loggedIn) => {
     if (loggedIn) {
-      loadRecentListenSongs()
+      void loadRecentListenSongs()
       return
     }
     loading.value.recent = false
-    errors.value.recent = '请先登录账号查看最近听歌'
+    errors.value.recent = ''
     recentListenSongs.value = []
-    recentScrollPage.value = 1
-    recentScrollTotalPages.value = 1
   },
 )
 
 onBeforeUnmount(() => {
   cancelDeferredHomeTask()
-  cleanupMotionEffects()
-  stopHeroCopyCycle()
   closeMvPlayer()
-  window.removeEventListener('resize', updateRecentScrollState)
+  clearHomeSearchState()
+  window.removeEventListener('aurora:focus-home-search', focusHomeSearch)
+  document.removeEventListener('pointerdown', handleHomeSearchOutside)
 })
 </script>
 
 <style scoped>
-.home-hero-copy {
-  position: relative;
+.home-page {
+  min-height: 100vh;
+  color: #27272a;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(255, 228, 230, 0.72), transparent 24%),
+    radial-gradient(circle at 92% 18%, rgba(254, 243, 199, 0.58), transparent 24%),
+    #f7f7f8;
 }
 
-.hero-copy-block {
-  transform-origin: left bottom;
-  will-change: transform, opacity;
+button { font-family: inherit; }
+.home-topbar { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid rgba(24, 24, 27, 0.065); background: rgba(247, 247, 248, 0.96); backdrop-filter: blur(22px) saturate(1.2); }
+.home-topbar-inner { box-sizing: border-box; display: grid; width: min(100%, 1376px); min-height: 76px; align-items: center; grid-template-columns: auto auto minmax(260px, 1fr) auto; gap: 28px; margin: 0 auto; padding: 10px 28px 10px 88px; }
+.home-brand,
+.home-nav button,
+.home-search,
+.home-profile { cursor: pointer; border: 0; background: transparent; }
+.home-brand { display: flex; align-items: center; gap: 10px; padding: 0; color: #18181b; font-size: 15px; font-weight: 900; letter-spacing: 0.22em; }
+.home-brand-mark { display: grid; width: 28px; aspect-ratio: 1; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, #f4707e, #ef9a68); font-size: 12px; letter-spacing: 0; box-shadow: 0 8px 18px rgba(232, 87, 105, 0.22); }
+.home-nav { display: flex; align-items: center; gap: 6px; }
+.home-nav button { position: relative; padding: 11px 14px; color: #626269; font-size: 13px; font-weight: 740; }
+.home-nav button::after { position: absolute; right: 14px; bottom: 3px; left: 14px; height: 2px; border-radius: 99px; background: #ed7180; content: ''; opacity: 0; transform: scaleX(0.45); transition: 180ms ease; }
+.home-nav button:hover,
+.home-nav button.is-active { color: #27272a; }
+.home-nav button.is-active::after { opacity: 1; transform: scaleX(1); }
+.home-search { position: relative; box-sizing: border-box; display: grid; width: min(100%, 520px); height: 44px; align-items: center; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; justify-self: center; padding: 0 15px; color: #85858d; text-align: left; border: 1px solid rgba(24, 24, 27, 0.05); border-radius: 16px; background: rgba(228, 228, 231, 0.76); transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.home-search:hover,
+.home-search.is-focused { border-color: rgba(232, 87, 105, 0.13); background: rgba(255, 255, 255, 0.94); box-shadow: 0 12px 30px rgba(24, 24, 27, 0.08); transform: translateY(-1px); }
+.home-search svg { width: 18px; height: 18px; transition: color 180ms ease; }
+.home-search.is-focused > svg { color: #e85769; animation: search-icon-arrive 420ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.home-search input { min-width: 0; height: 100%; color: #3f3f46; border: 0; outline: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 620; }
+.home-search input::-webkit-search-cancel-button { display: none; }
+.home-search input::placeholder { color: #85858d; opacity: 1; }
+.home-search kbd { padding: 3px 6px; color: #a1a1aa; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 6px; background: rgba(255, 255, 255, 0.7); font-size: 9px; }
+.home-search-clear { display: grid; width: 24px; aspect-ratio: 1; place-items: center; padding: 0; cursor: pointer; color: #8b8b92; border: 0; border-radius: 50%; background: #eceaec; font-size: 16px; line-height: 1; }
+.home-search-popover { position: absolute; top: calc(100% + 12px); left: 50%; z-index: 90; width: min(680px, calc(100vw - 32px)); max-height: min(68vh, 620px); overflow-y: auto; padding: 12px; color: #27272a; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 24px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 28px 70px rgba(24, 24, 27, 0.18); transform: translateX(-50%); transform-origin: 50% 0; backdrop-filter: blur(24px); will-change: transform, opacity; }
+.home-search-pop-enter-active { transition: opacity 220ms ease, transform 300ms cubic-bezier(0.16, 1, 0.3, 1), filter 220ms ease; }
+.home-search-pop-leave-active { transition: opacity 150ms ease, transform 180ms ease, filter 150ms ease; }
+.home-search-pop-enter-from,
+.home-search-pop-leave-to { opacity: 0; filter: blur(2px); transform: translate(-50%, -10px) scale(0.975); }
+.home-search-state { display: grid; min-height: 110px; place-items: center; color: #8b8b92; font-size: 11px; font-weight: 680; }
+.home-search-state-loading { grid-template-columns: auto auto; justify-content: center; gap: 9px; }
+.home-search-state-loading::before { width: 14px; aspect-ratio: 1; border: 2px solid #f4c7cd; border-top-color: #e85769; border-radius: 50%; content: ''; animation: search-spin 720ms linear infinite; }
+.home-search-state-error { color: #e11d48; }
+.home-search-section { display: grid; gap: 3px; }
+.home-search-section + .home-search-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0eff0; }
+.home-search-section-title { display: flex; align-items: center; justify-content: space-between; padding: 5px 7px 7px; }
+.home-search-section-title span { color: #3f3f46; font-size: 10px; font-weight: 850; }
+.home-search-section-title small { color: #a1a1aa; font-size: 8px; font-weight: 650; }
+.home-search-result { display: grid; min-width: 0; align-items: center; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 10px; padding: 6px; cursor: pointer; text-align: left; border: 0; border-radius: 13px; background: transparent; animation: search-result-arrive 320ms both cubic-bezier(0.2, 0.8, 0.2, 1); transition: background 160ms ease, transform 160ms ease; }
+.home-search-result:nth-of-type(2) { animation-delay: 35ms; }
+.home-search-result:nth-of-type(3) { animation-delay: 70ms; }
+.home-search-result:nth-of-type(4) { animation-delay: 105ms; }
+.home-search-result:hover { background: #f5f3f1; transform: translateX(2px); }
+.home-search-result-cover { width: 42px; aspect-ratio: 1; overflow: hidden; border-radius: 10px; background: #e4e4e7; }
+.home-search-result-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.home-search-result-copy { min-width: 0; }
+.home-search-result-copy strong,
+.home-search-result-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-search-result-copy strong { color: #3f3f46; font-size: 11px; font-weight: 780; }
+.home-search-result-copy small { margin-top: 3px; color: #a1a1aa; font-size: 9px; font-weight: 600; }
+.home-search-result-action { padding: 6px 9px; color: #e85769; border-radius: 999px; background: #fff0f2; font-size: 8px; font-weight: 780; }
+.home-search-section-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.home-search-section-compact .home-search-section-title { width: 100%; }
+.home-search-chip { display: inline-flex; min-width: 0; max-width: 190px; align-items: center; gap: 7px; padding: 5px 9px 5px 5px; cursor: pointer; overflow: hidden; color: #52525b; border: 1px solid #eeecea; border-radius: 999px; background: #faf9f8; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; animation: search-result-arrive 320ms 90ms both cubic-bezier(0.2, 0.8, 0.2, 1); transition: transform 160ms ease, background 160ms ease; }
+.home-search-chip:hover { background: #fff0f2; transform: translateY(-1px); }
+.home-search-chip > span { width: 28px; aspect-ratio: 1; overflow: hidden; flex: none; border-radius: 50%; background: #e4e4e7; }
+.home-search-chip > span :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.home-profile { display: grid; width: 40px; aspect-ratio: 1; overflow: hidden; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
+.home-profile img { width: 100%; height: 100%; object-fit: cover; }
+.home-main { box-sizing: border-box; width: min(100%, 1376px); margin: 0 auto; padding: 34px 28px 150px; }
+.home-lobby { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.88fr); gap: 22px; scroll-margin-top: 90px; }
+.home-hero-card { position: relative; min-height: clamp(410px, 48vw, 525px); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 34px; background: #d4d4d8; box-shadow: 0 30px 80px rgba(43, 32, 32, 0.15); }
+.home-hero-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.home-hero-fallback { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(145deg, #596273, #252934 58%, #1b1d24); }
+.fallback-orbit { position: absolute; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
+.fallback-orbit-one { width: 560px; height: 560px; top: -210px; right: -80px; }
+.fallback-orbit-two { width: 370px; height: 370px; right: 20px; bottom: -200px; }
+.fallback-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
+.home-hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.42) 46%, rgba(14, 15, 19, 0.06) 78%), linear-gradient(0deg, rgba(14, 15, 19, 0.44), transparent 58%); }
+.home-hero-content { position: absolute; inset: auto auto 0 0; width: min(100%, 660px); padding: clamp(30px, 5vw, 62px); color: #fff; }
+.home-hero-badge { display: inline-flex; padding: 7px 11px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; background: rgba(255, 255, 255, 0.1); font-size: 9px; font-weight: 850; letter-spacing: 0.16em; backdrop-filter: blur(12px); }
+.home-greeting { margin: 22px 0 7px; color: rgba(255, 255, 255, 0.75); font-size: 14px; font-weight: 700; }
+.home-hero-content h1 { max-width: 590px; margin: 0; font-size: clamp(39px, 5.4vw, 68px); font-weight: 900; letter-spacing: -0.06em; line-height: 1.02; text-wrap: balance; }
+.home-hero-description { max-width: 470px; margin: 18px 0 0; color: rgba(255, 255, 255, 0.76); font-size: 13px; font-weight: 560; line-height: 1.7; }
+.home-hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 27px; }
+.hero-button { display: inline-flex; height: 46px; align-items: center; justify-content: center; gap: 8px; padding: 0 21px; cursor: pointer; border-radius: 999px; font-size: 13px; font-weight: 800; transition: transform 180ms ease, box-shadow 180ms ease; }
+.hero-button:hover { transform: translateY(-2px); }
+.hero-button svg { width: 15px; height: 15px; }
+.hero-button-primary { color: #fff; border: 0; background: linear-gradient(135deg, #f17483, #ef8c66); box-shadow: 0 14px 30px rgba(235, 100, 115, 0.32); }
+.hero-button-secondary { color: #fff; border: 1px solid rgba(255, 255, 255, 0.56); background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); }
+.continue-panel { display: grid; min-height: 410px; grid-template-rows: auto minmax(0, 1fr) auto; padding: 26px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 34px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 24px 65px rgba(52, 42, 40, 0.1); backdrop-filter: blur(20px); }
+.continue-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid rgba(24, 24, 27, 0.055); }
+.continue-heading p { margin: 0 0 6px; color: #e85769; font-size: 9px; font-weight: 850; letter-spacing: 0.16em; }
+.continue-heading h2 { margin: 0; color: #27272a; font-size: 24px; font-weight: 900; letter-spacing: -0.04em; }
+.continue-status { display: inline-flex; align-items: center; gap: 6px; color: #a1a1aa; font-size: 9px; font-weight: 720; }
+.continue-status i { width: 6px; height: 6px; border-radius: 50%; background: #6fcf97; box-shadow: 0 0 0 4px rgba(111, 207, 151, 0.14); }
+.continue-list { display: grid; align-content: center; gap: 2px; padding-block: 10px; }
+.continue-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; color: #a1a1aa; border-top: 1px solid rgba(24, 24, 27, 0.055); font-size: 9px; font-weight: 650; }
+.continue-footer button { padding: 0; cursor: pointer; color: #e85769; border: 0; background: transparent; font: inherit; font-weight: 800; }
+.continue-empty { display: grid; place-content: center; justify-items: center; color: #a1a1aa; text-align: center; }
+.continue-empty-icon { display: grid; width: 48px; aspect-ratio: 1; place-items: center; color: #e85769; border-radius: 50%; background: #fff0f2; font-size: 22px; }
+.continue-empty p { margin: 11px 0; font-size: 12px; font-weight: 700; }
+.continue-empty button { padding: 8px 12px; cursor: pointer; color: #52525b; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 999px; background: #fff; font: inherit; font-size: 10px; font-weight: 750; }
+.continue-skeleton { display: grid; align-content: center; gap: 12px; }
+.continue-skeleton span { height: 68px; border-radius: 17px; background: linear-gradient(100deg, #f1f1f2 20%, #fff 45%, #f1f1f2 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
+.category-rail { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.category-rail button,
+.tag-list button,
+.discovery-tabs button,
+.section-link { cursor: pointer; border: 1px solid rgba(24, 24, 27, 0.055); border-radius: 999px; background: rgba(255, 255, 255, 0.68); }
+.category-rail button { display: inline-flex; height: 39px; align-items: center; gap: 8px; padding: 0 17px; color: #71717a; font-size: 11px; font-weight: 760; transition: 180ms ease; }
+.category-rail button:hover,
+.category-rail button.is-active { color: #e85769; border-color: rgba(232, 87, 105, 0.08); background: #fff0f2; }
+.category-rail span { font-size: 13px; }
+.home-section { margin-top: 92px; scroll-margin-top: 34px; }
+.section-link { padding: 9px 14px; color: #71717a; font-size: 10px; font-weight: 750; }
+.playlist-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(14px, 2vw, 24px); }
+.playlist-strip > :nth-child(n + 6) { display: none; }
+.playlist-skeleton { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px; }
+.playlist-skeleton span { aspect-ratio: 1 / 1.18; border-radius: 24px; background: linear-gradient(100deg, #ebebed 20%, #fafafa 45%, #ebebed 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
+.section-state { display: grid; min-height: 170px; place-content: center; justify-items: center; gap: 12px; color: #a1a1aa; border: 1px dashed rgba(24, 24, 27, 0.09); border-radius: 24px; background: rgba(255, 255, 255, 0.34); font-size: 12px; font-weight: 680; }
+.section-state p { margin: 0; }
+.section-state button { padding: 9px 14px; cursor: pointer; color: #fff; border: 0; border-radius: 999px; background: #27272a; font: inherit; font-size: 10px; }
+.section-state-error { color: #e11d48; border-color: rgba(225, 29, 72, 0.12); background: rgba(255, 241, 242, 0.52); }
+.section-sequence { display: flex; align-items: center; gap: 9px; color: #e85769; font-size: 9px; font-weight: 850; letter-spacing: 0.17em; }
+.section-sequence span { color: #a1a1aa; font-variant-numeric: tabular-nums; }
+.section-sequence i { width: 28px; height: 1px; background: currentColor; }
+.section-sequence-light { color: #ff9d89; }
+.section-sequence-light span { color: rgba(255, 255, 255, 0.4); }
+.discovery-studio { position: relative; display: block; padding-inline: 4px; }
+.discovery-intro { position: relative; z-index: 1; display: grid; align-items: end; grid-template-columns: minmax(230px, 0.7fr) minmax(270px, 1fr) auto; grid-template-rows: auto auto; gap: 8px clamp(28px, 4vw, 64px); padding-inline: 8px; }
+.discovery-intro .section-sequence { grid-column: 1; grid-row: 1; }
+.discovery-intro h2 { grid-column: 1; grid-row: 2; margin: 8px 0 0; color: #242326; font-size: clamp(38px, 4vw, 54px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; }
+.discovery-intro > p { grid-column: 2; grid-row: 1 / 3; max-width: 420px; margin: 0; color: #79777b; font-size: 12px; font-weight: 590; line-height: 1.75; }
+.discovery-tabs { display: flex; grid-column: 3; grid-row: 1 / 3; align-self: end; gap: 4px; margin: 0; padding: 4px; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 10px 28px rgba(24, 24, 27, 0.045); }
+.discovery-tabs button { display: inline-flex; height: 36px; align-items: center; gap: 7px; padding: 0 13px; cursor: pointer; color: #777579; text-align: left; border: 0; border-radius: 999px; background: transparent; font-size: 10px; font-weight: 750; transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.discovery-tabs button span { color: #aaa7a4; font-size: 9px; font-variant-numeric: tabular-nums; }
+.discovery-tabs button i { display: none; }
+.discovery-tabs button:hover,
+.discovery-tabs button.is-active { color: #fff; background: #29282c; box-shadow: 0 8px 18px rgba(24, 24, 27, 0.13); transform: translateY(-1px); }
+.discovery-tabs button.is-active span { color: rgba(255, 255, 255, 0.55); }
+.discovery-stage { position: relative; z-index: 1; box-sizing: border-box; height: 390px; min-width: 0; overflow: hidden; margin-top: 24px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 30px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 24px 64px rgba(48, 42, 38, 0.09); backdrop-filter: blur(18px); }
+.discovery-content { height: 100%; min-height: 0; }
+.discovery-content > .section-state { box-sizing: border-box; height: 100%; min-height: 0; }
+.discovery-content > .tag-list + .section-state { height: calc(100% - 38px); }
+.discovery-swap-enter-active { transition: opacity 240ms ease, transform 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+.discovery-swap-leave-active { transition: opacity 120ms ease, transform 150ms ease; }
+.discovery-swap-enter-from { opacity: 0; transform: translateY(10px) scale(0.992); }
+.discovery-swap-leave-to { opacity: 0; transform: translateY(-5px); }
+.tag-list { display: flex; overflow-x: auto; gap: 6px; padding: 1px 2px 10px; scrollbar-width: none; }
+.tag-list::-webkit-scrollbar { display: none; }
+.tag-list button { flex: none; padding: 7px 12px; color: #8b8b92; border-color: transparent; background: transparent; font-size: 10px; font-weight: 720; transition: color 160ms ease, background 160ms ease; }
+.tag-list button:hover { color: #3f3f46; background: #f3f1ef; }
+.tag-list button.is-active { color: #fff; border-color: #27272a; background: #27272a; }
+.discovery-playlists { display: grid; height: calc(100% - 38px); min-height: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.discovery-playlist-tile { position: relative; min-width: 0; min-height: 0; overflow: hidden; padding: 0; cursor: pointer; text-align: left; border: 0; border-radius: 18px; background: #29282c; box-shadow: 0 10px 24px rgba(24, 24, 27, 0.1); isolation: isolate; }
+.discovery-playlist-tile.is-featured { grid-column: span 2; grid-row: span 2; border-radius: 22px; }
+.discovery-playlist-tile-cover,
+.discovery-playlist-tile-shade { position: absolute; inset: 0; display: block; }
+.discovery-playlist-tile-cover :deep(img),
+.discovery-playlist-tile-cover :deep(video) { width: 100%; height: 100%; object-fit: cover; transition: transform 620ms cubic-bezier(0.16, 1, 0.3, 1), filter 300ms ease; }
+.discovery-playlist-tile:hover .discovery-playlist-tile-cover :deep(img) { filter: saturate(1.08); transform: scale(1.055); }
+.discovery-playlist-tile-shade { z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.86), rgba(13, 13, 16, 0.02) 76%); }
+.discovery-playlist-tile-index { position: absolute; top: 13px; left: 14px; z-index: 2; color: rgba(255, 255, 255, 0.68); font-size: 8px; font-weight: 820; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+.discovery-playlist-tile-copy { position: absolute; right: 14px; bottom: 13px; left: 14px; z-index: 2; min-width: 0; color: #fff; }
+.discovery-playlist-tile-copy small { display: block; overflow: hidden; color: #ff9d89; font-size: 7px; font-weight: 850; text-overflow: ellipsis; letter-spacing: 0.13em; white-space: nowrap; }
+.discovery-playlist-tile-copy strong { display: -webkit-box; overflow: hidden; margin-top: 5px; font-size: 12px; font-weight: 830; letter-spacing: -0.025em; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.discovery-playlist-tile-copy > span { display: none; }
+.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy { right: 24px; bottom: 22px; left: 24px; }
+.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy small { font-size: 8px; }
+.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy strong { max-width: 440px; margin-top: 8px; font-size: clamp(22px, 2.3vw, 31px); font-weight: 890; letter-spacing: -0.045em; line-height: 1.12; }
+.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy > span { display: -webkit-box; max-width: 430px; overflow: hidden; margin-top: 9px; color: rgba(255, 255, 255, 0.66); font-size: 9px; font-weight: 580; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.discovery-playlist-tile-play { position: absolute; top: 11px; right: 11px; z-index: 2; display: grid; width: 29px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.91); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18); font-size: 8px; opacity: 0; transform: translateY(4px) scale(0.9); transition: opacity 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+.discovery-playlist-tile.is-featured .discovery-playlist-tile-play { top: 17px; right: 17px; width: 40px; font-size: 10px; opacity: 1; transform: none; }
+.discovery-playlist-tile:hover .discovery-playlist-tile-play { opacity: 1; transform: none; }
+.row-skeleton,
+.rank-skeleton,
+.artist-skeleton { display: grid; gap: 12px; }
+.row-skeleton { height: calc(100% - 38px); grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.row-skeleton span { min-height: 0; border-radius: 18px; background: #efeff0; }
+.rank-skeleton { grid-template-columns: 1fr; }
+.rank-skeleton span { height: 112px; border-radius: 20px; background: #efeff0; }
+.artist-skeleton { height: 100%; grid-template-columns: minmax(260px, 0.78fr) repeat(2, minmax(0, 0.61fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.artist-skeleton span { min-height: 0; border-radius: 17px; background: #efeff0; }
+.artist-skeleton span:first-child { grid-row: 1 / -1; border-radius: 22px; }
+.rank-grid { display: grid; height: 100%; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rank-card { display: grid; min-width: 0; align-items: center; grid-template-columns: 32px 66px minmax(110px, 0.38fr) minmax(0, 1fr) 22px; gap: 14px; padding: 9px 14px; cursor: pointer; text-align: left; border: 1px solid rgba(24, 24, 27, 0.045); border-radius: 19px; background: #f6f4f2; transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease; }
+.rank-card:nth-child(2) { background: #f1eeeb; }
+.rank-card:hover { background: #fff; box-shadow: 0 14px 30px rgba(24, 24, 27, 0.07); transform: translateX(3px); }
+.rank-number { color: #e85769; font-size: 10px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.rank-cover { width: 66px; aspect-ratio: 1; overflow: hidden; border-radius: 14px; background: #e4e4e7; box-shadow: 0 8px 20px rgba(24, 24, 27, 0.12); }
+.rank-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.rank-meta { min-width: 0; }
+.rank-meta strong,
+.rank-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-meta strong { color: #27272a; font-size: 12px; font-weight: 830; }
+.rank-meta small { margin-top: 5px; color: #e85769; font-size: 8px; font-weight: 730; }
+.rank-tracks { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-left: 18px; border-left: 1px solid rgba(24, 24, 27, 0.08); }
+.rank-tracks > span { overflow: hidden; color: #52525b; font-size: 10px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+.rank-tracks b { display: inline-block; width: 22px; color: #e85769; }
+.rank-tracks small { color: #a1a1aa; }
+.rank-open { color: #aaa7a4; font-size: 14px; }
+.artist-showcase { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.22fr); gap: 9px; }
+.artist-featured { position: relative; min-width: 0; min-height: 0; overflow: hidden; padding: 0; cursor: pointer; text-align: left; border: 0; border-radius: 22px; background: #27272a; box-shadow: 0 14px 30px rgba(24, 24, 27, 0.14); isolation: isolate; }
+.artist-featured-cover,
+.artist-featured-shade { position: absolute; inset: 0; display: block; }
+.artist-featured-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; transition: filter 300ms ease, transform 650ms cubic-bezier(0.16, 1, 0.3, 1); }
+.artist-featured:hover .artist-featured-cover :deep(img) { filter: saturate(1.08); transform: scale(1.045); }
+.artist-featured-shade { z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.9), rgba(13, 13, 16, 0.03) 74%); }
+.artist-featured-index { position: absolute; top: 17px; left: 18px; z-index: 2; color: rgba(255, 255, 255, 0.72); font-size: 9px; font-weight: 840; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+.artist-featured-copy { position: absolute; right: 24px; bottom: 22px; left: 24px; z-index: 2; color: #fff; }
+.artist-featured-copy small { display: flex; align-items: center; gap: 7px; color: #ff9d89; font-size: 8px; font-weight: 850; letter-spacing: 0.14em; }
+.artist-featured-copy small i { width: 18px; height: 1px; background: currentColor; }
+.artist-featured-copy strong { display: block; overflow: hidden; margin-top: 9px; font-size: clamp(28px, 3vw, 40px); font-weight: 900; letter-spacing: -0.055em; text-overflow: ellipsis; white-space: nowrap; }
+.artist-featured-copy > span { display: block; overflow: hidden; margin-top: 6px; color: rgba(255, 255, 255, 0.62); font-size: 9px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
+.artist-featured-open { position: absolute; top: 15px; right: 15px; z-index: 2; display: grid; width: 38px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 9px 20px rgba(0, 0, 0, 0.18); font-size: 13px; transition: transform 200ms ease; }
+.artist-featured:hover .artist-featured-open { transform: rotate(10deg) scale(1.04); }
+.artist-directory { display: grid; min-width: 0; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.artist-directory-card { display: grid; min-width: 0; min-height: 0; align-items: center; grid-template-columns: 22px 52px minmax(0, 1fr) 20px; gap: 10px; padding: 7px 10px; cursor: pointer; text-align: left; border: 1px solid rgba(24, 24, 27, 0.045); border-radius: 17px; background: #f5f3f0; transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.artist-directory-card:nth-child(3n + 2) { background: #f0edeb; }
+.artist-directory-card:hover { background: #fff; box-shadow: 0 12px 25px rgba(24, 24, 27, 0.08); transform: translateX(3px); }
+.artist-directory-index { color: #e85769; font-size: 8px; font-weight: 840; font-variant-numeric: tabular-nums; }
+.artist-directory-cover { display: block; width: 52px; aspect-ratio: 1; overflow: hidden; border-radius: 15px; background: #e4e4e7; box-shadow: 0 7px 16px rgba(24, 24, 27, 0.1); }
+.artist-directory-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; transition: transform 260ms ease; }
+.artist-directory-card:hover .artist-directory-cover :deep(img) { transform: scale(1.06); }
+.artist-directory-copy { min-width: 0; }
+.artist-directory-copy strong,
+.artist-directory-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artist-directory-copy strong { color: #343337; font-size: 11px; font-weight: 820; }
+.artist-directory-copy small { margin-top: 4px; color: #a5a2a0; font-size: 7px; font-weight: 750; letter-spacing: 0.09em; }
+.artist-directory-open { color: #aaa7a4; font-size: 12px; }
+.release-section { position: relative; display: grid; overflow: hidden; grid-template-columns: minmax(230px, 0.3fr) minmax(0, 0.7fr); gap: clamp(24px, 4vw, 58px); padding: clamp(30px, 4.4vw, 54px); border-radius: 38px; background: #222125; box-shadow: 0 30px 80px rgba(24, 24, 27, 0.18); }
+.release-section::before { position: absolute; top: -260px; left: -180px; width: 520px; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(239, 113, 128, 0.2), transparent 68%); content: ''; pointer-events: none; }
+.release-intro { position: relative; z-index: 1; }
+.release-intro h2 { margin: 30px 0 15px; color: #fff; font-size: clamp(38px, 4.5vw, 60px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; }
+.release-intro > p { max-width: 270px; margin: 0; color: rgba(255, 255, 255, 0.52); font-size: 12px; font-weight: 570; line-height: 1.8; }
+.release-play-all { display: inline-flex; height: 43px; align-items: center; gap: 9px; margin-top: 30px; padding: 0 17px; cursor: pointer; color: #29282c; border: 0; border-radius: 999px; background: #fff; font-size: 10px; font-weight: 820; transition: transform 180ms ease; }
+.release-play-all:hover { transform: translateY(-2px); }
+.release-play-all span { color: #e85769; font-size: 9px; }
+.release-decoration { display: flex; height: 45px; align-items: end; gap: 5px; margin-top: 48px; opacity: 0.36; }
+.release-decoration span { width: 4px; border-radius: 99px; background: #ff9d89; }
+.release-decoration span:nth-child(1) { height: 18px; }
+.release-decoration span:nth-child(2) { height: 38px; }
+.release-decoration span:nth-child(3) { height: 27px; }
+.release-decoration span:nth-child(4) { height: 45px; }
+.release-content { position: relative; z-index: 1; min-width: 0; align-self: center; }
+.new-song-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 15px; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 27px; background: rgba(255, 255, 255, 0.045); }
+.release-section :deep(.song-row:hover),
+.release-section :deep(.song-row:focus-visible) { border-color: rgba(255, 255, 255, 0.07); background: rgba(255, 255, 255, 0.075); }
+.release-section :deep(.song-title) { color: rgba(255, 255, 255, 0.9); }
+.release-section :deep(.song-artist),
+.release-section :deep(.song-duration),
+.release-section :deep(.song-index) { color: rgba(255, 255, 255, 0.38); }
+.release-section :deep(.song-play) { color: #fff; border-color: rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.07); }
+.release-section :deep(.song-cover) { box-shadow: 0 9px 24px rgba(0, 0, 0, 0.25); }
+.song-skeleton { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.song-skeleton span { height: 72px; border-radius: 18px; background: rgba(255, 255, 255, 0.08); }
+.media-studio { position: relative; }
+.media-section-header { display: grid; align-items: end; grid-template-columns: minmax(0, 1fr) minmax(240px, 0.4fr); gap: 34px; margin-bottom: 30px; padding-inline: 5px; }
+.media-section-header h2 { margin: 21px 0 0; color: #27272a; font-size: clamp(38px, 4.8vw, 62px); font-weight: 920; letter-spacing: -0.065em; line-height: 1; }
+.media-section-header > p { max-width: 390px; justify-self: end; margin: 0; color: #858389; font-size: 12px; font-weight: 580; line-height: 1.75; }
+.mv-showcase,
+.podcast-showcase { padding: clamp(24px, 3.5vw, 40px); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 34px; background: rgba(255, 255, 255, 0.68); box-shadow: 0 24px 68px rgba(52, 42, 40, 0.07); }
+.media-subheading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
+.media-subheading span { color: #e85769; font-size: 8px; font-weight: 850; letter-spacing: 0.17em; }
+.media-subheading h3 { margin: 6px 0 0; color: #27272a; font-size: 26px; font-weight: 900; letter-spacing: -0.045em; }
+.media-subheading > p { margin: 0; color: #a1a1aa; font-size: 9px; font-weight: 650; }
+.mv-grid { display: grid; height: min(42vw, 525px); min-height: 420px; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.72fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mv-card { min-width: 0; min-height: 0; padding: 0; cursor: pointer; text-align: left; border: 0; background: transparent; }
+.mv-card-featured { grid-row: 1 / 3; }
+.mv-cover { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 22px; background: #e4e4e7; }
+.mv-cover :deep(img),
+.mv-cover :deep(video) { width: 100%; height: 100%; object-fit: cover; transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.mv-card:hover .mv-cover :deep(img) { transform: scale(1.045); }
+.mv-shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(12, 12, 15, 0.82), transparent 68%); }
+.mv-order { position: absolute; top: 17px; left: 18px; color: rgba(255, 255, 255, 0.74); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; }
+.mv-card-copy { position: absolute; right: 65px; bottom: 17px; left: 18px; color: #fff; }
+.mv-card-copy small,
+.mv-card-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-card-copy small { color: rgba(255, 255, 255, 0.58); font-size: 9px; font-weight: 650; }
+.mv-card-copy strong { margin-top: 5px; font-size: 13px; font-weight: 820; }
+.mv-card-featured .mv-card-copy { right: 85px; bottom: 27px; left: 27px; }
+.mv-card-featured .mv-card-copy strong { margin-top: 7px; font-size: clamp(22px, 2.4vw, 34px); letter-spacing: -0.035em; }
+.mv-cover > i { position: absolute; right: 17px; bottom: 17px; display: grid; width: 38px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.2); }
+.mv-card-featured .mv-cover > i { right: 26px; bottom: 26px; width: 48px; }
+.mv-cover svg { width: 12px; height: 12px; margin-left: 2px; }
+.podcast-showcase { margin-top: 20px; background: #eee9e3; }
+.podcast-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.podcast-list button { position: relative; display: grid; min-width: 0; align-items: center; grid-template-columns: 22px 92px minmax(0, 1fr) 20px; gap: 12px; padding: 12px; cursor: pointer; text-align: left; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 22px; background: rgba(255, 255, 255, 0.62); transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
+.podcast-list button:hover { background: #fff; box-shadow: 0 16px 32px rgba(48, 42, 38, 0.08); transform: translateY(-3px); }
+.podcast-index { align-self: start; padding-top: 4px; color: #aaa7a4; font-size: 8px; font-weight: 800; }
+.podcast-cover { width: 92px; aspect-ratio: 1; overflow: hidden; border-radius: 17px; background: #d8d5d1; box-shadow: 0 9px 24px rgba(48, 42, 38, 0.12); }
+.podcast-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.podcast-copy { min-width: 0; }
+.podcast-copy strong,
+.podcast-copy small,
+.podcast-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podcast-copy small { color: #e85769; font-size: 8px; font-weight: 760; }
+.podcast-copy strong { margin-top: 7px; color: #343337; font-size: 11px; font-weight: 800; }
+.podcast-copy > span { margin-top: 10px; color: #99969a; font-size: 9px; font-weight: 650; }
+.podcast-copy > span i { margin-right: 4px; color: #e85769; font-size: 7px; font-style: normal; }
+.podcast-arrow { color: #aaa7a4; font-size: 13px; }
+.media-skeleton { display: grid; height: 430px; grid-template-columns: 1.5fr 0.72fr; gap: 12px; }
+.media-skeleton span { border-radius: 22px; background: #ebebed; }
+.media-skeleton span:first-child { grid-row: span 2; }
+.podcast-skeleton { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.podcast-skeleton span { height: 118px; border-radius: 22px; background: rgba(255, 255, 255, 0.6); }
+.home-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 100px; padding: 28px 2px 0; border-top: 1px solid rgba(24, 24, 27, 0.07); }
+.home-footer div { display: flex; align-items: center; gap: 16px; }
+.home-footer strong { color: #27272a; font-size: 12px; font-weight: 900; letter-spacing: 0.2em; }
+.home-footer span { color: #a1a1aa; font-size: 10px; font-weight: 620; }
+.home-footer button { padding: 9px 14px; cursor: pointer; color: #71717a; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.58); font-size: 9px; font-weight: 750; }
+@keyframes shimmer { to { background-position-x: -220%; } }
+@keyframes search-spin { to { transform: rotate(360deg); } }
+@keyframes search-icon-arrive {
+  0% { opacity: 0.5; transform: rotate(-18deg) scale(0.72); }
+  60% { transform: rotate(4deg) scale(1.13); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes search-result-arrive {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
 }
 
-.hero-copy-spring-enter-active {
-  animation: hero-copy-spring-in 760ms both;
+@media (max-width: 1080px) {
+  .home-topbar-inner { grid-template-columns: auto minmax(230px, 1fr) auto; }
+  .home-nav { display: none; }
+  .home-lobby { grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.8fr); }
+  .playlist-strip,
+  .playlist-skeleton { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .playlist-strip > :nth-child(5),
+  .playlist-skeleton > :nth-child(5) { display: none; }
+  .discovery-studio { padding-inline: 4px; }
+  .discovery-intro { grid-template-columns: minmax(210px, 0.62fr) minmax(240px, 1fr) auto; gap: 8px 24px; }
+  .discovery-tabs button { padding-inline: 10px; }
+  .podcast-list button { grid-template-columns: 18px 76px minmax(0, 1fr) 16px; gap: 9px; }
+  .podcast-cover { width: 76px; }
 }
 
-.hero-copy-spring-leave-active {
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: 100%;
-  animation: hero-copy-spring-out 520ms both;
+@media (max-width: 820px) {
+  .home-topbar-inner { min-height: 68px; grid-template-columns: auto 1fr auto; padding-right: 18px; padding-left: 72px; }
+  .home-search { width: 42px; height: 42px; grid-template-columns: 1fr; place-items: center; justify-self: end; padding: 0; border-radius: 50%; }
+  .home-search input { position: absolute; width: 1px; opacity: 0; pointer-events: none; }
+  .home-search kbd { display: none; }
+  .home-search.is-focused { width: 100%; min-width: 150px; grid-template-columns: 18px minmax(0, 1fr) auto; place-items: stretch; padding: 0 12px; border-radius: 15px; }
+  .home-search.is-focused svg { align-self: center; }
+  .home-search.is-focused input { position: static; width: auto; opacity: 1; pointer-events: auto; }
+  .home-search-clear { align-self: center; }
+  .home-search-popover { position: fixed; top: 66px; right: 10px; left: 10px; width: auto; max-height: min(64vh, 560px); border-radius: 20px; transform: none; }
+  .home-search-pop-enter-from,
+  .home-search-pop-leave-to { transform: translateY(-10px) scale(0.975); }
+  .home-main { padding: 22px 18px 140px; }
+  .home-lobby { grid-template-columns: 1fr; }
+  .home-hero-card { min-height: 480px; }
+  .continue-panel { min-height: auto; }
+  .playlist-strip,
+  .playlist-skeleton { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .playlist-strip > :nth-child(4),
+  .playlist-skeleton > :nth-child(4) { display: none; }
+  .discovery-intro { grid-template-columns: 1fr; grid-template-rows: auto; gap: 10px; }
+  .discovery-intro .section-sequence,
+  .discovery-intro h2,
+  .discovery-intro > p,
+  .discovery-tabs { grid-column: 1; grid-row: auto; }
+  .discovery-intro > p { max-width: 470px; margin-top: 4px; }
+  .discovery-tabs { width: max-content; max-width: 100%; margin-top: 12px; }
+  .rank-card { grid-template-columns: 28px 62px minmax(100px, 0.35fr) minmax(0, 1fr) 18px; gap: 10px; }
+  .rank-cover { width: 62px; }
+  .rank-tracks { gap: 8px; padding-left: 12px; }
+  .artist-showcase { height: 100%; margin-right: -12px; overflow-x: auto; grid-auto-columns: 76%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 12px; scrollbar-width: none; }
+  .artist-showcase::-webkit-scrollbar { display: none; }
+  .artist-directory { display: contents; }
+  .artist-directory-card { position: relative; display: block; overflow: hidden; padding: 0; border: 0; border-radius: 22px; background: #27272a; box-shadow: 0 12px 26px rgba(24, 24, 27, 0.12); isolation: isolate; }
+  .artist-directory-card::after { position: absolute; inset: 0; z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.88), rgba(13, 13, 16, 0.03) 72%); content: ''; pointer-events: none; }
+  .artist-directory-card:hover { background: #27272a; transform: none; }
+  .artist-directory-cover { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+  .artist-directory-index { position: absolute; top: 17px; left: 18px; z-index: 2; color: rgba(255, 255, 255, 0.72); font-size: 9px; }
+  .artist-directory-copy { position: absolute; right: 20px; bottom: 20px; left: 20px; z-index: 2; color: #fff; }
+  .artist-directory-copy strong { color: #fff; font-size: 26px; font-weight: 880; letter-spacing: -0.04em; }
+  .artist-directory-copy small { margin-top: 6px; color: #ff9d89; font-size: 8px; }
+  .artist-directory-open { position: absolute; top: 15px; right: 15px; z-index: 2; display: grid; width: 36px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); font-size: 12px; }
+  .artist-skeleton { display: flex; height: 100%; gap: 9px; overflow: hidden; }
+  .artist-skeleton span,
+  .artist-skeleton span:first-child { width: 76%; height: 100%; flex: none; border-radius: 22px; }
+  .release-section { grid-template-columns: 1fr; }
+  .release-intro > p { max-width: 520px; }
+  .release-decoration { display: none; }
+  .new-song-panel,
+  .song-skeleton { grid-template-columns: 1fr; }
+  .media-section-header { grid-template-columns: 1fr; }
+  .media-section-header > p { justify-self: start; }
+  .podcast-list,
+  .podcast-skeleton { grid-template-columns: 1fr; }
+  .podcast-list button { grid-template-columns: 22px 92px minmax(0, 1fr) 20px; gap: 12px; }
+  .podcast-cover { width: 92px; }
 }
 
-@keyframes hero-copy-spring-in {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 24px, 0) scale(0.965);
-  }
-  58% {
-    opacity: 1;
-    transform: translate3d(0, -4px, 0) scale(1.018);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes hero-copy-spring-out {
-  0% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(0, -22px, 0) scale(1.028);
-  }
-}
-
-.release-notes-enter-active,
-.release-notes-leave-active {
-  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.release-notes-enter-from,
-.release-notes-leave-to {
-  opacity: 0;
-}
-
-.release-notes-enter-active .release-notes-panel,
-.release-notes-leave-active .release-notes-panel {
-  transition:
-    transform 520ms cubic-bezier(0.34, 1.28, 0.64, 1),
-    opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.release-notes-enter-from .release-notes-panel,
-.release-notes-leave-to .release-notes-panel {
-  opacity: 0;
-  transform: translateX(32px) scale(0.96);
+@media (max-width: 560px) {
+  .home-brand { font-size: 12px; }
+  .home-brand-mark { display: none; }
+  .home-profile { width: 36px; }
+  .home-main { padding-inline: 13px; }
+  .home-hero-card { min-height: 510px; border-radius: 26px; }
+  .home-hero-content { padding: 25px; }
+  .home-hero-content h1 { font-size: 42px; }
+  .home-hero-description { font-size: 12px; }
+  .continue-panel { padding: 20px; border-radius: 26px; }
+  .category-rail { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .category-rail::-webkit-scrollbar { display: none; }
+  .category-rail button { flex: none; }
+  .home-section { margin-top: 70px; }
+  .playlist-strip,
+  .playlist-skeleton { display: grid; margin-right: -13px; overflow-x: auto; grid-auto-columns: 72vw; grid-auto-flow: column; grid-template-columns: none; padding-right: 13px; padding-bottom: 14px; scrollbar-width: none; }
+  .playlist-strip > :nth-child(n),
+  .playlist-skeleton > :nth-child(n) { display: block; }
+  .playlist-strip::-webkit-scrollbar,
+  .playlist-skeleton::-webkit-scrollbar { display: none; }
+  .discovery-studio { padding-inline: 0; }
+  .discovery-intro { padding-inline: 6px; }
+  .discovery-intro h2 { margin-top: 21px; font-size: 40px; }
+  .discovery-tabs { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; }
+  .discovery-tabs button { width: 100%; justify-content: center; padding: 0 5px; text-align: center; font-size: 10px; }
+  .discovery-tabs button span { display: none; }
+  .discovery-stage { height: auto; min-height: 0; margin-top: 18px; padding: 9px; border-radius: 22px; }
+  .discovery-content { height: auto; min-height: 0; }
+  .discovery-playlists { height: 300px; margin-right: -9px; overflow-x: auto; grid-auto-columns: 78%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 9px; scrollbar-width: none; }
+  .discovery-playlists::-webkit-scrollbar { display: none; }
+  .discovery-playlist-tile.is-featured { grid-column: auto; grid-row: auto; border-radius: 18px; }
+  .discovery-playlist-tile.is-featured .discovery-playlist-tile-copy { right: 18px; bottom: 17px; left: 18px; }
+  .discovery-playlist-tile.is-featured .discovery-playlist-tile-copy strong { font-size: 23px; }
+  .row-skeleton { height: 300px; overflow: hidden; grid-auto-columns: 78%; grid-auto-flow: column; grid-template-columns: none; }
+  .rank-grid { height: auto; min-height: 0; grid-template-rows: none; }
+  .rank-card { grid-template-columns: 24px 54px minmax(0, 1fr) 18px; gap: 8px; padding: 10px 8px; }
+  .rank-cover { width: 54px; border-radius: 12px; }
+  .rank-tracks { grid-column: 2 / -1; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 9px 0 0; border-top: 1px solid rgba(24, 24, 27, 0.06); border-left: 0; }
+  .rank-tracks > :nth-child(n + 3) { display: none; }
+  .rank-open { grid-column: 4; grid-row: 1; }
+  .artist-showcase,
+  .artist-skeleton { height: 300px; }
+  .release-section { padding: 26px 14px 14px; border-radius: 27px; }
+  .release-intro { padding-inline: 9px; }
+  .release-intro h2 { margin-top: 21px; font-size: 40px; }
+  .release-play-all { margin-top: 23px; }
+  .new-song-panel { padding: 8px; border-radius: 22px; }
+  .media-section-header h2 { font-size: 40px; }
+  .mv-showcase,
+  .podcast-showcase { padding: 20px 14px; border-radius: 27px; }
+  .media-subheading > p { display: none; }
+  .mv-grid { display: grid; height: 305px; min-height: 0; margin-right: -14px; overflow-x: auto; grid-auto-columns: 82%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 14px; padding-bottom: 8px; scrollbar-width: none; }
+  .mv-card-featured { grid-row: auto; }
+  .mv-card-featured .mv-card-copy { right: 65px; bottom: 17px; left: 18px; }
+  .mv-card-featured .mv-card-copy strong { margin-top: 5px; font-size: 20px; }
+  .mv-card-featured .mv-cover > i { right: 17px; bottom: 17px; width: 38px; }
+  .mv-grid::-webkit-scrollbar { display: none; }
+  .podcast-list button { grid-template-columns: 18px 76px minmax(0, 1fr) 18px; gap: 9px; padding: 9px; border-radius: 18px; }
+  .podcast-cover { width: 76px; border-radius: 14px; }
+  .media-skeleton { height: 305px; grid-template-columns: 1fr; }
+  .media-skeleton span:not(:first-child) { display: none; }
+  .home-footer { align-items: start; flex-direction: column; margin-top: 70px; }
+  .home-footer div { align-items: start; flex-direction: column; gap: 7px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .release-notes-enter-active,
-  .release-notes-leave-active,
-  .release-notes-enter-active .release-notes-panel,
-  .release-notes-leave-active .release-notes-panel,
-  .hero-copy-spring-enter-active,
-  .hero-copy-spring-leave-active {
-    animation-duration: 1ms !important;
-    transition-duration: 0ms !important;
-  }
-}
-
-/* 自定义轻量级滚动条 */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #e7e5e4;
-  border-radius: 20px;
-}
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background-color: #d6d3d1;
+  *,
+  *::before,
+  *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
 
 @supports (content-visibility: auto) {
-  .motion-section {
-    content-visibility: auto;
-    contain-intrinsic-size: 1px 760px;
-  }
+  .home-section { content-visibility: auto; contain-intrinsic-size: 1px 620px; }
 }
 </style>
