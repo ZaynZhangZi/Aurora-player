@@ -113,7 +113,7 @@ export function useHomeData(userStore) {
     loading.value.releaseNotes = true
     errors.value.releaseNotes = ''
     try {
-      const res = await homeIndexApi.getReleaseNotes({limit: 6})
+      const res = await homeIndexApi.getReleaseNotes()
       const raw = res?.list || res?.data?.list || res?.data?.data?.list || res?.data?.data || res?.data || res || []
       releaseNotes.value = Array.isArray(raw) ? raw.map(normalizeReleaseNoteItem) : []
     } catch (error) {
