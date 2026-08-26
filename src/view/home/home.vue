@@ -678,11 +678,11 @@ function openArtist(artist, event) {
 async function openPlaylist(playlist, event) {
   const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
   if (!playlistId) return
-  void reportApi.reportBehavior({
+  reportApi.reportBehavior({
     actionType: 'OPEN_PLAYLIST',
     actionTarget: String(playlistId),
     actionDetail: playlist?.name || '',
-  }).catch(() => {})
+  })
 
   const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
   const coverEl = cardEl?.querySelector('[data-playlist-hero-cover]')
