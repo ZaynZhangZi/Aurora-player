@@ -75,11 +75,12 @@ const router = createRouter({
       component: () => import('@/view/playlistDetail/playlistDetail.vue'),
     },
     {
-      path: '/profile',
+      path: '/home/profile',
       name: 'profile',
       component: () => import('@/view/profile/profile.vue'),
       meta: {
         keepAlive: true,
+        keepAliveName: 'ProfilePage',
       },
       children: [
         {
@@ -88,6 +89,10 @@ const router = createRouter({
           component: () => import('@/view/playlistDetail/playlistDetail.vue'),
         },
       ],
+    },
+    {
+      path: '/profile',
+      redirect: '/home/profile',
     },
     {
       path: '/release-notes',

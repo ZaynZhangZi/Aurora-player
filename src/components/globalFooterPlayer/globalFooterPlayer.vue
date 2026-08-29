@@ -604,6 +604,7 @@
       @play="onPlay"
       @pause="onPause"
       @ended="onEnded"
+      @error="onAudioError"
     />
     <audio
       ref="crossfadeAudioRef"
@@ -617,6 +618,7 @@
       @play="onPlay"
       @pause="onPause"
       @ended="onEnded"
+      @error="onAudioError"
     />
   </div>
 </template>
@@ -667,10 +669,12 @@ import {
 } from "@/utils/player/playerTheme.js";
 import {formatMs, isVideoUrl} from "@/utils/player/playerMedia.js";
 import {
+  clearSongPlayableUrlCache,
   playQueueByDirection,
   playQueueByIndex,
   warmupNextTrack,
 } from "@/utils/globalPlayer.js";
+import {showPlaybackNotice} from "@/utils/playbackNotice.js";
 import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
@@ -2013,6 +2017,38 @@ async function onEnded(event) {
   if (!played) {
     playerStore.setPlaying(false);
   }
+}
+
+function onAudioError(event) {
+  if (!isEventFromActiveDeck(event) || !playerStore.currentSong?.id || !currentSongUrl.value) return;
+
+  const mediaErrorCode = Number(event?.target?.error?.code || 0);
+  const songId = playerStore.currentSong.id;
+  const songNameCopy = String(playerStore.currentSong.name || "").trim();
+  const songLabel = songNameCopy ? `《${songNameCopy}》` : "当前歌曲";
+
+  clearSongPlayableUrlCache(songId);
+  playerStore.autoPlayOnLoad = false;
+  playerStore.setPlaying(false);
+
+  if (mediaErrorCode === 2) {
+    showPlaybackNotice({
+      kind: "network",
+      eyebrow: "CONNECTION",
+      title: "播放连接中断",
+      message: `${songLabel}的音频加载失败，请检查网络连接后重试。`,
+      dedupeKey: `media-network:${songId}`,
+    });
+    return;
+  }
+
+  showPlaybackNotice({
+    kind: "unavailable",
+    eyebrow: "AUDIO SOURCE",
+    title: mediaErrorCode === 3 ? "当前音频无法解码" : "音源暂时不可用",
+    message: `${songLabel}的播放链接可能已失效，重新点击歌曲时会自动获取新地址。`,
+    dedupeKey: `media-source:${songId}:${mediaErrorCode}`,
+  });
 }
 
 watch(

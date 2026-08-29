@@ -1,18 +1,7 @@
 <template>
   <div class="home-page">
-    <header class="home-topbar">
-      <div class="home-topbar-inner">
-        <button class="home-brand" type="button" @click="scrollToSection('home-top')">
-          <span class="home-brand-mark" aria-hidden="true">A</span>
-          <span>AURORA</span>
-        </button>
-
-        <nav class="home-nav" aria-label="主页导航">
-          <button class="is-active" type="button" @click="scrollToSection('home-top')">首页</button>
-          <button type="button" @click="scrollToSection('discovery')">发现</button>
-          <button type="button" @click="openProfile">音乐库</button>
-        </nav>
-
+    <AppHeader>
+      <template #search>
         <div ref="homeSearchRoot" class="home-search" :class="{ 'is-focused': homeSearchFocused }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="7" />
@@ -62,15 +51,10 @@
             </div>
           </Transition>
         </div>
+      </template>
+    </AppHeader>
 
-        <button class="home-profile" type="button" :aria-label="userStore.isLoggedIn ? '打开个人音乐库' : '打开登录入口'" @click="openProfile">
-          <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像">
-          <span v-else>{{ profileInitial }}</span>
-        </button>
-      </div>
-    </header>
-
-    <main class="home-main">
+    <main class="home-main" data-route-motion-root>
       <section id="home-top" class="home-lobby" aria-labelledby="home-hero-title">
         <article class="home-hero-card">
           <SmartMedia
@@ -457,6 +441,7 @@ import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
 import HomeReleaseNotesPanel from '@/components/home/HomeReleaseNotesPanel.vue'
 import HomeSectionHeader from '@/components/home/HomeSectionHeader.vue'
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
+import AppHeader from '@/components/appHeader/AppHeader.vue'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
@@ -545,7 +530,6 @@ const {
 
 setupHomeSearchWatchers()
 
-const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
 const heroDisplayTitle = computed(() => {
   const dynamic = String(hero.value.title || '').trim()
   return dynamic && dynamic !== 'Now Playing' ? dynamic : '今天，听点不一样的'
@@ -641,10 +625,6 @@ const homeSearchPopoverVisible = computed(() => (
   && Boolean(homeSearchQuery.value.trim())
   && (homeSearching.value || Boolean(homeSearchError.value) || homeSearchEmpty.value || homeSongEntries.value.length || homeArtistEntries.value.length || homePlaylistEntries.value.length)
 ))
-
-function openProfile() {
-  router.push('/profile')
-}
 
 async function playContinueSong(song, index = 0) {
   const source = recentListenSongs.value.length ? recentListenSongs.value : newSongs.value
@@ -837,20 +817,7 @@ onBeforeUnmount(() => {
 }
 
 button { font-family: inherit; }
-.home-topbar { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid rgba(24, 24, 27, 0.065); background: rgba(247, 247, 248, 0.96); backdrop-filter: blur(22px) saturate(1.2); }
-.home-topbar-inner { box-sizing: border-box; display: grid; width: min(100%, 1376px); min-height: 76px; align-items: center; grid-template-columns: auto auto minmax(260px, 1fr) auto; gap: 28px; margin: 0 auto; padding: 10px 28px 10px 88px; }
-.home-brand,
-.home-nav button,
-.home-search,
-.home-profile { cursor: pointer; border: 0; background: transparent; }
-.home-brand { display: flex; align-items: center; gap: 10px; padding: 0; color: #18181b; font-size: 15px; font-weight: 900; letter-spacing: 0.22em; }
-.home-brand-mark { display: grid; width: 28px; aspect-ratio: 1; place-items: center; color: #fff; border-radius: 9px; background: linear-gradient(135deg, #f4707e, #ef9a68); font-size: 12px; letter-spacing: 0; box-shadow: 0 8px 18px rgba(232, 87, 105, 0.22); }
-.home-nav { display: flex; align-items: center; gap: 6px; }
-.home-nav button { position: relative; padding: 11px 14px; color: #626269; font-size: 13px; font-weight: 740; }
-.home-nav button::after { position: absolute; right: 14px; bottom: 3px; left: 14px; height: 2px; border-radius: 99px; background: #ed7180; content: ''; opacity: 0; transform: scaleX(0.45); transition: 180ms ease; }
-.home-nav button:hover,
-.home-nav button.is-active { color: #27272a; }
-.home-nav button.is-active::after { opacity: 1; transform: scaleX(1); }
+.home-search { cursor: pointer; border: 0; background: transparent; }
 .home-search { position: relative; box-sizing: border-box; display: grid; width: min(100%, 520px); height: 44px; align-items: center; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; justify-self: center; padding: 0 15px; color: #85858d; text-align: left; border: 1px solid rgba(24, 24, 27, 0.05); border-radius: 16px; background: rgba(228, 228, 231, 0.76); transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
 .home-search:hover,
 .home-search.is-focused { border-color: rgba(232, 87, 105, 0.13); background: rgba(255, 255, 255, 0.94); box-shadow: 0 12px 30px rgba(24, 24, 27, 0.08); transform: translateY(-1px); }
@@ -894,8 +861,6 @@ button { font-family: inherit; }
 .home-search-chip:hover { background: #fff0f2; transform: translateY(-1px); }
 .home-search-chip > span { width: 28px; aspect-ratio: 1; overflow: hidden; flex: none; border-radius: 50%; background: #e4e4e7; }
 .home-search-chip > span :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.home-profile { display: grid; width: 40px; aspect-ratio: 1; overflow: hidden; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
-.home-profile img { width: 100%; height: 100%; object-fit: cover; }
 .home-main { box-sizing: border-box; width: min(100%, 1376px); margin: 0 auto; padding: 34px 28px 150px; }
 .home-lobby { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.88fr); gap: 22px; scroll-margin-top: 90px; }
 .home-hero-card { position: relative; min-height: clamp(410px, 48vw, 525px); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 34px; background: #d4d4d8; box-shadow: 0 30px 80px rgba(43, 32, 32, 0.15); }
@@ -1146,8 +1111,6 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 1080px) {
-  .home-topbar-inner { grid-template-columns: auto minmax(230px, 1fr) auto; }
-  .home-nav { display: none; }
   .home-lobby { grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.8fr); }
   .playlist-strip,
   .playlist-skeleton { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -1164,7 +1127,6 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 820px) {
-  .home-topbar-inner { min-height: 68px; grid-template-columns: auto 1fr auto; padding-right: 18px; padding-left: 72px; }
   .home-search { width: 42px; height: 42px; grid-template-columns: 1fr; place-items: center; justify-self: end; padding: 0; border-radius: 50%; }
   .home-search input { position: absolute; width: 1px; opacity: 0; pointer-events: none; }
   .home-search kbd { display: none; }
@@ -1222,9 +1184,6 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 560px) {
-  .home-brand { font-size: 12px; }
-  .home-brand-mark { display: none; }
-  .home-profile { width: 36px; }
   .home-main { padding-inline: 13px; }
   .home-hero-card { min-height: 510px; border-radius: 26px; }
   .home-hero-content { padding: 25px; }

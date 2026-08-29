@@ -6,9 +6,12 @@ import {
   recommendNextQueueIndex,
   warmupAutomixRecommendation,
 } from '@/utils/automixEngine.js'
+import {dismissPlaybackNotice, showPlaybackNotice} from '@/utils/playbackNotice.js'
 
 const preloadedSongUrlCache = new Map()
 let warmupToken = 0
+let playbackRequestToken = 0
+let queueNavigationToken = 0
 
 function normalizeCoverUrlProtocol(url = '') {
   const raw = String(url || '').trim()
@@ -35,6 +38,198 @@ function getUrlEntry(response) {
   return response?.data?.data?.[0] || null
 }
 
+function resolveSongLabel(song, detail = null) {
+  const name = String(resolveName(song, detail) || '').trim()
+  return name ? `《${name}》` : '这首歌'
+}
+
+function isTrialEntry(entry) {
+  if (!entry || typeof entry !== 'object') return false
+  if (entry.freeTrialInfo) return true
+  if (entry.freeTrialPrivilege?.resConsumable === true) return true
+  return entry.freeTimeTrialPrivilege?.resConsumable === true
+}
+
+function resolveTrialSeconds(entry) {
+  const start = Number(entry?.freeTrialInfo?.start)
+  const end = Number(entry?.freeTrialInfo?.end)
+  const rawSpan = end - start
+  if (Number.isFinite(rawSpan) && rawSpan > 0) {
+    const seconds = rawSpan > 600 ? rawSpan / 1000 : rawSpan
+    return Math.max(1, Math.round(seconds))
+  }
+
+  const remainTime = Number(entry?.freeTimeTrialPrivilege?.remainTime)
+  if (Number.isFinite(remainTime) && remainTime > 0) {
+    return Math.max(1, Math.round(remainTime > 600 ? remainTime / 1000 : remainTime))
+  }
+
+  return 0
+}
+
+function collectResponseText(source, accessDetail) {
+  const values = []
+
+  for (const observation of source?.observations || []) {
+    values.push(
+      observation?.entry?.message,
+      observation?.entry?.msg,
+      observation?.response?.data?.message,
+      observation?.response?.data?.msg,
+    )
+  }
+
+  for (const error of source?.requestErrors || []) {
+    values.push(
+      error?.message,
+      error?.response?.data?.message,
+      error?.response?.data?.msg,
+    )
+  }
+
+  values.push(
+    accessDetail?.response?.data?.message,
+    accessDetail?.response?.data?.msg,
+    accessDetail?.error?.message,
+    accessDetail?.error?.response?.data?.message,
+  )
+
+  return values.filter(Boolean).join(' ').toLowerCase()
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+async function getSongAccessDetail(id) {
+  try {
+    const response = await songsApi.getSongDetail(id)
+    const detail = response?.data?.songs?.[0] || null
+    const privilege = response?.data?.privileges?.[0] || detail?.privilege || null
+    return {response, detail, privilege, error: null}
+  } catch (error) {
+    return {response: null, detail: null, privilege: null, error}
+  }
+}
+
+function showTrialNotice(song, entry) {
+  const seconds = resolveTrialSeconds(entry)
+  const timeCopy = seconds ? `当前可试听 ${seconds} 秒` : '当前只能播放试听片段'
+
+  showPlaybackNotice({
+    kind: 'trial',
+    eyebrow: 'TRIAL MODE',
+    title: '正在播放试听片段',
+    message: `${resolveSongLabel(song)}${timeCopy}，黑胶 VIP 可播放完整版。`,
+    duration: 5800,
+    dedupeKey: `trial:${song?.id || song}`,
+  })
+}
+
+function showUnplayableNotice(song, source, accessDetail) {
+  const detail = accessDetail?.detail || null
+  const privilege = accessDetail?.privilege || null
+  const entries = (source?.observations || []).map(item => item?.entry).filter(Boolean)
+  const lastEntry = entries.at(-1) || null
+  const input = song && typeof song === 'object' ? song : null
+  const fee = firstFiniteNumber(lastEntry?.fee, privilege?.fee, detail?.fee, input?.fee)
+  const state = firstFiniteNumber(privilege?.st, detail?.privilege?.st, input?.privilege?.st)
+  const playBitrate = firstFiniteNumber(privilege?.pl, detail?.privilege?.pl, input?.privilege?.pl)
+  const responseCode = firstFiniteNumber(
+    lastEntry?.code,
+    source?.observations?.at(-1)?.response?.data?.code,
+    accessDetail?.response?.data?.code,
+  )
+  const responseText = collectResponseText(source, accessDetail)
+  const label = resolveSongLabel(song, detail)
+  const songId = input?.id || song
+  const hasNoCopyright = Boolean(detail?.noCopyrightRcmd || input?.noCopyrightRcmd)
+  const copyrightHint = /版权|copyright|地区|region|country|license/.test(responseText)
+  const removedHint = /下架|不存在|已删除|not found|invalid song|removed/.test(responseText)
+  const accountHint = /登录|login|cookie|unauthorized|未授权/.test(responseText)
+  const onlyNetworkFailures = !source?.observations?.length && Boolean(source?.requestErrors?.length) && !accessDetail?.response
+
+  if (hasNoCopyright || state < 0 || copyrightHint) {
+    showPlaybackNotice({
+      kind: 'copyright',
+      eyebrow: 'COPYRIGHT',
+      title: '当前没有可用版权',
+      message: `${label}可能受版权或地区限制，网易云音乐暂未提供可播放音源。`,
+      dedupeKey: `copyright:${songId}`,
+    })
+    return
+  }
+
+  if (fee === 4 || fee === 16) {
+    showPlaybackNotice({
+      kind: 'purchase',
+      eyebrow: 'DIGITAL ALBUM',
+      title: '需要购买后播放',
+      message: `${label}属于付费数字专辑，需要在网易云音乐完成购买后才能播放。`,
+      dedupeKey: `purchase:${songId}`,
+    })
+    return
+  }
+
+  if (fee === 1 || (fee === 8 && (playBitrate === null || playBitrate <= 0))) {
+    showPlaybackNotice({
+      kind: 'vip',
+      eyebrow: 'BLACK VINYL',
+      title: '需要黑胶 VIP',
+      message: `${label}当前没有完整播放权限，请使用具有黑胶 VIP 权益的网易云账号后重试。`,
+      duration: 6200,
+      dedupeKey: `vip:${songId}`,
+    })
+    return
+  }
+
+  if (accountHint || responseCode === 401 || responseCode === 403) {
+    showPlaybackNotice({
+      kind: 'account',
+      eyebrow: 'ACCOUNT',
+      title: '登录后才能确认播放权限',
+      message: `${label}需要登录网易云账号后获取播放地址。`,
+      dedupeKey: `account:${songId}`,
+    })
+    return
+  }
+
+  if (removedHint || responseCode === 404) {
+    showPlaybackNotice({
+      kind: 'unavailable',
+      eyebrow: 'UNAVAILABLE',
+      title: '歌曲已下架或链接失效',
+      message: `${label}暂时没有可用音源，可以稍后再试或播放其他版本。`,
+      dedupeKey: `removed:${songId}`,
+    })
+    return
+  }
+
+  if (onlyNetworkFailures) {
+    showPlaybackNotice({
+      kind: 'network',
+      eyebrow: 'CONNECTION',
+      title: '播放地址获取失败',
+      message: `没能取得${label}的播放地址，请检查网络连接后重试。`,
+      dedupeKey: `network:${songId}`,
+    })
+    return
+  }
+
+  showPlaybackNotice({
+    kind: 'unavailable',
+    eyebrow: 'UNAVAILABLE',
+    title: '暂时无法播放',
+    message: `网易云没有返回${label}的可用音源，可能是账号权限或版权限制。`,
+    dedupeKey: `unavailable:${songId}`,
+  })
+}
+
 function summarizeSongForReport(song) {
   const artists = resolveArtists(song, null)
     .map(item => item?.name || item?.artistName || item)
@@ -51,22 +246,27 @@ function summarizeSongForReport(song) {
   }
 }
 
-async function resolveSongPlayableUrl(id) {
+async function resolveSongPlayableSource(id) {
   const cacheKey = String(id)
   const cached = preloadedSongUrlCache.get(cacheKey)
   if (cached) return cached
 
   const levels = ['exhigh', 'higher', 'standard']
+  const observations = []
+  const requestErrors = []
 
   for (const level of levels) {
     try {
       const res = await songsApi.getSongUrl(id, {level})
       const entry = getUrlEntry(res)
+      observations.push({level, response: res, entry})
       const url = entry?.url || ''
       if (!url) continue
-      preloadedSongUrlCache.set(cacheKey, url)
-      return url
-    } catch {
+      const source = {url, entry, observations, requestErrors}
+      preloadedSongUrlCache.set(cacheKey, source)
+      return source
+    } catch (error) {
+      requestErrors.push(error)
       // ignore and fallback to next level
     }
   }
@@ -74,14 +274,28 @@ async function resolveSongPlayableUrl(id) {
   try {
     const legacyRes = await songsApi.getSongUrlLegacy(id)
     const entry = getUrlEntry(legacyRes)
+    observations.push({level: 'legacy', response: legacyRes, entry})
     const url = entry?.url || ''
     if (url) {
-      preloadedSongUrlCache.set(cacheKey, url)
+      const source = {url, entry, observations, requestErrors}
+      preloadedSongUrlCache.set(cacheKey, source)
+      return source
     }
-    return url
-  } catch {
-    return ''
+  } catch (error) {
+    requestErrors.push(error)
   }
+
+  return {
+    url: '',
+    entry: observations.map(item => item?.entry).filter(Boolean).at(-1) || null,
+    observations,
+    requestErrors,
+  }
+}
+
+export function clearSongPlayableUrlCache(songId) {
+  const cacheKey = String(songId || '').trim()
+  if (cacheKey) preloadedSongUrlCache.delete(cacheKey)
 }
 
 export async function warmupNextTrack() {
@@ -123,13 +337,13 @@ export async function warmupNextTrack() {
     return
   }
 
-  const url = await resolveSongPlayableUrl(targetId)
+  const source = await resolveSongPlayableSource(targetId)
   if (token !== warmupToken) return
   if (typeof console !== 'undefined') {
     console.log('[Automix/Warmup] next song URL preloaded', {
       targetId,
       nextIndex,
-      ok: Boolean(url),
+      ok: Boolean(source?.url),
     })
   }
 }
@@ -138,12 +352,26 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   const id = Number(songInput?.id || songInput)
   if (!Number.isFinite(id) || id <= 0) return false
 
+  const requestToken = ++playbackRequestToken
+  queueNavigationToken += 1
+  dismissPlaybackNotice()
   const playerStore = usePlayerStore()
 
   try {
-    const url = await resolveSongPlayableUrl(id)
+    const source = await resolveSongPlayableSource(id)
+    if (requestToken !== playbackRequestToken) return null
+    const url = source?.url || ''
 
-    if (!url) return false
+    if (!url) {
+      const accessDetail = await getSongAccessDetail(id)
+      if (requestToken !== playbackRequestToken) return null
+      showUnplayableNotice(songInput, source, accessDetail)
+      return false
+    }
+
+    if (isTrialEntry(source.entry)) {
+      showTrialNotice(songInput, source.entry)
+    }
 
     const nextTrack = {
       id,
@@ -205,6 +433,14 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
 
     return true
   } catch {
+    if (requestToken !== playbackRequestToken) return null
+    showPlaybackNotice({
+      kind: 'network',
+      eyebrow: 'PLAYBACK',
+      title: '播放请求出现异常',
+      message: `${resolveSongLabel(songInput)}暂时无法开始播放，请稍后重试。`,
+      dedupeKey: `unexpected:${id}`,
+    })
     return false
   }
 }
@@ -213,6 +449,7 @@ export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {
   const playerStore = usePlayerStore()
   playerStore.setQueue(queue, {startIndex: queueIndex})
   const ok = await playSongById(songInput, {autoplay})
+  if (ok === null) return true
   if (ok) {
     playerStore.syncQueueIndexBySongId(songInput?.id || songInput)
   }
@@ -259,14 +496,18 @@ async function resolveNextIndex({direction = 'next', trigger = 'manual'} = {}) {
 
 export async function playQueueByDirection(direction = 'next', {trigger = 'manual'} = {}) {
   const playerStore = usePlayerStore()
+  const navigationToken = ++queueNavigationToken
+  dismissPlaybackNotice()
   const previousIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   const nextIndex = await resolveNextIndex({direction, trigger})
+  if (navigationToken !== queueNavigationToken) return true
   if (nextIndex < 0) return false
   const targetSong = playerStore.playQueue[nextIndex]
   if (!targetSong?.id) return false
   playerStore.setCurrentQueueIndex(nextIndex)
   const ok = await playSongById(targetSong, {autoplay: true})
-  if (!ok && previousIndex >= 0) {
+  if (ok === null) return true
+  if (ok === false && previousIndex >= 0 && playerStore.currentQueueIndex === nextIndex) {
     playerStore.setCurrentQueueIndex(previousIndex)
   }
   return ok
@@ -281,7 +522,8 @@ export async function playQueueByIndex(index, {autoplay = true} = {}) {
   if (!targetSong?.id) return false
   playerStore.setCurrentQueueIndex(nextIndex)
   const ok = await playSongById(targetSong, {autoplay})
-  if (!ok && previousIndex >= 0) {
+  if (ok === null) return true
+  if (ok === false && previousIndex >= 0 && playerStore.currentQueueIndex === nextIndex) {
     playerStore.setCurrentQueueIndex(previousIndex)
   }
   return ok

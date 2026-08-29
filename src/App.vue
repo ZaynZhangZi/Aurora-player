@@ -8,16 +8,9 @@
 
 	<div
 		class="app-shell"
-		:class="{ 'global-search-expanded': globalSearchExpanded && route.name !== 'home', 'is-home-route': route.name === 'home' }"
 		:inert="showSplash ? '' : null"
 		:aria-hidden="showSplash ? 'true' : null"
 	>
-		<div class="top-blur-gradient" :style="topBlurStyle" aria-hidden="true" />
-		<floatingSearchFab
-			v-if="route.name !== 'home'"
-			ref="floatingSearchRef"
-			@update:model-value="globalSearchExpanded = $event"
-		/>
 		<div ref="contentRef" class="app-content">
 			<router-view v-slot="{ Component }">
 				<keep-alive :include="keepAliveNames">
@@ -26,6 +19,58 @@
 			</router-view>
 		</div>
 		<globalFooterPlayer />
+		<div class="playback-notice-host" aria-live="polite" aria-atomic="true">
+			<Transition name="playback-notice">
+				<aside
+					v-if="playbackNotice.open"
+					class="playback-notice-card"
+					:class="`is-${playbackNotice.kind}`"
+					:style="{ '--notice-duration': `${playbackNotice.duration}ms` }"
+					role="status"
+				>
+					<div class="playback-notice-mark" aria-hidden="true">
+						<span class="playback-notice-orbit" />
+						<div class="playback-notice-icon">
+							<svg v-if="playbackNotice.kind === 'vip'" viewBox="0 0 24 24">
+								<circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.45" />
+								<circle cx="12" cy="12" r="2.25" fill="currentColor" />
+								<path d="M12 3.75a8.25 8.25 0 0 1 7.78 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" />
+							</svg>
+							<svg v-else-if="playbackNotice.kind === 'trial'" viewBox="0 0 24 24">
+								<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.55" />
+								<path d="M12 7.5v5l3.2 1.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
+							</svg>
+							<svg v-else-if="playbackNotice.kind === 'purchase'" viewBox="0 0 24 24">
+								<path d="M5 8.25h14l-1 11H6l-1-11Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.55" />
+								<path d="M8.5 9V6.75a3.5 3.5 0 0 1 7 0V9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.55" />
+							</svg>
+							<svg v-else-if="playbackNotice.kind === 'network'" viewBox="0 0 24 24">
+								<path d="M4.25 9.5a11.1 11.1 0 0 1 15.5 0M7.4 12.75a6.7 6.7 0 0 1 9.2 0M10.55 16a2.25 2.25 0 0 1 2.9 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" />
+								<path d="m4 4 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.65" />
+							</svg>
+							<svg v-else viewBox="0 0 24 24">
+								<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.55" />
+								<path d="M12 7.75v5.1M12 16.25h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.85" />
+							</svg>
+						</div>
+					</div>
+					<div class="playback-notice-copy">
+						<div class="playback-notice-meta">
+							<span class="playback-notice-signal" aria-hidden="true" />
+							<p class="playback-notice-eyebrow">{{ playbackNotice.eyebrow }}</p>
+						</div>
+						<p class="playback-notice-title">{{ playbackNotice.title }}</p>
+						<p class="playback-notice-message">{{ playbackNotice.message }}</p>
+					</div>
+					<button class="playback-notice-close" type="button" aria-label="关闭播放提示" @click="closePlaybackNotice()">
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="m7.5 7.5 9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
+						</svg>
+					</button>
+					<span :key="playbackNotice.id" class="playback-notice-timer" aria-hidden="true" />
+				</aside>
+			</Transition>
+		</div>
 		<Transition name="restriction-dialog">
 			<div
 				v-if="restrictionDialog.open"
@@ -64,16 +109,14 @@ import { useCounterStore } from "@/stores/userStores.js";
 import { reportApi } from "@/api/reportApi/reportApi.js";
 import { userApi } from "@/api/userApi/userApi.js";
 import AppSplashScreen from "@/components/AppSplashScreen/AppSplashScreen.vue";
+import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 
-const FloatingSearchFab = defineAsyncComponent(() => import("@/components/floatingSearchFab/floatingSearchFab.vue"));
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useCounterStore();
 const contentRef = ref(null);
-const floatingSearchRef = ref(null);
-const globalSearchExpanded = ref(false);
 const canGoBack = computed(() => route.path !== "/home");
 
 const SPLASH_SESSION_KEY = "aurora-splash-seen";
@@ -132,12 +175,16 @@ const restrictionDialog = ref({
 	open: false,
 	title: "",
 	message: "",
+	duration: 5200,
 });
-const topBlurStyle = {
-	backdropFilter: "blur(var(--top-blur-size, 22px))",
-	WebkitBackdropFilter: "blur(var(--top-blur-size, 22px))",
-};
-
+const playbackNotice = ref({
+	open: false,
+	id: "",
+	kind: "unavailable",
+	eyebrow: "PLAYBACK",
+	title: "",
+	message: "",
+});
 const swipeState = {
 	active: false,
 	triggered: false,
@@ -151,6 +198,42 @@ const MAX_VERTICAL_DRIFT = 56;
 const USER_STATUS_CHECK_INTERVAL = 60 * 1000;
 let userStatusTimer = null;
 let checkingUserStatus = false;
+let playbackNoticeTimer = null;
+
+function closePlaybackNotice(expectedId = "") {
+	if (expectedId && playbackNotice.value.id !== expectedId) return;
+	if (playbackNoticeTimer) {
+		window.clearTimeout(playbackNoticeTimer);
+		playbackNoticeTimer = null;
+	}
+	playbackNotice.value.open = false;
+}
+
+function handlePlaybackNotice(event) {
+	const detail = event?.detail || {};
+	if (detail.action === "dismiss") {
+		closePlaybackNotice();
+		return;
+	}
+
+	if (playbackNoticeTimer) window.clearTimeout(playbackNoticeTimer);
+	const noticeId = detail.id || String(Date.now());
+
+	playbackNotice.value = {
+		open: true,
+		id: noticeId,
+		kind: detail.kind || "unavailable",
+		eyebrow: detail.eyebrow || "PLAYBACK",
+		title: detail.title || "暂时无法播放",
+		message: detail.message || "",
+		duration: Number(detail.duration) || 5200,
+	};
+
+	playbackNoticeTimer = window.setTimeout(
+		() => closePlaybackNotice(noticeId),
+		Number(detail.duration) || 5200,
+	);
+}
 
 function goBack() {
 	markNavigatingBack();
@@ -311,25 +394,11 @@ function stopUserStatusPolling() {
 	}
 }
 
-function openGlobalSearch() {
-	if (route.name === "home") {
-		window.dispatchEvent(new CustomEvent("aurora:focus-home-search"));
-		return;
-	}
-	floatingSearchRef.value?.expand?.();
-	nextTick(() => floatingSearchRef.value?.focus?.());
-}
-
-function handleGlobalSearchShortcut(event) {
-	if (!(event.metaKey || event.ctrlKey) || String(event.key).toLowerCase() !== "k") return;
-	event.preventDefault();
-	openGlobalSearch();
-}
-
 function runRouteEnterMotion() {
   if (!contentRef.value) return;
+  const routeMotionTarget = contentRef.value.querySelector("[data-route-motion-root]") || contentRef.value;
   animate(
-    contentRef.value,
+    routeMotionTarget,
     { opacity: [0, 1], y: [16, -2, 0], scale: [0.992, 1.004, 1] },
 		{ type: "spring", stiffness: 240, damping: 28, mass: 0.68 },
 	);
@@ -339,15 +408,14 @@ onMounted(() => {
 	runRouteEnterMotion();
 	bindGlobalBackGesture();
 	startUserStatusPolling();
-	window.addEventListener("aurora:open-search", openGlobalSearch);
-	window.addEventListener("keydown", handleGlobalSearchShortcut);
+	window.addEventListener(PLAYBACK_NOTICE_EVENT, handlePlaybackNotice);
 });
 
 onBeforeUnmount(() => {
 	unbindGlobalBackGesture();
 	stopUserStatusPolling();
-	window.removeEventListener("aurora:open-search", openGlobalSearch);
-	window.removeEventListener("keydown", handleGlobalSearchShortcut);
+	window.removeEventListener(PLAYBACK_NOTICE_EVENT, handlePlaybackNotice);
+	if (playbackNoticeTimer) window.clearTimeout(playbackNoticeTimer);
 });
 
 watch(
@@ -385,46 +453,6 @@ watch(
 	z-index: 1;
 }
 
-.app-shell .home-topbar-inner {
-	transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.app-shell.global-search-expanded .home-topbar-inner {
-	opacity: 0;
-	pointer-events: none;
-	transform: translateY(-8px);
-}
-
-.app-shell.is-home-route .top-blur-gradient {
-	opacity: 0;
-}
-
-.top-blur-gradient {
-	--top-blur-size: 22px;
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: clamp(84px, 18vh, 180px);
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0) 100%);
-	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
-	-webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.55) 56%, rgba(0, 0, 0, 0) 100%);
-	pointer-events: none;
-	z-index: 2;
-}
-
-@media (max-width: 768px) {
-	.top-blur-gradient {
-		--top-blur-size: 14px;
-	}
-}
-
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-	.top-blur-gradient {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%);
-	}
-}
-
 ::view-transition-old(root),
 ::view-transition-new(root) {
 	animation-duration: 460ms;
@@ -448,6 +476,237 @@ watch(
 </style>
 
 <style scoped>
+.playback-notice-host {
+	position: fixed;
+	right: clamp(16px, 3vw, 40px);
+	bottom: calc(var(--global-player-space, 92px) + 18px);
+	z-index: 1500;
+	width: min(408px, calc(100vw - 28px));
+	pointer-events: none;
+}
+
+.playback-notice-card {
+	--notice-rgb: 112, 99, 91;
+	--notice-accent: rgb(var(--notice-rgb));
+	--notice-soft: rgba(var(--notice-rgb), 0.105);
+	position: relative;
+	display: grid;
+	grid-template-columns: 54px minmax(0, 1fr) 28px;
+	gap: 14px;
+	align-items: center;
+	isolation: isolate;
+	overflow: hidden;
+	border: 1px solid rgba(var(--notice-rgb), 0.13);
+	border-radius: 26px;
+	background:
+		radial-gradient(circle at 7% 15%, rgba(var(--notice-rgb), 0.09), transparent 34%),
+		rgba(253, 252, 250, 0.94);
+	padding: 16px 13px 18px 16px;
+	box-shadow:
+		0 24px 64px rgba(46, 39, 35, 0.15),
+		0 3px 12px rgba(46, 39, 35, 0.055),
+		inset 0 1px 0 rgba(255, 255, 255, 0.8);
+	color: rgb(41, 37, 36);
+	backdrop-filter: blur(26px) saturate(1.16);
+	-webkit-backdrop-filter: blur(26px) saturate(1.16);
+	pointer-events: auto;
+}
+
+.playback-notice-card::before {
+	position: absolute;
+	top: -36px;
+	left: -32px;
+	z-index: -1;
+	height: 112px;
+	width: 112px;
+	border: 1px solid rgba(var(--notice-rgb), 0.08);
+	border-radius: 50%;
+	box-shadow: 0 0 0 18px rgba(var(--notice-rgb), 0.025);
+	content: "";
+}
+
+.playback-notice-card.is-vip {
+	--notice-rgb: 43, 40, 38;
+}
+
+.playback-notice-card.is-trial {
+	--notice-rgb: 225, 91, 103;
+}
+
+.playback-notice-card.is-purchase {
+	--notice-rgb: 181, 128, 49;
+}
+
+.playback-notice-card.is-copyright,
+.playback-notice-card.is-unavailable {
+	--notice-rgb: 174, 80, 88;
+}
+
+.playback-notice-card.is-network,
+.playback-notice-card.is-account {
+	--notice-rgb: 62, 116, 140;
+}
+
+.playback-notice-mark {
+	position: relative;
+	display: grid;
+	height: 54px;
+	width: 54px;
+	place-items: center;
+}
+
+.playback-notice-orbit {
+	position: absolute;
+	inset: 1px;
+	border: 1px solid rgba(var(--notice-rgb), 0.16);
+	border-radius: 50%;
+}
+
+.playback-notice-orbit::after {
+	position: absolute;
+	top: 2px;
+	right: 6px;
+	height: 5px;
+	width: 5px;
+	border-radius: 50%;
+	background: var(--notice-accent);
+	box-shadow: 0 0 0 4px rgba(var(--notice-rgb), 0.09);
+	content: "";
+}
+
+.playback-notice-icon {
+	display: grid;
+	height: 44px;
+	width: 44px;
+	place-items: center;
+	border: 1px solid rgba(255, 255, 255, 0.8);
+	border-radius: 50%;
+	background: var(--notice-soft);
+	box-shadow: inset 0 0 0 1px rgba(var(--notice-rgb), 0.035);
+	color: var(--notice-accent);
+}
+
+.playback-notice-icon svg {
+	height: 24px;
+	width: 24px;
+}
+
+.playback-notice-copy {
+	min-width: 0;
+}
+
+.playback-notice-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 3px;
+}
+
+.playback-notice-signal {
+	height: 5px;
+	width: 5px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--notice-accent);
+	box-shadow: 0 0 0 3px rgba(var(--notice-rgb), 0.09);
+}
+
+.playback-notice-eyebrow {
+	margin: 0;
+	font-size: 8.5px;
+	font-weight: 800;
+	letter-spacing: 0.18em;
+	line-height: 1.2;
+	color: var(--notice-accent);
+}
+
+.playback-notice-title {
+	margin: 0;
+	font-size: 15.5px;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+	line-height: 1.35;
+}
+
+.playback-notice-message {
+	margin: 3px 0 0;
+	font-size: 12.5px;
+	line-height: 1.48;
+	color: rgb(112, 104, 98);
+	overflow-wrap: anywhere;
+}
+
+.playback-notice-close {
+	display: grid;
+	height: 28px;
+	width: 28px;
+	place-items: center;
+	align-self: start;
+	border-radius: 999px;
+	color: rgb(120, 113, 108);
+	transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.playback-notice-close:hover {
+	background: rgba(41, 37, 36, 0.07);
+	color: rgb(41, 37, 36);
+}
+
+.playback-notice-close:active {
+	transform: scale(0.92);
+}
+
+.playback-notice-close svg {
+	height: 17px;
+	width: 17px;
+}
+
+.playback-notice-timer {
+	position: absolute;
+	right: 18px;
+	bottom: 7px;
+	left: 18px;
+	height: 2px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: rgba(var(--notice-rgb), 0.08);
+}
+
+.playback-notice-timer::after {
+	display: block;
+	height: 100%;
+	width: 100%;
+	border-radius: inherit;
+	background: rgba(var(--notice-rgb), 0.62);
+	content: "";
+	transform-origin: left center;
+	animation: playback-notice-countdown var(--notice-duration, 5200ms) linear forwards;
+}
+
+.playback-notice-enter-active,
+.playback-notice-leave-active {
+	transition:
+		opacity 220ms ease,
+		transform 480ms cubic-bezier(0.22, 1.22, 0.36, 1),
+		filter 280ms ease;
+}
+
+.playback-notice-enter-from,
+.playback-notice-leave-to {
+	opacity: 0;
+	filter: blur(5px);
+	transform: translate3d(20px, 9px, 0) scale(0.95);
+}
+
+@keyframes playback-notice-countdown {
+	from {
+		transform: scaleX(1);
+	}
+	to {
+		transform: scaleX(0);
+	}
+}
+
 .restriction-dialog-layer {
 	position: fixed;
 	inset: 0;
@@ -559,5 +818,41 @@ watch(
 	transform: translateY(10px) scale(0.96);
 }
 
+@media (max-width: 640px) {
+	.playback-notice-host {
+		right: 12px;
+		bottom: calc(var(--global-player-space, 82px) + 12px);
+		left: 12px;
+		width: auto;
+	}
+
+	.playback-notice-card {
+		grid-template-columns: 48px minmax(0, 1fr) 26px;
+		gap: 11px;
+		border-radius: 22px;
+		padding: 13px 10px 16px 13px;
+	}
+
+	.playback-notice-mark {
+		height: 48px;
+		width: 48px;
+	}
+
+	.playback-notice-icon {
+		height: 39px;
+		width: 39px;
+	}
+
+	.playback-notice-message {
+		font-size: 12px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.playback-notice-enter-active,
+	.playback-notice-leave-active {
+		transition-duration: 1ms;
+	}
+}
 
 </style>
