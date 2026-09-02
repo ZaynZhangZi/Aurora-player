@@ -19,15 +19,30 @@
             </svg>
           </button>
 
-          <div class="login-dialog-copy">
-            <span class="login-dialog-index">MEMBER ACCESS</span>
-            <h2 id="login-dialog-title">把你的音乐<br />带回 Aurora</h2>
-            <p>使用网易云音乐 App 扫码登录，同步收藏、歌单与最近播放。</p>
+          <div class="login-dialog-copy login-dialog-identity">
+            <span class="login-dialog-index">NETEASE ACCOUNT</span>
+            <div class="login-dialog-identity-stage" :class="{ 'is-arriving': entryAvatarAnimating, 'is-authorized': qrState === 'success' }">
+              <span class="login-dialog-identity-orbit" aria-hidden="true" />
+              <div ref="identityAvatarRef" class="login-dialog-identity-face">
+                <img v-if="successAvatarUrl" :key="successAvatarUrl" :src="successAvatarUrl" alt="登录账号头像" />
+                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="8" r="3.25" />
+                  <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
+                </svg>
+              </div>
+              <span v-if="qrState === 'success'" class="login-dialog-identity-check" aria-hidden="true">✓</span>
+            </div>
 
-            <div class="login-dialog-benefits" aria-label="登录后可用功能">
-              <span><i />同步个人歌单</span>
-              <span><i />保留聆听记录</span>
-              <span><i />生成听歌画像</span>
+            <div class="login-dialog-identity-copy">
+              <p>{{ qrState === 'success' ? '欢迎回来' : 'ACCOUNT PREVIEW' }}</p>
+              <h2 id="login-dialog-title">{{ identityDisplayName }}</h2>
+              <span>{{ identityDescription }}</span>
+            </div>
+
+            <div class="login-dialog-identity-progress" aria-hidden="true">
+              <i :class="{ 'is-active': ['loading', 'wait'].includes(qrState) }" />
+              <i :class="{ 'is-active': qrState === 'confirm' }" />
+              <i :class="{ 'is-active': qrState === 'success' }" />
             </div>
           </div>
 
@@ -45,19 +60,20 @@
                 </div>
 
                 <div v-else-if="qrState === 'confirm'" class="login-dialog-state-layer is-confirm">
-                  <img v-if="confirmProfile?.avatarUrl" :src="confirmProfile.avatarUrl" alt="" />
-                  <span v-else aria-hidden="true">✓</span>
-                  <strong>扫码完成</strong>
-                  <small>请在手机上确认</small>
+                  <span aria-hidden="true">✓</span>
+                  <strong>等待手机确认</strong>
+                  <small>请在网易云音乐中完成授权</small>
                 </div>
 
-                <div v-else-if="qrState === 'success'" class="login-dialog-state-layer is-success">
-                  <span class="login-dialog-success-icon" aria-hidden="true">
+                <div v-else-if="qrState === 'success'" class="login-dialog-qr-destroy" aria-hidden="true">
+                  <i
+                    v-for="tile in qrDestroyTiles"
+                    :key="tile.index"
+                    :style="getQrDestroyTileStyle(tile)"
+                  />
+                  <span>
                     <svg viewBox="0 0 24 24"><path d="m7 12.5 3.2 3.2L17.5 8.5" /></svg>
                   </span>
-                  <strong>欢迎回来</strong>
-                  <small>正在同步你的音乐</small>
-                  <i v-for="index in 6" :key="index" class="login-dialog-confetti" aria-hidden="true" />
                 </div>
 
                 <div v-else-if="qrState === 'expired'" class="login-dialog-state-layer is-expired">
@@ -92,7 +108,7 @@
               <div>
                 <div class="login-dialog-status-heading">
                   <strong>{{ qrStatusText }}</strong>
-                  <em v-if="qrStatusCode">{{ qrStatusCode }}</em>
+                  <em v-if="qrStatusCode && qrStatusCode !== 801">{{ qrStatusCode }}</em>
                 </div>
                 <p v-if="qrError">{{ qrError }}</p>
                 <p v-else-if="qrState === 'confirm' && confirmProfile?.nickname">{{ confirmProfile.nickname }}，请在手机上确认登录</p>
@@ -119,7 +135,7 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQrLogin } from '@/composables/useQrLogin.js'
 import { useCounterStore } from '@/stores/userStores.js'
 import { OPEN_LOGIN_DIALOG_EVENT } from '@/utils/loginDialog.js'
@@ -127,7 +143,40 @@ import { OPEN_LOGIN_DIALOG_EVENT } from '@/utils/loginDialog.js'
 const userStore = useCounterStore()
 const opened = ref(false)
 const panelRef = ref(null)
+const identityAvatarRef = ref(null)
+const entryAvatarAnimating = ref(false)
+const successAvatarUrl = computed(() => confirmProfile.value?.avatarUrl || userStore.avatarUrl || '')
+const identityDisplayName = computed(() => {
+  const name = String(confirmProfile.value?.nickname || userStore.nickname || '').trim()
+  if (!name) return '等待扫码'
+  if (name.length <= 13) return name
+  return `${name.slice(0, 8)}…${name.slice(-3)}`
+})
+const identityDescription = computed(() => {
+  const rawId = String(userStore.userId || '').trim()
+  if (rawId) {
+    const maskedId = rawId.length > 12 ? `${rawId.slice(0, 6)}…${rawId.slice(-4)}` : rawId
+    return `UID ${maskedId}`
+  }
+  if (qrState.value === 'success') return '欢迎回来'
+  if (qrState.value === 'confirm') return '请在手机上确认登录'
+  return '登录后将在这里显示你的账号'
+})
+const qrDestroyTiles = Array.from({ length: 16 }, (_, index) => ({
+  index,
+  row: Math.floor(index / 4),
+  column: index % 4,
+  x: ((index % 4) - 1.5) * 19 + (index % 2 ? 9 : -7),
+  y: (Math.floor(index / 4) - 1.5) * 22 + (index % 3 ? 7 : -9),
+  rotate: ((index * 37) % 96) - 48,
+  delay: (index % 5) * 34,
+}))
 let previousOverflow = ''
+let successExitAnimating = false
+let headerAvatarElement = null
+let entryFlightAnimation = null
+let entryFlightClone = null
+let entryFlightReturning = false
 
 const {
   confirmProfile,
@@ -146,22 +195,236 @@ function handleSignIn() {
   // 登录状态由 useQrLogin 写入，当前页面保持不变。
 }
 
+function getQrDestroyTileStyle(tile) {
+  return {
+    '--tile-row': tile.row,
+    '--tile-column': tile.column,
+    '--tile-x': `${tile.x}px`,
+    '--tile-y': `${tile.y}px`,
+    '--tile-rotate': `${tile.rotate}deg`,
+    '--tile-delay': `${tile.delay}ms`,
+    top: `${tile.row * 25}%`,
+    left: `${tile.column * 25}%`,
+    backgroundPosition: `${tile.column * 33.333}% ${tile.row * 33.333}%`,
+    backgroundImage: `url("${qrImage.value}")`,
+  }
+}
+
+function styleFlyingAvatar(clone, rect) {
+  Object.assign(clone.style, {
+    position: 'fixed',
+    zIndex: '1700',
+    top: `${rect.top}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    margin: '0',
+    padding: '0',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '50%',
+    boxShadow: '0 14px 34px rgba(117, 78, 78, 0.22)',
+    animation: 'none',
+    transition: 'none',
+  })
+  clone.querySelectorAll('img').forEach(image => {
+    Object.assign(image.style, { width: '100%', height: '100%', objectFit: 'cover' })
+  })
+  clone.querySelectorAll('svg').forEach(icon => {
+    Object.assign(icon.style, { width: '34%', height: '34%' })
+  })
+  clone.removeAttribute('ref')
+}
+
+function buildAvatarFlightFrames(sourceRect, targetRect) {
+  const middleTop = sourceRect.top + (targetRect.top - sourceRect.top) * 0.7 - 10
+  const middleLeft = sourceRect.left + (targetRect.left - sourceRect.left) * 0.7
+  const middleWidth = sourceRect.width + (targetRect.width - sourceRect.width) * 0.7
+  const middleHeight = sourceRect.height + (targetRect.height - sourceRect.height) * 0.7
+
+  return [
+    {
+      top: `${sourceRect.top}px`,
+      left: `${sourceRect.left}px`,
+      width: `${sourceRect.width}px`,
+      height: `${sourceRect.height}px`,
+      opacity: 1,
+      offset: 0,
+    },
+    {
+      top: `${middleTop}px`,
+      left: `${middleLeft}px`,
+      width: `${middleWidth}px`,
+      height: `${middleHeight}px`,
+      opacity: 1,
+      offset: 0.7,
+    },
+    {
+      top: `${targetRect.top}px`,
+      left: `${targetRect.left}px`,
+      width: `${targetRect.width}px`,
+      height: `${targetRect.height}px`,
+      opacity: 1,
+      offset: 1,
+    },
+  ]
+}
+
+async function animateHeaderAvatarIntoDialog(source) {
+  if (!opened.value) {
+    entryAvatarAnimating.value = false
+    return
+  }
+
+  const target = identityAvatarRef.value
+  if (!(source instanceof HTMLElement) || !(target instanceof HTMLElement)) {
+    entryAvatarAnimating.value = false
+    return
+  }
+
+  const sourceRect = source.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  if (!sourceRect.width || !targetRect.width) {
+    entryAvatarAnimating.value = false
+    return
+  }
+
+  headerAvatarElement = source
+  source.style.opacity = '0'
+  const clone = source.cloneNode(true)
+  styleFlyingAvatar(clone, sourceRect)
+  document.body.appendChild(clone)
+
+  const animation = clone.animate(
+    buildAvatarFlightFrames(sourceRect, targetRect),
+    { duration: 620, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' },
+  )
+  entryFlightAnimation = animation
+  entryFlightClone = clone
+  entryFlightReturning = false
+
+  await animation.finished.catch(() => {})
+  if (entryFlightReturning) return
+  entryAvatarAnimating.value = false
+  await nextTick()
+  await new Promise(resolve => requestAnimationFrame(resolve))
+  const handoff = clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 130, easing: 'ease-out', fill: 'forwards' })
+  await handoff.finished.catch(() => {})
+  clone.remove()
+  entryFlightAnimation = null
+  entryFlightClone = null
+}
+
 async function openDialog() {
   if (userStore.isLoggedIn || opened.value) return
+  const sourceAvatar = document.querySelector('.aurora-profile')
+  entryAvatarAnimating.value = sourceAvatar instanceof HTMLElement
   opened.value = true
   previousOverflow = document.body.style.overflow
   document.body.style.overflow = 'hidden'
   await nextTick()
   panelRef.value?.focus()
+  if (sourceAvatar instanceof HTMLElement) void animateHeaderAvatarIntoDialog(sourceAvatar)
   startQrLogin()
 }
 
-function closeDialog() {
+function revealHeaderAvatar() {
+  if (headerAvatarElement instanceof HTMLElement) headerAvatarElement.style.opacity = ''
+  headerAvatarElement = null
+}
+
+function finishCloseDialog({ revealHeader = true } = {}) {
   if (!opened.value) return
   opened.value = false
   cleanup()
   resetQrState()
   document.body.style.overflow = previousOverflow
+  entryAvatarAnimating.value = false
+  if (revealHeader) revealHeaderAvatar()
+}
+
+function animateAvatarToHeader() {
+  const source = identityAvatarRef.value
+  const target = headerAvatarElement || document.querySelector('.aurora-profile')
+  if (!(source instanceof HTMLElement) || !(target instanceof HTMLElement)) {
+    finishCloseDialog()
+    return
+  }
+
+  const sourceRect = source.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  if (!sourceRect.width || !targetRect.width) {
+    finishCloseDialog()
+    return
+  }
+
+  successExitAnimating = true
+  const clone = source.cloneNode(true)
+  styleFlyingAvatar(clone, sourceRect)
+  document.body.appendChild(clone)
+
+  finishCloseDialog({ revealHeader: false })
+
+  const animation = clone.animate(
+    buildAvatarFlightFrames(sourceRect, targetRect),
+    { duration: 640, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' },
+  )
+
+  animation.finished
+    .catch(() => {})
+    .finally(async () => {
+      successExitAnimating = false
+      revealHeaderAvatar()
+      const handoff = clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: 'ease-out', fill: 'forwards' })
+      await handoff.finished.catch(() => {})
+      clone.remove()
+      target.animate(
+        [
+          { transform: 'scale(0.9)' },
+          { transform: 'scale(1.12)' },
+          { transform: 'scale(1)' },
+        ],
+        { duration: 360, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+      )
+    })
+}
+
+function reverseEntryAvatarToHeader() {
+  const animation = entryFlightAnimation
+  const clone = entryFlightClone
+  const target = headerAvatarElement
+  if (!animation || !(clone instanceof HTMLElement) || !(target instanceof HTMLElement)) return false
+
+  entryFlightReturning = true
+  successExitAnimating = true
+  finishCloseDialog({ revealHeader: false })
+  animation.reverse()
+  animation.finished
+    .catch(() => {})
+    .finally(async () => {
+      revealHeaderAvatar()
+      const handoff = clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: 'ease-out', fill: 'forwards' })
+      await handoff.finished.catch(() => {})
+      clone.remove()
+      entryFlightAnimation = null
+      entryFlightClone = null
+      entryFlightReturning = false
+      successExitAnimating = false
+      target.animate(
+        [{ transform: 'scale(0.94)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }],
+        { duration: 260, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+      )
+    })
+  return true
+}
+
+function closeDialog() {
+  if (!opened.value || successExitAnimating) return
+  if (entryAvatarAnimating.value && reverseEntryAvatarToHeader()) return
+  animateAvatarToHeader()
 }
 
 onMounted(() => {
@@ -171,7 +434,44 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener(OPEN_LOGIN_DIALOG_EVENT, openDialog)
   cleanup()
+  revealHeaderAvatar()
   if (opened.value) document.body.style.overflow = previousOverflow
+})
+
+watch(qrState, async (state) => {
+  if (!['confirm', 'success'].includes(state)) return
+  await nextTick()
+  const avatar = identityAvatarRef.value
+  if (!(avatar instanceof HTMLElement)) return
+  avatar.animate(
+    state === 'success'
+      ? [
+          { transform: 'scale(0.68)', opacity: 0.35 },
+          { transform: 'scale(1.12)', opacity: 1, offset: 0.72 },
+          { transform: 'scale(1)', opacity: 1 },
+        ]
+      : [
+          { transform: 'scale(0.86)', opacity: 0.55 },
+          { transform: 'scale(1.04)', opacity: 1, offset: 0.76 },
+          { transform: 'scale(1)', opacity: 1 },
+        ],
+    { duration: state === 'success' ? 760 : 520, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+  )
+})
+
+watch(successAvatarUrl, async (avatarUrl, previousAvatarUrl) => {
+  if (!opened.value || !avatarUrl || avatarUrl === previousAvatarUrl) return
+  await nextTick()
+  const avatar = identityAvatarRef.value
+  if (!(avatar instanceof HTMLElement)) return
+  avatar.animate(
+    [
+      { transform: 'scale(0.7)', opacity: 0.25, filter: 'blur(5px)' },
+      { transform: 'scale(1.1)', opacity: 1, filter: 'blur(0)', offset: 0.72 },
+      { transform: 'scale(1)', opacity: 1, filter: 'blur(0)' },
+    ],
+    { duration: 720, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+  )
 })
 </script>
 
@@ -220,13 +520,13 @@ onBeforeUnmount(() => {
   background: #fbf9f7;
   box-shadow: 0 38px 110px rgba(82, 66, 63, 0.16);
   opacity: 0;
-  transform: translateY(16px) scale(0.97);
-  transition: opacity 220ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+  filter: blur(5px);
+  transition: opacity 180ms ease, filter 240ms ease;
 }
 
 .login-dialog-layer.is-open .login-dialog-panel {
   opacity: 1;
-  transform: none;
+  filter: blur(0);
 }
 
 .login-dialog-panel::before {
@@ -287,6 +587,29 @@ onBeforeUnmount(() => {
 .login-dialog-benefits span { display: flex; align-items: center; gap: 10px; }
 .login-dialog-benefits i { width: 5px; aspect-ratio: 1; border-radius: 50%; background: #ef7180; box-shadow: 0 0 0 5px rgba(239, 113, 128, 0.1); }
 
+.login-dialog-identity { align-items: center; justify-content: center; text-align: center; }
+.login-dialog-identity > .login-dialog-index { position: absolute; top: 42px; left: 52px; }
+.login-dialog-identity-stage { position: relative; display: grid; width: 178px; aspect-ratio: 1; place-items: center; margin-inline: auto; }
+.login-dialog-identity-orbit { position: absolute; inset: 5px; border: 1px solid rgba(231, 113, 128, 0.15); border-radius: 50%; animation: login-identity-orbit 8s linear infinite; }
+.login-dialog-identity-orbit::before,
+.login-dialog-identity-orbit::after { position: absolute; border-radius: 50%; content: ''; }
+.login-dialog-identity-orbit::before { top: 15px; right: 15px; width: 8px; aspect-ratio: 1; background: #ec7885; box-shadow: 0 0 0 6px rgba(236, 120, 133, 0.08); }
+.login-dialog-identity-orbit::after { bottom: 23px; left: 4px; width: 5px; aspect-ratio: 1; background: #efad82; }
+.login-dialog-identity-face { position: relative; display: grid; width: 122px; aspect-ratio: 1; overflow: hidden; place-items: center; color: #746e73; border: 5px solid rgba(255, 255, 255, 0.94); border-radius: 50%; background: linear-gradient(145deg, #eee9e6, #dfd9d7); box-shadow: 0 22px 45px rgba(103, 79, 75, 0.16), 0 0 0 9px rgba(255, 255, 255, 0.4); transition: opacity 120ms ease, box-shadow 260ms ease; }
+.login-dialog-identity-face img { width: 100%; height: 100%; object-fit: cover; }
+.login-dialog-identity-face svg { width: 44px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.35; }
+.login-dialog-identity-stage.is-arriving .login-dialog-identity-face { opacity: 0; }
+.login-dialog-identity-stage.is-authorized .login-dialog-identity-face { box-shadow: 0 24px 52px rgba(91, 151, 119, 0.18), 0 0 0 9px rgba(113, 197, 153, 0.1); }
+.login-dialog-identity-check { position: absolute; right: 17px; bottom: 25px; display: grid; width: 34px; aspect-ratio: 1; place-items: center; color: #fff; border: 4px solid #f9f7f4; border-radius: 50%; background: #6fc392; box-shadow: 0 8px 18px rgba(83, 166, 121, 0.22); font-size: 14px; font-weight: 900; animation: login-success-pop 520ms 180ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.login-dialog-identity-copy { margin-top: 20px; }
+.login-dialog-identity-copy > p { margin: 0; color: #df6978; font-size: 8px; font-weight: 850; letter-spacing: 0.2em; }
+.login-dialog-identity-copy h2 { max-width: 330px; margin: 10px 0 8px; overflow: hidden; color: #302d31; font-size: 30px; font-weight: 880; letter-spacing: -0.045em; line-height: 1.12; text-overflow: ellipsis; white-space: nowrap; }
+.login-dialog-identity-copy > span { display: block; max-width: 280px; overflow: hidden; color: #969095; font-size: 10px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.login-dialog-identity-progress { display: flex; gap: 7px; margin-top: 34px; }
+.login-dialog-identity-progress i { width: 22px; height: 3px; overflow: hidden; border-radius: 99px; background: rgba(87, 75, 77, 0.1); }
+.login-dialog-identity-progress i::after { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #e86f7e, #efaa7f); content: ''; transform: scaleX(0); transform-origin: left; transition: transform 360ms ease; }
+.login-dialog-identity-progress i.is-active::after { transform: scaleX(1); }
+
 .login-dialog-qr-area {
   position: relative;
   display: flex;
@@ -322,6 +645,11 @@ onBeforeUnmount(() => {
 
 .login-dialog-qr { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 18px; }
 .login-dialog-qr > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.login-dialog-qr-shell.is-success .login-dialog-qr > img { animation: login-qr-base-destroy 520ms 80ms ease-in forwards; }
+.login-dialog-qr-destroy { position: absolute; inset: 0; z-index: 2; overflow: visible; }
+.login-dialog-qr-destroy > i { position: absolute; width: 25%; height: 25%; background-size: 400% 400%; opacity: 0; animation: login-qr-tile-destroy 720ms var(--tile-delay) cubic-bezier(0.34, 0.05, 0.42, 1) forwards; }
+.login-dialog-qr-destroy > span { position: absolute; inset: 50% auto auto 50%; display: grid; width: 58px; aspect-ratio: 1; place-items: center; color: #fff; border-radius: 50%; background: #70c596; box-shadow: 0 13px 28px rgba(83, 166, 121, 0.2); opacity: 0; transform: translate(-50%, -50%) scale(0.45); animation: login-qr-destroy-check 500ms 470ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.login-dialog-qr-destroy > span svg { width: 31px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 
 .login-dialog-scan-line {
   position: absolute;
@@ -363,6 +691,9 @@ onBeforeUnmount(() => {
 .login-dialog-success-icon { color: #fff; background: linear-gradient(135deg, #74ca9e, #a7ddba); box-shadow: 0 12px 28px rgba(84, 172, 126, 0.2); animation: login-success-pop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .login-dialog-success-icon svg { width: 34px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }
 .login-dialog-success-icon path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: login-check-draw 480ms 220ms ease forwards; }
+.login-dialog-state-layer.is-success .login-dialog-success-avatar { width: 84px; height: 84px; margin-bottom: 5px; border-width: 5px; box-shadow: 0 15px 34px rgba(117, 78, 78, 0.2), 0 0 0 8px rgba(255, 255, 255, 0.42); animation: login-success-avatar-grow 760ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.login-dialog-state-layer.is-success > strong { margin-top: 2px; font-size: 15px; letter-spacing: -0.01em; animation: login-success-copy 420ms 230ms ease both; }
+.login-dialog-success-id { display: block; max-width: 150px; overflow: hidden; padding: 3px 7px; color: #91898f !important; border-radius: 999px; background: rgba(255, 255, 255, 0.58); text-overflow: ellipsis; white-space: nowrap; animation: login-success-copy 420ms 330ms ease both; }
 .login-dialog-expired-icon { color: #777177; background: #e9e5e2; }
 .login-dialog-expired-icon svg { width: 31px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; animation: login-clock 720ms ease both; }
 .login-dialog-error-icon { color: #c25f6b; background: #f4dedf; font-size: 26px; font-weight: 850; animation: login-error-shake 480ms ease both; }
@@ -428,11 +759,17 @@ onBeforeUnmount(() => {
 @keyframes login-state-arrive { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
 @keyframes login-avatar-arrive { from { opacity: 0; transform: scale(0.55) rotate(-8deg); } to { opacity: 1; transform: none; } }
 @keyframes login-success-pop { 0% { opacity: 0; transform: scale(0.35) rotate(-18deg); } 70% { transform: scale(1.12) rotate(3deg); } 100% { opacity: 1; transform: none; } }
+@keyframes login-success-avatar-grow { 0% { opacity: 0; transform: scale(0.34); filter: blur(4px); } 68% { opacity: 1; transform: scale(1.08); filter: blur(0); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
+@keyframes login-success-copy { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 @keyframes login-check-draw { to { stroke-dashoffset: 0; } }
 @keyframes login-clock { from { opacity: 0; transform: rotate(-35deg) scale(0.72); } to { opacity: 1; transform: none; } }
 @keyframes login-error-shake { 0% { opacity: 0; transform: scale(0.7); } 45% { opacity: 1; transform: translateX(-5px); } 65% { transform: translateX(4px); } 82% { transform: translateX(-2px); } 100% { transform: none; } }
 @keyframes login-confetti { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); } 22% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--confetti-x), var(--confetti-y)) scale(1) rotate(160deg); } }
 @keyframes login-status-pulse { 50% { box-shadow: 0 0 0 8px rgba(233, 120, 134, 0); transform: scale(0.88); } }
+@keyframes login-identity-orbit { to { transform: rotate(360deg); } }
+@keyframes login-qr-base-destroy { 0% { opacity: 1; filter: blur(0); transform: scale(1); } 100% { opacity: 0; filter: blur(7px); transform: scale(0.86); } }
+@keyframes login-qr-tile-destroy { 0% { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0) rotate(0) scale(1); } 72% { opacity: 0.78; } 100% { opacity: 0; filter: blur(2px); transform: translate3d(var(--tile-x), var(--tile-y), 0) rotate(var(--tile-rotate)) scale(0.48); } }
+@keyframes login-qr-destroy-check { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45) rotate(-12deg); } 68% { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(2deg); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } }
 
 @media (max-width: 680px) {
   .login-dialog-layer { align-items: end; padding: 10px; }
@@ -441,6 +778,15 @@ onBeforeUnmount(() => {
   .login-dialog-copy h2 { margin: 15px 0 10px; font-size: 36px; }
   .login-dialog-copy > p { font-size: 11px; line-height: 1.65; }
   .login-dialog-benefits { display: none; }
+  .login-dialog-identity { padding: 24px 24px 20px; }
+  .login-dialog-identity > .login-dialog-index { position: static; display: block; margin-bottom: 10px; text-align: left; }
+  .login-dialog-identity-stage { width: 112px; }
+  .login-dialog-identity-face { width: 78px; border-width: 4px; box-shadow: 0 14px 28px rgba(103, 79, 75, 0.14), 0 0 0 6px rgba(255, 255, 255, 0.38); }
+  .login-dialog-identity-face svg { width: 30px; }
+  .login-dialog-identity-check { right: 7px; bottom: 12px; width: 27px; border-width: 3px; }
+  .login-dialog-identity-copy { margin-top: 8px; }
+  .login-dialog-identity-copy h2 { margin: 7px auto 5px; font-size: 23px; }
+  .login-dialog-identity-progress { justify-content: center; margin-top: 15px; }
   .login-dialog-qr-area { padding: 26px 24px 28px; }
   .login-dialog-qr-shell { width: 190px; border-radius: 23px; }
   .login-dialog-status { width: 190px; margin-top: 18px; }
