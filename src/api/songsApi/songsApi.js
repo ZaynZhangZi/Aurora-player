@@ -21,6 +21,39 @@ export const songsApi = {
 		return apiClient.get(`/song/detail?ids=${id}`);
 	},
 
+	getSongWikiSummary(id) {
+		return apiClient.get('/song/wiki/summary', {
+			params: {id},
+		});
+	},
+
+	getSongMusicDetail(id) {
+		return apiClient.get('/song/music/detail', {
+			params: {id},
+		});
+	},
+
+	getSongComments(id, {limit = 8, offset = 0, before = 0} = {}) {
+		return apiClient.get('/comment/music', {
+			params: {
+				id,
+				limit,
+				offset,
+				...(before ? {before} : {}),
+			},
+		});
+	},
+
+	getSimilarSongs(id, {limit = 8, offset = 0} = {}) {
+		return apiClient.get('/simi/song', {
+			params: {
+				id,
+				limit,
+				offset,
+			},
+		});
+	},
+
 	getSongUrl(id, { level = 'exhigh' } = {}) {
 		return apiClient.get('/song/url/v1', {
 			params: {

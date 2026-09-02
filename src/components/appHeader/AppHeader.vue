@@ -25,9 +25,19 @@
         </slot>
       </div>
 
-      <button class="aurora-profile" type="button" aria-label="打开个人音乐库" @click="openProfile">
+      <button
+        class="aurora-profile"
+        :class="{ 'is-guest': !userStore.isLoggedIn }"
+        type="button"
+        :aria-label="userStore.isLoggedIn ? '打开个人音乐库' : '登录网易云音乐'"
+        @click="openProfile"
+      >
         <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
-        <span v-else>{{ profileInitial }}</span>
+        <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.25" />
+          <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
+        </svg>
       </button>
     </div>
   </header>
@@ -37,6 +47,7 @@
 import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
+import {openLoginDialog} from '@/utils/loginDialog.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,6 +73,10 @@ async function goHome(sectionId = 'home-top') {
 }
 
 function openProfile() {
+  if (!userStore.isLoggedIn) {
+    openLoginDialog()
+    return
+  }
   if (isProfile.value) return
   router.push({name: 'profile'})
 }
@@ -173,6 +188,9 @@ onBeforeUnmount(unbindShortcut)
 
 .aurora-profile { display: grid; width: 40px; aspect-ratio: 1; overflow: hidden; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
 .aurora-profile img { width: 100%; height: 100%; object-fit: cover; }
+.aurora-profile svg { width: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
+.aurora-profile.is-guest { color: #69666b; border-color: rgba(255, 255, 255, 0.92); background: #e8e6e4; box-shadow: 0 8px 20px rgba(24, 24, 27, 0.08); }
+.aurora-profile.is-guest:hover { color: #fff; background: linear-gradient(135deg, #ef7180, #ef9a68); }
 
 @media (max-width: 1080px) {
   .aurora-header-inner { grid-template-columns: auto minmax(230px, 1fr) auto; }

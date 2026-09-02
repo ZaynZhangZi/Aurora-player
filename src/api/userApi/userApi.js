@@ -9,9 +9,8 @@ export const userApi={
     //二维码 key 生成接口
     getQrKey(){
         return apiClient.get('/login/qr/key', {
-            params: {
-                noCookie: true,
-            },
+            cacheBust: true,
+            skipAuthCookie: true,
         })
     },
 
@@ -21,8 +20,9 @@ export const userApi={
             params: {
                 key,
                 qrimg: true,
-                noCookie: true,
             },
+            cacheBust: true,
+            skipAuthCookie: true,
         })
     },
 
@@ -33,6 +33,8 @@ export const userApi={
                 key,
                 ...(noCookie ? {noCookie: true} : {}),
             },
+            cacheBust: true,
+            skipAuthCookie: true,
         })
     },
 

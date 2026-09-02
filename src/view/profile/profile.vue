@@ -23,6 +23,12 @@
               <span>UID {{ profile.userId || '-' }}</span>
               <span>{{ locationText }}</span>
               <span>Lv.{{ level.level || 0 }}</span>
+              <button class="profile-logout-trigger" type="button" @click="openLogoutDialog">
+                退出登录
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10M14.5 8.5 18 12l-3.5 3.5M9 12h9" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -384,6 +390,39 @@
     <!-- Global App Route Frame Modal Drawer Router -->
     <ModalRouterView content-width="85vw" content-height="80vh" content-radius="24px" />
   </div>
+
+  <Teleport to="body">
+    <Transition name="profile-logout-dialog">
+      <div
+        v-if="logoutDialogOpen"
+        class="profile-logout-layer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-logout-title"
+        @keydown.esc="closeLogoutDialog"
+      >
+        <button class="profile-logout-backdrop" type="button" aria-label="取消退出" @click="closeLogoutDialog" />
+        <section class="profile-logout-panel">
+          <span class="profile-logout-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9 9.25a3.8 3.8 0 0 1 6.1 1.15c1.15 2.55-.65 5.8-3.1 7.1-2.45-1.3-4.25-4.55-3.1-7.1" />
+            </svg>
+          </span>
+          <p>ACCOUNT SESSION</p>
+          <h2 id="profile-logout-title">要退出当前账号吗？</h2>
+          <span class="profile-logout-description">退出后将停止同步个人歌单与聆听记录，本地收藏不会因此被删除。</span>
+          <span v-if="logoutError" class="profile-logout-error">{{ logoutError }}</span>
+          <div class="profile-logout-actions">
+            <button type="button" :disabled="logoutPending" @click="closeLogoutDialog">继续使用</button>
+            <button class="is-confirm" type="button" :disabled="logoutPending" @click="confirmLogout">
+              {{ logoutPending ? '正在退出...' : '确认退出' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 <script setup>
 defineOptions({ name: 'ProfilePage' })
@@ -407,6 +446,9 @@ const loading = ref(true)
 const error = ref('')
 const activeTab = ref('playlist')
 const avatarLoadFailed = ref(false)
+const logoutDialogOpen = ref(false)
+const logoutPending = ref(false)
+const logoutError = ref('')
 
 const profile = ref({
   userId: userStore.userId,
@@ -468,6 +510,34 @@ let themeTweenFrame = 0
 let heroCanvasFrame = 0
 let heroCanvasTimeStart = 0
 let heroResizeObserver = null
+
+function openLogoutDialog() {
+  logoutError.value = ''
+  logoutDialogOpen.value = true
+}
+
+function closeLogoutDialog() {
+  if (logoutPending.value) return
+  logoutDialogOpen.value = false
+  logoutError.value = ''
+}
+
+async function confirmLogout() {
+  if (logoutPending.value) return
+  logoutPending.value = true
+  logoutError.value = ''
+
+  try {
+    await userApi.logout()
+  } catch {
+    // 远程会话失效时仍清理本地登录态，保证用户可以正常退出。
+  }
+
+  userStore.logout()
+  logoutPending.value = false
+  logoutDialogOpen.value = false
+  await router.replace({name: 'home'})
+}
 
 const liquidBlobs = [
   {x: 0.16, y: 0.2, r: 0.46, dx: 0.14, dy: 0.11, speed: 0.00044, phase: 0.2, alpha: 0.48},
@@ -1922,6 +1992,32 @@ watch(
 .profile-signature { max-width: 580px; margin: 20px 0 0; color: rgba(var(--profile-hero-ink-rgb), 0.68); font-size: 13px; font-weight: 560; line-height: 1.75; }
 .profile-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .profile-meta span { padding: 7px 11px; color: rgba(var(--profile-hero-ink-rgb), 0.72); border: 1px solid rgba(var(--profile-hero-ink-rgb), 0.13); border-radius: 999px; background: rgba(var(--profile-hero-ink-rgb), 0.055); font-size: 10px; font-weight: 720; backdrop-filter: blur(10px); }
+.profile-logout-trigger { display: inline-flex; min-height: 30px; align-items: center; gap: 7px; padding: 0 12px; cursor: pointer; color: rgba(var(--profile-hero-ink-rgb), 0.62); border: 1px solid rgba(var(--profile-hero-ink-rgb), 0.13); border-radius: 999px; background: rgba(255, 255, 255, 0.18); font: inherit; font-size: 10px; font-weight: 740; backdrop-filter: blur(10px); transition: color 180ms ease, background 180ms ease, transform 180ms ease; }
+.profile-logout-trigger:hover { color: #a74e59; background: rgba(255, 255, 255, 0.48); transform: translateY(-1px); }
+.profile-logout-trigger svg { width: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+
+.profile-logout-layer { position: fixed; inset: 0; z-index: 1640; display: grid; place-items: center; padding: 20px; }
+.profile-logout-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; border: 0; background: rgba(28, 27, 30, 0.32); backdrop-filter: blur(14px) saturate(0.9); }
+.profile-logout-panel { position: relative; box-sizing: border-box; width: min(410px, 100%); padding: 36px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.86); border-radius: 29px; background: #f8f6f3; box-shadow: 0 32px 90px rgba(29, 27, 30, 0.2); }
+.profile-logout-mark { display: grid; width: 58px; aspect-ratio: 1; place-items: center; margin: 0 auto 23px; color: #d96775; border-radius: 19px; background: #f3e4e3; }
+.profile-logout-mark svg { width: 28px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
+.profile-logout-panel > p { margin: 0; color: #d96775; font-size: 8px; font-weight: 850; letter-spacing: 0.2em; }
+.profile-logout-panel h2 { margin: 13px 0 11px; color: #2b292d; font-size: 25px; font-weight: 880; letter-spacing: -0.04em; }
+.profile-logout-description { display: block; max-width: 305px; margin: 0 auto; color: #858187; font-size: 11px; font-weight: 560; line-height: 1.7; }
+.profile-logout-error { display: block; margin-top: 13px; color: #b55562; font-size: 10px; font-weight: 680; }
+.profile-logout-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 28px; }
+.profile-logout-actions button { height: 43px; cursor: pointer; color: #625e64; border: 1px solid rgba(43, 41, 45, 0.08); border-radius: 14px; background: #eeece9; font: inherit; font-size: 11px; font-weight: 760; transition: transform 170ms ease, box-shadow 170ms ease; }
+.profile-logout-actions button:hover:not(:disabled) { transform: translateY(-1px); }
+.profile-logout-actions button.is-confirm { color: #fff; border-color: transparent; background: #2d2b2f; box-shadow: 0 10px 22px rgba(43, 41, 45, 0.16); }
+.profile-logout-actions button:disabled { cursor: wait; opacity: 0.58; }
+.profile-logout-dialog-enter-active,
+.profile-logout-dialog-leave-active { transition: opacity 220ms ease; }
+.profile-logout-dialog-enter-active .profile-logout-panel,
+.profile-logout-dialog-leave-active .profile-logout-panel { transition: opacity 220ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+.profile-logout-dialog-enter-from,
+.profile-logout-dialog-leave-to { opacity: 0; }
+.profile-logout-dialog-enter-from .profile-logout-panel { opacity: 0; transform: translateY(12px) scale(0.97); }
+.profile-logout-dialog-leave-to .profile-logout-panel { opacity: 0; transform: translateY(7px) scale(0.985); }
 
 .profile-stat-panel {
   position: relative;

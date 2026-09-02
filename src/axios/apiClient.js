@@ -66,7 +66,7 @@ axiosInstance.interceptors.request.use(
     (config) => {
         const store = useCounterStore();
         const loginCookie = normalizeCookieString(store.getUserCookie || readStoredCookieFallback());
-        const noCookie = Boolean(config.params?.noCookie);
+        const skipAuthCookie = Boolean(config.skipAuthCookie || config.params?.noCookie);
 
         // 默认保留 GET/HEAD 缓存；确实需要强制刷新的接口可显式传 cacheBust: true。
         const cacheBust = Boolean(config.cacheBust);
@@ -79,7 +79,7 @@ axiosInstance.interceptors.request.use(
         delete config.cacheBust;
 
         // 关键：通过 query 透传 cookie，避免浏览器端无法可靠写入后端域 Cookie
-        if (loginCookie && !config.params?.cookie && !noCookie) {
+        if (loginCookie && !config.params?.cookie && !skipAuthCookie) {
             config.params = {
                 ...config.params,
                 cookie: loginCookie,
@@ -87,16 +87,15 @@ axiosInstance.interceptors.request.use(
         }
 
         // 检查是否存在 Cookie，存在时可在请求头中添加
-        if (loginCookie && !noCookie) {
+        if (loginCookie && !skipAuthCookie) {
             config.headers = {
                 ...config.headers,
                 'Custom-Cookie': loginCookie,
             };
         }
 
-        if (config.params?.noCookie) {
-            delete config.params.noCookie;
-        }
+        // skipAuthCookie 只控制前端是否附带旧登录态；接口要求的 noCookie 参数需要原样发送。
+        delete config.skipAuthCookie;
 
         return config;
     },

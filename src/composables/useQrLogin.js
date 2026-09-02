@@ -8,6 +8,7 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
   const qrImage = ref('')
   const qrState = ref('idle')
   const qrError = ref('')
+  const qrStatusCode = ref(null)
   const useNoCookie = ref(false)
 
   let pollingTimer = null
@@ -19,6 +20,7 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
       confirm: '已扫码，请确认',
       success: '登录成功，同步中...',
       expired: '二维码过期，请刷新',
+      retrying: '正在切换兼容模式...',
       error: '生成失败，请重试',
     }
     return map[qrState.value] || '安全快捷登录'
@@ -29,6 +31,7 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
     qrImage.value = ''
     qrState.value = 'idle'
     qrError.value = ''
+    qrStatusCode.value = null
     useNoCookie.value = false
     confirmProfile.value = null
   }
@@ -82,29 +85,42 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
     stopQrPolling()
 
     const cookie = payload?.cookie || payload?.data?.cookie
-    if (cookie) {
-      userStore.setLogin(cookie)
+    if (!cookie) {
+      qrState.value = 'error'
+      qrError.value = '授权成功，但接口没有返回登录凭证，请重新扫码'
+      return
+    }
+
+    userStore.setLogin(cookie)
+    let profile = null
+
+    try {
+      const infoRes = await userApi.getUserInfo()
+      profile = buildProfile(infoRes?.data)
+      userStore.setLogin(cookie, profile)
+    } catch {
+      if (confirmProfile.value) {
+        profile = {
+          userId: null,
+          nickname: confirmProfile.value.nickname || '',
+          avatarUrl: confirmProfile.value.avatarUrl || '',
+        }
+        userStore.setProfile(profile)
+      }
+    }
+
+    // Cookie 和基础资料落地后立即进入个人中心，后台用户同步不再阻塞页面跳转。
+    onSignIn(profile)
+
+    if (profile) {
       try {
-        const infoRes = await userApi.getUserInfo()
-        const profile = buildProfile(infoRes?.data)
-        userStore.setLogin(cookie, profile)
-        const syncedUser = await reportApi.syncNeteaseUser(profile, { force: true })
-        if (isRestrictedStatus(syncedUser?.status)) {
-          await rejectRestrictedLogin(syncedUser)
-          return
-        }
-        onSignIn(profile)
+      const syncedUser = await reportApi.syncNeteaseUser(profile, { force: true })
+      if (isRestrictedStatus(syncedUser?.status)) {
+        await rejectRestrictedLogin(syncedUser)
+        return
+      }
       } catch {
-        if (confirmProfile.value) {
-          const profile = {
-            userId: null,
-            nickname: confirmProfile.value.nickname || '',
-            avatarUrl: confirmProfile.value.avatarUrl || '',
-          }
-          userStore.setProfile(profile)
-          reportApi.syncNeteaseUser(profile)
-          onSignIn(profile)
-        }
+        // 用户数据同步失败不应阻断已经完成的网易云授权。
       }
     }
 
@@ -120,6 +136,7 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
       const res = await userApi.checkQrCode(qrKey.value, { noCookie: useNoCookie.value })
       const code = res?.data?.code
       const qrData = res?.data || {}
+      qrStatusCode.value = code ?? null
       if (code === 800) {
         qrState.value = 'expired'
         stopQrPolling()
@@ -132,6 +149,8 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
         await handleLoginSuccess(res?.data)
       } else if (code === 502) {
         useNoCookie.value = true
+        qrState.value = 'retrying'
+        qrError.value = ''
       } else if (code && code !== 200) {
         qrState.value = 'error'
         qrError.value = res?.data?.message || '登录失败'
@@ -177,6 +196,7 @@ export function useQrLogin(userStore, onSignIn, onCloseDialog) {
     qrImage,
     qrState,
     qrError,
+    qrStatusCode,
     qrStatusText,
     startQrLogin,
     stopQrPolling,

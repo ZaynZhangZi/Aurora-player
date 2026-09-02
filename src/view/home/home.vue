@@ -111,7 +111,7 @@
 
           <div class="continue-footer">
             <span>{{ userStore.isLoggedIn ? '最近播放会自动同步' : '登录后可同步你的聆听记录' }}</span>
-            <button v-if="!userStore.isLoggedIn" type="button" @click="openSearch">去登录</button>
+            <button v-if="!userStore.isLoggedIn" type="button" @click="openLoginDialog">去登录</button>
           </div>
         </aside>
       </section>
@@ -442,6 +442,7 @@ import HomeReleaseNotesPanel from '@/components/home/HomeReleaseNotesPanel.vue'
 import HomeSectionHeader from '@/components/home/HomeSectionHeader.vue'
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
+import {openLoginDialog} from '@/utils/loginDialog.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import {usePlayerStore} from '@/stores/playerStore.js'

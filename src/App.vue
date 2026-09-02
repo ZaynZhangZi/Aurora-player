@@ -19,6 +19,7 @@
 			</router-view>
 		</div>
 		<globalFooterPlayer />
+		<QrLoginDialog />
 		<div class="playback-notice-host" aria-live="polite" aria-atomic="true">
 			<Transition name="playback-notice">
 				<aside
@@ -109,6 +110,7 @@ import { useCounterStore } from "@/stores/userStores.js";
 import { reportApi } from "@/api/reportApi/reportApi.js";
 import { userApi } from "@/api/userApi/userApi.js";
 import AppSplashScreen from "@/components/AppSplashScreen/AppSplashScreen.vue";
+import QrLoginDialog from "@/components/login/QrLoginDialog.vue";
 import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
