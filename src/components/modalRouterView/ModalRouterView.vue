@@ -31,10 +31,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import { gsap } from 'gsap'
-import {
-  peekPendingPlaylistHeroTransition,
-  setPendingPlaylistHeroTransition,
-} from '@/utils/playlistFlipHero.js'
+import {peekPendingTransition, setPendingTransition} from '@/utils/heroTransition.js'
 
 const props = defineProps({
   to: { type: String, default: 'body' },
@@ -54,6 +51,18 @@ const emit = defineEmits(['closed', 'backdrop-click'])
 const router = useRouter()
 const route = useRoute()
 
+const heroTransitionRoutes = {
+  playlistDetail: {namespace: 'playlist', selector: '[data-playlist-detail-hero-cover]'},
+  profilePlaylistDetail: {namespace: 'playlist', selector: '[data-playlist-detail-hero-cover]'},
+  discoverPlaylistDetail: {namespace: 'playlist', selector: '[data-playlist-detail-hero-cover]'},
+  discoverAlbumDetail: {namespace: 'album', selector: '[data-album-detail-hero-cover]'},
+  discoverArtistDetail: {namespace: 'artist', selector: '[data-artist-detail-hero-cover]'},
+}
+
+function currentHeroTransition() {
+  return heroTransitionRoutes[String(route.name || '')] || null
+}
+
 // 记录原始 body overflow，避免影响别的页面
 const originalBodyOverflow = ref('')
 
@@ -71,10 +80,11 @@ function unlockScroll() {
 function closeModal() {
   markNavigatingBack()
   const id = Number(route.query?.id || 0)
-  const coverEl = document.querySelector('[data-playlist-detail-hero-cover]')
+  const config = currentHeroTransition()
+  const coverEl = config ? document.querySelector(config.selector) : null
   if (id > 0 && coverEl instanceof HTMLElement) {
-    const coverImg = coverEl.querySelector('img')
-    setPendingPlaylistHeroTransition(id, {
+    const coverImg = coverEl.querySelector('img, video')
+    setPendingTransition(config.namespace, id, {
       coverRect: coverEl.getBoundingClientRect(),
       coverSrc: coverImg?.getAttribute('src') || '',
     })
@@ -93,7 +103,9 @@ function closeModal() {
   }
 
   if (target) {
-    router.push(target)
+    const query = {...route.query}
+    delete query.id
+    router.push({...target, query})
     return
   }
 
@@ -150,7 +162,8 @@ function defaultLeave(el, done) {
 function handleEnter(el, done) {
   lockScroll()
 
-  if (peekPendingPlaylistHeroTransition(route.query?.id)) {
+  const config = currentHeroTransition()
+  if (config && peekPendingTransition(config.namespace, route.query?.id)) {
     // Hero 过渡：封面会从 modal 外部飞入，需要临时取消 overflow 裁剪
     const origOverflow = el.style.overflow
     el.style.overflow = 'visible'

@@ -428,7 +428,7 @@ watch(
 );
 
 watch(
-	() => route.fullPath,
+	() => route.path,
 	async () => {
 		await nextTick();
 		if (!consumeNavigatingBack()) {

@@ -69,7 +69,7 @@ export function useHomeData(userStore) {
       id: item?.targetId || item?.bannerId || item?.id || `banner-${index}`,
       media,
       mediaType: item?.mediaType || '',
-      title: item?.typeTitle || item?.title || 'Now Playing',
+      title: item?.typeTitle || item?.title || '',
       subtitle: subtitleFromList || item?.copywriter || item?.description || '',
     }
   }

@@ -342,6 +342,19 @@ let themeRaf = 0
 let heroCanvasRaf = 0
 let heroCanvasStart = 0
 let heroCanvasResizeObserver = null
+let heroCanvasVisibilityObserver = null
+let heroCanvasContext = null
+let heroCanvasVisible = true
+let heroCanvasLastFrameAt = 0
+
+const HERO_CANVAS_FRAME_INTERVAL = 1000 / 24
+const HERO_CANVAS_MAX_PIXELS = 1_100_000
+
+function resolveHeroCanvasDpr(width, height) {
+  const deviceDpr = Math.min(window.devicePixelRatio || 1, 1.5)
+  const budgetDpr = Math.sqrt(HERO_CANVAS_MAX_PIXELS / Math.max(1, width * height))
+  return Math.min(deviceDpr, Math.max(0.75, budgetDpr))
+}
 
 const heroLiquidBlobs = [
   {x: 0.12, y: 0.22, r: 0.5, dx: 0.14, dy: 0.1, speed: 0.00042, phase: 0.2, alpha: 0.44},
@@ -435,12 +448,12 @@ function buildHeroLiquidPalette() {
 
 function ensureHeroCanvasSize() {
   const canvas = heroCanvasRef.value
-  if (!canvas) return
+  if (!canvas) return null
 
   const rect = canvas.getBoundingClientRect()
   const width = Math.max(1, Math.round(rect.width))
   const height = Math.max(1, Math.round(rect.height))
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const dpr = resolveHeroCanvasDpr(width, height)
   const targetWidth = Math.round(width * dpr)
   const targetHeight = Math.round(height * dpr)
 
@@ -448,23 +461,22 @@ function ensureHeroCanvasSize() {
     canvas.width = targetWidth
     canvas.height = targetHeight
   }
+
+  return {width, height, dpr}
 }
 
 function drawHeroCanvas(time) {
   const canvas = heroCanvasRef.value
   if (!canvas) return
-  const context = canvas.getContext('2d')
+  const context = heroCanvasContext || canvas.getContext('2d', {alpha: false})
   if (!context) return
+  heroCanvasContext = context
 
-  ensureHeroCanvasSize()
-
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const width = canvas.width / dpr
-  const height = canvas.height / dpr
-  if (width <= 0 || height <= 0) return
+  const size = ensureHeroCanvasSize()
+  if (!size) return
+  const {width, height, dpr} = size
 
   context.setTransform(dpr, 0, 0, dpr, 0, 0)
-  context.clearRect(0, 0, width, height)
 
   const {dark, light, glow} = buildHeroLiquidPalette()
   const base = context.createLinearGradient(0, 0, width, height)
@@ -475,7 +487,6 @@ function drawHeroCanvas(time) {
 
   context.save()
   context.globalCompositeOperation = 'screen'
-  context.filter = 'blur(24px)'
 
   for (const blob of heroLiquidBlobs) {
     const elapsed = (time - heroCanvasStart) * blob.speed
@@ -504,12 +515,24 @@ function renderHeroCanvasStatic() {
 }
 
 function tickHeroCanvas(now) {
-  drawHeroCanvas(now)
+  if (!heroCanvasVisible) {
+    heroCanvasRaf = 0
+    return
+  }
+
+  if (!heroCanvasLastFrameAt || now - heroCanvasLastFrameAt >= HERO_CANVAS_FRAME_INTERVAL) {
+    drawHeroCanvas(now)
+    heroCanvasLastFrameAt = now - ((now - heroCanvasLastFrameAt) % HERO_CANVAS_FRAME_INTERVAL)
+  }
   heroCanvasRaf = requestAnimationFrame(tickHeroCanvas)
 }
 
 function startHeroCanvas() {
-  stopHeroCanvas()
+  if (
+    heroCanvasRaf
+    || !heroCanvasVisible
+    || (hasHeroVideo.value && heroVideoReady.value)
+  ) return
   renderHeroCanvasStatic()
 
   if (typeof requestAnimationFrame !== 'function') return
@@ -521,6 +544,7 @@ function startHeroCanvas() {
   if (prefersStatic) return
 
   heroCanvasStart = performance.now()
+  heroCanvasLastFrameAt = 0
   heroCanvasRaf = requestAnimationFrame(tickHeroCanvas)
 }
 
@@ -528,6 +552,7 @@ function stopHeroCanvas() {
   if (!heroCanvasRaf) return
   cancelAnimationFrame(heroCanvasRaf)
   heroCanvasRaf = 0
+  heroCanvasLastFrameAt = 0
 }
 
 function setupHeroCanvasObserver() {
@@ -538,9 +563,22 @@ function setupHeroCanvasObserver() {
     heroCanvasResizeObserver = null
   }
   heroCanvasResizeObserver = new ResizeObserver(() => {
-    renderHeroCanvasStatic()
+    if (heroCanvasVisible) renderHeroCanvasStatic()
   })
   heroCanvasResizeObserver.observe(canvas)
+
+  if (heroCanvasVisibilityObserver) {
+    heroCanvasVisibilityObserver.disconnect()
+    heroCanvasVisibilityObserver = null
+  }
+  if (typeof IntersectionObserver === 'function') {
+    heroCanvasVisibilityObserver = new IntersectionObserver(([entry]) => {
+      heroCanvasVisible = Boolean(entry?.isIntersecting)
+      if (heroCanvasVisible) startHeroCanvas()
+      else stopHeroCanvas()
+    }, {rootMargin: '120px 0px'})
+    heroCanvasVisibilityObserver.observe(canvas)
+  }
 }
 
 function parseRgb(rgbString) {
@@ -1351,7 +1389,7 @@ onMounted(async () => {
 })
 
 onBeforeRouteLeave((to) => {
-  if (to?.name === 'home') {
+  if (to?.name === 'home' || to?.name === 'discover') {
     prepareArtistHeroReturn()
   }
 })
@@ -1367,6 +1405,11 @@ onBeforeUnmount(() => {
     heroCanvasResizeObserver.disconnect()
     heroCanvasResizeObserver = null
   }
+  if (heroCanvasVisibilityObserver) {
+    heroCanvasVisibilityObserver.disconnect()
+    heroCanvasVisibilityObserver = null
+  }
+  heroCanvasContext = null
 })
 
 watch(
@@ -1384,7 +1427,7 @@ watch(
 watch(
   animatedThemeRgb,
   () => {
-    if (!heroCanvasRaf) {
+    if (!heroCanvasRaf && heroCanvasVisible) {
       renderHeroCanvasStatic()
     }
   },

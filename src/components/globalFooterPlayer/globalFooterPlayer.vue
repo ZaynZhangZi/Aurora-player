@@ -476,69 +476,90 @@
               </div>
             </div>
 
-            <TransitionGroup
-              name="queue-item"
-              tag="div"
+            <div
+              ref="queueListRef"
               class="queue-list relative max-h-[56vh] overflow-y-auto p-2"
+              @scroll.passive="onQueueListScroll"
             >
-              <div
-                v-for="(song, index) in playQueue"
-                :key="song.queueEntryId"
-                :ref="element => setQueueRowRef(song.queueEntryId, element)"
-                class="queue-row relative mb-1 overflow-hidden rounded-xl"
+              <TransitionGroup
+                name="queue-item"
+                :css="!queueVirtualized"
+                tag="div"
+                class="relative"
               >
                 <div
-                  v-if="index !== currentQueueIndex"
-                  class="pointer-events-none absolute inset-y-0 right-0 flex w-24 items-center justify-end bg-gradient-to-l from-rose-600 to-rose-500 px-4 text-[11px] font-semibold tracking-wide text-white transition-opacity duration-300"
-                  :class="queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging && queueSwipe.offsetX < 0
-                    ? 'opacity-100'
-                    : 'opacity-0'"
+                  v-if="queueTopSpacerPx"
+                  key="queue-spacer-top"
+                  class="pointer-events-none"
+                  :style="{height: `${queueTopSpacerPx}px`}"
                   aria-hidden="true"
+                />
+                <div
+                  v-for="({song, index}) in queueDisplayItems"
+                  :key="song.queueEntryId"
+                  :ref="element => setQueueRowRef(song.queueEntryId, element)"
+                  class="queue-row relative mb-1 overflow-hidden rounded-xl"
                 >
-                  松开移除
+                  <div
+                    v-if="index !== currentQueueIndex"
+                    class="pointer-events-none absolute inset-y-0 right-0 flex w-24 items-center justify-end bg-gradient-to-l from-rose-600 to-rose-500 px-4 text-[11px] font-semibold tracking-wide text-white transition-opacity duration-300"
+                    :class="queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging && queueSwipe.offsetX < 0
+                      ? 'opacity-100'
+                      : 'opacity-0'"
+                    aria-hidden="true"
+                  >
+                    松开移除
+                  </div>
+                  <div
+                    class="queue-row-content relative flex w-full items-center gap-1 text-left"
+                    :class="[
+                      index === currentQueueIndex
+                        ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+                        : 'bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
+                      queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging
+                        ? 'will-change-transform'
+                        : 'transition-transform duration-300',
+                    ]"
+                    :style="queueRowSwipeStyle(song.queueEntryId)"
+                    @pointerdown="onQueueRowPointerDown($event, song, index)"
+                    @pointermove="onQueueRowPointerMove($event, song)"
+                    @pointerup="onQueueRowPointerEnd($event, song, index)"
+                    @pointercancel="onQueueRowPointerCancel($event, song)"
+                    @click.capture="onQueueRowClickCapture"
+                  >
+                    <button
+                      class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                      type="button"
+                      @click="onQueueSongClick(index)"
+                    >
+                      <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{
+                          index + 1
+                        }}</span>
+                      <span class="truncate text-[14px] font-semibold">{{
+                          song.name || '未知歌曲'
+                        }}</span>
+                    </button>
+                    <button
+                      v-if="index !== currentQueueIndex"
+                      class="mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-full text-current opacity-45 transition hover:bg-black/5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-20 dark:hover:bg-white/10"
+                      type="button"
+                      :disabled="queueMutationLocked"
+                      :aria-label="`从播放队列移除《${song.name || '未知歌曲'}》`"
+                      @click.stop="removeQueuedSong(song)"
+                    >
+                      <XMarkIcon class="h-4 w-4"/>
+                    </button>
+                  </div>
                 </div>
                 <div
-                  class="queue-row-content relative flex w-full items-center gap-1 text-left"
-                  :class="[
-                    index === currentQueueIndex
-                      ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
-                      : 'bg-white text-zinc-700 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
-                    queueSwipe.entryId === song.queueEntryId && queueSwipe.dragging
-                      ? 'will-change-transform'
-                      : 'transition-transform duration-300',
-                  ]"
-                  :style="queueRowSwipeStyle(song.queueEntryId)"
-                  @pointerdown="onQueueRowPointerDown($event, song, index)"
-                  @pointermove="onQueueRowPointerMove($event, song)"
-                  @pointerup="onQueueRowPointerEnd($event, song, index)"
-                  @pointercancel="onQueueRowPointerCancel($event, song)"
-                  @click.capture="onQueueRowClickCapture"
-                >
-                  <button
-                    class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
-                    type="button"
-                    @click="onQueueSongClick(index)"
-                  >
-                    <span class="w-6 shrink-0 text-center text-[11px] font-bold opacity-50">{{
-                        index + 1
-                      }}</span>
-                    <span class="truncate text-[14px] font-semibold">{{
-                        song.name || '未知歌曲'
-                      }}</span>
-                  </button>
-                  <button
-                    v-if="index !== currentQueueIndex"
-                    class="mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-full text-current opacity-45 transition hover:bg-black/5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-20 dark:hover:bg-white/10"
-                    type="button"
-                    :disabled="queueMutationLocked"
-                    :aria-label="`从播放队列移除《${song.name || '未知歌曲'}》`"
-                    @click.stop="removeQueuedSong(song)"
-                  >
-                    <XMarkIcon class="h-4 w-4"/>
-                  </button>
-                </div>
-              </div>
-            </TransitionGroup>
+                  v-if="queueBottomSpacerPx"
+                  key="queue-spacer-bottom"
+                  class="pointer-events-none"
+                  :style="{height: `${queueBottomSpacerPx}px`}"
+                  aria-hidden="true"
+                />
+              </TransitionGroup>
+            </div>
           </div>
         </div>
       </Transition>
@@ -644,7 +665,6 @@ import {
 } from "vue";
 import {useRouter} from "vue-router";
 import {reportApi} from "@/api/reportApi/reportApi.js";
-import {songsApi} from "@/api/songsApi/songsApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import {usePlayerLyric} from "@/composables/usePlayerLyric.js";
 import {usePlayerLyricLoader} from "@/composables/usePlayerLyricLoader.js";
@@ -672,6 +692,7 @@ import {
   clearSongPlayableUrlCache,
   playQueueByDirection,
   playQueueByIndex,
+  resolveSongPlayableUrl,
   warmupNextTrack,
 } from "@/utils/globalPlayer.js";
 import {showPlaybackNotice} from "@/utils/playbackNotice.js";
@@ -710,6 +731,7 @@ const playerShellRef = ref(null);
 const desktopCoverRef = ref(null);
 const mobileCoverRef = ref(null);
 const amllHostRef = ref(null);
+const queueListRef = ref(null);
 const queueRowRefs = new Map();
 const queueDissolvingEntryIds = ref(new Set());
 const queueClearing = ref(false);
@@ -746,7 +768,6 @@ let pendingPromotedStartSec = -1;
 let skipNextCoverThemePick = false;
 let skipAudioResetOnNextSrcChange = false;
 let activeDeck = "primary";
-const playableUrlCache = new Map();
 
 const DEV_CROSSFADE_DEBUG = Boolean(import.meta.env.DEV);
 
@@ -877,6 +898,40 @@ const volume = computed(() => playerStore.volume);
 const playQueue = computed(() => playerStore.playQueue);
 const currentQueueIndex = computed(() => playerStore.currentQueueIndex);
 const playlistPanelOpen = computed(() => playerStore.playlistPanelOpen);
+const QUEUE_VIRTUAL_THRESHOLD = 120;
+const QUEUE_ROW_HEIGHT_PX = 44;
+const QUEUE_OVERSCAN_ROWS = 8;
+const queueScrollTop = ref(0);
+const queueViewportHeight = ref(520);
+const queueVirtualized = computed(
+  () => playQueue.value.length > QUEUE_VIRTUAL_THRESHOLD,
+);
+const queueVisibleStart = computed(() => {
+  if (!queueVirtualized.value) return 0;
+  return Math.max(
+    0,
+    Math.floor(queueScrollTop.value / QUEUE_ROW_HEIGHT_PX) - QUEUE_OVERSCAN_ROWS,
+  );
+});
+const queueVisibleEnd = computed(() => {
+  if (!queueVirtualized.value) return playQueue.value.length;
+  const visibleRows = Math.ceil(queueViewportHeight.value / QUEUE_ROW_HEIGHT_PX);
+  return Math.min(
+    playQueue.value.length,
+    queueVisibleStart.value + visibleRows + QUEUE_OVERSCAN_ROWS * 2,
+  );
+});
+const queueDisplayItems = computed(() =>
+  playQueue.value
+    .slice(queueVisibleStart.value, queueVisibleEnd.value)
+    .map((song, offset) => ({song, index: queueVisibleStart.value + offset})),
+);
+const queueTopSpacerPx = computed(
+  () => queueVisibleStart.value * QUEUE_ROW_HEIGHT_PX,
+);
+const queueBottomSpacerPx = computed(
+  () => (playQueue.value.length - queueVisibleEnd.value) * QUEUE_ROW_HEIGHT_PX,
+);
 const songTransitionKey = computed(() => {
   const song = playerStore.currentSong || {};
   return `${song.id || "none"}-${song.url || ""}-${song.name || ""}`;
@@ -1361,38 +1416,8 @@ function resolveMediaSessionArtworkUrl() {
   return "";
 }
 
-function getSongUrlEntry(response) {
-  return response?.data?.data?.[0] || null;
-}
-
 async function resolvePlayableUrlById(id) {
-  const cacheKey = String(id);
-  if (playableUrlCache.has(cacheKey)) {
-    return playableUrlCache.get(cacheKey) || "";
-  }
-
-  const levels = ["exhigh", "higher", "standard"];
-  for (const level of levels) {
-    try {
-      const res = await songsApi.getSongUrl(id, {level});
-      const url = getSongUrlEntry(res)?.url || "";
-      if (url) {
-        playableUrlCache.set(cacheKey, url);
-        return url;
-      }
-    } catch {
-      // try next level
-    }
-  }
-
-  try {
-    const legacyRes = await songsApi.getSongUrlLegacy(id);
-    const url = getSongUrlEntry(legacyRes)?.url || "";
-    if (url) playableUrlCache.set(cacheKey, url);
-    return url;
-  } catch {
-    return "";
-  }
+  return resolveSongPlayableUrl(id);
 }
 
 async function waitAudioMetadata(media, {timeoutMs = 1200} = {}) {
@@ -1621,6 +1646,7 @@ function togglePlaylistPanel() {
     return;
   }
   playerStore.togglePlaylistPanel();
+  nextTick(prepareQueueWindow);
 }
 
 function closePlaylistPanel() {
@@ -1637,6 +1663,37 @@ function setQueueRowRef(queueEntryId, element) {
   } else {
     queueRowRefs.delete(entryId);
   }
+}
+
+function syncQueueViewport(element = queueListRef.value) {
+  if (!element) return;
+  queueScrollTop.value = Math.max(0, Number(element.scrollTop) || 0);
+  queueViewportHeight.value = Math.max(1, Number(element.clientHeight) || 520);
+}
+
+function onQueueListScroll(event) {
+  syncQueueViewport(event.currentTarget);
+}
+
+function prepareQueueWindow() {
+  const element = queueListRef.value;
+  if (!element) return;
+  queueViewportHeight.value = Math.max(1, Number(element.clientHeight) || 520);
+
+  if (!queueVirtualized.value || currentQueueIndex.value < 0) {
+    syncQueueViewport(element);
+    return;
+  }
+
+  const centeredTop = currentQueueIndex.value * QUEUE_ROW_HEIGHT_PX
+    - element.clientHeight / 2
+    + QUEUE_ROW_HEIGHT_PX / 2;
+  const maxTop = Math.max(
+    0,
+    playQueue.value.length * QUEUE_ROW_HEIGHT_PX - element.clientHeight,
+  );
+  element.scrollTop = Math.min(maxTop, Math.max(0, centeredTop));
+  syncQueueViewport(element);
 }
 
 function updateQueueDissolvingEntry(entryId, dissolving) {
@@ -2437,6 +2494,11 @@ onBeforeUnmount(() => {
   animation-play-state: paused;
 }
 
+.player-shell-idle::before,
+.player-shell-idle::after {
+  animation-play-state: paused;
+}
+
 .player-shell-crossfading {
   box-shadow: 0 20px 58px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.16)),
   0 0 0 1px rgba(var(--player-fg), 0.22);
@@ -2675,6 +2737,11 @@ onBeforeUnmount(() => {
 .queue-row-content {
   touch-action: pan-y;
   user-select: none;
+}
+
+.queue-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
 }
 
 .queue-item-move,

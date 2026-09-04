@@ -56,6 +56,7 @@ export const songsApi = {
 
 	getSongUrl(id, { level = 'exhigh' } = {}) {
 		return apiClient.get('/song/url/v1', {
+			timeout: 6000,
 			params: {
 				id,
 				level,
@@ -64,7 +65,7 @@ export const songsApi = {
 	},
 
 	getSongUrlLegacy(id) {
-		return apiClient.get(`/song/url?id=${id}`);
+		return apiClient.get(`/song/url?id=${id}`, {timeout: 6000});
 	},
 
 	getLyric(id) {

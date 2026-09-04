@@ -4,6 +4,8 @@
     :class="{ 'song-row-compact': compact }"
     type="button"
     :aria-label="`播放歌曲：${title}`"
+    :aria-busy="isStarting"
+    :disabled="isStarting"
     @click="emit('play', song, index)"
   >
     <span v-if="showIndex" class="song-index">{{ String(index + 1).padStart(2, '0') }}</span>
@@ -21,8 +23,9 @@
       <span class="song-artist">{{ artist }}</span>
     </span>
     <span v-if="duration" class="song-duration">{{ duration }}</span>
-    <span class="song-play" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+    <span class="song-play" :class="{ 'is-loading': isStarting }" aria-hidden="true">
+      <span v-if="isStarting" class="song-play-spinner" />
+      <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
     </span>
   </button>
 </template>
@@ -30,6 +33,7 @@
 <script setup>
 import {computed} from 'vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import {usePlayerStore} from '@/stores/playerStore.js'
 
 const props = defineProps({
   song: {
@@ -51,7 +55,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['play'])
+const playerStore = usePlayerStore()
 const title = computed(() => props.song?.name || props.song?.song?.name || '未知歌曲')
+const isStarting = computed(() => String(playerStore.playbackPendingId || '') === String(props.song?.id || ''))
 const cover = computed(() => (
   props.song?.cover
   || props.song?.picUrl
@@ -97,6 +103,8 @@ const duration = computed(() => {
   outline: none;
 }
 
+.song-row:disabled { cursor: wait; }
+
 .song-index {
   color: #a1a1aa;
   font-size: 11px;
@@ -134,6 +142,16 @@ const duration = computed(() => {
 }
 
 .song-play svg { width: 12px; height: 12px; margin-left: 2px; }
+.song-play-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: song-play-spin 700ms linear infinite;
+}
+
+@keyframes song-play-spin { to { transform: rotate(360deg); } }
 
 .song-row-compact {
   grid-template-columns: 48px minmax(0, 1fr) 34px;
@@ -155,5 +173,6 @@ const duration = computed(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .song-row { transition: none; }
+  .song-play-spinner { animation-duration: 1.4s; }
 }
 </style>

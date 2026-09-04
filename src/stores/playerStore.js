@@ -49,6 +49,100 @@ function ensureQueueEntryIds(queue = []) {
   }))
 }
 
+const PLAYER_STORAGE_KEY = 'global-player-store'
+let volumePersistTimer = 0
+
+function createDefaultPlayerState() {
+  return {
+    currentSong: {
+      id: null,
+      name: '',
+      artists: [],
+      cover: '',
+      url: '',
+    },
+    isPlaying: false,
+    currentTimeMs: 0,
+    durationMs: 0,
+    volume: 0.85,
+    autoPlayOnLoad: false,
+    playbackPendingId: null,
+    playQueue: [],
+    currentQueueIndex: -1,
+    playMode: PLAY_MODE.SEQUENCE,
+    playlistPanelOpen: false,
+    automixEnabled: true,
+    lyricTranslateEnabled: false,
+  }
+}
+
+function createInitialPlayerState() {
+  const defaults = createDefaultPlayerState()
+  if (typeof localStorage === 'undefined') return defaults
+
+  try {
+    const raw = localStorage.getItem(PLAYER_STORAGE_KEY)
+    if (!raw) return defaults
+    const saved = JSON.parse(raw)
+    const playQueue = ensureQueueEntryIds(saved?.playQueue)
+    const storedIndex = Number(saved?.currentQueueIndex)
+    const currentQueueIndex = Number.isInteger(storedIndex)
+      && storedIndex >= 0
+      && storedIndex < playQueue.length
+      ? storedIndex
+      : (playQueue.length ? 0 : -1)
+    const volume = Number(saved?.volume)
+
+    return {
+      ...defaults,
+      currentSong: saved?.currentSong && typeof saved.currentSong === 'object'
+        ? {...defaults.currentSong, ...saved.currentSong}
+        : defaults.currentSong,
+      volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : defaults.volume,
+      playQueue,
+      currentQueueIndex,
+      playMode: Object.values(PLAY_MODE).includes(saved?.playMode)
+        ? saved.playMode
+        : defaults.playMode,
+      automixEnabled: saved?.automixEnabled !== false,
+      lyricTranslateEnabled: Boolean(saved?.lyricTranslateEnabled),
+    }
+  } catch {
+    return defaults
+  }
+}
+
+function persistPlayerState(store) {
+  if (typeof localStorage === 'undefined') return
+  if (volumePersistTimer) {
+    clearTimeout(volumePersistTimer)
+    volumePersistTimer = 0
+  }
+
+  try {
+    localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({
+      currentSong: store.currentSong,
+      volume: store.volume,
+      playQueue: store.playQueue,
+      currentQueueIndex: store.currentQueueIndex,
+      playMode: store.playMode,
+      automixEnabled: store.automixEnabled,
+      lyricTranslateEnabled: store.lyricTranslateEnabled,
+    }))
+  } catch {
+    // Storage can be unavailable in privacy mode; playback should keep working.
+  }
+}
+
+function persistVolumeLater(store) {
+  if (typeof window === 'undefined') return
+  if (volumePersistTimer) clearTimeout(volumePersistTimer)
+  volumePersistTimer = window.setTimeout(() => {
+    volumePersistTimer = 0
+    persistPlayerState(store)
+  }, 160)
+}
+
 function normalizeCoverUrlProtocol(url = '') {
   const raw = String(url || '').trim()
   if (!raw) return ''
@@ -90,26 +184,7 @@ function normalizeQueueItem(song, usedQueueEntryIds = new Set()) {
 }
 
 export const usePlayerStore = defineStore('global-player', {
-  state: () => ({
-    currentSong: {
-      id: null,
-      name: '',
-      artists: [],
-      cover: '',
-      url: '',
-    },
-    isPlaying: false,
-    currentTimeMs: 0,
-    durationMs: 0,
-    volume: 0.85,
-    autoPlayOnLoad: false,
-    playQueue: [],
-    currentQueueIndex: -1,
-    playMode: PLAY_MODE.SEQUENCE,
-    playlistPanelOpen: false,
-    automixEnabled: true,
-    lyricTranslateEnabled: false,
-  }),
+  state: createInitialPlayerState,
 
   getters: {
     hasSong: (state) => Boolean(state.currentSong?.id && state.currentSong?.url),
@@ -138,10 +213,16 @@ export const usePlayerStore = defineStore('global-player', {
       if (!autoplay) {
         this.isPlaying = false
       }
+      persistPlayerState(this)
     },
 
     setPlaying(value) {
       this.isPlaying = Boolean(value)
+    },
+
+    setPlaybackPendingId(songId) {
+      const id = Number(songId)
+      this.playbackPendingId = Number.isFinite(id) && id > 0 ? id : null
     },
 
     setCurrentTimeMs(value) {
@@ -158,6 +239,7 @@ export const usePlayerStore = defineStore('global-player', {
       const v = Number(value)
       if (!Number.isFinite(v)) return
       this.volume = Math.min(1, Math.max(0, v))
+      persistVolumeLater(this)
     },
 
     setQueue(queue = [], {startIndex = 0} = {}) {
@@ -171,16 +253,19 @@ export const usePlayerStore = defineStore('global-player', {
 
       if (!normalized.length) {
         this.currentQueueIndex = -1
+        persistPlayerState(this)
         return
       }
 
       const nextIndex = Number(startIndex)
       if (Number.isInteger(nextIndex) && nextIndex >= 0 && nextIndex < normalized.length) {
         this.currentQueueIndex = nextIndex
+        persistPlayerState(this)
         return
       }
 
       this.currentQueueIndex = 0
+      persistPlayerState(this)
     },
 
     setCurrentQueueIndex(index) {
@@ -188,13 +273,17 @@ export const usePlayerStore = defineStore('global-player', {
       if (!Number.isInteger(nextIndex)) return
       if (nextIndex < 0 || nextIndex >= this.playQueue.length) return
       this.currentQueueIndex = nextIndex
+      persistPlayerState(this)
     },
 
     syncQueueIndexBySongId(songId) {
       const id = String(songId || '')
       if (!id || !this.playQueue.length) return
       const nextIndex = this.playQueue.findIndex(item => String(item.id) === id)
-      if (nextIndex >= 0) this.currentQueueIndex = nextIndex
+      if (nextIndex >= 0) {
+        this.currentQueueIndex = nextIndex
+        persistPlayerState(this)
+      }
     },
 
     removeQueueEntry(queueEntryId) {
@@ -230,12 +319,14 @@ export const usePlayerStore = defineStore('global-player', {
         this.currentQueueIndex = -1
       }
 
+      persistPlayerState(this)
       return true
     },
 
     clearQueueExceptCurrent() {
       if (!this.playQueue.length) {
         this.currentQueueIndex = -1
+        persistPlayerState(this)
         return 0
       }
 
@@ -256,6 +347,7 @@ export const usePlayerStore = defineStore('global-player', {
       const removedCount = this.playQueue.length - 1
       this.playQueue = [currentEntry]
       this.currentQueueIndex = 0
+      persistPlayerState(this)
       return removedCount
     },
 
@@ -263,6 +355,7 @@ export const usePlayerStore = defineStore('global-player', {
       const allow = [PLAY_MODE.SEQUENCE, PLAY_MODE.SINGLE, PLAY_MODE.SHUFFLE]
       if (!allow.includes(mode)) return
       this.playMode = mode
+      persistPlayerState(this)
     },
 
     cyclePlayMode() {
@@ -270,6 +363,7 @@ export const usePlayerStore = defineStore('global-player', {
       const current = order.indexOf(this.playMode)
       const nextIndex = current < 0 ? 0 : (current + 1) % order.length
       this.playMode = order[nextIndex]
+      persistPlayerState(this)
     },
 
     setPlaylistPanelOpen(value) {
@@ -282,37 +376,22 @@ export const usePlayerStore = defineStore('global-player', {
 
     setAutomixEnabled(value) {
       this.automixEnabled = Boolean(value)
+      persistPlayerState(this)
     },
 
     toggleAutomixEnabled() {
       this.automixEnabled = !this.automixEnabled
+      persistPlayerState(this)
     },
 
     setLyricTranslateEnabled(value) {
       this.lyricTranslateEnabled = Boolean(value)
+      persistPlayerState(this)
     },
 
     toggleLyricTranslateEnabled() {
       this.lyricTranslateEnabled = !this.lyricTranslateEnabled
-    },
-  },
-
-  persist: {
-    key: 'global-player-store',
-    storage: localStorage,
-    paths: [
-      'currentSong',
-      'volume',
-      'playQueue',
-      'currentQueueIndex',
-      'playMode',
-      'automixEnabled',
-      'lyricTranslateEnabled',
-    ],
-    afterHydrate(ctx) {
-      ctx.store.isPlaying = false
-      ctx.store.autoPlayOnLoad = false
-      ctx.store.playQueue = ensureQueueEntryIds(ctx.store.playQueue)
+      persistPlayerState(this)
     },
   },
 })

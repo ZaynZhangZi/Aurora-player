@@ -81,12 +81,19 @@
           <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
         </div>
 
-        <TransitionGroup name="track-item" tag="div" class="playlist-track-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pb-24 pr-1" appear>
+        <TransitionGroup
+          name="track-item"
+          :css="tracks.length <= 80"
+          tag="div"
+          class="playlist-track-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pb-24 pr-1"
+          appear
+        >
           <div
             v-for="(track, index) in tracks"
             :key="track.id"
             :style="getTrackItemStyle(index)"
             class="group flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-white/60 hover:shadow-sm focus:outline-none"
+            :class="{ 'track-playback-pending': Number(playerStore.playbackPendingId) === Number(track.id) }"
             @click="openSong(track, index)"
           >
             <div class="flex min-w-0 flex-1 items-center gap-4">
@@ -151,11 +158,13 @@ import {
 } from '@/utils/playlistFlipHero.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import { useCounterStore } from '@/stores/userStores.js'
+import { usePlayerStore } from '@/stores/playerStore.js'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
-const isModalPlaylistDetail = computed(() => route.name === 'playlistDetail')
+const playerStore = usePlayerStore()
+const isModalPlaylistDetail = computed(() => ['playlistDetail', 'profilePlaylistDetail', 'discoverPlaylistDetail'].includes(String(route.name || '')))
 const playlistHeroCardRef = ref(null)
 const playlistHeroCoverRef = ref(null)
 let heroEnterDone = Promise.resolve()
@@ -387,7 +396,7 @@ async function goBack() {
 }
 
 onBeforeRouteLeave((to) => {
-  if (to?.name === 'home' || to?.name === 'profile') {
+  if (to?.name === 'home' || to?.name === 'profile' || to?.name === 'discover') {
     preparePlaylistHeroReturn()
   }
 })
@@ -522,13 +531,21 @@ async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0) {
 
   let allChunks = [firstChunk]
   if (restOffsets.length > 0) {
-    const restResults = await Promise.all(
-      restOffsets.map(offset =>
-        playListsApi.getPlayListSongs(playlistId, pageSize, offset)
+    const restResults = Array.from({length: restOffsets.length})
+    let nextOffsetIndex = 0
+    const workerCount = Math.min(3, restOffsets.length)
+    const workers = Array.from({length: workerCount}, async () => {
+      while (nextOffsetIndex < restOffsets.length) {
+        const resultIndex = nextOffsetIndex
+        nextOffsetIndex += 1
+        const offset = restOffsets[resultIndex]
+        restResults[resultIndex] = await playListsApi
+          .getPlayListSongs(playlistId, pageSize, offset)
           .then(r => r?.data?.songs || [])
           .catch(() => [])
-      )
-    )
+      }
+    })
+    await Promise.all(workers)
     allChunks = allChunks.concat(restResults)
   }
 
@@ -790,6 +807,17 @@ watch(
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+}
+
+.playlist-track-scroll > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
+}
+
+.track-playback-pending {
+  cursor: wait;
+  background: rgba(255, 255, 255, 0.72);
+  opacity: 0.72;
 }
 
 .playlist-track-scroll::-webkit-scrollbar {

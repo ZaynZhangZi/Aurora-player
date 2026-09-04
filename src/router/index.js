@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { visitApi } from '@/api/visitApi/visitApi.js'
 import SystemStatus from '@/view/systemStatus.vue'
 
-const routeScrollPositionMap = new Map()
 let navigatingBackMarkedAt = 0
 
 export function markNavigatingBack() {
@@ -16,27 +15,13 @@ export function consumeNavigatingBack(maxAgeMs = 800) {
   return Date.now() - markedAt <= maxAgeMs
 }
 
-function getWindowScrollPosition() {
-  return {
-    left: window.scrollX || window.pageXOffset || 0,
-    top: window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0,
-  }
-}
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, from, savedPosition) {
-    if (savedPosition) return savedPosition
-
-    const cachedPosition = routeScrollPositionMap.get(to.fullPath)
-    if (cachedPosition) {
-      routeScrollPositionMap.delete(to.fullPath)
-      return cachedPosition
-    }
-
-    if (to.meta?.keepAlive) return false
-
-    return { left: 0, top: 0 }
+  scrollBehavior(to, from) {
+    const modalRoutes = new Set(['playlistDetail', 'discoverPlaylistDetail', 'discoverAlbumDetail', 'discoverArtistDetail'])
+    if (modalRoutes.has(to.name) || modalRoutes.has(from.name)) return false
+    if (to.path === from.path) return false
+    return { left: 0, top: 0, behavior: 'auto' }
   },
   routes: [
     {
@@ -58,6 +43,45 @@ const router = createRouter({
           component: () => import('@/view/playlistDetail/playlistDetail.vue'),
         },
       ]
+    },
+    {
+      path: '/discover',
+      name: 'discover',
+      component: () => import('@/view/discover/discover.vue'),
+      meta: {
+        title: '发现音乐',
+        keepAlive: true,
+        keepAliveName: 'DiscoverPage',
+      },
+      children: [
+        {
+          path: 'playlist',
+          name: 'discoverPlaylistDetail',
+          component: () => import('@/view/playlistDetail/playlistDetail.vue'),
+        },
+        {
+          path: 'album',
+          name: 'discoverAlbumDetail',
+          component: () => import('@/view/albumDetail/albumDetail.vue'),
+        },
+        {
+          path: 'artist',
+          name: 'discoverArtistDetail',
+          component: () => import('@/view/artistDetial/artistDetial.vue'),
+        },
+      ],
+    },
+    {
+      path: '/discover/style/:id',
+      name: 'styleDetailPage',
+      component: () => import('@/view/styleDetail/styleDetail.vue'),
+      meta: { title: '曲风详情' },
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: () => import('@/view/search/search.vue'),
+      meta: { title: '搜索' },
     },
     {
       path: '/artistDetial',
@@ -114,13 +138,6 @@ const router = createRouter({
       meta: { title: '页面未找到' },
     },
   ],
-})
-
-router.beforeEach((to, from, next) => {
-  if (from.fullPath) {
-    routeScrollPositionMap.set(from.fullPath, getWindowScrollPosition())
-  }
-  next()
 })
 
 router.afterEach((to) => {

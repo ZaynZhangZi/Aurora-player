@@ -507,7 +507,7 @@ onMounted(() => {
 })
 
 onBeforeRouteLeave((to) => {
-  if (to?.name === 'artistDetailPage') {
+  if (to?.name === 'artistDetailPage' || to?.name === 'discover') {
     prepareAlbumHeroReturn()
   }
 })

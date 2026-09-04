@@ -426,7 +426,7 @@
 </template>
 <script setup>
 defineOptions({ name: 'ProfilePage' })
-import {computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
@@ -510,6 +510,19 @@ let themeTweenFrame = 0
 let heroCanvasFrame = 0
 let heroCanvasTimeStart = 0
 let heroResizeObserver = null
+let heroVisibilityObserver = null
+let heroCanvasContext = null
+let heroCanvasVisible = true
+let heroCanvasLastFrameAt = 0
+
+const HERO_CANVAS_FRAME_INTERVAL = 1000 / 24
+const HERO_CANVAS_MAX_PIXELS = 1_100_000
+
+function resolveHeroCanvasDpr(width, height) {
+  const deviceDpr = Math.min(window.devicePixelRatio || 1, 1.5)
+  const budgetDpr = Math.sqrt(HERO_CANVAS_MAX_PIXELS / Math.max(1, width * height))
+  return Math.min(deviceDpr, Math.max(0.75, budgetDpr))
+}
 
 function openLogoutDialog() {
   logoutError.value = ''
@@ -748,12 +761,12 @@ function buildLiquidPalette() {
 
 function ensureHeroCanvasSize() {
   const canvas = heroCanvasRef.value
-  if (!canvas) return
+  if (!canvas) return null
 
   const rect = canvas.getBoundingClientRect()
   const width = Math.max(1, Math.round(rect.width))
   const height = Math.max(1, Math.round(rect.height))
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const dpr = resolveHeroCanvasDpr(width, height)
   const targetWidth = Math.round(width * dpr)
   const targetHeight = Math.round(height * dpr)
 
@@ -761,23 +774,22 @@ function ensureHeroCanvasSize() {
     canvas.width = targetWidth
     canvas.height = targetHeight
   }
+
+  return {width, height, dpr}
 }
 
 function drawLiquidBackground(time) {
   const canvas = heroCanvasRef.value
   if (!canvas) return
-  const context = canvas.getContext('2d')
+  const context = heroCanvasContext || canvas.getContext('2d', {alpha: false})
   if (!context) return
+  heroCanvasContext = context
 
-  ensureHeroCanvasSize()
-
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const width = canvas.width / dpr
-  const height = canvas.height / dpr
-  if (width <= 0 || height <= 0) return
+  const size = ensureHeroCanvasSize()
+  if (!size) return
+  const {width, height, dpr} = size
 
   context.setTransform(dpr, 0, 0, dpr, 0, 0)
-  context.clearRect(0, 0, width, height)
 
   const {c1, c2, c3} = buildLiquidPalette()
 
@@ -788,7 +800,6 @@ function drawLiquidBackground(time) {
   context.fillRect(0, 0, width, height)
 
   context.save()
-  context.filter = 'blur(22px)'
   context.globalCompositeOperation = 'screen'
 
   for (const blob of liquidBlobs) {
@@ -824,12 +835,20 @@ function renderHeroCanvasStatic() {
 }
 
 function tickHeroCanvas(now) {
-  drawLiquidBackground(now)
+  if (!heroCanvasVisible) {
+    heroCanvasFrame = 0
+    return
+  }
+
+  if (!heroCanvasLastFrameAt || now - heroCanvasLastFrameAt >= HERO_CANVAS_FRAME_INTERVAL) {
+    drawLiquidBackground(now)
+    heroCanvasLastFrameAt = now - ((now - heroCanvasLastFrameAt) % HERO_CANVAS_FRAME_INTERVAL)
+  }
   heroCanvasFrame = requestAnimationFrame(tickHeroCanvas)
 }
 
 function startHeroCanvas() {
-  stopHeroCanvas()
+  if (heroCanvasFrame || !heroCanvasVisible) return
   renderHeroCanvasStatic()
 
   if (typeof requestAnimationFrame !== 'function') {
@@ -845,6 +864,7 @@ function startHeroCanvas() {
   }
 
   heroCanvasTimeStart = performance.now()
+  heroCanvasLastFrameAt = 0
   heroCanvasFrame = requestAnimationFrame(tickHeroCanvas)
 }
 
@@ -852,15 +872,25 @@ function stopHeroCanvas() {
   if (!heroCanvasFrame) return
   cancelAnimationFrame(heroCanvasFrame)
   heroCanvasFrame = 0
+  heroCanvasLastFrameAt = 0
 }
 
 function setupHeroCanvasObserver() {
   const canvas = heroCanvasRef.value
   if (!canvas || typeof ResizeObserver === 'undefined') return
   heroResizeObserver = new ResizeObserver(() => {
-    renderHeroCanvasStatic()
+    if (heroCanvasVisible) renderHeroCanvasStatic()
   })
   heroResizeObserver.observe(canvas)
+
+  if (typeof IntersectionObserver === 'function') {
+    heroVisibilityObserver = new IntersectionObserver(([entry]) => {
+      heroCanvasVisible = Boolean(entry?.isIntersecting)
+      if (heroCanvasVisible) startHeroCanvas()
+      else stopHeroCanvas()
+    }, {rootMargin: '120px 0px'})
+    heroVisibilityObserver.observe(canvas)
+  }
 }
 
 function easeOutCubic(t) {
@@ -1769,6 +1799,12 @@ onMounted(async () => {
 onActivated(() => {
   // keepAlive 重新激活时，检查是否有待处理的 Hero 回程动画
   runPlaylistHeroReturn()
+  heroCanvasVisible = true
+  startHeroCanvas()
+})
+
+onDeactivated(() => {
+  stopHeroCanvas()
 })
 
 onBeforeUnmount(() => {
@@ -1784,6 +1820,11 @@ onBeforeUnmount(() => {
     heroResizeObserver.disconnect()
     heroResizeObserver = null
   }
+  if (heroVisibilityObserver) {
+    heroVisibilityObserver.disconnect()
+    heroVisibilityObserver = null
+  }
+  heroCanvasContext = null
   cloudRowRefs.clear()
 })
 
@@ -1818,7 +1859,7 @@ watch(
 watch(
   animatedThemeRgb,
   () => {
-    if (!heroCanvasFrame) {
+    if (!heroCanvasFrame && heroCanvasVisible) {
       renderHeroCanvasStatic()
     }
   },

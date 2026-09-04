@@ -1,6 +1,9 @@
 import {ref} from "vue";
 
-const STORE_TIME_SYNC_INTERVAL_MS = 72;
+// 进度文本无需跟随音频帧率刷新；降低 Pinia 更新频率能显著减少组件重渲染。
+const STORE_TIME_SYNC_INTERVAL_MS = 200;
+// 视觉变量最终还有 CSS transition 插值，20fps 的采样已足够平滑。
+const ANALYSER_UPDATE_INTERVAL_MS = 50;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -103,7 +106,7 @@ export function usePlayerRhythmAnalyzer({
       return;
     }
 
-    if (now - analyserLastTs > 34) {
+    if (now - analyserLastTs >= ANALYSER_UPDATE_INTERVAL_MS) {
       analyserNode.getByteFrequencyData(analyserData);
       let low = 0;
       let mid = 0;

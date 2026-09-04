@@ -1,14 +1,14 @@
 <template>
   <header class="aurora-header">
     <div class="aurora-header-inner">
-      <button class="aurora-brand" type="button" @click="goHome('home-top')">
+      <button class="aurora-brand" type="button" @click="goHome">
         <span class="aurora-brand-mark" aria-hidden="true">A</span>
         <span>AURORA</span>
       </button>
 
       <nav class="aurora-nav" aria-label="主导航">
-        <button type="button" :class="{ 'is-active': isHome }" @click="goHome('home-top')">首页</button>
-        <button type="button" @click="goHome('discovery')">发现</button>
+        <button type="button" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
+        <button type="button" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
         <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">音乐库</button>
       </nav>
 
@@ -55,21 +55,28 @@ const userStore = useCounterStore()
 
 const isProfile = computed(() => ['profile', 'profilePlaylistDetail'].includes(String(route.name || '')))
 const isHome = computed(() => ['home', 'playlistDetail'].includes(String(route.name || '')))
+const isDiscover = computed(() => ['discover', 'discoverPlaylistDetail', 'discoverAlbumDetail', 'discoverArtistDetail'].includes(String(route.name || '')))
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
 
-function scrollToHomeSection(sectionId) {
+function scrollToPageTop(behavior = 'auto') {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      document.getElementById(sectionId)?.scrollIntoView({behavior: 'smooth', block: 'start'})
+      window.scrollTo({left: 0, top: 0, behavior})
     })
   })
 }
 
-async function goHome(sectionId = 'home-top') {
-  if (route.name !== 'home') {
+async function goHome() {
+  const changingPage = route.name !== 'home'
+  if (changingPage) {
     await router.push({name: 'home'})
   }
-  scrollToHomeSection(sectionId)
+  scrollToPageTop(changingPage ? 'auto' : 'smooth')
+}
+
+function openDiscover() {
+  if (isDiscover.value) return
+  router.push({name: 'discover'})
 }
 
 function openProfile() {
@@ -82,10 +89,11 @@ function openProfile() {
 }
 
 async function openSearch() {
-  if (route.name !== 'home') {
-    await router.push({name: 'home'})
+  if (route.name === 'search') {
+    window.dispatchEvent(new CustomEvent('aurora:focus-search-page'))
+    return
   }
-  requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('aurora:focus-home-search')))
+  await router.push({name: 'search'})
 }
 
 function handleSearchShortcut(event) {

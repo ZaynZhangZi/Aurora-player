@@ -16,7 +16,7 @@ let queueNavigationToken = 0
 function normalizeCoverUrlProtocol(url = '') {
   const raw = String(url || '').trim()
   if (!raw) return ''
-  if (/^\/\//.test(raw)) return `https:${raw}`
+  if (raw.startsWith('//')) return `https:${raw}`
   return raw.replace(/^http:\/\//i, 'https://')
 }
 
@@ -251,38 +251,52 @@ async function resolveSongPlayableSource(id) {
   const cached = preloadedSongUrlCache.get(cacheKey)
   if (cached) return cached
 
-  const levels = ['exhigh', 'higher', 'standard']
   const observations = []
   const requestErrors = []
 
-  for (const level of levels) {
+  const requestLevel = async (level) => {
     try {
       const res = await songsApi.getSongUrl(id, {level})
       const entry = getUrlEntry(res)
-      observations.push({level, response: res, entry})
-      const url = entry?.url || ''
-      if (!url) continue
-      const source = {url, entry, observations, requestErrors}
-      preloadedSongUrlCache.set(cacheKey, source)
-      return source
+      return {level, response: res, entry, error: null}
     } catch (error) {
-      requestErrors.push(error)
-      // ignore and fallback to next level
+      return {level, response: null, entry: null, error}
     }
   }
 
-  try {
-    const legacyRes = await songsApi.getSongUrlLegacy(id)
-    const entry = getUrlEntry(legacyRes)
-    observations.push({level: 'legacy', response: legacyRes, entry})
-    const url = entry?.url || ''
-    if (url) {
-      const source = {url, entry, observations, requestErrors}
+  const recordResult = (result) => {
+    if (result.error) requestErrors.push(result.error)
+    else observations.push({
+      level: result.level,
+      response: result.response,
+      entry: result.entry,
+    })
+  }
+
+  // 先请求最常用的高音质；仅在不可用时并行尝试其余回退，避免连续等待三次网络往返。
+  const primary = await requestLevel('exhigh')
+  recordResult(primary)
+  if (primary.entry?.url) {
+    const source = {url: primary.entry.url, entry: primary.entry, observations, requestErrors}
+    preloadedSongUrlCache.set(cacheKey, source)
+    return source
+  }
+
+  const fallbackResults = await Promise.all([
+    requestLevel('higher'),
+    requestLevel('standard'),
+    songsApi.getSongUrlLegacy(id)
+      .then(response => ({level: 'legacy', response, entry: getUrlEntry(response), error: null}))
+      .catch(error => ({level: 'legacy', response: null, entry: null, error})),
+  ])
+
+  for (const result of fallbackResults) {
+    recordResult(result)
+    if (result.entry?.url) {
+      const source = {url: result.entry.url, entry: result.entry, observations, requestErrors}
       preloadedSongUrlCache.set(cacheKey, source)
       return source
     }
-  } catch (error) {
-    requestErrors.push(error)
   }
 
   return {
@@ -291,6 +305,11 @@ async function resolveSongPlayableSource(id) {
     observations,
     requestErrors,
   }
+}
+
+export async function resolveSongPlayableUrl(id) {
+  const source = await resolveSongPlayableSource(id)
+  return source?.url || ''
 }
 
 export function clearSongPlayableUrlCache(songId) {
@@ -356,6 +375,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   queueNavigationToken += 1
   dismissPlaybackNotice()
   const playerStore = usePlayerStore()
+  playerStore.setPlaybackPendingId(id)
 
   try {
     const source = await resolveSongPlayableSource(id)
@@ -442,6 +462,10 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
       dedupeKey: `unexpected:${id}`,
     })
     return false
+  } finally {
+    if (requestToken === playbackRequestToken) {
+      playerStore.setPlaybackPendingId(null)
+    }
   }
 }
 

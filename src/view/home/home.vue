@@ -1,429 +1,209 @@
 <template>
-  <div class="home-page">
-    <AppHeader>
-      <template #search>
-        <div ref="homeSearchRoot" class="home-search" :class="{ 'is-focused': homeSearchFocused }">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            ref="homeSearchInput"
-            v-model="homeSearchQuery"
-            type="search"
-            autocomplete="off"
-            aria-label="搜索歌曲、歌手或歌单"
-            placeholder="搜索歌曲、歌手或歌单"
-            @focus="homeSearchFocused = true"
-            @keydown.enter.prevent="submitHomeSearch"
-            @keydown.esc="closeHomeSearch"
-          >
-          <button v-if="homeSearchQuery" class="home-search-clear" type="button" aria-label="清空搜索" @click="clearHomeSearch">×</button>
-          <kbd v-else>⌘ K</kbd>
+  <div class="personal-home">
+    <AppHeader />
 
-          <Transition name="home-search-pop">
-            <div v-if="homeSearchPopoverVisible" class="home-search-popover">
-              <div v-if="homeSearching" class="home-search-state home-search-state-loading">正在搜索…</div>
-              <div v-else-if="homeSearchError" class="home-search-state home-search-state-error">{{ homeSearchError }}</div>
-              <div v-else-if="homeSearchEmpty" class="home-search-state">没有找到相关音乐</div>
-              <template v-else>
-                <section v-if="homeSongEntries.length" class="home-search-section">
-                  <div class="home-search-section-title"><span>歌曲</span><small>{{ homeSongEntries.length }} 个结果</small></div>
-                  <button v-for="(song, index) in homeSongEntries.slice(0, 4)" :key="`home-search-song-${song.id}`" type="button" class="home-search-result" @click="openHomeSearchSong(song, index)">
-                    <span class="home-search-result-cover"><SmartMedia :src="song.al?.picUrl || song.album?.picUrl || song.cover" :alt="`${song.name}封面`" :image-width="96" sizes="42px" /></span>
-                    <span class="home-search-result-copy"><strong>{{ song.name }}</strong><small>{{ formatSearchArtists(song) }}</small></span>
-                    <span class="home-search-result-action">播放</span>
-                  </button>
-                </section>
-                <section v-if="homeArtistEntries.length" class="home-search-section home-search-section-compact">
-                  <div class="home-search-section-title"><span>艺人</span></div>
-                  <button v-for="artist in homeArtistEntries.slice(0, 3)" :key="`home-search-artist-${artist.id}`" type="button" class="home-search-chip" @click="openHomeSearchArtist(artist)">
-                    <span><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="72" sizes="32px" /></span>{{ artist.name }}
-                  </button>
-                </section>
-                <section v-if="homePlaylistEntries.length" class="home-search-section home-search-section-compact">
-                  <div class="home-search-section-title"><span>歌单</span></div>
-                  <button v-for="playlist in homePlaylistEntries.slice(0, 3)" :key="`home-search-playlist-${playlist.id}`" type="button" class="home-search-chip" @click="openHomeSearchPlaylist(playlist)">
-                    <span><SmartMedia :src="playlist.coverImgUrl" :alt="`${playlist.name}封面`" :image-width="72" sizes="32px" /></span>{{ playlist.name }}
-                  </button>
-                </section>
-              </template>
-            </div>
-          </Transition>
-        </div>
-      </template>
-    </AppHeader>
-
-    <main class="home-main" data-route-motion-root>
-      <section id="home-top" class="home-lobby" aria-labelledby="home-hero-title">
-        <article class="home-hero-card">
-          <SmartMedia
-            v-if="hero.media"
-            :src="hero.media"
-            :media-type="hero.mediaType"
-            :alt="hero.title ? `${hero.title} 首页推荐` : 'Aurora 首页推荐'"
-            :image-width="1440"
-            :lock-muted="true"
-            img-loading="eager"
-            fetch-priority="high"
-            sizes="(min-width: 980px) 70vw, 100vw"
-            class="home-hero-media"
-          />
-          <div v-else class="home-hero-fallback" aria-hidden="true">
-            <span class="fallback-orbit fallback-orbit-one" />
-            <span class="fallback-orbit fallback-orbit-two" />
-            <span class="fallback-disc" />
+    <main class="personal-main" data-route-motion-root>
+      <section id="home-top" class="home-lobby">
+        <article class="home-banner-card" :aria-label="bannerHero.title || '首页 Banner'">
+          <div v-if="bannerHero.media" class="home-banner-media">
+            <SmartMedia
+              :src="bannerHero.media"
+              :media-type="bannerHero.mediaType"
+              :alt="bannerHero.title ? `${bannerHero.title} 首页 Banner` : 'Aurora 首页 Banner'"
+              :image-width="1440"
+              :lock-muted="true"
+              img-loading="eager"
+              fetch-priority="high"
+              sizes="(min-width: 1376px) 1320px, calc(100vw - 56px)"
+            />
           </div>
-          <div class="home-hero-shade" />
-          <div class="home-hero-content">
-            <h1 id="home-hero-title">{{ heroDisplayTitle }}</h1>
+          <div v-else class="home-banner-fallback" aria-hidden="true">
+            <span class="banner-orbit banner-orbit-one" />
+            <span class="banner-orbit banner-orbit-two" />
+            <span class="banner-disc" />
+          </div>
+          <div class="home-banner-shade" />
+          <div v-if="bannerHero.title || bannerHero.subtitle" class="home-banner-content">
+            <h1 v-if="bannerHero.title">{{ bannerHero.title }}</h1>
+            <p v-if="bannerHero.subtitle" class="home-banner-description">{{ bannerHero.subtitle }}</p>
           </div>
         </article>
 
-        <aside class="continue-panel" aria-labelledby="continue-title">
-          <div class="continue-heading">
-            <div>
-              <p>YOUR MOMENT</p>
-              <h2 id="continue-title">{{ continuePanelTitle }}</h2>
+        <aside class="personal-now-card" aria-label="你的私人电台">
+          <SmartMedia
+            v-if="stationSong"
+            :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl"
+            alt=""
+            :image-width="720"
+            class="personal-station-ambient"
+            aria-hidden="true"
+          />
+          <span class="personal-station-scrim" aria-hidden="true" />
+
+          <div class="personal-now-heading">
+            <div><p>AURORA RADIO</p><h2>{{ userStore.isLoggedIn ? '私人频率' : '先听这些' }}</h2></div>
+            <span><i /> {{ userStore.isLoggedIn ? '已为你调频' : '游客试听' }}</span>
+          </div>
+
+          <div class="personal-station-content">
+            <button v-if="stationSong" class="personal-station-feature" type="button" @click="playStationSong">
+              <span class="personal-station-cover"><SmartMedia :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl" :alt="`${stationSong.name}封面`" :image-width="320" sizes="112px" /></span>
+              <span class="personal-station-copy">
+                <small>为你选出的这一首</small><strong>{{ stationSong.name }}</strong><span>{{ formatArtists(stationSong) }}</span>
+              </span>
+              <span class="personal-station-action">
+                <i class="personal-station-play" aria-hidden="true">▶</i>
+                <b>播放电台</b>
+              </span>
+            </button>
+            <div v-else class="personal-station-empty">正在准备你的第一首歌…</div>
+
+            <div v-if="stationQueue.length > 1" class="personal-up-next">
+              <p>接下来</p>
+              <div class="personal-up-next-list">
+                <button v-for="(song, index) in stationQueue.slice(1, 4)" :key="song.id" type="button" @click="playStationSong(song, index + 1)">
+                  <span>{{ String(index + 2).padStart(2, '0') }}</span>
+                  <span><strong>{{ song.name }}</strong><small>{{ formatArtists(song) }}</small></span>
+                  <i aria-hidden="true">↗</i>
+                </button>
+              </div>
             </div>
-            <span class="continue-status"><i /> {{ userStore.isLoggedIn ? '已同步' : '为你精选' }}</span>
-          </div>
-
-          <div v-if="continueLoading" class="continue-skeleton" aria-label="正在加载歌曲">
-            <span v-for="index in 5" :key="index" />
-          </div>
-          <div v-else-if="continueSongs.length" class="continue-list">
-            <HomeSongRow
-              v-for="(song, index) in continueSongs"
-              :key="`continue-${song.id}-${index}`"
-              :song="song"
-              :index="index"
-              compact
-              :show-index="false"
-              @play="playContinueSong"
-            />
-          </div>
-          <div v-else class="continue-empty">
-            <span class="continue-empty-icon">♪</span>
-            <p>还没有播放记录</p>
-            <button type="button" @click="scrollToSection('recommended')">从推荐开始</button>
-          </div>
-
-          <div class="continue-footer">
-            <span>{{ userStore.isLoggedIn ? '最近播放会自动同步' : '登录后可同步你的聆听记录' }}</span>
-            <button v-if="!userStore.isLoggedIn" type="button" @click="openLoginDialog">去登录</button>
           </div>
         </aside>
       </section>
 
-      <nav class="category-rail" aria-label="主页内容快捷入口">
-        <button class="is-active" type="button" @click="scrollToSection('recommended')"><span>✦</span>推荐</button>
-        <button type="button" @click="setDiscoveryTab('playlists')"><span>♫</span>歌单</button>
-        <button type="button" @click="setDiscoveryTab('ranks')"><span>▥</span>排行榜</button>
-        <button type="button" @click="scrollToSection('media')"><span>▣</span>MV</button>
-        <button type="button" @click="scrollToSection('media')"><span>◉</span>播客</button>
-      </nav>
+      <section v-if="resumeSong" class="lofi-resume" aria-label="继续播放">
+        <SmartMedia
+          v-if="resumeCover"
+          :src="resumeCover"
+          :alt="`${resumeSong.name}氛围背景`"
+          :image-width="240"
+          class="lofi-resume-backdrop"
+        />
+        <div class="lofi-resume-haze" />
 
-      <section id="recommended" class="home-section">
-        <HomeSectionHeader
-          eyebrow="PERSONALIZED"
-          title="为你推荐"
-          description="从当下的热门与编辑精选里，挑出更容易开始播放的一组。"
-        >
-          <template #actions>
-            <button class="section-link" type="button" @click="openReleaseNotesPanel">
-              新版本 {{ latestReleaseTag }}
-            </button>
-          </template>
-        </HomeSectionHeader>
-
-        <div v-if="loading.recommend" class="playlist-skeleton" aria-label="推荐歌单加载中">
-          <span v-for="index in 5" :key="index" />
-        </div>
-        <div v-else-if="errors.recommend" class="section-state section-state-error">
-          <p>{{ errors.recommend }}</p>
-          <button type="button" @click="loadRecommendPlaylists">重新加载</button>
-        </div>
-        <div v-else-if="recommendPlaylists.length" class="playlist-strip">
-          <HomePlaylistCard
-            v-for="item in recommendPlaylists.slice(0, 8)"
-            :key="item.id"
-            :item="item"
-            @open="openPlaylist"
-          />
-        </div>
-        <div v-else class="section-state"><p>暂时没有推荐歌单</p></div>
-      </section>
-
-      <section id="discovery" class="home-section discovery-studio">
-        <div class="discovery-intro">
-          <div class="section-sequence"><span>01</span><i /> DISCOVER</div>
-          <h2>发现音乐</h2>
-          <p>把今天值得听的内容铺开。歌单、榜单与艺人，各自保留最适合浏览的节奏。</p>
-          <div class="discovery-tabs" role="tablist" aria-label="发现音乐分类">
-            <button
-              v-for="tab in discoveryTabs"
-              :key="tab.value"
-              type="button"
-              role="tab"
-              :aria-selected="activeDiscoveryTab === tab.value"
-              :class="{ 'is-active': activeDiscoveryTab === tab.value }"
-              @click="activeDiscoveryTab = tab.value"
-            >
-              <span>{{ String(discoveryTabs.indexOf(tab) + 1).padStart(2, '0') }}</span>
-              {{ tab.label }}
-              <i aria-hidden="true">↗</i>
-            </button>
+        <div class="lofi-resume-primary">
+          <div class="lofi-resume-cover">
+            <SmartMedia :src="resumeCover" :alt="`${resumeSong.name}封面`" :image-width="380" sizes="150px" />
+            <i aria-hidden="true" />
           </div>
-        </div>
-
-        <div class="discovery-stage">
-          <Transition name="discovery-swap" mode="out-in">
-          <div v-if="activeDiscoveryTab === 'playlists'" class="discovery-content">
-            <div class="tag-list" aria-label="歌单分类">
-              <button
-                v-for="tag in playlistTags"
-                :key="tag"
-                type="button"
-                :class="{ 'is-active': activePlaylistTag === tag }"
-                @click="changePlaylistTag(tag)"
-              >
-                {{ tag }}
-              </button>
-            </div>
-            <div v-if="loading.top" class="row-skeleton"><span v-for="index in 5" :key="index" /></div>
-            <div v-else-if="errors.top" class="section-state section-state-error">
-              <p>{{ errors.top }}</p>
-              <button type="button" @click="loadTopPlaylists(activePlaylistTag)">重新加载</button>
-            </div>
-            <div v-else-if="topPlaylists.length" class="discovery-playlists">
-              <button
-                v-for="(item, index) in topPlaylists.slice(0, 5)"
-                :key="item.id"
-                class="discovery-playlist-tile"
-                :class="{ 'is-featured': index === 0 }"
-                type="button"
-                @click="openPlaylist(item, $event)"
-              >
-                <span class="discovery-playlist-tile-cover" data-playlist-hero-cover :data-playlist-id="item.id">
-                  <SmartMedia
-                    :src="item.coverImgUrl"
-                    :alt="`${item.name}封面`"
-                    :image-width="index === 0 ? 720 : 360"
-                    sizes="(min-width: 900px) 32vw, (min-width: 560px) 42vw, 78vw"
-                  />
-                </span>
-                <span class="discovery-playlist-tile-shade" />
-                <span class="discovery-playlist-tile-index">{{ String(index + 1).padStart(2, '0') }}</span>
-                <span class="discovery-playlist-tile-copy">
-                  <small>{{ index === 0 ? "EDITOR'S PICK" : activePlaylistTag }}</small>
-                  <strong>{{ item.name }}</strong>
-                  <span v-if="index === 0">{{ item.copywriter || item.description || '今天值得完整听完的一张歌单' }}</span>
-                </span>
-                <span class="discovery-playlist-tile-play" aria-hidden="true">▶</span>
-              </button>
-            </div>
-            <div v-else class="section-state"><p>暂时没有歌单数据</p></div>
+          <div class="lofi-resume-copy">
+            <small>CONTINUE LISTENING</small>
+            <h2>继续播放</h2>
+            <strong>{{ resumeSong.name }}</strong>
+            <em>{{ formatArtists(resumeSong) }}</em>
+            <span class="lofi-progress"><i :style="{width: `${resumeProgress}%`}" /></span>
+            <b>{{ resumeProgress ? `已播放 ${Math.round(resumeProgress)}%` : '从这里继续你的声音' }}</b>
           </div>
-
-          <div v-else-if="activeDiscoveryTab === 'ranks'" class="discovery-content">
-            <div v-if="loading.rank" class="rank-skeleton"><span v-for="index in 3" :key="index" /></div>
-            <div v-else-if="errors.rank" class="section-state section-state-error">
-              <p>{{ errors.rank }}</p>
-              <button type="button" @click="loadTopRanks">重新加载</button>
-            </div>
-            <div v-else class="rank-grid">
-              <button
-                v-for="(rank, rankIndex) in topRanks.slice(0, 3)"
-                :key="rank.id"
-                class="rank-card"
-                type="button"
-                @click="openPlaylist(rank, $event)"
-              >
-                <span class="rank-number">0{{ rankIndex + 1 }}</span>
-                <span class="rank-cover" data-playlist-hero-cover :data-playlist-id="rank.id">
-                  <SmartMedia :src="rank.coverImgUrl" :alt="`${rank.name}封面`" :image-width="180" sizes="72px" />
-                </span>
-                <span class="rank-meta">
-                  <strong>{{ rank.name }}</strong>
-                  <small>{{ rank.updateFrequency || '实时更新' }}</small>
-                </span>
-                <span class="rank-tracks">
-                  <span v-for="(track, index) in (rank.tracks || []).slice(0, 3)" :key="`${rank.id}-${index}`">
-                    <b>{{ index + 1 }}</b>{{ track.first }} <small>· {{ track.second }}</small>
-                  </span>
-                </span>
-                <span class="rank-open" aria-hidden="true">↗</span>
-              </button>
-            </div>
-          </div>
-
-          <div v-else class="discovery-content">
-            <div v-if="loading.artist" class="artist-skeleton"><span v-for="index in 9" :key="index" /></div>
-            <div v-else-if="errors.artist" class="section-state section-state-error">
-              <p>{{ errors.artist }}</p>
-              <button type="button" @click="loadHotArtists">重新加载</button>
-            </div>
-            <div v-else-if="hotArtists.length" class="artist-showcase">
-              <button
-                class="artist-featured"
-                type="button"
-                @click="openArtist(hotArtists[0], $event)"
-              >
-                <span class="artist-featured-cover" data-artist-hero-cover :data-artist-id="hotArtists[0].id">
-                  <SmartMedia :src="hotArtists[0].picUrl || hotArtists[0].img1v1Url" :alt="`${hotArtists[0].name}头像`" :image-width="640" sizes="(min-width: 820px) 34vw, 76vw" />
-                </span>
-                <span class="artist-featured-shade" />
-                <span class="artist-featured-index">01</span>
-                <span class="artist-featured-copy">
-                  <small><i /> ARTIST SPOTLIGHT</small>
-                  <strong>{{ hotArtists[0].name }}</strong>
-                  <span>从代表作开始，进入他的声音世界</span>
-                </span>
-                <span class="artist-featured-open" aria-hidden="true">↗</span>
-              </button>
-              <div class="artist-directory">
-                <button
-                  v-for="(artist, index) in hotArtists.slice(1, 9)"
-                  :key="artist.id"
-                  class="artist-directory-card"
-                  type="button"
-                  @click="openArtist(artist, $event)"
-                >
-                  <span class="artist-directory-index">{{ String(index + 2).padStart(2, '0') }}</span>
-                  <span class="artist-directory-cover" data-artist-hero-cover :data-artist-id="artist.id">
-                    <SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="360" sizes="(min-width: 821px) 52px, 76vw" />
-                  </span>
-                  <span class="artist-directory-copy">
-                    <strong>{{ artist.name }}</strong>
-                    <small>HOT ARTIST</small>
-                  </span>
-                  <span class="artist-directory-open" aria-hidden="true">↗</span>
-                </button>
-              </div>
-            </div>
-            <div v-else class="section-state">
-              <p>暂时没有艺人数据</p>
-            </div>
-          </div>
-          </Transition>
-        </div>
-      </section>
-
-      <section id="new-songs" class="home-section release-section">
-        <div class="release-intro">
-          <div class="section-sequence section-sequence-light"><span>02</span><i /> FRESH RELEASES</div>
-          <h2>新歌速递</h2>
-          <p>今天更新的声音已经排好队。按顺序听，或者从一首吸引你的封面开始。</p>
-          <button v-if="newSongs.length" type="button" class="release-play-all" @click="playAllNewSongs">
-            <span>▶</span> 播放全部
+          <button type="button" class="lofi-resume-play" :aria-label="playerStore.isPlaying && resumeIsCurrent ? '暂停' : '继续播放'" @click="playResumeSong()">
+            {{ playerStore.isPlaying && resumeIsCurrent ? 'Ⅱ' : '▶' }}
           </button>
-          <div class="release-decoration" aria-hidden="true"><span /><span /><span /><span /></div>
         </div>
-        <div class="release-content">
-          <div v-if="loading.songs" class="song-skeleton"><span v-for="index in 8" :key="index" /></div>
-          <div v-else-if="errors.songs" class="section-state section-state-error">
-            <p>{{ errors.songs }}</p>
-            <button type="button" @click="loadNewSongs">重新加载</button>
-          </div>
-          <div v-else-if="newSongs.length" class="new-song-panel">
-            <HomeSongRow
-              v-for="(song, index) in newSongs.slice(0, 8)"
-              :key="`new-${song.id}-${index}`"
-              :song="song"
-              :index="index"
-              @play="openSong"
-            />
-          </div>
-          <div v-else class="section-state"><p>暂时没有新歌数据</p></div>
+
+        <div v-if="resumeQueue.length > 1" class="lofi-resume-next">
+          <p>接下来</p>
+          <button v-for="(song, index) in resumeQueue.slice(1, 4)" :key="`${song.id}-${index}`" type="button" @click="playResumeSong(song)">
+            <span>{{ String(index + 2).padStart(2, '0') }}</span>
+            <strong>{{ song.name }}</strong>
+            <small>{{ formatArtists(song) }}</small>
+            <i aria-hidden="true">▶</i>
+          </button>
+        </div>
+      </section>
+      <section v-else class="lofi-resume lofi-resume-empty" aria-label="继续播放准备中">
+        <div class="lofi-resume-haze" />
+        <div><small>CONTINUE LISTENING</small><h2>正在准备你的播放记录…</h2></div>
+      </section>
+
+      <section class="personal-section personal-scenes">
+        <div class="personal-section-heading">
+          <div><p>CHOOSE YOUR MOMENT</p><h2>此刻想怎么听？</h2></div>
+          <span>不需要挑歌，选择现在的状态就好。</span>
+        </div>
+        <div class="personal-scene-grid">
+          <button
+            v-for="(scene, index) in scenes"
+            :key="scene.id"
+            type="button"
+            :class="`scene-${scene.id}`"
+            :disabled="Boolean(loading.scene)"
+            @click="startScene(scene)"
+          >
+            <span class="personal-scene-index">0{{ index + 1 }}</span>
+            <span class="personal-scene-icon" aria-hidden="true">{{ scene.icon }}</span>
+            <span class="personal-scene-copy"><strong>{{ scene.title }}</strong><small>{{ scene.subtitle }}</small></span>
+            <i v-if="loading.scene === scene.id" class="personal-spinner" />
+            <i v-else aria-hidden="true">↗</i>
+          </button>
         </div>
       </section>
 
-      <section id="media" class="home-section media-studio">
-        <div class="media-section-header">
-          <div>
-            <div class="section-sequence"><span>03</span><i /> AUDIO &amp; VISUAL</div>
-            <h2>声音，也有画面</h2>
-          </div>
-          <p>把 MV 和播客分成两种浏览节奏：先沉浸观看，再慢下来听一个故事。</p>
+      <section class="personal-section personal-daily">
+        <div class="personal-section-heading">
+          <div><p>DAILY ROTATION</p><h2>{{ userStore.isLoggedIn ? '只属于今天的推荐' : '今天先从这些开始' }}</h2></div>
+          <button v-if="dailySongs.length" type="button" @click="playDailySongs">全部播放 →</button>
         </div>
 
-        <article class="mv-showcase">
-          <div class="media-subheading">
-            <div><span>WATCH NOW</span><h3>MV 精选</h3></div>
-            <p>本周值得打开全屏的三个现场</p>
-          </div>
-          <div v-if="loading.mv" class="media-skeleton"><span v-for="index in 3" :key="index" /></div>
-          <div v-else-if="errors.mv" class="section-state section-state-error">
-            <p>{{ errors.mv }}</p>
-            <button type="button" @click="loadMvList({reset: true})">重新加载</button>
-          </div>
-          <div v-else class="mv-grid">
-            <button v-for="(item, index) in mvList.slice(0, 3)" :key="item.id" type="button" class="mv-card" :class="{ 'mv-card-featured': index === 0 }" @click="openMv(item)">
-              <span class="mv-cover">
-                <SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="index === 0 ? 960 : 520" sizes="(min-width: 900px) 55vw, 100vw" />
-                <span class="mv-shade" />
-                <span class="mv-order">0{{ index + 1 }}</span>
-                <span class="mv-card-copy"><small>{{ item.artistName || '未知艺人' }}</small><strong>{{ item.name }}</strong></span>
-                <i aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></i>
-              </span>
-            </button>
-          </div>
-        </article>
+        <div class="personal-daily-layout">
+          <article class="personal-song-panel">
+            <div v-if="loading.page && !dailySongs.length" class="personal-song-skeleton"><span v-for="index in 6" :key="index" /></div>
+            <div v-else-if="dailySongs.length" class="personal-song-grid">
+              <HomeSongRow
+                v-for="(song, index) in dailySongs.slice(0, 8)"
+                :key="song.id"
+                :song="song"
+                :index="index"
+                @play="playDailySong"
+              />
+            </div>
+            <div v-else class="personal-empty">暂时没有推荐歌曲，稍后再来看看。</div>
+          </article>
 
-        <article class="podcast-showcase">
-          <div class="media-subheading">
-            <div><span>LISTEN SLOWLY</span><h3>播客精选</h3></div>
-            <p>给通勤、散步和独处时刻留一点声音</p>
-          </div>
-          <div v-if="loading.podcast" class="podcast-skeleton"><span v-for="index in 3" :key="index" /></div>
-          <div v-else-if="errors.podcast" class="section-state section-state-error">
-            <p>{{ errors.podcast }}</p>
-            <button type="button" @click="loadPodcastPrograms">重新加载</button>
-          </div>
-          <div v-else class="podcast-list">
-            <button v-for="(item, index) in podcastPrograms.slice(0, 3)" :key="item.id" type="button" @click="openPodcast(item)">
-              <span class="podcast-index">0{{ index + 1 }}</span>
-              <span class="podcast-cover"><SmartMedia :src="item.picUrl" :alt="`${item.name}封面`" :image-width="280" sizes="120px" /></span>
-              <span class="podcast-copy">
-                <small>{{ item.program?.radio?.name || item.program?.dj?.nickname || '电台节目' }}</small>
-                <strong>{{ item.name }}</strong>
-                <span><i aria-hidden="true">▶</i> {{ formatPodcastDuration(item.program?.duration) || '立即收听' }}</span>
-              </span>
-              <span class="podcast-arrow" aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </article>
+          <aside class="personal-taste-card">
+            <p>YOUR TASTE</p>
+            <h3>{{ userStore.isLoggedIn ? '你的声音坐标' : '从曲风开始认识音乐' }}</h3>
+            <span>{{ userStore.isLoggedIn ? '根据近期偏好整理，点击任意曲风去发现更多。' : '登录后这里会变成你的个人曲风地图。' }}</span>
+            <div class="personal-taste-list">
+              <button v-for="(tag, index) in tasteTags" :key="tag.id" type="button" @click="openStyle(tag)">
+                <span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ tag.name }}</strong><small>{{ tag.enName || 'EXPLORE' }}</small><i>→</i>
+              </button>
+            </div>
+            <button v-if="!userStore.isLoggedIn" class="personal-login-link" type="button" @click="openLoginDialog">登录开启个性推荐</button>
+          </aside>
+        </div>
       </section>
 
-      <footer class="home-footer">
-        <div><strong>AURORA</strong><span>让每一次打开，都更快遇到下一首歌。</span></div>
-        <button type="button" @click="openReleaseNotesPanel">查看版本更新</button>
+      <section class="personal-section personal-playlists">
+        <div class="personal-section-heading">
+          <div><p>MADE FOR YOUR DAY</p><h2>{{ userStore.isLoggedIn ? '为你留下的歌单' : '值得收藏的歌单' }}</h2></div>
+          <button type="button" @click="openDiscover">去发现页浏览全部 →</button>
+        </div>
+        <div v-if="loading.page && !dailyPlaylists.length" class="personal-playlist-skeleton"><span v-for="index in 4" :key="index" /></div>
+        <div v-else class="personal-playlist-grid">
+          <HomePlaylistCard v-for="item in dailyPlaylists.slice(0, 4)" :key="item.id" :item="item" @open="openPlaylist" />
+        </div>
+      </section>
+
+      <section v-if="recentCollections.length" class="personal-section personal-recent-collections">
+        <div class="personal-section-heading">
+          <div><p>RECENTLY OPENED</p><h2>最近打开过</h2></div>
+        </div>
+        <div class="personal-collection-list">
+          <button v-for="item in recentCollections" :key="`${item.type}-${item.id}`" type="button" @click="openRecentCollection(item)">
+            <SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="220" sizes="92px" />
+            <span><small>{{ item.type === 'album' ? 'ALBUM' : 'PLAYLIST' }}</small><strong>{{ item.name }}</strong><i>{{ item.meta }}</i></span>
+            <b aria-hidden="true">↗</b>
+          </button>
+        </div>
+      </section>
+
+      <p v-if="error" class="personal-load-note">{{ error }}</p>
+
+      <footer class="personal-footer">
+        <div><strong>AURORA</strong><span>首页属于你，发现页属于整个音乐世界。</span></div>
+        <button type="button" @click="router.push({name: 'releaseNotes'})">查看版本更新</button>
       </footer>
     </main>
-
-    <HomeMvModal
-      :open="mvPlayerOpen"
-      :loading="mvPlayerLoading"
-      :error="mvPlayerError"
-      :mv="currentMv"
-      :url="currentMvUrl"
-      :resolutions="mvResolutions"
-      :resolution="selectedMvResolution"
-      @update:resolution="selectedMvResolution = $event"
-      @change-resolution="changeMvResolution"
-      @close="closeMvPlayer"
-    />
-
-    <HomeReleaseNotesPanel
-      :open="releaseNotesOpen"
-      :notes="releaseNotes"
-      :loading="loading.releaseNotes"
-      :error="errors.releaseNotes"
-      :latest-tag="latestReleaseTag"
-      @close="releaseNotesOpen = false"
-      @retry="loadReleaseNotes"
-    />
 
     <ModalRouterView content-width="85vw" content-height="80vh" />
   </div>
@@ -432,256 +212,140 @@
 <script setup>
 defineOptions({name: 'HomePage'})
 
-import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onMounted, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import SmartMedia from '@/components/smartMedia/smartMedia.vue'
-import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
-import HomeMvModal from '@/components/home/HomeMvModal.vue'
-import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
-import HomeReleaseNotesPanel from '@/components/home/HomeReleaseNotesPanel.vue'
-import HomeSectionHeader from '@/components/home/HomeSectionHeader.vue'
-import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
-import {openLoginDialog} from '@/utils/loginDialog.js'
-import {reportApi} from '@/api/reportApi/reportApi.js'
-import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
-import {usePlayerStore} from '@/stores/playerStore.js'
-import {useCounterStore} from '@/stores/userStores.js'
+import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
+import HomeSongRow from '@/components/home/HomeSongRow.vue'
+import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
+import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {useHomeData} from '@/composables/useHomeData.js'
-import {useHomeMv} from '@/composables/useHomeMv.js'
-import {useFloatingSearch} from '@/composables/useFloatingSearch.js'
+import {usePersonalHomeData} from '@/composables/usePersonalHomeData.js'
+import {useCounterStore} from '@/stores/userStores.js'
+import {usePlayerStore} from '@/stores/playerStore.js'
+import {openLoginDialog} from '@/utils/loginDialog.js'
+import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
   playPlaylistHeroEnter,
   setPendingPlaylistHeroTransition,
 } from '@/utils/playlistFlipHero.js'
-import {playSongById, playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const router = useRouter()
 const route = useRoute()
-const playerStore = usePlayerStore()
 const userStore = useCounterStore()
-
+const playerStore = usePlayerStore()
+const {hero: bannerHero, loadHomeBanner} = useHomeData(userStore)
 const {
-  hero,
-  releaseNotes,
-  recommendPlaylists,
-  topPlaylists,
-  newSongs,
-  recentListenSongs,
-  topRanks,
-  podcastPrograms,
-  hotArtists,
-  playlistTags,
-  activePlaylistTag,
+  dailySongs,
+  dailyPlaylists,
+  personalFmSongs,
+  recentSongs,
+  recentCollections,
+  stylePreferences,
   loading,
-  errors,
-  formatPodcastDuration,
-  loadHomeBanner,
-  loadReleaseNotes,
-  loadRecommendPlaylists,
-  loadTopPlaylists,
-  changePlaylistTag,
-  loadNewSongs,
-  loadRecentListenSongs,
-  loadTopRanks,
-  loadPodcastPrograms,
-  loadHotArtists,
-} = useHomeData(userStore)
+  error,
+  loadPersonalHome,
+  loadSceneSongs,
+} = usePersonalHomeData()
 
-const {
-  mvList,
-  mvPlayerOpen,
-  mvPlayerLoading,
-  mvPlayerError,
-  currentMv,
-  currentMvUrl,
-  mvResolutions,
-  selectedMvResolution,
-  loadMvList,
-  openMv,
-  changeMvResolution,
-  closeMvPlayer,
-} = useHomeMv(playerStore, loading, errors)
-
-const discoveryTabs = [
-  {label: '精选歌单', value: 'playlists'},
-  {label: '热门榜单', value: 'ranks'},
-  {label: '热门艺人', value: 'artists'},
+const fallbackTasteTags = [
+  {id: 1000, name: '流行', enName: 'POP'},
+  {id: 1015, name: '电子', enName: 'ELECTRONIC'},
+  {id: 1008, name: '摇滚', enName: 'ROCK'},
+  {id: 1003, name: '民谣', enName: 'FOLK'},
 ]
-const activeDiscoveryTab = ref('playlists')
-const releaseNotesOpen = ref(false)
-const homeSearchRoot = ref(null)
-const homeSearchInput = ref(null)
-const homeSearchQuery = ref('')
-const homeSearchFocused = ref(false)
-const homeSearchEnabled = ref(true)
-const homeSearchDialogOpen = ref(false)
 
-const {
-  searching: homeSearching,
-  searchError: homeSearchError,
-  artistEntries: homeArtistEntries,
-  songEntries: homeSongEntries,
-  playlistEntries: homePlaylistEntries,
-  isSearchEmpty: homeSearchEmpty,
-  clearSearchState: clearHomeSearchState,
-  setupSearchWatchers: setupHomeSearchWatchers,
-} = useFloatingSearch(homeSearchQuery, homeSearchEnabled, homeSearchDialogOpen)
+const scenes = [
+  {id: 'familiar', title: '熟悉感', subtitle: '从喜欢过的声音继续', icon: '◌', mode: 'FAMILIAR'},
+  {id: 'explore', title: '去探索', subtitle: '让陌生歌曲多一点', icon: '✦', mode: 'EXPLORE'},
+  {id: 'focus', title: '专注', subtitle: '留一条安静的背景线', icon: '◎', mode: 'SCENE_RCMD', submode: 'FOCUS'},
+  {id: 'exercise', title: '运动', subtitle: '把节奏交给下一公里', icon: '↗', mode: 'SCENE_RCMD', submode: 'EXERCISE'},
+  {id: 'night', title: '深夜', subtitle: '适合慢慢听完的情绪', icon: '☾', mode: 'SCENE_RCMD', submode: 'NIGHT_EMO'},
+]
 
-setupHomeSearchWatchers()
+const tasteTags = computed(() => stylePreferences.value.slice(0, 4).length ? stylePreferences.value.slice(0, 4) : fallbackTasteTags)
+const stationQueue = computed(() => {
+  if (personalFmSongs.value.length) return personalFmSongs.value
+  if (dailySongs.value.length) return dailySongs.value
+  return playerStore.playQueue || []
+})
+const stationSong = computed(() => stationQueue.value[0] || null)
+const continueSongs = computed(() => recentSongs.value.length ? recentSongs.value : playerStore.playQueue)
+const resumeQueue = computed(() => {
+  const candidates = [
+    ...(playerStore.currentSong?.id ? [playerStore.currentSong] : []),
+    ...continueSongs.value,
+    ...stationQueue.value,
+  ]
+  const seen = new Set()
+  return candidates.filter(song => {
+    const id = String(song?.id || '')
+    if (!id || seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+})
+const resumeSong = computed(() => resumeQueue.value[0] || null)
+const resumeCover = computed(() => resumeSong.value?.cover || resumeSong.value?.al?.picUrl || resumeSong.value?.album?.picUrl || '')
+const resumeIsCurrent = computed(() => Boolean(resumeSong.value?.id && String(resumeSong.value.id) === String(playerStore.currentSong?.id)))
+const resumeProgress = computed(() => {
+  if (!resumeIsCurrent.value) return 0
+  const duration = Number(playerStore.durationMs || 0)
+  if (!duration) return 0
+  return Math.min(100, Math.max(0, Number(playerStore.currentTimeMs || 0) / duration * 100))
+})
+function formatArtists(song) {
+  const list = song?.ar || song?.artists || []
+  return list.map(item => item?.name || item).filter(Boolean).join(' / ') || '未知艺人'
+}
 
-const heroDisplayTitle = computed(() => {
-  const dynamic = String(hero.value.title || '').trim()
-  return dynamic && dynamic !== 'Now Playing' ? dynamic : '今天，听点不一样的'
-})
-const continueSongs = computed(() => {
-  const recent = recentListenSongs.value.slice(0, 5)
-  return recent.length ? recent : newSongs.value.slice(0, 5)
-})
-const continuePanelTitle = computed(() => recentListenSongs.value.length ? '继续播放' : '先听这些')
-const continueLoading = computed(() => {
-  if (userStore.isLoggedIn && loading.value.recent && !recentListenSongs.value.length) return true
-  return loading.value.songs && !newSongs.value.length
-})
-const latestReleaseTag = computed(() => {
-  const first = releaseNotes.value[0]
-  const explicitTag = String(first?.version || first?.tag || '').trim()
-  if (explicitTag) return explicitTag
-  const match = String(first?.title || '').match(/v?\d+(?:\.\d+){0,3}(?:[-._a-zA-Z0-9]+)?/)
-  return match?.[0] || (releaseNotes.value.length ? 'NEW' : '...')
-})
+async function playStationSong(song = stationSong.value, index = 0) {
+  if (!song) return
+  await playSongWithQueue(song, stationQueue.value, index)
+}
 
-function scrollToSection(id) {
-  if (id === 'home-top') {
-    window.scrollTo({top: 0, behavior: 'smooth'})
+async function startScene(scene) {
+  if (!userStore.isLoggedIn) {
+    openLoginDialog()
     return
   }
-  document.getElementById(id)?.scrollIntoView({behavior: 'smooth', block: 'start'})
+  const songs = await loadSceneSongs(scene)
+  if (songs.length) await playSongWithQueue(songs[0], songs, 0)
 }
 
-function setDiscoveryTab(tab) {
-  activeDiscoveryTab.value = tab
-  scrollToSection('discovery')
+async function playDailySong(song, index = 0) {
+  await playSongWithQueue(song, dailySongs.value, index)
 }
 
-function openSearch() {
-  window.dispatchEvent(new CustomEvent('aurora:open-search'))
+async function playDailySongs() {
+  if (dailySongs.value.length) await playSongWithQueue(dailySongs.value[0], dailySongs.value, 0)
 }
 
-function focusHomeSearch() {
-  homeSearchFocused.value = true
-  nextTick(() => homeSearchInput.value?.focus())
-}
-
-function closeHomeSearch() {
-  homeSearchFocused.value = false
-  homeSearchInput.value?.blur()
-}
-
-function clearHomeSearch() {
-  homeSearchQuery.value = ''
-  clearHomeSearchState()
-  focusHomeSearch()
-}
-
-function handleHomeSearchOutside(event) {
-  if (!homeSearchRoot.value?.contains(event.target)) closeHomeSearch()
-}
-
-function formatSearchArtists(song) {
-  const artists = song?.ar || song?.artists || []
-  return artists.map((artist) => artist?.name || artist).filter(Boolean).join(' / ') || '未知艺人'
-}
-
-async function openHomeSearchSong(song, index = 0) {
-  await playSongWithQueue(song, homeSongEntries.value, index)
-  closeHomeSearch()
-}
-
-function openHomeSearchArtist(artist) {
-  closeHomeSearch()
-  openArtist(artist)
-}
-
-function openHomeSearchPlaylist(playlist) {
-  closeHomeSearch()
-  void openPlaylist(playlist)
-}
-
-function submitHomeSearch() {
-  if (homeSongEntries.value[0]) {
-    void openHomeSearchSong(homeSongEntries.value[0], 0)
+async function playResumeSong(song = resumeSong.value) {
+  if (!song) return
+  const isCurrent = String(song.id) === String(playerStore.currentSong?.id)
+  if (isCurrent && playerStore.currentSong?.url) {
+    playerStore.setPlaying(!playerStore.isPlaying)
     return
   }
-  if (homeArtistEntries.value[0]) {
-    openHomeSearchArtist(homeArtistEntries.value[0])
-    return
-  }
-  if (homePlaylistEntries.value[0]) openHomeSearchPlaylist(homePlaylistEntries.value[0])
+  const index = Math.max(0, resumeQueue.value.findIndex(item => String(item.id) === String(song.id)))
+  await playSongWithQueue(song, resumeQueue.value, index)
 }
 
-const homeSearchPopoverVisible = computed(() => (
-  homeSearchFocused.value
-  && Boolean(homeSearchQuery.value.trim())
-  && (homeSearching.value || Boolean(homeSearchError.value) || homeSearchEmpty.value || homeSongEntries.value.length || homeArtistEntries.value.length || homePlaylistEntries.value.length)
-))
-
-async function playContinueSong(song, index = 0) {
-  const source = recentListenSongs.value.length ? recentListenSongs.value : newSongs.value
-  await playSongWithQueue(song, source, index)
-}
-
-function saveHomeScrollTop() {
-  const top = Math.max(0, Math.round(window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0))
-  try {
-    window.sessionStorage.setItem('aurora:home-scroll-top', String(top))
-  } catch (error) {
-    void error
-  }
-}
-
-function openArtist(artist, event) {
-  const artistId = Number(artist?.id || 0)
-  if (!artistId) return
-  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  const coverEl = cardEl?.querySelector('[data-artist-hero-cover]')
-  if (coverEl instanceof HTMLElement) {
-    setPendingTransition('artist', artistId, {
-      coverRect: coverEl.getBoundingClientRect(),
-      coverSrc: artist.picUrl || '',
-      name: artist.name || '',
+async function openPlaylist(item, event) {
+  const id = Number(item?.id || 0)
+  if (!id) return
+  const card = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const cover = card?.querySelector('[data-playlist-hero-cover]')
+  if (cover instanceof HTMLElement) {
+    setPendingPlaylistHeroTransition(id, {
+      coverRect: cover.getBoundingClientRect(),
+      coverSrc: item.picUrl || item.coverImgUrl || '',
+      playlistName: item.name || '',
     })
   }
-  router.push({path: '/artistDetial', query: {id: artistId}})
-}
-
-async function openPlaylist(playlist, event) {
-  const playlistId = Number(playlist?.id || playlist?.playlistId || playlist?.targetId || 0)
-  if (!playlistId) return
-  reportApi.reportBehavior({
-    actionType: 'OPEN_PLAYLIST',
-    actionTarget: String(playlistId),
-    actionDetail: playlist?.name || '',
-  })
-
-  const cardEl = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  const coverEl = cardEl?.querySelector('[data-playlist-hero-cover]')
-  const cardStyle = cardEl ? window.getComputedStyle(cardEl) : null
-  const coverStyle = coverEl ? window.getComputedStyle(coverEl) : null
-  saveHomeScrollTop()
-
-  setPendingPlaylistHeroTransition(playlistId, {
-    cardRect: cardEl?.getBoundingClientRect?.(),
-    coverRect: coverEl?.getBoundingClientRect?.(),
-    coverSrc: playlist.picUrl || playlist.coverImgUrl || '',
-    playlistName: playlist.name || '',
-    cardRadius: cardStyle?.borderRadius || '24px',
-    cardShadow: cardStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
-    coverRadius: coverStyle?.borderRadius || '24px',
-    coverShadow: coverStyle?.boxShadow || '0 8px 24px rgba(0,0,0,0.06)',
-  })
-  await router.push({name: 'playlistDetail', query: {id: playlistId}})
+  await router.push({name: 'playlistDetail', query: {id}})
 }
 
 async function runPlaylistHeroReturn() {
@@ -693,565 +357,280 @@ async function runPlaylistHeroReturn() {
   if (target instanceof HTMLElement) await playPlaylistHeroEnter({payload, targetCoverEl: target})
 }
 
-async function runArtistHeroReturn() {
-  if (route.name !== 'home') return
-  const payload = consumeLatestPendingTransition('artist')
-  if (!payload?.id) return
-  await nextTick()
-  const target = document.querySelector(`[data-artist-hero-cover][data-artist-id="${payload.id}"]`)
-  if (target instanceof HTMLElement) await playHeroEnter({payload, targetCoverEl: target})
+function openRecentCollection(item) {
+  if (item.type === 'album') router.push({name: 'albumDetailPage', query: {id: item.id}})
+  else router.push({name: 'playlistDetailPage', query: {id: item.id}})
 }
 
-async function openSong(song, index = 0) {
-  await playSongWithQueue(song, newSongs.value, index)
+function openStyle(tag) {
+  router.push({name: 'styleDetailPage', params: {id: tag.id}})
 }
 
-async function playAllNewSongs() {
-  const queue = newSongs.value.slice(0, 8)
-  if (!queue.length) return
-  await playSongWithQueue(queue[0], queue, 0)
-}
-
-async function openPodcast(item) {
-  const id = item?.program?.mainSong?.id || item?.program?.id || null
-  if (!id) return
-  await playSongById({
-    id,
-    name: item?.name || item?.program?.name || '播客节目',
-    artists: item?.program?.mainSong?.ar || [],
-    cover: item?.picUrl || item?.program?.coverUrl || '',
-  })
-}
-
-function openReleaseNotesPanel() {
-  releaseNotesOpen.value = true
-  if (!releaseNotes.value.length) void loadReleaseNotes()
-}
-
-let deferredHomeTask = null
-let deferredHomeLoadsCancelled = false
-
-function cancelDeferredHomeTask() {
-  deferredHomeLoadsCancelled = true
-  if (!deferredHomeTask) return
-  if (deferredHomeTask.type === 'idle') window.cancelIdleCallback?.(deferredHomeTask.id)
-  else window.clearTimeout(deferredHomeTask.id)
-  deferredHomeTask = null
-}
-
-function scheduleDeferredHomeLoads() {
-  deferredHomeLoadsCancelled = false
-  const loaders = [loadTopPlaylists, loadTopRanks, loadHotArtists, loadPodcastPrograms, () => loadMvList({reset: true}), loadReleaseNotes]
-  let index = 0
-  const scheduleNext = () => {
-    if (deferredHomeLoadsCancelled || index >= loaders.length) return
-    const run = async () => {
-      deferredHomeTask = null
-      const loader = loaders[index]
-      index += 1
-      try {
-        await loader()
-      } catch (error) {
-        if (import.meta.env.DEV) console.warn('[home] deferred section load failed', error)
-      } finally {
-        scheduleNext()
-      }
-    }
-    if (typeof window.requestIdleCallback === 'function') deferredHomeTask = {type: 'idle', id: window.requestIdleCallback(run, {timeout: 900})}
-    else deferredHomeTask = {type: 'timeout', id: window.setTimeout(run, 220)}
-  }
-  scheduleNext()
+function openDiscover() {
+  router.push({name: 'discover', query: {tab: 'styles'}})
 }
 
 onMounted(() => {
-  runPlaylistHeroReturn()
-  runArtistHeroReturn()
+  void runPlaylistHeroReturn()
   void loadHomeBanner()
-  void loadRecommendPlaylists()
-  void loadNewSongs()
-  void loadRecentListenSongs()
-  scheduleDeferredHomeLoads()
-  window.addEventListener('aurora:focus-home-search', focusHomeSearch)
-  document.addEventListener('pointerdown', handleHomeSearchOutside)
+  void loadPersonalHome(userStore.isLoggedIn)
 })
-
-watch(
-  () => route.name,
-  (name) => {
-    if (name === 'home') {
-      runPlaylistHeroReturn()
-      runArtistHeroReturn()
-    }
-  },
-)
-
-watch(
-  () => userStore.isLoggedIn,
-  (loggedIn) => {
-    if (loggedIn) {
-      void loadRecentListenSongs()
-      return
-    }
-    loading.value.recent = false
-    errors.value.recent = ''
-    recentListenSongs.value = []
-  },
-)
-
-onBeforeUnmount(() => {
-  cancelDeferredHomeTask()
-  closeMvPlayer()
-  clearHomeSearchState()
-  window.removeEventListener('aurora:focus-home-search', focusHomeSearch)
-  document.removeEventListener('pointerdown', handleHomeSearchOutside)
+onActivated(() => {
+  if (route.name !== 'home') return
+  requestAnimationFrame(() => window.scrollTo({left: 0, top: 0, behavior: 'auto'}))
 })
+watch(() => route.name, name => {
+  if (name === 'home') void runPlaylistHeroReturn()
+})
+watch(() => userStore.isLoggedIn, value => loadPersonalHome(value))
 </script>
 
 <style scoped>
-.home-page {
+.personal-home {
   min-height: 100vh;
-  color: #27272a;
+  isolation: isolate;
+  color: #29282c;
   background:
-    radial-gradient(circle at 12% 4%, rgba(255, 228, 230, 0.72), transparent 24%),
-    radial-gradient(circle at 92% 18%, rgba(254, 243, 199, 0.58), transparent 24%),
+    radial-gradient(circle at 8% 7%, rgba(255, 221, 226, 0.78), transparent 24%),
+    radial-gradient(circle at 94% 20%, rgba(255, 238, 205, 0.62), transparent 23%),
     #f7f7f8;
 }
 
-button { font-family: inherit; }
-.home-search { cursor: pointer; border: 0; background: transparent; }
-.home-search { position: relative; box-sizing: border-box; display: grid; width: min(100%, 520px); height: 44px; align-items: center; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; justify-self: center; padding: 0 15px; color: #85858d; text-align: left; border: 1px solid rgba(24, 24, 27, 0.05); border-radius: 16px; background: rgba(228, 228, 231, 0.76); transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
-.home-search:hover,
-.home-search.is-focused { border-color: rgba(232, 87, 105, 0.13); background: rgba(255, 255, 255, 0.94); box-shadow: 0 12px 30px rgba(24, 24, 27, 0.08); transform: translateY(-1px); }
-.home-search svg { width: 18px; height: 18px; transition: color 180ms ease; }
-.home-search.is-focused > svg { color: #e85769; animation: search-icon-arrive 420ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-.home-search input { min-width: 0; height: 100%; color: #3f3f46; border: 0; outline: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 620; }
-.home-search input::-webkit-search-cancel-button { display: none; }
-.home-search input::placeholder { color: #85858d; opacity: 1; }
-.home-search kbd { padding: 3px 6px; color: #a1a1aa; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 6px; background: rgba(255, 255, 255, 0.7); font-size: 9px; }
-.home-search-clear { display: grid; width: 24px; aspect-ratio: 1; place-items: center; padding: 0; cursor: pointer; color: #8b8b92; border: 0; border-radius: 50%; background: #eceaec; font-size: 16px; line-height: 1; }
-.home-search-popover { position: absolute; top: calc(100% + 12px); left: 50%; z-index: 90; width: min(680px, calc(100vw - 32px)); max-height: min(68vh, 620px); overflow-y: auto; padding: 12px; color: #27272a; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 24px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 28px 70px rgba(24, 24, 27, 0.18); transform: translateX(-50%); transform-origin: 50% 0; backdrop-filter: blur(24px); will-change: transform, opacity; }
-.home-search-pop-enter-active { transition: opacity 220ms ease, transform 300ms cubic-bezier(0.16, 1, 0.3, 1), filter 220ms ease; }
-.home-search-pop-leave-active { transition: opacity 150ms ease, transform 180ms ease, filter 150ms ease; }
-.home-search-pop-enter-from,
-.home-search-pop-leave-to { opacity: 0; filter: blur(2px); transform: translate(-50%, -10px) scale(0.975); }
-.home-search-state { display: grid; min-height: 110px; place-items: center; color: #8b8b92; font-size: 11px; font-weight: 680; }
-.home-search-state-loading { grid-template-columns: auto auto; justify-content: center; gap: 9px; }
-.home-search-state-loading::before { width: 14px; aspect-ratio: 1; border: 2px solid #f4c7cd; border-top-color: #e85769; border-radius: 50%; content: ''; animation: search-spin 720ms linear infinite; }
-.home-search-state-error { color: #e11d48; }
-.home-search-section { display: grid; gap: 3px; }
-.home-search-section + .home-search-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0eff0; }
-.home-search-section-title { display: flex; align-items: center; justify-content: space-between; padding: 5px 7px 7px; }
-.home-search-section-title span { color: #3f3f46; font-size: 10px; font-weight: 850; }
-.home-search-section-title small { color: #a1a1aa; font-size: 8px; font-weight: 650; }
-.home-search-result { display: grid; min-width: 0; align-items: center; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 10px; padding: 6px; cursor: pointer; text-align: left; border: 0; border-radius: 13px; background: transparent; animation: search-result-arrive 320ms both cubic-bezier(0.2, 0.8, 0.2, 1); transition: background 160ms ease, transform 160ms ease; }
-.home-search-result:nth-of-type(2) { animation-delay: 35ms; }
-.home-search-result:nth-of-type(3) { animation-delay: 70ms; }
-.home-search-result:nth-of-type(4) { animation-delay: 105ms; }
-.home-search-result:hover { background: #f5f3f1; transform: translateX(2px); }
-.home-search-result-cover { width: 42px; aspect-ratio: 1; overflow: hidden; border-radius: 10px; background: #e4e4e7; }
-.home-search-result-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.home-search-result-copy { min-width: 0; }
-.home-search-result-copy strong,
-.home-search-result-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-search-result-copy strong { color: #3f3f46; font-size: 11px; font-weight: 780; }
-.home-search-result-copy small { margin-top: 3px; color: #a1a1aa; font-size: 9px; font-weight: 600; }
-.home-search-result-action { padding: 6px 9px; color: #e85769; border-radius: 999px; background: #fff0f2; font-size: 8px; font-weight: 780; }
-.home-search-section-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.home-search-section-compact .home-search-section-title { width: 100%; }
-.home-search-chip { display: inline-flex; min-width: 0; max-width: 190px; align-items: center; gap: 7px; padding: 5px 9px 5px 5px; cursor: pointer; overflow: hidden; color: #52525b; border: 1px solid #eeecea; border-radius: 999px; background: #faf9f8; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; animation: search-result-arrive 320ms 90ms both cubic-bezier(0.2, 0.8, 0.2, 1); transition: transform 160ms ease, background 160ms ease; }
-.home-search-chip:hover { background: #fff0f2; transform: translateY(-1px); }
-.home-search-chip > span { width: 28px; aspect-ratio: 1; overflow: hidden; flex: none; border-radius: 50%; background: #e4e4e7; }
-.home-search-chip > span :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.home-main { box-sizing: border-box; width: min(100%, 1376px); margin: 0 auto; padding: 34px 28px 150px; }
-.home-lobby { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.88fr); gap: 22px; scroll-margin-top: 90px; }
-.home-hero-card { position: relative; min-height: clamp(410px, 48vw, 525px); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 34px; background: #d4d4d8; box-shadow: 0 30px 80px rgba(43, 32, 32, 0.15); }
-.home-hero-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.home-hero-fallback { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(145deg, #596273, #252934 58%, #1b1d24); }
-.fallback-orbit { position: absolute; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
-.fallback-orbit-one { width: 560px; height: 560px; top: -210px; right: -80px; }
-.fallback-orbit-two { width: 370px; height: 370px; right: 20px; bottom: -200px; }
-.fallback-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
-.home-hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 15, 19, 0.62) 0%, rgba(14, 15, 19, 0.3) 44%, rgba(14, 15, 19, 0.025) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.32), transparent 56%); }
-.home-hero-content { position: absolute; inset: auto auto 0 0; width: min(100%, 660px); padding: clamp(30px, 5vw, 62px); color: #fff; }
-.home-hero-content h1 { max-width: 590px; margin: 0; font-size: clamp(34px, 4.5vw, 58px); font-weight: 900; letter-spacing: -0.055em; line-height: 1.04; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
-.continue-panel { display: grid; min-height: 410px; grid-template-rows: auto minmax(0, 1fr) auto; padding: 26px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 34px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 24px 65px rgba(52, 42, 40, 0.1); backdrop-filter: blur(20px); }
-.continue-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid rgba(24, 24, 27, 0.055); }
-.continue-heading p { margin: 0 0 6px; color: #e85769; font-size: 9px; font-weight: 850; letter-spacing: 0.16em; }
-.continue-heading h2 { margin: 0; color: #27272a; font-size: 24px; font-weight: 900; letter-spacing: -0.04em; }
-.continue-status { display: inline-flex; align-items: center; gap: 6px; color: #a1a1aa; font-size: 9px; font-weight: 720; }
-.continue-status i { width: 6px; height: 6px; border-radius: 50%; background: #6fcf97; box-shadow: 0 0 0 4px rgba(111, 207, 151, 0.14); }
-.continue-list { display: grid; height: 100%; min-height: 0; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 2px; padding-block: 7px; }
-.continue-list :deep(.song-row-compact) { box-sizing: border-box; height: 100%; min-height: 0; grid-template-columns: 48px minmax(0, 1fr) 34px; padding: 6px 4px; }
-.continue-list :deep(.song-row-compact .song-cover) { width: 48px; border-radius: 12px; }
-.continue-list :deep(.song-row-compact .song-play) { width: 30px; }
-.continue-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; color: #a1a1aa; border-top: 1px solid rgba(24, 24, 27, 0.055); font-size: 9px; font-weight: 650; }
-.continue-footer button { padding: 0; cursor: pointer; color: #e85769; border: 0; background: transparent; font: inherit; font-weight: 800; }
-.continue-empty { display: grid; place-content: center; justify-items: center; color: #a1a1aa; text-align: center; }
-.continue-empty-icon { display: grid; width: 48px; aspect-ratio: 1; place-items: center; color: #e85769; border-radius: 50%; background: #fff0f2; font-size: 22px; }
-.continue-empty p { margin: 11px 0; font-size: 12px; font-weight: 700; }
-.continue-empty button { padding: 8px 12px; cursor: pointer; color: #52525b; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 999px; background: #fff; font: inherit; font-size: 10px; font-weight: 750; }
-.continue-skeleton { display: grid; height: 100%; min-height: 0; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 5px; padding-block: 7px; }
-.continue-skeleton span { min-height: 0; border-radius: 14px; background: linear-gradient(100deg, #f1f1f2 20%, #fff 45%, #f1f1f2 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
-.category-rail { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-.category-rail button,
-.tag-list button,
-.discovery-tabs button,
-.section-link { cursor: pointer; border: 1px solid rgba(24, 24, 27, 0.055); border-radius: 999px; background: rgba(255, 255, 255, 0.68); }
-.category-rail button { display: inline-flex; height: 39px; align-items: center; gap: 8px; padding: 0 17px; color: #71717a; font-size: 11px; font-weight: 760; transition: 180ms ease; }
-.category-rail button:hover,
-.category-rail button.is-active { color: #e85769; border-color: rgba(232, 87, 105, 0.08); background: #fff0f2; }
-.category-rail span { font-size: 13px; }
-.home-section { margin-top: 92px; scroll-margin-top: 34px; }
-.section-link { padding: 9px 14px; color: #71717a; font-size: 10px; font-weight: 750; }
-.playlist-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(14px, 2vw, 24px); }
-.playlist-strip > :nth-child(n + 6) { display: none; }
-.playlist-skeleton { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px; }
-.playlist-skeleton span { aspect-ratio: 1 / 1.18; border-radius: 24px; background: linear-gradient(100deg, #ebebed 20%, #fafafa 45%, #ebebed 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
-.section-state { display: grid; min-height: 170px; place-content: center; justify-items: center; gap: 12px; color: #a1a1aa; border: 1px dashed rgba(24, 24, 27, 0.09); border-radius: 24px; background: rgba(255, 255, 255, 0.34); font-size: 12px; font-weight: 680; }
-.section-state p { margin: 0; }
-.section-state button { padding: 9px 14px; cursor: pointer; color: #fff; border: 0; border-radius: 999px; background: #27272a; font: inherit; font-size: 10px; }
-.section-state-error { color: #e11d48; border-color: rgba(225, 29, 72, 0.12); background: rgba(255, 241, 242, 0.52); }
-.section-sequence { display: flex; align-items: center; gap: 9px; color: #e85769; font-size: 9px; font-weight: 850; letter-spacing: 0.17em; }
-.section-sequence span { color: #a1a1aa; font-variant-numeric: tabular-nums; }
-.section-sequence i { width: 28px; height: 1px; background: currentColor; }
-.section-sequence-light { color: #ff9d89; }
-.section-sequence-light span { color: rgba(255, 255, 255, 0.4); }
-.discovery-studio { position: relative; display: block; padding-inline: 4px; }
-.discovery-intro { position: relative; z-index: 1; display: grid; align-items: end; grid-template-columns: minmax(230px, 0.7fr) minmax(270px, 1fr) auto; grid-template-rows: auto auto; gap: 8px clamp(28px, 4vw, 64px); padding-inline: 8px; }
-.discovery-intro .section-sequence { grid-column: 1; grid-row: 1; }
-.discovery-intro h2 { grid-column: 1; grid-row: 2; margin: 8px 0 0; color: #242326; font-size: clamp(38px, 4vw, 54px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; }
-.discovery-intro > p { grid-column: 2; grid-row: 1 / 3; max-width: 420px; margin: 0; color: #79777b; font-size: 12px; font-weight: 590; line-height: 1.75; }
-.discovery-tabs { display: flex; grid-column: 3; grid-row: 1 / 3; align-self: end; gap: 4px; margin: 0; padding: 4px; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 10px 28px rgba(24, 24, 27, 0.045); }
-.discovery-tabs button { display: inline-flex; height: 36px; align-items: center; gap: 7px; padding: 0 13px; cursor: pointer; color: #777579; text-align: left; border: 0; border-radius: 999px; background: transparent; font-size: 10px; font-weight: 750; transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
-.discovery-tabs button span { color: #aaa7a4; font-size: 9px; font-variant-numeric: tabular-nums; }
-.discovery-tabs button i { display: none; }
-.discovery-tabs button:hover,
-.discovery-tabs button.is-active { color: #fff; background: #29282c; box-shadow: 0 8px 18px rgba(24, 24, 27, 0.13); transform: translateY(-1px); }
-.discovery-tabs button.is-active span { color: rgba(255, 255, 255, 0.55); }
-.discovery-stage { position: relative; z-index: 1; box-sizing: border-box; height: 390px; min-width: 0; overflow: hidden; margin-top: 24px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 30px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 24px 64px rgba(48, 42, 38, 0.09); backdrop-filter: blur(18px); }
-.discovery-content { height: 100%; min-height: 0; }
-.discovery-content > .section-state { box-sizing: border-box; height: 100%; min-height: 0; }
-.discovery-content > .tag-list + .section-state { height: calc(100% - 38px); }
-.discovery-swap-enter-active { transition: opacity 240ms ease, transform 300ms cubic-bezier(0.16, 1, 0.3, 1); }
-.discovery-swap-leave-active { transition: opacity 120ms ease, transform 150ms ease; }
-.discovery-swap-enter-from { opacity: 0; transform: translateY(10px) scale(0.992); }
-.discovery-swap-leave-to { opacity: 0; transform: translateY(-5px); }
-.tag-list { display: flex; overflow-x: auto; gap: 6px; padding: 1px 2px 10px; scrollbar-width: none; }
-.tag-list::-webkit-scrollbar { display: none; }
-.tag-list button { flex: none; padding: 7px 12px; color: #8b8b92; border-color: transparent; background: transparent; font-size: 10px; font-weight: 720; transition: color 160ms ease, background 160ms ease; }
-.tag-list button:hover { color: #3f3f46; background: #f3f1ef; }
-.tag-list button.is-active { color: #fff; border-color: #27272a; background: #27272a; }
-.discovery-playlists { display: grid; height: calc(100% - 38px); min-height: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 9px; }
-.discovery-playlist-tile { position: relative; min-width: 0; min-height: 0; overflow: hidden; padding: 0; cursor: pointer; text-align: left; border: 0; border-radius: 18px; background: #29282c; box-shadow: 0 10px 24px rgba(24, 24, 27, 0.1); isolation: isolate; }
-.discovery-playlist-tile.is-featured { grid-column: span 2; grid-row: span 2; border-radius: 22px; }
-.discovery-playlist-tile-cover,
-.discovery-playlist-tile-shade { position: absolute; inset: 0; display: block; }
-.discovery-playlist-tile-cover :deep(img),
-.discovery-playlist-tile-cover :deep(video) { width: 100%; height: 100%; object-fit: cover; transition: transform 620ms cubic-bezier(0.16, 1, 0.3, 1), filter 300ms ease; }
-.discovery-playlist-tile:hover .discovery-playlist-tile-cover :deep(img) { filter: saturate(1.08); transform: scale(1.055); }
-.discovery-playlist-tile-shade { z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.86), rgba(13, 13, 16, 0.02) 76%); }
-.discovery-playlist-tile-index { position: absolute; top: 13px; left: 14px; z-index: 2; color: rgba(255, 255, 255, 0.68); font-size: 8px; font-weight: 820; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
-.discovery-playlist-tile-copy { position: absolute; right: 14px; bottom: 13px; left: 14px; z-index: 2; min-width: 0; color: #fff; }
-.discovery-playlist-tile-copy small { display: block; overflow: hidden; color: #ff9d89; font-size: 7px; font-weight: 850; text-overflow: ellipsis; letter-spacing: 0.13em; white-space: nowrap; }
-.discovery-playlist-tile-copy strong { display: -webkit-box; overflow: hidden; margin-top: 5px; font-size: 12px; font-weight: 830; letter-spacing: -0.025em; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.discovery-playlist-tile-copy > span { display: none; }
-.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy { right: 24px; bottom: 22px; left: 24px; }
-.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy small { font-size: 8px; }
-.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy strong { max-width: 440px; margin-top: 8px; font-size: clamp(22px, 2.3vw, 31px); font-weight: 890; letter-spacing: -0.045em; line-height: 1.12; }
-.discovery-playlist-tile.is-featured .discovery-playlist-tile-copy > span { display: -webkit-box; max-width: 430px; overflow: hidden; margin-top: 9px; color: rgba(255, 255, 255, 0.66); font-size: 9px; font-weight: 580; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.discovery-playlist-tile-play { position: absolute; top: 11px; right: 11px; z-index: 2; display: grid; width: 29px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.91); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18); font-size: 8px; opacity: 0; transform: translateY(4px) scale(0.9); transition: opacity 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-.discovery-playlist-tile.is-featured .discovery-playlist-tile-play { top: 17px; right: 17px; width: 40px; font-size: 10px; opacity: 1; transform: none; }
-.discovery-playlist-tile:hover .discovery-playlist-tile-play { opacity: 1; transform: none; }
-.row-skeleton,
-.rank-skeleton,
-.artist-skeleton { display: grid; gap: 12px; }
-.row-skeleton { height: calc(100% - 38px); grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.row-skeleton span { min-height: 0; border-radius: 18px; background: #efeff0; }
-.rank-skeleton { grid-template-columns: 1fr; }
-.rank-skeleton span { height: 112px; border-radius: 20px; background: #efeff0; }
-.artist-skeleton { height: 100%; grid-template-columns: minmax(260px, 0.78fr) repeat(2, minmax(0, 0.61fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.artist-skeleton span { min-height: 0; border-radius: 17px; background: #efeff0; }
-.artist-skeleton span:first-child { grid-row: 1 / -1; border-radius: 22px; }
-.rank-grid { display: grid; height: 100%; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.rank-card { display: grid; min-width: 0; align-items: center; grid-template-columns: 32px 66px minmax(110px, 0.38fr) minmax(0, 1fr) 22px; gap: 14px; padding: 9px 14px; cursor: pointer; text-align: left; border: 1px solid rgba(24, 24, 27, 0.045); border-radius: 19px; background: #f6f4f2; transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease; }
-.rank-card:nth-child(2) { background: #f1eeeb; }
-.rank-card:hover { background: #fff; box-shadow: 0 14px 30px rgba(24, 24, 27, 0.07); transform: translateX(3px); }
-.rank-number { color: #e85769; font-size: 10px; font-weight: 850; font-variant-numeric: tabular-nums; }
-.rank-cover { width: 66px; aspect-ratio: 1; overflow: hidden; border-radius: 14px; background: #e4e4e7; box-shadow: 0 8px 20px rgba(24, 24, 27, 0.12); }
-.rank-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.rank-meta { min-width: 0; }
-.rank-meta strong,
-.rank-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank-meta strong { color: #27272a; font-size: 12px; font-weight: 830; }
-.rank-meta small { margin-top: 5px; color: #e85769; font-size: 8px; font-weight: 730; }
-.rank-tracks { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-left: 18px; border-left: 1px solid rgba(24, 24, 27, 0.08); }
-.rank-tracks > span { overflow: hidden; color: #52525b; font-size: 10px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
-.rank-tracks b { display: inline-block; width: 22px; color: #e85769; }
-.rank-tracks small { color: #a1a1aa; }
-.rank-open { color: #aaa7a4; font-size: 14px; }
-.artist-showcase { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.22fr); gap: 9px; }
-.artist-featured { position: relative; min-width: 0; min-height: 0; overflow: hidden; padding: 0; cursor: pointer; text-align: left; border: 0; border-radius: 22px; background: #27272a; box-shadow: 0 14px 30px rgba(24, 24, 27, 0.14); isolation: isolate; }
-.artist-featured-cover,
-.artist-featured-shade { position: absolute; inset: 0; display: block; }
-.artist-featured-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; transition: filter 300ms ease, transform 650ms cubic-bezier(0.16, 1, 0.3, 1); }
-.artist-featured:hover .artist-featured-cover :deep(img) { filter: saturate(1.08); transform: scale(1.045); }
-.artist-featured-shade { z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.9), rgba(13, 13, 16, 0.03) 74%); }
-.artist-featured-index { position: absolute; top: 17px; left: 18px; z-index: 2; color: rgba(255, 255, 255, 0.72); font-size: 9px; font-weight: 840; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
-.artist-featured-copy { position: absolute; right: 24px; bottom: 22px; left: 24px; z-index: 2; color: #fff; }
-.artist-featured-copy small { display: flex; align-items: center; gap: 7px; color: #ff9d89; font-size: 8px; font-weight: 850; letter-spacing: 0.14em; }
-.artist-featured-copy small i { width: 18px; height: 1px; background: currentColor; }
-.artist-featured-copy strong { display: block; overflow: hidden; margin-top: 9px; font-size: clamp(28px, 3vw, 40px); font-weight: 900; letter-spacing: -0.055em; text-overflow: ellipsis; white-space: nowrap; }
-.artist-featured-copy > span { display: block; overflow: hidden; margin-top: 6px; color: rgba(255, 255, 255, 0.62); font-size: 9px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
-.artist-featured-open { position: absolute; top: 15px; right: 15px; z-index: 2; display: grid; width: 38px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 9px 20px rgba(0, 0, 0, 0.18); font-size: 13px; transition: transform 200ms ease; }
-.artist-featured:hover .artist-featured-open { transform: rotate(10deg) scale(1.04); }
-.artist-directory { display: grid; min-width: 0; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.artist-directory-card { display: grid; min-width: 0; min-height: 0; align-items: center; grid-template-columns: 22px 52px minmax(0, 1fr) 20px; gap: 10px; padding: 7px 10px; cursor: pointer; text-align: left; border: 1px solid rgba(24, 24, 27, 0.045); border-radius: 17px; background: #f5f3f0; transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
-.artist-directory-card:nth-child(3n + 2) { background: #f0edeb; }
-.artist-directory-card:hover { background: #fff; box-shadow: 0 12px 25px rgba(24, 24, 27, 0.08); transform: translateX(3px); }
-.artist-directory-index { color: #e85769; font-size: 8px; font-weight: 840; font-variant-numeric: tabular-nums; }
-.artist-directory-cover { display: block; width: 52px; aspect-ratio: 1; overflow: hidden; border-radius: 15px; background: #e4e4e7; box-shadow: 0 7px 16px rgba(24, 24, 27, 0.1); }
-.artist-directory-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; transition: transform 260ms ease; }
-.artist-directory-card:hover .artist-directory-cover :deep(img) { transform: scale(1.06); }
-.artist-directory-copy { min-width: 0; }
-.artist-directory-copy strong,
-.artist-directory-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.artist-directory-copy strong { color: #343337; font-size: 11px; font-weight: 820; }
-.artist-directory-copy small { margin-top: 4px; color: #a5a2a0; font-size: 7px; font-weight: 750; letter-spacing: 0.09em; }
-.artist-directory-open { color: #aaa7a4; font-size: 12px; }
-.release-section { position: relative; display: grid; overflow: hidden; grid-template-columns: minmax(230px, 0.3fr) minmax(0, 0.7fr); gap: clamp(24px, 4vw, 58px); padding: clamp(30px, 4.4vw, 54px); border-radius: 38px; background: #222125; box-shadow: 0 30px 80px rgba(24, 24, 27, 0.18); }
-.release-section::before { position: absolute; top: -260px; left: -180px; width: 520px; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(239, 113, 128, 0.2), transparent 68%); content: ''; pointer-events: none; }
-.release-intro { position: relative; z-index: 1; }
-.release-intro h2 { margin: 30px 0 15px; color: #fff; font-size: clamp(38px, 4.5vw, 60px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; }
-.release-intro > p { max-width: 270px; margin: 0; color: rgba(255, 255, 255, 0.52); font-size: 12px; font-weight: 570; line-height: 1.8; }
-.release-play-all { display: inline-flex; height: 43px; align-items: center; gap: 9px; margin-top: 30px; padding: 0 17px; cursor: pointer; color: #29282c; border: 0; border-radius: 999px; background: #fff; font-size: 10px; font-weight: 820; transition: transform 180ms ease; }
-.release-play-all:hover { transform: translateY(-2px); }
-.release-play-all span { color: #e85769; font-size: 9px; }
-.release-decoration { display: flex; height: 45px; align-items: end; gap: 5px; margin-top: 48px; opacity: 0.36; }
-.release-decoration span { width: 4px; border-radius: 99px; background: #ff9d89; }
-.release-decoration span:nth-child(1) { height: 18px; }
-.release-decoration span:nth-child(2) { height: 38px; }
-.release-decoration span:nth-child(3) { height: 27px; }
-.release-decoration span:nth-child(4) { height: 45px; }
-.release-content { position: relative; z-index: 1; min-width: 0; align-self: center; }
-.new-song-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 15px; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 27px; background: rgba(255, 255, 255, 0.045); }
-.release-section :deep(.song-row:hover),
-.release-section :deep(.song-row:focus-visible) { border-color: rgba(255, 255, 255, 0.07); background: rgba(255, 255, 255, 0.075); }
-.release-section :deep(.song-title) { color: rgba(255, 255, 255, 0.9); }
-.release-section :deep(.song-artist),
-.release-section :deep(.song-duration),
-.release-section :deep(.song-index) { color: rgba(255, 255, 255, 0.38); }
-.release-section :deep(.song-play) { color: #fff; border-color: rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.07); }
-.release-section :deep(.song-cover) { box-shadow: 0 9px 24px rgba(0, 0, 0, 0.25); }
-.song-skeleton { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.song-skeleton span { height: 72px; border-radius: 18px; background: rgba(255, 255, 255, 0.08); }
-.media-studio { position: relative; }
-.media-section-header { display: grid; align-items: end; grid-template-columns: minmax(0, 1fr) minmax(240px, 0.4fr); gap: 34px; margin-bottom: 30px; padding-inline: 5px; }
-.media-section-header h2 { margin: 21px 0 0; color: #27272a; font-size: clamp(38px, 4.8vw, 62px); font-weight: 920; letter-spacing: -0.065em; line-height: 1; }
-.media-section-header > p { max-width: 390px; justify-self: end; margin: 0; color: #858389; font-size: 12px; font-weight: 580; line-height: 1.75; }
-.mv-showcase,
-.podcast-showcase { padding: clamp(24px, 3.5vw, 40px); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 34px; background: rgba(255, 255, 255, 0.68); box-shadow: 0 24px 68px rgba(52, 42, 40, 0.07); }
-.media-subheading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
-.media-subheading span { color: #e85769; font-size: 8px; font-weight: 850; letter-spacing: 0.17em; }
-.media-subheading h3 { margin: 6px 0 0; color: #27272a; font-size: 26px; font-weight: 900; letter-spacing: -0.045em; }
-.media-subheading > p { margin: 0; color: #a1a1aa; font-size: 9px; font-weight: 650; }
-.mv-grid { display: grid; height: min(42vw, 525px); min-height: 420px; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.72fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.mv-card { min-width: 0; min-height: 0; padding: 0; cursor: pointer; text-align: left; border: 0; background: transparent; }
-.mv-card-featured { grid-row: 1 / 3; }
-.mv-cover { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 22px; background: #e4e4e7; }
-.mv-cover :deep(img),
-.mv-cover :deep(video) { width: 100%; height: 100%; object-fit: cover; transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1); }
-.mv-card:hover .mv-cover :deep(img) { transform: scale(1.045); }
-.mv-shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(12, 12, 15, 0.82), transparent 68%); }
-.mv-order { position: absolute; top: 17px; left: 18px; color: rgba(255, 255, 255, 0.74); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; }
-.mv-card-copy { position: absolute; right: 65px; bottom: 17px; left: 18px; color: #fff; }
-.mv-card-copy small,
-.mv-card-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mv-card-copy small { color: rgba(255, 255, 255, 0.58); font-size: 9px; font-weight: 650; }
-.mv-card-copy strong { margin-top: 5px; font-size: 13px; font-weight: 820; }
-.mv-card-featured .mv-card-copy { right: 85px; bottom: 27px; left: 27px; }
-.mv-card-featured .mv-card-copy strong { margin-top: 7px; font-size: clamp(22px, 2.4vw, 34px); letter-spacing: -0.035em; }
-.mv-cover > i { position: absolute; right: 17px; bottom: 17px; display: grid; width: 38px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.2); }
-.mv-card-featured .mv-cover > i { right: 26px; bottom: 26px; width: 48px; }
-.mv-cover svg { width: 12px; height: 12px; margin-left: 2px; }
-.podcast-showcase { margin-top: 20px; background: #eee9e3; }
-.podcast-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.podcast-list button { position: relative; display: grid; min-width: 0; align-items: center; grid-template-columns: 22px 92px minmax(0, 1fr) 20px; gap: 12px; padding: 12px; cursor: pointer; text-align: left; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 22px; background: rgba(255, 255, 255, 0.62); transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
-.podcast-list button:hover { background: #fff; box-shadow: 0 16px 32px rgba(48, 42, 38, 0.08); transform: translateY(-3px); }
-.podcast-index { align-self: start; padding-top: 4px; color: #aaa7a4; font-size: 8px; font-weight: 800; }
-.podcast-cover { width: 92px; aspect-ratio: 1; overflow: hidden; border-radius: 17px; background: #d8d5d1; box-shadow: 0 9px 24px rgba(48, 42, 38, 0.12); }
-.podcast-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.podcast-copy { min-width: 0; }
-.podcast-copy strong,
-.podcast-copy small,
-.podcast-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.podcast-copy small { color: #e85769; font-size: 8px; font-weight: 760; }
-.podcast-copy strong { margin-top: 7px; color: #343337; font-size: 11px; font-weight: 800; }
-.podcast-copy > span { margin-top: 10px; color: #99969a; font-size: 9px; font-weight: 650; }
-.podcast-copy > span i { margin-right: 4px; color: #e85769; font-size: 7px; font-style: normal; }
-.podcast-arrow { color: #aaa7a4; font-size: 13px; }
-.media-skeleton { display: grid; height: 430px; grid-template-columns: 1.5fr 0.72fr; gap: 12px; }
-.media-skeleton span { border-radius: 22px; background: #ebebed; }
-.media-skeleton span:first-child { grid-row: span 2; }
-.podcast-skeleton { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.podcast-skeleton span { height: 118px; border-radius: 22px; background: rgba(255, 255, 255, 0.6); }
-.home-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 100px; padding: 28px 2px 0; border-top: 1px solid rgba(24, 24, 27, 0.07); }
-.home-footer div { display: flex; align-items: center; gap: 16px; }
-.home-footer strong { color: #27272a; font-size: 12px; font-weight: 900; letter-spacing: 0.2em; }
-.home-footer span { color: #a1a1aa; font-size: 10px; font-weight: 620; }
-.home-footer button { padding: 9px 14px; cursor: pointer; color: #71717a; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.58); font-size: 9px; font-weight: 750; }
-@keyframes shimmer { to { background-position-x: -220%; } }
-@keyframes search-spin { to { transform: rotate(360deg); } }
-@keyframes search-icon-arrive {
-  0% { opacity: 0.5; transform: rotate(-18deg) scale(0.72); }
-  60% { transform: rotate(4deg) scale(1.13); }
-  100% { opacity: 1; transform: none; }
-}
-@keyframes search-result-arrive {
-  from { opacity: 0; transform: translateY(7px); }
-  to { opacity: 1; transform: none; }
-}
+button { cursor: pointer; font: inherit; }
+.personal-main { box-sizing: border-box; width: min(100%, 1376px); margin: 0 auto; padding: 34px 28px 150px; }
+.home-lobby { display: block; scroll-margin-top: 90px; }
+.home-banner-card { position: relative; width: 100%; min-height: clamp(470px, 46vw, 620px); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 36px; background: #d4d4d8; box-shadow: 0 32px 90px rgba(43, 32, 32, 0.17); isolation: isolate; }
+.home-banner-media,
+.home-banner-fallback,
+.home-banner-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
+.home-banner-media { z-index: 0; filter: saturate(0.92); }
+.home-banner-media :deep(> div),
+.home-banner-media :deep(img),
+.home-banner-media :deep(video) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.home-banner-fallback { z-index: 0; overflow: hidden; background: linear-gradient(145deg, #596273, #252934 58%, #1b1d24); }
+.banner-orbit { position: absolute; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
+.banner-orbit-one { top: -210px; right: -80px; width: 560px; height: 560px; }
+.banner-orbit-two { right: 20px; bottom: -200px; width: 370px; height: 370px; }
+.banner-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
+.home-banner-shade { z-index: 1; background: linear-gradient(90deg, rgba(14, 15, 19, 0.78) 0%, rgba(14, 15, 19, 0.48) 38%, rgba(14, 15, 19, 0.08) 72%), linear-gradient(0deg, rgba(14, 15, 19, 0.54), transparent 58%); }
+.home-banner-content { position: absolute; inset: 0; z-index: 2; display: flex; box-sizing: border-box; width: min(100%, 760px); flex-direction: column; justify-content: flex-end; padding: clamp(34px, 5vw, 70px); color: #fff; }
+.home-banner-card h1 { max-width: 680px; margin: 22px 0 0; font-size: clamp(42px, 5.4vw, 76px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
+.home-banner-description { max-width: 560px; margin: 24px 0 0; color: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 580; line-height: 1.75; }
+
+.personal-now-card { position: relative; min-height: 242px; overflow: hidden; margin-top: 22px; padding: 29px 34px 28px; color: #29272d; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 34px; background: #f7f4f5; box-shadow: 0 22px 58px rgba(66, 50, 54, 0.1); isolation: isolate; }
+.personal-station-ambient { position: absolute !important; inset: -25% -3% -35% 43%; z-index: -3; width: 62% !important; height: 160% !important; opacity: 0.7; filter: saturate(0.8) brightness(1.08); transform: rotate(-7deg) scale(1.05); }
+.personal-station-ambient :deep(> div),
+.personal-station-ambient :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.personal-station-scrim { position: absolute; inset: 0; z-index: -2; background: linear-gradient(90deg, #f8f5f6 0%, rgba(248, 245, 246, 0.98) 31%, rgba(248, 245, 246, 0.78) 63%, rgba(248, 245, 246, 0.3) 100%), linear-gradient(0deg, rgba(255, 255, 255, 0.7), transparent 75%); }
+.personal-now-card::after { position: absolute; top: -110px; right: 24%; z-index: -1; width: 260px; aspect-ratio: 1; border: 1px solid rgba(80, 61, 66, 0.07); border-radius: 50%; box-shadow: 0 0 0 45px rgba(255, 255, 255, 0.13), 0 0 0 90px rgba(255, 255, 255, 0.08); content: ''; }
+.personal-now-heading { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.personal-now-heading p { margin: 0 0 5px; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.18em; }
+.personal-now-heading h2 { margin: 0; font-size: 27px; font-weight: 900; letter-spacing: -0.045em; }
+.personal-now-heading > span { display: flex; align-items: center; gap: 7px; margin-top: 3px; padding: 8px 11px; color: #79747a; border: 1px solid rgba(68, 53, 57, 0.08); border-radius: 999px; background: rgba(255, 255, 255, 0.62); box-shadow: 0 7px 18px rgba(70, 53, 57, 0.04); font-size: 8px; font-weight: 720; backdrop-filter: blur(12px); }
+.personal-now-heading > span i { width: 6px; aspect-ratio: 1; border-radius: 50%; background: #73d69b; box-shadow: 0 0 0 4px rgba(115, 214, 155, 0.13); }
+.personal-station-content { position: relative; z-index: 1; display: grid; min-width: 0; align-items: end; grid-template-columns: minmax(420px, 0.9fr) minmax(440px, 1.1fr); gap: clamp(30px, 6vw, 90px); margin-top: 20px; }
+.personal-station-content:not(:has(.personal-up-next)) { grid-template-columns: minmax(0, 720px); }
+.personal-station-feature { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 19px; margin: 0; padding: 0; text-align: left; color: #29272d; border: 0; background: transparent; }
+.personal-station-cover { display: block; width: 112px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 24px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 18px 38px rgba(72, 52, 57, 0.16); transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.personal-station-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
+.personal-station-copy { min-width: 0; }
+.personal-station-copy small,
+.personal-station-copy strong,
+.personal-station-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-station-copy small { color: #e85769; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; }
+.personal-station-copy strong { margin-top: 8px; font-size: clamp(18px, 2vw, 25px); font-weight: 880; letter-spacing: -0.035em; }
+.personal-station-copy span { margin-top: 8px; color: #8b868c; font-size: 10px; }
+.personal-station-action { display: flex; align-items: center; flex-direction: column; gap: 7px; }
+.personal-station-action b { color: #8d878d; font-size: 7px; font-weight: 760; white-space: nowrap; }
+.personal-station-play { display: grid; width: 48px; aspect-ratio: 1; place-items: center; padding-left: 3px; color: #fff; border-radius: 50%; background: #29272d; box-shadow: 0 10px 25px rgba(56, 42, 46, 0.19); font-size: 12px; font-style: normal; transition: transform 220ms ease, background 220ms ease; }
+.personal-station-feature:hover .personal-station-cover { transform: translateY(-3px) rotate(-1deg); }
+.personal-station-feature:hover .personal-station-play { background: #e85769; transform: scale(1.06); }
+.personal-up-next { min-width: 0; padding: 13px 15px 11px; border: 1px solid rgba(75, 58, 63, 0.08); border-radius: 20px; background: rgba(255, 255, 255, 0.58); box-shadow: 0 13px 30px rgba(67, 50, 55, 0.06); backdrop-filter: blur(16px); }
+.personal-up-next > p { margin: 0 0 4px 5px; color: #918b91; font-size: 8px; font-weight: 800; letter-spacing: 0.12em; }
+.personal-up-next-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.personal-up-next button { display: grid; min-width: 0; align-items: center; grid-template-columns: 22px minmax(0, 1fr) 13px; gap: 7px; padding: 10px 9px; text-align: left; color: #29272d; border: 0; border-left: 1px solid rgba(69, 54, 58, 0.08); background: transparent; }
+.personal-up-next button:first-child { border-left: 0; }
+.personal-up-next button > span:first-child { color: #e85769; font-size: 8px; font-weight: 850; }
+.personal-up-next button > span:nth-child(2),
+.personal-up-next strong,
+.personal-up-next small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-up-next strong { font-size: 9px; font-weight: 790; }
+.personal-up-next small { margin-top: 4px; color: #999399; font-size: 7px; }
+.personal-up-next button > i { color: #aaa4aa; font-size: 10px; font-style: normal; }
+.personal-station-empty { display: grid; min-height: 112px; place-items: center; color: #918b91; font-size: 10px; }
+
+.lofi-resume { position: relative; display: grid; min-height: 228px; overflow: hidden; align-items: center; grid-template-columns: minmax(0, 1.28fr) minmax(350px, 0.72fr); gap: 34px; margin-top: 18px; padding: 28px 32px; color: #fff; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 30px; background: #3e3b3f; box-shadow: 0 20px 58px rgba(45, 36, 35, 0.15); isolation: isolate; }
+.lofi-resume::after { position: absolute; inset: 0; z-index: 1; opacity: 0.2; background-image: linear-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.11) 1px, transparent 1px); background-size: 9px 9px; content: ''; mix-blend-mode: soft-light; pointer-events: none; }
+.lofi-resume-backdrop { position: absolute !important; inset: 0; z-index: 0; width: 100% !important; height: 100% !important; filter: saturate(0.78) contrast(1.08) brightness(0.72); image-rendering: pixelated; }
+.lofi-resume-backdrop :deep(> div),
+.lofi-resume-backdrop :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; image-rendering: pixelated; }
+.lofi-resume-haze { position: absolute; inset: 0; z-index: 1; background: linear-gradient(105deg, rgba(27, 25, 29, 0.42), rgba(47, 42, 45, 0.13)), linear-gradient(0deg, rgba(20, 18, 22, 0.34), transparent 72%); pointer-events: none; }
+.lofi-resume-primary { position: relative; z-index: 2; display: grid; min-width: 0; align-items: center; grid-template-columns: 138px minmax(0, 1fr) 58px; gap: 22px; }
+.lofi-resume-cover { position: relative; display: block; width: 138px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 25px; background: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 42px rgba(10, 9, 12, 0.32); }
+.lofi-resume-cover :deep(> div),
+.lofi-resume-cover :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.lofi-resume-cover > i { position: absolute; top: 50%; left: 50%; width: 18px; aspect-ratio: 1; border: 5px solid rgba(255, 255, 255, 0.22); border-radius: 50%; box-shadow: 0 0 0 1px rgba(20, 18, 22, 0.14); transform: translate(-50%, -50%); }
+.lofi-resume-copy { min-width: 0; }
+.lofi-resume-copy small,
+.lofi-resume-copy strong,
+.lofi-resume-copy em,
+.lofi-resume-copy b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lofi-resume-copy small { color: #ffb3bd; font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
+.lofi-resume-copy h2 { margin: 8px 0 0; font-size: 30px; font-weight: 920; letter-spacing: -0.05em; }
+.lofi-resume-copy strong { margin-top: 10px; font-size: 13px; font-weight: 820; }
+.lofi-resume-copy em { margin-top: 5px; color: rgba(255, 255, 255, 0.58); font-size: 9px; font-style: normal; }
+.lofi-resume-copy b { margin-top: 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 650; }
+.lofi-progress { display: block; height: 3px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.18); }
+.lofi-progress i { display: block; height: 100%; border-radius: inherit; background: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, 0.55); }
+.lofi-resume-play { display: grid; width: 58px; aspect-ratio: 1; place-items: center; padding: 0; color: #302d31; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 12px 30px rgba(10, 9, 12, 0.2); font-size: 14px; font-weight: 850; backdrop-filter: blur(12px); transition: transform 220ms ease, background 220ms ease; }
+.lofi-resume-play:hover { background: #fff; transform: scale(1.06); }
+.lofi-resume-next { position: relative; z-index: 2; align-self: stretch; padding-left: 32px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
+.lofi-resume-next > p { margin: 2px 0 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 850; letter-spacing: 0.16em; }
+.lofi-resume-next button { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 24px minmax(0, 1fr) minmax(60px, auto) 18px; gap: 8px; padding: 10px 2px; text-align: left; color: #fff; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); background: transparent; }
+.lofi-resume-next button > span { color: #ffb3bd; font-size: 7px; font-weight: 850; }
+.lofi-resume-next strong,
+.lofi-resume-next small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lofi-resume-next strong { font-size: 9px; font-weight: 760; }
+.lofi-resume-next small { color: rgba(255, 255, 255, 0.45); font-size: 7px; }
+.lofi-resume-next button > i { color: rgba(255, 255, 255, 0.68); font-size: 7px; font-style: normal; }
+.lofi-resume-empty { grid-template-columns: 1fr; place-items: center; text-align: center; background: linear-gradient(135deg, #4e4a50, #29272c); }
+.lofi-resume-empty > div:last-child { position: relative; z-index: 2; }
+.lofi-resume-empty small { color: #ffb3bd; font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
+.lofi-resume-empty h2 { margin: 10px 0 0; font-size: 24px; }
+
+.personal-section { margin-top: 94px; }
+.personal-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.personal-section-heading p { margin: 0 0 8px; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.2em; }
+.personal-section-heading h2 { margin: 0; font-size: clamp(36px, 4vw, 52px); font-weight: 920; letter-spacing: -0.055em; line-height: 1; }
+.personal-section-heading > span { max-width: 390px; color: #929298; font-size: 11px; line-height: 1.6; }
+.personal-section-heading > button { padding: 10px 15px; color: #65656b; border: 1px solid rgba(41, 40, 44, 0.08); border-radius: 999px; background: #fff; font-size: 9px; font-weight: 780; }
+.personal-scene-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.personal-scene-grid > button { position: relative; display: grid; min-height: 230px; overflow: hidden; align-content: space-between; padding: 19px; text-align: left; color: #fff; border: 0; border-radius: 27px; isolation: isolate; transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 320ms ease; }
+.personal-scene-grid > button:hover { box-shadow: 0 24px 50px rgba(43, 35, 34, 0.16); transform: translateY(-7px); }
+.scene-familiar { background: linear-gradient(145deg, #655058, #352f35); }
+.scene-explore { background: linear-gradient(145deg, #e16d7b, #b34f62); }
+.scene-focus { background: linear-gradient(145deg, #66839b, #344a5c); }
+.scene-exercise { background: linear-gradient(145deg, #d69a58, #9a6537); }
+.scene-night { background: linear-gradient(145deg, #514f79, #292941); }
+.personal-scene-index { color: rgba(255, 255, 255, 0.56); font-size: 8px; font-weight: 850; }
+.personal-scene-icon { position: absolute; top: 40px; right: -14px; z-index: -1; color: rgba(255, 255, 255, 0.11); font-size: 130px; font-weight: 300; line-height: 1; }
+.personal-scene-copy strong,
+.personal-scene-copy small { display: block; }
+.personal-scene-copy strong { font-size: 20px; font-weight: 880; letter-spacing: -0.03em; }
+.personal-scene-copy small { margin-top: 7px; color: rgba(255, 255, 255, 0.63); font-size: 9px; line-height: 1.5; }
+.personal-scene-grid > button > i { position: absolute; top: 18px; right: 18px; color: rgba(255, 255, 255, 0.75); font-size: 14px; font-style: normal; }
+.personal-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: personal-spin 700ms linear infinite; }
+
+.personal-daily-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.5fr); gap: 18px; }
+.personal-song-panel { padding: 18px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 32px; background: rgba(255, 255, 255, 0.68); box-shadow: 0 22px 58px rgba(49, 41, 38, 0.06); }
+.personal-song-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; }
+.personal-taste-card { padding: 30px 26px; color: #fff; border-radius: 32px; background: #29282c; box-shadow: 0 22px 58px rgba(38, 32, 31, 0.17); }
+.personal-taste-card > p { margin: 0; color: #ff8d9b; font-size: 8px; font-weight: 900; letter-spacing: 0.2em; }
+.personal-taste-card h3 { margin: 17px 0 0; font-size: 26px; font-weight: 900; letter-spacing: -0.045em; }
+.personal-taste-card > span { display: block; margin-top: 10px; color: rgba(255, 255, 255, 0.55); font-size: 9px; line-height: 1.65; }
+.personal-taste-list { margin-top: 24px; }
+.personal-taste-list button { display: grid; width: 100%; align-items: center; grid-template-columns: 24px minmax(0, 1fr) auto 16px; gap: 8px; padding: 12px 0; text-align: left; color: #fff; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.09); background: transparent; }
+.personal-taste-list button > span { color: #ff8d9b; font-size: 7px; font-weight: 850; }
+.personal-taste-list strong { overflow: hidden; font-size: 11px; font-weight: 790; text-overflow: ellipsis; white-space: nowrap; }
+.personal-taste-list small { color: rgba(255, 255, 255, 0.38); font-size: 7px; letter-spacing: 0.08em; }
+.personal-taste-list i { color: rgba(255, 255, 255, 0.55); font-size: 11px; font-style: normal; }
+.personal-login-link { margin-top: 17px; padding: 10px 13px; color: #29282c; border: 0; border-radius: 999px; background: #fff; font-size: 8px; font-weight: 780; }
+
+.personal-playlist-grid,
+.personal-playlist-skeleton { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.personal-playlist-skeleton span { aspect-ratio: 1 / 1.18; border-radius: 24px; background: #e8e8e9; animation: personal-pulse 1.3s ease-in-out infinite; }
+.personal-song-skeleton { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.personal-song-skeleton span { height: 74px; border-radius: 18px; background: #ededee; animation: personal-pulse 1.3s ease-in-out infinite; }
+.personal-empty { display: grid; min-height: 280px; place-items: center; color: #99999f; font-size: 10px; }
+.personal-collection-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.personal-collection-list > button { display: grid; min-width: 0; align-items: center; grid-template-columns: 82px minmax(0, 1fr) 20px; gap: 14px; padding: 10px; text-align: left; border: 1px solid rgba(41, 40, 44, 0.06); border-radius: 22px; background: rgba(255, 255, 255, 0.7); }
+.personal-collection-list :deep(img) { width: 82px; aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
+.personal-collection-list button > span { min-width: 0; }
+.personal-collection-list small,
+.personal-collection-list strong,
+.personal-collection-list i { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-collection-list small { color: #e85769; font-size: 7px; font-weight: 850; letter-spacing: 0.1em; }
+.personal-collection-list strong { margin-top: 6px; font-size: 11px; font-weight: 820; }
+.personal-collection-list i { margin-top: 5px; color: #a1a1a7; font-size: 8px; font-style: normal; }
+.personal-collection-list b { color: #aaaab0; font-size: 12px; }
+.personal-load-note { margin: 36px 0 0; color: #b46973; text-align: center; font-size: 9px; }
+.personal-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 110px; padding: 26px 0 90px; border-top: 1px solid rgba(41, 40, 44, 0.08); }
+.personal-footer div { display: flex; align-items: center; gap: 14px; }
+.personal-footer strong { font-size: 13px; font-weight: 900; letter-spacing: 0.18em; }
+.personal-footer span { color: #a1a1a7; font-size: 9px; }
+.personal-footer button { padding: 0; color: #797980; border: 0; background: transparent; font-size: 9px; font-weight: 760; }
+
+@keyframes personal-spin { to { transform: rotate(360deg); } }
+@keyframes personal-pulse { 50% { opacity: 0.48; } }
 
 @media (max-width: 1080px) {
-  .home-lobby { grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.8fr); }
-  .playlist-strip,
-  .playlist-skeleton { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .playlist-strip > :nth-child(5),
-  .playlist-skeleton > :nth-child(5) { display: none; }
-  .discovery-studio { padding-inline: 4px; }
-  .discovery-intro { grid-template-columns: minmax(210px, 0.62fr) minmax(240px, 1fr) auto; gap: 8px 24px; }
-  .discovery-tabs button { padding-inline: 10px; }
-  .continue-list :deep(.song-row-compact) { grid-template-columns: 42px minmax(0, 1fr) 32px; padding-block: 5px; }
-  .continue-list :deep(.song-row-compact .song-cover) { width: 42px; border-radius: 11px; }
-  .continue-list :deep(.song-row-compact .song-play) { width: 28px; }
-  .podcast-list button { grid-template-columns: 18px 76px minmax(0, 1fr) 16px; gap: 9px; }
-  .podcast-cover { width: 76px; }
+  .personal-station-content { grid-template-columns: 1fr; gap: 18px; }
+  .personal-up-next { width: min(100%, 680px); box-sizing: border-box; }
+  .personal-scene-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 820px) {
-  .home-search { width: 42px; height: 42px; grid-template-columns: 1fr; place-items: center; justify-self: end; padding: 0; border-radius: 50%; }
-  .home-search input { position: absolute; width: 1px; opacity: 0; pointer-events: none; }
-  .home-search kbd { display: none; }
-  .home-search.is-focused { width: 100%; min-width: 150px; grid-template-columns: 18px minmax(0, 1fr) auto; place-items: stretch; padding: 0 12px; border-radius: 15px; }
-  .home-search.is-focused svg { align-self: center; }
-  .home-search.is-focused input { position: static; width: auto; opacity: 1; pointer-events: auto; }
-  .home-search-clear { align-self: center; }
-  .home-search-popover { position: fixed; top: 66px; right: 10px; left: 10px; width: auto; max-height: min(64vh, 560px); border-radius: 20px; transform: none; }
-  .home-search-pop-enter-from,
-  .home-search-pop-leave-to { transform: translateY(-10px) scale(0.975); }
-  .home-main { padding: 22px 18px 140px; }
-  .home-lobby { grid-template-columns: 1fr; }
-  .home-hero-card { min-height: 480px; }
-  .continue-panel { min-height: auto; }
-  .playlist-strip,
-  .playlist-skeleton { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .playlist-strip > :nth-child(4),
-  .playlist-skeleton > :nth-child(4) { display: none; }
-  .discovery-intro { grid-template-columns: 1fr; grid-template-rows: auto; gap: 10px; }
-  .discovery-intro .section-sequence,
-  .discovery-intro h2,
-  .discovery-intro > p,
-  .discovery-tabs { grid-column: 1; grid-row: auto; }
-  .discovery-intro > p { max-width: 470px; margin-top: 4px; }
-  .discovery-tabs { width: max-content; max-width: 100%; margin-top: 12px; }
-  .rank-card { grid-template-columns: 28px 62px minmax(100px, 0.35fr) minmax(0, 1fr) 18px; gap: 10px; }
-  .rank-cover { width: 62px; }
-  .rank-tracks { gap: 8px; padding-left: 12px; }
-  .artist-showcase { height: 100%; margin-right: -12px; overflow-x: auto; grid-auto-columns: 76%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 12px; scrollbar-width: none; }
-  .artist-showcase::-webkit-scrollbar { display: none; }
-  .artist-directory { display: contents; }
-  .artist-directory-card { position: relative; display: block; overflow: hidden; padding: 0; border: 0; border-radius: 22px; background: #27272a; box-shadow: 0 12px 26px rgba(24, 24, 27, 0.12); isolation: isolate; }
-  .artist-directory-card::after { position: absolute; inset: 0; z-index: 1; background: linear-gradient(0deg, rgba(13, 13, 16, 0.88), rgba(13, 13, 16, 0.03) 72%); content: ''; pointer-events: none; }
-  .artist-directory-card:hover { background: #27272a; transform: none; }
-  .artist-directory-cover { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
-  .artist-directory-index { position: absolute; top: 17px; left: 18px; z-index: 2; color: rgba(255, 255, 255, 0.72); font-size: 9px; }
-  .artist-directory-copy { position: absolute; right: 20px; bottom: 20px; left: 20px; z-index: 2; color: #fff; }
-  .artist-directory-copy strong { color: #fff; font-size: 26px; font-weight: 880; letter-spacing: -0.04em; }
-  .artist-directory-copy small { margin-top: 6px; color: #ff9d89; font-size: 8px; }
-  .artist-directory-open { position: absolute; top: 15px; right: 15px; z-index: 2; display: grid; width: 36px; aspect-ratio: 1; place-items: center; color: #27272a; border-radius: 50%; background: rgba(255, 255, 255, 0.92); font-size: 12px; }
-  .artist-skeleton { display: flex; height: 100%; gap: 9px; overflow: hidden; }
-  .artist-skeleton span,
-  .artist-skeleton span:first-child { width: 76%; height: 100%; flex: none; border-radius: 22px; }
-  .release-section { grid-template-columns: 1fr; }
-  .release-intro > p { max-width: 520px; }
-  .release-decoration { display: none; }
-  .new-song-panel,
-  .song-skeleton { grid-template-columns: 1fr; }
-  .media-section-header { grid-template-columns: 1fr; }
-  .media-section-header > p { justify-self: start; }
-  .podcast-list,
-  .podcast-skeleton { grid-template-columns: 1fr; }
-  .podcast-list button { grid-template-columns: 22px 92px minmax(0, 1fr) 20px; gap: 12px; }
-  .podcast-cover { width: 92px; }
+  .personal-main { padding: 24px 18px 130px; }
+  .home-banner-card { min-height: 480px; }
+  .personal-station-ambient { inset: -5% -25% -20% 34%; width: 92% !important; height: 130% !important; }
+  .personal-station-scrim { background: linear-gradient(90deg, #f8f5f6 0%, rgba(248, 245, 246, 0.94) 52%, rgba(248, 245, 246, 0.5) 100%), linear-gradient(0deg, rgba(255, 255, 255, 0.76), transparent 75%); }
+  .lofi-resume { grid-template-columns: 1fr; gap: 24px; }
+  .lofi-resume-next { padding: 20px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.16); border-left: 0; }
+  .personal-scene-grid { grid-template-columns: repeat(2, 1fr); }
+  .personal-daily-layout { grid-template-columns: 1fr; }
+  .personal-collection-list { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 560px) {
-  .home-main { padding-inline: 13px; }
-  .home-hero-card { min-height: 510px; border-radius: 26px; }
-  .home-hero-content { padding: 25px; }
-  .home-hero-content h1 { font-size: 42px; }
-  .continue-panel { padding: 20px; border-radius: 26px; }
-  .category-rail { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-  .category-rail::-webkit-scrollbar { display: none; }
-  .category-rail button { flex: none; }
-  .home-section { margin-top: 70px; }
-  .playlist-strip,
-  .playlist-skeleton { display: grid; margin-right: -13px; overflow-x: auto; grid-auto-columns: 72vw; grid-auto-flow: column; grid-template-columns: none; padding-right: 13px; padding-bottom: 14px; scrollbar-width: none; }
-  .playlist-strip > :nth-child(n),
-  .playlist-skeleton > :nth-child(n) { display: block; }
-  .playlist-strip::-webkit-scrollbar,
-  .playlist-skeleton::-webkit-scrollbar { display: none; }
-  .discovery-studio { padding-inline: 0; }
-  .discovery-intro { padding-inline: 6px; }
-  .discovery-intro h2 { margin-top: 21px; font-size: 40px; }
-  .discovery-tabs { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; }
-  .discovery-tabs button { width: 100%; justify-content: center; padding: 0 5px; text-align: center; font-size: 10px; }
-  .discovery-tabs button span { display: none; }
-  .discovery-stage { height: auto; min-height: 0; margin-top: 18px; padding: 9px; border-radius: 22px; }
-  .discovery-content { height: auto; min-height: 0; }
-  .discovery-playlists { height: 300px; margin-right: -9px; overflow-x: auto; grid-auto-columns: 78%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 9px; scrollbar-width: none; }
-  .discovery-playlists::-webkit-scrollbar { display: none; }
-  .discovery-playlist-tile.is-featured { grid-column: auto; grid-row: auto; border-radius: 18px; }
-  .discovery-playlist-tile.is-featured .discovery-playlist-tile-copy { right: 18px; bottom: 17px; left: 18px; }
-  .discovery-playlist-tile.is-featured .discovery-playlist-tile-copy strong { font-size: 23px; }
-  .row-skeleton { height: 300px; overflow: hidden; grid-auto-columns: 78%; grid-auto-flow: column; grid-template-columns: none; }
-  .rank-grid { height: auto; min-height: 0; grid-template-rows: none; }
-  .rank-card { grid-template-columns: 24px 54px minmax(0, 1fr) 18px; gap: 8px; padding: 10px 8px; }
-  .rank-cover { width: 54px; border-radius: 12px; }
-  .rank-tracks { grid-column: 2 / -1; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 9px 0 0; border-top: 1px solid rgba(24, 24, 27, 0.06); border-left: 0; }
-  .rank-tracks > :nth-child(n + 3) { display: none; }
-  .rank-open { grid-column: 4; grid-row: 1; }
-  .artist-showcase,
-  .artist-skeleton { height: 300px; }
-  .release-section { padding: 26px 14px 14px; border-radius: 27px; }
-  .release-intro { padding-inline: 9px; }
-  .release-intro h2 { margin-top: 21px; font-size: 40px; }
-  .release-play-all { margin-top: 23px; }
-  .new-song-panel { padding: 8px; border-radius: 22px; }
-  .media-section-header h2 { font-size: 40px; }
-  .mv-showcase,
-  .podcast-showcase { padding: 20px 14px; border-radius: 27px; }
-  .media-subheading > p { display: none; }
-  .mv-grid { display: grid; height: 305px; min-height: 0; margin-right: -14px; overflow-x: auto; grid-auto-columns: 82%; grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 1fr; padding-right: 14px; padding-bottom: 8px; scrollbar-width: none; }
-  .mv-card-featured { grid-row: auto; }
-  .mv-card-featured .mv-card-copy { right: 65px; bottom: 17px; left: 18px; }
-  .mv-card-featured .mv-card-copy strong { margin-top: 5px; font-size: 20px; }
-  .mv-card-featured .mv-cover > i { right: 17px; bottom: 17px; width: 38px; }
-  .mv-grid::-webkit-scrollbar { display: none; }
-  .podcast-list button { grid-template-columns: 18px 76px minmax(0, 1fr) 18px; gap: 9px; padding: 9px; border-radius: 18px; }
-  .podcast-cover { width: 76px; border-radius: 14px; }
-  .media-skeleton { height: 305px; grid-template-columns: 1fr; }
-  .media-skeleton span:not(:first-child) { display: none; }
-  .home-footer { align-items: start; flex-direction: column; margin-top: 70px; }
-  .home-footer div { align-items: start; flex-direction: column; gap: 7px; }
+  .personal-main { padding: 13px 13px 115px; }
+  .home-banner-card { min-height: 510px; border-radius: 26px; }
+  .home-banner-content { padding: 25px; }
+  .home-banner-card h1 { font-size: 42px; }
+  .personal-now-card { min-height: 0; padding: 23px 18px 20px; border-radius: 26px; }
+  .personal-now-heading h2 { font-size: 24px; }
+  .personal-now-heading > span { padding: 7px 9px; font-size: 7px; }
+  .personal-station-content { margin-top: 24px; }
+  .personal-station-feature { grid-template-columns: 84px minmax(0, 1fr) 42px; gap: 13px; }
+  .personal-station-cover { width: 84px; border-radius: 18px; }
+  .personal-station-copy strong { font-size: 17px; }
+  .personal-station-action b { display: none; }
+  .personal-station-play { width: 42px; }
+  .personal-up-next { overflow-x: auto; padding: 11px 9px; scrollbar-width: none; }
+  .personal-up-next-list { display: flex; }
+  .personal-up-next button { width: 175px; flex: none; }
+  .lofi-resume { min-height: 0; gap: 20px; padding: 20px 17px; border-radius: 24px; }
+  .lofi-resume-primary { grid-template-columns: 88px minmax(0, 1fr) 44px; gap: 13px; }
+  .lofi-resume-cover { width: 88px; border-radius: 19px; }
+  .lofi-resume-cover > i { width: 12px; border-width: 3px; }
+  .lofi-resume-copy h2 { font-size: 25px; }
+  .lofi-resume-copy strong { margin-top: 7px; font-size: 11px; }
+  .lofi-progress { margin-top: 11px; }
+  .lofi-resume-play { width: 44px; font-size: 11px; }
+  .lofi-resume-next { padding-top: 16px; }
+  .lofi-resume-next button { grid-template-columns: 22px minmax(0, 1fr) 16px; }
+  .lofi-resume-next button > small { display: none; }
+  .lofi-resume-next button:nth-of-type(n + 3) { display: none; }
+  .personal-section { margin-top: 70px; }
+  .personal-section-heading { align-items: start; flex-direction: column; }
+  .personal-section-heading h2 { font-size: 39px; }
+  .personal-scene-grid { display: flex; margin-right: -13px; overflow-x: auto; gap: 9px; padding-right: 13px; padding-bottom: 12px; scrollbar-width: none; }
+  .personal-scene-grid > button { width: 66vw; min-height: 218px; flex: none; }
+  .personal-song-panel { padding: 9px 3px; border-radius: 25px; }
+  .personal-song-grid,
+  .personal-song-skeleton { grid-template-columns: 1fr; }
+  .personal-taste-card { padding: 25px 21px; border-radius: 27px; }
+  .personal-playlist-grid,
+  .personal-playlist-skeleton { display: flex; margin-right: -13px; overflow-x: auto; gap: 14px; padding-right: 13px; padding-bottom: 13px; scrollbar-width: none; }
+  .personal-playlist-grid :deep(.playlist-card),
+  .personal-playlist-skeleton span { display: block !important; width: 66vw; flex: none; }
+  .personal-collection-list { grid-template-columns: 1fr; }
+  .personal-footer,
+  .personal-footer div { align-items: start; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
-}
-
-@supports (content-visibility: auto) {
-  .home-section { content-visibility: auto; contain-intrinsic-size: 1px 620px; }
+  *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
 </style>
