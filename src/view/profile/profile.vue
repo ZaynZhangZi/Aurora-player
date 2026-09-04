@@ -183,7 +183,7 @@
                 :disabled="cloudUploading || Boolean(cloudDeletingId)"
                 @click="uploadCloudSong"
               >
-                {{ cloudUploading ? '分片编译中...' : '确认部署上传' }}
+                {{ cloudUploading ? (cloudUploadProgress ? `正在上传 ${cloudUploadProgress}%` : '准备上传...') : '确认部署上传' }}
               </button>
             </div>
           </div>
@@ -242,7 +242,7 @@
                       title="删除歌曲"
                       :disabled="Boolean(cloudDeletingId)"
                       :aria-busy="cloudDeletingId === Number(item.songId)"
-                      @click.stop="deleteCloudSong(item)"
+                      @click.stop="openCloudDeleteDialog(item)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/></svg>
                     </button>
@@ -422,6 +422,39 @@
         </section>
       </div>
     </Transition>
+
+    <Transition name="profile-logout-dialog">
+      <div
+        v-if="cloudDeleteTarget"
+        class="profile-logout-layer profile-cloud-delete-layer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-cloud-delete-title"
+        @keydown.esc="closeCloudDeleteDialog"
+      >
+        <button class="profile-logout-backdrop" type="button" aria-label="取消删除" @click="closeCloudDeleteDialog" />
+        <section class="profile-logout-panel">
+          <span class="profile-logout-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 7h16" />
+              <path d="M9 7V4h6v3" />
+              <path d="m7 7 1 13h8l1-13" />
+              <path d="M10 11v5M14 11v5" />
+            </svg>
+          </span>
+          <p>REMOVE FROM CLOUD</p>
+          <h2 id="profile-cloud-delete-title">删除这首歌曲吗？</h2>
+          <span class="profile-logout-description">《{{ cloudDeleteTarget.songName }}》将从音乐云盘中移除，此操作无法撤销。</span>
+          <span v-if="cloudDeleteError" class="profile-logout-error">{{ cloudDeleteError }}</span>
+          <div class="profile-logout-actions">
+            <button type="button" :disabled="Boolean(cloudDeletingId)" @click="closeCloudDeleteDialog">暂不删除</button>
+            <button class="is-confirm is-danger" type="button" :disabled="Boolean(cloudDeletingId)" @click="confirmCloudDelete">
+              {{ cloudDeletingId ? '正在删除...' : '确认删除' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 <script setup>
@@ -482,8 +515,11 @@ const cloudDetails = ref({})
 const activeCloudDetailId = ref(null)
 const cloudUploadFile = ref(null)
 const cloudUploading = ref(false)
+const cloudUploadProgress = ref(0)
 const cloudUploadMessage = ref('')
 const cloudFileInputKey = ref(0)
+const cloudDeleteTarget = ref(null)
+const cloudDeleteError = ref('')
 const cloudRowRefs = new Map()
 let cloudDeleteEffectController = null
 let profileUnmounted = false
@@ -1593,6 +1629,7 @@ function onCloudFileChange(event) {
   if (!(target instanceof HTMLInputElement)) return
   const file = target.files?.[0] || null
   cloudUploadFile.value = file
+  cloudUploadProgress.value = 0
   cloudUploadMessage.value = file ? `已选择 ${file.name}` : ''
 }
 
@@ -1600,17 +1637,27 @@ async function uploadCloudSong() {
   if (!cloudUploadFile.value || cloudUploading.value || cloudDeletingId.value) return
 
   cloudUploading.value = true
+  cloudUploadProgress.value = 0
   cloudUploadMessage.value = ''
   try {
-    await userApi.uploadCloudSong(cloudUploadFile.value)
+    await userApi.uploadCloudSong(cloudUploadFile.value, {
+      onUploadProgress(event) {
+        const total = Number(event?.total || 0)
+        if (!total) return
+        cloudUploadProgress.value = Math.min(99, Math.round((Number(event.loaded || 0) / total) * 100))
+      },
+    })
+    cloudUploadProgress.value = 100
     cloudUploadMessage.value = '上传成功'
     cloudUploadFile.value = null
     cloudFileInputKey.value += 1
     await loadCloudSongs(1)
   } catch (err) {
-    cloudUploadMessage.value = err?.message || '上传失败'
+    const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''))
+    cloudUploadMessage.value = isTimeout ? '上传等待时间过长，请检查网络后重试' : (err?.message || '上传失败')
   } finally {
     cloudUploading.value = false
+    cloudUploadProgress.value = 0
   }
 }
 
@@ -1644,13 +1691,30 @@ async function toggleCloudDetail(item) {
   }
 }
 
+function openCloudDeleteDialog(item) {
+  const sid = Number(item?.songId || 0)
+  if (!sid || cloudDeletingId.value) return
+  cloudDeleteError.value = ''
+  cloudDeleteTarget.value = item
+}
+
+function closeCloudDeleteDialog() {
+  if (cloudDeletingId.value) return
+  cloudDeleteTarget.value = null
+  cloudDeleteError.value = ''
+}
+
+async function confirmCloudDelete() {
+  if (!cloudDeleteTarget.value || cloudDeletingId.value) return
+  await deleteCloudSong(cloudDeleteTarget.value)
+}
+
 async function deleteCloudSong(item) {
   const sid = Number(item?.songId || 0)
   if (!sid || cloudDeletingId.value) return
-  if (!window.confirm(`确定删除云盘歌曲《${item.songName}》吗？`)) return
 
   cloudDeletingId.value = sid
-  cloudError.value = ''
+  cloudDeleteError.value = ''
   let effectController = null
   try {
     await userApi.deleteUserCloudSong(String(sid))
@@ -1701,8 +1765,9 @@ async function deleteCloudSong(item) {
         // 列表已完成本地收尾，粒子尾段失败无需回滚删除结果。
       }
     }
+    cloudDeleteTarget.value = null
   } catch (err) {
-    cloudError.value = err?.message || '云盘歌曲删除失败'
+    cloudDeleteError.value = err?.message || '云盘歌曲删除失败'
   } finally {
     if (cloudDeleteEffectController === effectController) {
       cloudDeleteEffectController = null
@@ -2050,6 +2115,7 @@ watch(
 .profile-logout-actions button { height: 43px; cursor: pointer; color: #625e64; border: 1px solid rgba(43, 41, 45, 0.08); border-radius: 14px; background: #eeece9; font: inherit; font-size: 11px; font-weight: 760; transition: transform 170ms ease, box-shadow 170ms ease; }
 .profile-logout-actions button:hover:not(:disabled) { transform: translateY(-1px); }
 .profile-logout-actions button.is-confirm { color: #fff; border-color: transparent; background: #2d2b2f; box-shadow: 0 10px 22px rgba(43, 41, 45, 0.16); }
+.profile-logout-actions button.is-confirm.is-danger { background: #c95664; box-shadow: 0 10px 22px rgba(169, 64, 76, 0.2); }
 .profile-logout-actions button:disabled { cursor: wait; opacity: 0.58; }
 .profile-logout-dialog-enter-active,
 .profile-logout-dialog-leave-active { transition: opacity 220ms ease; }

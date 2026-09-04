@@ -334,13 +334,16 @@ export const userApi={
     },
 
     //云盘上传
-    uploadCloudSong(songFile) {
+    uploadCloudSong(songFile, {onUploadProgress} = {}) {
         const formData = new FormData()
         formData.append('songFile', songFile)
         return apiClient.post('/cloud', formData, {
+            // 音频文件上传不能沿用普通接口的 10 秒超时。
+            timeout: Number(import.meta.env.VITE_CLOUD_UPLOAD_TIMEOUT || 10 * 60 * 1000),
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
+            onUploadProgress,
         })
     },
 
