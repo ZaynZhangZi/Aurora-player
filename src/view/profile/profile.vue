@@ -210,7 +210,6 @@
               <article
                 v-for="(item, index) in cloudSongs"
                 :key="`cloud-${item.songId}`"
-                :ref="element => setCloudRowRef(item.songId, element)"
                 class="profile-cloud-row group"
                 :class="{ 'is-playing': cloudPlayingId === Number(item.songId) }"
               >
@@ -467,7 +466,6 @@ import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
-import {dissolveElement} from '@/utils/particleDissolve.js'
 import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 
@@ -520,8 +518,6 @@ const cloudUploadMessage = ref('')
 const cloudFileInputKey = ref(0)
 const cloudDeleteTarget = ref(null)
 const cloudDeleteError = ref('')
-const cloudRowRefs = new Map()
-let cloudDeleteEffectController = null
 let profileUnmounted = false
 const listeningLoading = ref(false)
 const listeningError = ref('')
@@ -688,17 +684,6 @@ const profilePageStyle = computed(() => ({
   '--profile-hero-wash-rgb': avatarPalette.value.heroWash,
   '--profile-canvas-opacity': avatarPalette.value.canvasOpacity,
 }))
-
-function setCloudRowRef(songId, element) {
-  const sid = Number(songId || 0)
-  if (!sid) return
-  if (element) cloudRowRefs.set(sid, element)
-  else cloudRowRefs.delete(sid)
-}
-
-function prefersReducedMotion() {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-}
 
 const LISTENING_BUCKET_META = {
   mellow: {label: '轻松治愈', color: '#F59E0B'},
@@ -1713,65 +1698,39 @@ async function deleteCloudSong(item) {
   const sid = Number(item?.songId || 0)
   if (!sid || cloudDeletingId.value) return
 
+  const rowIndex = cloudSongs.value.findIndex(song => Number(song?.songId || 0) === sid)
+  if (rowIndex < 0) return
+  const removedSong = cloudSongs.value[rowIndex]
+
   cloudDeletingId.value = sid
   cloudDeleteError.value = ''
-  let effectController = null
+  cloudDeleteTarget.value = null
+  cloudSongs.value.splice(rowIndex, 1)
+
+  if (activeCloudDetailId.value === sid) activeCloudDetailId.value = null
+  await nextTick()
+
   try {
     await userApi.deleteUserCloudSong(String(sid))
     if (profileUnmounted) return
 
-    const row = cloudRowRefs.get(sid)
-    let dissolveEffect = null
-    if (row?.isConnected && !prefersReducedMotion()) {
-      effectController = new AbortController()
-      cloudDeleteEffectController = effectController
-      try {
-        dissolveEffect = dissolveElement(row, {
-          preset: 'harmony-row',
-          duration: 520,
-          particleCount: 52,
-          direction: 'right',
-          colors: ['rgba(255, 255, 255, 0.88)', '#D9DEE7', '#BCC5D1', '#9EAABA'],
-          signal: effectController.signal,
-        })
-        await (dissolveEffect.layoutReady || Promise.resolve())
-      } catch {
-        // 删除已在服务端完成，动画失败不应阻断本地列表收尾。
-      }
-    }
-
-    if (profileUnmounted) return
-
-    const rowIndex = cloudSongs.value.findIndex(song => Number(song?.songId || 0) === sid)
-    if (rowIndex >= 0) cloudSongs.value.splice(rowIndex, 1)
-    cloudRowRefs.delete(sid)
-
-    if (activeCloudDetailId.value === sid) activeCloudDetailId.value = null
     const nextDetails = {...cloudDetails.value}
     delete nextDetails[sid]
     cloudDetails.value = nextDetails
 
-    await nextTick()
-    if (!profileUnmounted) {
-      await loadCloudSongs(cloudPage.value, {
+    if (!cloudSongs.value.length && cloudPage.value > 1) {
+      await loadCloudSongs(cloudPage.value - 1, {
         allowDuringDelete: true,
         silent: true,
       })
     }
-    if (dissolveEffect) {
-      try {
-        await dissolveEffect
-      } catch {
-        // 列表已完成本地收尾，粒子尾段失败无需回滚删除结果。
-      }
-    }
-    cloudDeleteTarget.value = null
   } catch (err) {
+    if (profileUnmounted) return
+    cloudSongs.value.splice(Math.min(rowIndex, cloudSongs.value.length), 0, removedSong)
+    await nextTick()
+    cloudDeleteTarget.value = removedSong
     cloudDeleteError.value = err?.message || '云盘歌曲删除失败'
   } finally {
-    if (cloudDeleteEffectController === effectController) {
-      cloudDeleteEffectController = null
-    }
     cloudDeletingId.value = null
   }
 }
@@ -1874,8 +1833,6 @@ onDeactivated(() => {
 
 onBeforeUnmount(() => {
   profileUnmounted = true
-  cloudDeleteEffectController?.abort()
-  cloudDeleteEffectController = null
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
@@ -1890,7 +1847,6 @@ onBeforeUnmount(() => {
     heroVisibilityObserver = null
   }
   heroCanvasContext = null
-  cloudRowRefs.clear()
 })
 
 watch(
@@ -2336,20 +2292,28 @@ watch(
 
 .cloud-row-leave-active {
   position: absolute;
-  left: 4px;
-  right: 4px;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  overflow: hidden;
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transform-origin: center right;
+  transition: opacity 180ms ease, transform 260ms cubic-bezier(0.4, 0, 0.2, 1), filter 220ms ease;
 }
 
-.cloud-row-enter-from,
-.cloud-row-leave-to {
+.cloud-row-enter-from {
   opacity: 0;
   transform: translateY(6px) scale(0.99);
 }
 
+.cloud-row-leave-to {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateX(24px) scale(0.985);
+}
+
 .cloud-row-move {
-  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2537,7 +2501,7 @@ watch(
 .profile-cloud-table-head,
 .profile-cloud-row-main { display: grid; grid-template-columns: minmax(0, 1fr) 100px 130px 90px; align-items: center; gap: 16px; }
 .profile-cloud-table-head { padding: 0 18px 10px; color: #a1a6a3; font-size: 9px; font-weight: 760; letter-spacing: 0.06em; }
-.profile-cloud-list { border-radius: 18px; background: rgba(255, 255, 255, 0.5); }
+.profile-cloud-list { position: relative; border-radius: 18px; background: rgba(255, 255, 255, 0.5); }
 .profile-cloud-row { padding: 0; }
 .profile-cloud-row-main { min-height: 76px; padding: 10px 16px; cursor: pointer; transition: background 180ms ease; }
 .profile-cloud-row-main:hover { background: rgba(var(--profile-primary-rgb), 0.04); }
