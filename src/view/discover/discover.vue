@@ -35,7 +35,100 @@
         </button>
       </nav>
 
-      <section v-if="activeTab === 'styles'" key="styles" class="browse-section">
+      <div class="browse-tab-stage">
+        <Transition name="browse-tab-content">
+          <section v-if="activeTab === 'featured'" key="featured" class="browse-section featured-dashboard">
+        <header class="section-heading featured-heading">
+          <div><p>DISCOVER MORE</p><h2>从这里开始发现</h2></div>
+          <span>不设固定答案，从曲风、新发行和正在发生的声音里随便走走。</span>
+        </header>
+
+        <div class="quick-discovery" aria-label="快速发现">
+          <button class="quick-discovery-card is-random" type="button" @click="openRandomStyle">
+            <span>01</span><small>随机漫游</small><strong>随便逛一种曲风</strong><i>→</i>
+          </button>
+          <button class="quick-discovery-card is-release" type="button" @click="switchTab('releases')">
+            <span>02</span><small>刚刚抵达</small><strong>打开本周新发行</strong><i>→</i>
+          </button>
+          <button class="quick-discovery-card is-chart" type="button" @click="switchTab('charts')">
+            <span>03</span><small>正在发生</small><strong>看看此刻的热度</strong><i>→</i>
+          </button>
+          <button class="quick-discovery-card is-airwave" type="button" @click="openFeaturedAirwaves">
+            <span>04</span><small>听与看</small><strong>切换到影像频道</strong><i>→</i>
+          </button>
+        </div>
+
+        <section class="featured-block">
+          <header class="featured-block-heading">
+            <div><small>FRESH RELEASES</small><h3>新鲜上架</h3></div>
+            <button type="button" @click="switchTab('releases')">查看全部 <span>→</span></button>
+          </header>
+          <div v-if="featuredAlbums.length" class="featured-album-grid">
+            <button v-for="album in featuredAlbums" :key="`featured-album-${album.id}`" class="featured-album-card" type="button" @click="openAlbum(album, $event)">
+              <span data-album-hero-cover :data-album-id="album.id">
+                <SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="520" sizes="210px" />
+                <i>{{ formatReleaseDate(album.publishTime) }}</i>
+              </span>
+              <strong>{{ album.name }}</strong>
+              <small>{{ album.artistName }}</small>
+            </button>
+          </div>
+          <div v-else-if="loading.albums" class="featured-skeleton-grid is-albums"><span v-for="index in 6" :key="index" /></div>
+          <div v-else class="featured-empty"><span>新发行暂时没有抵达</span><button type="button" @click="refreshAlbums">重新加载</button></div>
+        </section>
+
+        <div class="featured-split">
+          <section class="featured-block featured-chart-block">
+            <header class="featured-block-heading">
+              <div><small>TRENDING NOW</small><h3>正在上升</h3></div>
+              <button type="button" @click="switchTab('charts')">完整榜单 <span>→</span></button>
+            </header>
+            <div v-if="featuredCharts.length" class="featured-chart-list">
+              <button v-for="(chart, index) in featuredCharts" :key="`featured-chart-${chart.id}`" type="button" @click="openPlaylist(chart, $event)">
+                <span class="featured-chart-art" data-playlist-hero-cover :data-playlist-id="chart.id"><SmartMedia :src="chart.coverImgUrl" :alt="`${chart.name}封面`" :image-width="280" sizes="92px" /></span>
+                <span class="featured-chart-index">0{{ index + 1 }}</span>
+                <span class="featured-chart-copy"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><i>{{ chart.tracks?.slice(0, 2).map(track => track.first).filter(Boolean).join(' · ') || '打开查看热门歌曲' }}</i></span>
+                <b aria-hidden="true">↗</b>
+              </button>
+            </div>
+            <div v-else-if="loading.charts" class="featured-skeleton-list"><span v-for="index in 3" :key="index" /></div>
+            <div v-else class="featured-empty"><span>趋势数据暂时不可用</span><button type="button" @click="loadCharts">重新加载</button></div>
+          </section>
+
+          <section class="featured-block featured-artist-block">
+            <header class="featured-block-heading">
+              <div><small>NEW VOICES</small><h3>值得认识的声音</h3></div>
+              <button type="button" @click="switchTab('artists')">艺人目录 <span>→</span></button>
+            </header>
+            <div v-if="featuredArtists.length" class="featured-artist-grid">
+              <button v-for="artist in featuredArtists" :key="`featured-artist-${artist.id}`" type="button" @click="openArtist(artist, $event)">
+                <span data-artist-hero-cover :data-artist-id="artist.id"><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="320" sizes="130px" /></span>
+                <strong>{{ artist.name }}</strong>
+                <small>{{ artist.alias?.[0] || `${artist.albumSize || 0} 张专辑` }}</small>
+              </button>
+            </div>
+            <div v-else-if="loading.artists" class="featured-skeleton-grid is-artists"><span v-for="index in 6" :key="index" /></div>
+            <div v-else class="featured-empty"><span>艺人目录暂时没有内容</span><button type="button" @click="refreshArtists">重新加载</button></div>
+          </section>
+        </div>
+
+        <section class="featured-block featured-video-block">
+          <header class="featured-block-heading">
+            <div><small>WATCH & LISTEN</small><h3>今晚看什么</h3></div>
+            <button type="button" @click="openFeaturedAirwaves">更多影像 <span>→</span></button>
+          </header>
+          <div v-if="featuredMvs.length" class="featured-video-grid">
+            <button v-for="item in featuredMvs" :key="`featured-mv-${item.id}`" type="button" @click="openMv(item)">
+              <span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="720" sizes="(min-width: 900px) 25vw, 72vw" /><i aria-hidden="true">▶</i></span>
+              <strong>{{ item.name }}</strong><small>{{ item.artistName || '未知艺人' }}</small>
+            </button>
+          </div>
+          <div v-else-if="loading.mv" class="featured-skeleton-grid is-videos"><span v-for="index in 4" :key="index" /></div>
+          <div v-else class="featured-empty"><span>影像频道暂时没有内容</span><button type="button" @click="refreshMv">重新加载</button></div>
+        </section>
+      </section>
+
+          <section v-else-if="activeTab === 'styles'" key="styles" class="browse-section">
           <header class="section-heading">
             <div><p>按类别浏览</p><h2>曲风</h2></div>
             <span>两排曲风缓慢流动，悬停即可暂停。</span>
@@ -70,7 +163,7 @@
 
         </section>
 
-      <section v-else-if="activeTab === 'releases'" key="releases" class="browse-section">
+          <section v-else-if="activeTab === 'releases'" key="releases" class="browse-section">
           <header class="section-heading section-heading-actions">
             <div><p>每周更新</p><h2>新碟与发行</h2></div>
             <div class="filter-pills"><button v-for="area in albumAreas" :key="area.value" type="button" :class="{ 'is-active': albumFilters.area === area.value }" @click="changeAlbumArea(area.value)">{{ area.label }}</button></div>
@@ -87,7 +180,7 @@
           </div>
       </section>
 
-      <section v-else-if="activeTab === 'charts'" key="charts" class="browse-section">
+          <section v-else-if="activeTab === 'charts'" key="charts" class="browse-section">
           <header class="section-heading"><div><p>热门趋势</p><h2>排行榜</h2></div><span>查看此刻正在流行、上升和被反复播放的音乐。</span></header>
           <div v-if="loading.charts" class="chart-grid skeleton-grid"><span v-for="index in 8" :key="index" /></div>
           <div v-else-if="errors.charts" class="browse-state"><p>{{ errors.charts }}</p><button type="button" @click="loadCharts">重新加载</button></div>
@@ -99,7 +192,7 @@
           </div>
       </section>
 
-      <section v-else-if="activeTab === 'artists'" key="artists" class="browse-section">
+          <section v-else-if="activeTab === 'artists'" key="artists" class="browse-section">
           <header class="section-heading"><div><p>发现艺人</p><h2>艺人</h2></div><span>使用地区、类型和首字母快速浏览艺人目录。</span></header>
           <div class="artist-filter-panel">
             <div><small>地区</small><button v-for="area in artistAreas" :key="area.value" type="button" :class="{ 'is-active': artistFilters.area === area.value }" @click="changeArtistFilter('area', area.value)">{{ area.label }}</button></div>
@@ -117,7 +210,7 @@
           <div class="browse-pagination"><button type="button" :disabled="artistFilters.offset <= 0 || loading.artists" @click="changeArtistPage(-1)">上一页</button><span>第 {{ Math.floor(artistFilters.offset / artistFilters.limit) + 1 }} 页</span><button type="button" :disabled="!artistHasMore || loading.artists" @click="changeArtistPage(1)">下一页</button></div>
       </section>
 
-      <section v-else key="airwaves" class="browse-section">
+          <section v-else key="airwaves" class="browse-section">
           <header class="section-heading section-heading-actions">
             <div><p>听与看</p><h2>影音与播客</h2></div>
             <div class="segmented-control"><button type="button" :class="{ 'is-active': airwaveMode === 'mv' }" @click="airwaveMode = 'mv'">音乐视频</button><button type="button" :class="{ 'is-active': airwaveMode === 'radio' }" @click="openRadio">播客电台</button></div>
@@ -142,7 +235,9 @@
               <aside class="program-list"><p>热门节目</p><button v-for="(entry, index) in programs" :key="entry.program?.id || index" type="button" @click="playProgram(entry)"><b>{{ index + 1 }}</b><SmartMedia :src="entry.program?.coverUrl" :alt="`${entry.program?.name || '节目'}封面`" :image-width="140" sizes="52px" /><span><strong>{{ entry.program?.name || '播客节目' }}</strong><small>点击播放</small></span><i>▶</i></button></aside>
             </div>
           </template>
-      </section>
+          </section>
+        </Transition>
+      </div>
     </main>
 
     <HomeMvModal
@@ -181,15 +276,16 @@ const router = useRouter()
 const playerStore = usePlayerStore()
 
 const tabs = [
+  {label: '精选', value: 'featured'},
   {label: '曲风', value: 'styles'},
   {label: '新发行', value: 'releases'},
   {label: '排行榜', value: 'charts'},
   {label: '艺人', value: 'artists'},
   {label: '影音与播客', value: 'airwaves'},
 ]
-const legacyTabMap = {overview: 'styles', playlists: 'styles', ranks: 'charts', videos: 'airwaves'}
+const legacyTabMap = {overview: 'featured', playlists: 'styles', ranks: 'charts', videos: 'airwaves'}
 const validTabs = new Set(tabs.map(item => item.value))
-const activeTab = ref('styles')
+const activeTab = ref('featured')
 const airwaveMode = ref('mv')
 const activeRadioCategory = ref(0)
 const albumAreas = [
@@ -228,19 +324,27 @@ const genreRows = computed(() => {
   const midpoint = Math.ceil(entries.length / 2)
   return [entries.slice(0, midpoint), entries.slice(midpoint)].filter(row => row.length)
 })
+const featuredAlbums = computed(() => (
+  newAlbums.value.length > 6 ? newAlbums.value.slice(3, 9) : newAlbums.value.slice(0, 6)
+))
+const featuredCharts = computed(() => charts.value.slice(0, 3))
+const featuredArtists = computed(() => artists.value.slice(0, 6))
+const featuredMvs = computed(() => mvList.value.slice(0, 4))
+
 function normalizedTab(value) {
-  const raw = String(value || 'styles')
+  const raw = String(value || 'featured')
   const mapped = legacyTabMap[raw] || raw
-  return validTabs.has(mapped) ? mapped : 'styles'
+  return validTabs.has(mapped) ? mapped : 'featured'
 }
 
 async function ensureTabData(tab) {
+  const isFeatured = tab === 'featured'
   const jobs = []
   if (!newAlbums.value.length && !loading.albums) jobs.push(refreshAlbums())
-  if (tab === 'styles' && !styles.value.length && !loading.styles) jobs.push(loadStyles())
-  if (tab === 'charts' && !charts.value.length && !loading.charts) jobs.push(loadCharts())
-  if (tab === 'artists' && !artists.value.length && !loading.artists) jobs.push(refreshArtists())
-  if (tab === 'airwaves' && !mvList.value.length && !loading.mv) jobs.push(loadMvList({reset: true}))
+  if ((isFeatured || tab === 'styles') && !styles.value.length && !loading.styles) jobs.push(loadStyles())
+  if ((isFeatured || tab === 'charts') && !charts.value.length && !loading.charts) jobs.push(loadCharts())
+  if ((isFeatured || tab === 'artists') && !artists.value.length && !loading.artists) jobs.push(refreshArtists())
+  if ((isFeatured || tab === 'airwaves') && !mvList.value.length && !loading.mv) jobs.push(loadMvList({reset: true}))
   await Promise.all(jobs)
 }
 
@@ -256,6 +360,20 @@ function openStyle(style) {
   const id = Number(style?.tagId || style?.id || 0)
   if (!id) return
   router.push({name: 'styleDetailPage', params: {id}})
+}
+
+async function openRandomStyle() {
+  if (!styles.value.length && !loading.styles) await loadStyles()
+  const candidates = styles.value
+    .flatMap(style => [style, ...(style?.childrenTags || [])])
+    .filter(style => Number(style?.tagId || style?.id || 0))
+  if (!candidates.length) return
+  openStyle(candidates[Math.floor(Math.random() * candidates.length)])
+}
+
+function openFeaturedAirwaves() {
+  airwaveMode.value = 'mv'
+  switchTab('airwaves')
 }
 
 function refreshAlbums() { return loadAlbums({...albumFilters, limit: 24, offset: 0}) }
@@ -374,7 +492,7 @@ select { font: inherit; }
 button { cursor: pointer; }
 .browse-main { box-sizing: border-box; width: min(100%, 1400px); margin: 0 auto; padding: 0 32px 160px; }
 
-.browse-hero { padding: 58px 0 46px; border-bottom: 1px solid rgba(29, 29, 31, 0.09); }
+.browse-hero { padding: 58px 0 46px; }
 .browse-hero-heading { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 28px; }
 .browse-hero-heading p { margin: 0 0 8px; color: #fa2d48; font-size: 10px; font-weight: 800; letter-spacing: 0.11em; }
 .browse-hero-heading h1 { margin: 0; font-size: clamp(46px, 5vw, 68px); font-weight: 820; letter-spacing: -0.055em; line-height: 1; }
@@ -399,12 +517,23 @@ button { cursor: pointer; }
 .spotlight-loading span { border-radius: 22px; background: #e4e4e8; animation: pulse 1.2s ease-in-out infinite; }
 .spotlight-loading span:first-child { grid-row: 1 / 3; }
 
-.browse-tabs { position: sticky; top: 76px; z-index: 30; display: flex; overflow-x: auto; gap: 26px; padding: 0 4px; border-bottom: 1px solid rgba(29, 29, 31, 0.1); background: rgba(245, 245, 247, 0.88); backdrop-filter: blur(20px); scrollbar-width: none; }
-.browse-tabs button { position: relative; height: 58px; flex: none; padding: 0; color: #6e6e73; border: 0; background: transparent; font-size: 13px; font-weight: 700; }
-.browse-tabs button::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: transparent; content: ''; }
-.browse-tabs button:hover { color: #1d1d1f; }
-.browse-tabs button.is-active { color: #1d1d1f; }
-.browse-tabs button.is-active::after { background: #fa2d48; }
+.browse-tabs { display: flex; width: 100%; box-sizing: border-box; overflow-x: auto; gap: 7px; padding: 12px 0; scrollbar-width: none; }
+.browse-tabs button { height: 36px; flex: none; padding: 0 16px; color: #6e6e73; border: 0; border-radius: 999px; background: transparent; font-size: 12px; font-weight: 700; transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.browse-tabs button:hover { color: #1d1d1f; background: rgba(255, 255, 255, 0.78); }
+.browse-tabs button.is-active { color: #fff; background: linear-gradient(135deg, #fa2d48, #ee5267); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+.browse-tabs button:active { transform: scale(0.97); }
+
+.browse-tab-stage { position: relative; }
+.browse-tab-content-enter-active { transition: opacity 520ms linear; }
+.browse-tab-content-leave-active { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; transition: opacity 220ms ease, transform 300ms cubic-bezier(0.4, 0, 0.2, 1); }
+.browse-tab-content-leave-to { opacity: 0; transform: translateY(-9px); }
+.browse-tab-content-enter-active > * { animation: browse-tab-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.browse-tab-content-enter-active > :nth-child(2) { animation-delay: 45ms; }
+.browse-tab-content-enter-active > :nth-child(n+3) { animation-delay: 85ms; }
+@keyframes browse-tab-reveal {
+  from { opacity: 0; transform: translateY(17px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .browse-section { min-height: 700px; padding: 54px 0 50px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 26px; margin-bottom: 26px; }
@@ -412,6 +541,97 @@ button { cursor: pointer; }
 .section-heading h2 { margin: 0; font-size: clamp(32px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.045em; }
 .section-heading > span { max-width: 440px; color: #6e6e73; font-size: 12px; line-height: 1.65; }
 .section-heading-actions { align-items: center; }
+
+.featured-dashboard { padding-top: 48px; }
+.featured-heading { margin-bottom: 28px; }
+.quick-discovery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.quick-discovery-card { position: relative; display: flex; min-height: 160px; overflow: hidden; align-items: flex-start; flex-direction: column; padding: 20px; text-align: left; color: #28282b; border: 1px solid rgba(29, 29, 31, 0.045); border-radius: 23px; background: #e9e9ec; transition: box-shadow 260ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1); isolation: isolate; }
+.quick-discovery-card::before { position: absolute; right: -34px; bottom: -58px; z-index: -1; width: 150px; aspect-ratio: 1; border: 1px solid currentColor; border-radius: 50%; content: ''; opacity: 0.09; box-shadow: 0 0 0 24px currentColor, 0 0 0 50px currentColor; }
+.quick-discovery-card:hover { box-shadow: 0 18px 38px rgba(36, 31, 33, 0.1); transform: translateY(-4px); }
+.quick-discovery-card > span { color: currentColor; font-size: 9px; font-weight: 820; opacity: 0.45; }
+.quick-discovery-card small { margin-top: auto; font-size: 9px; font-weight: 760; opacity: 0.58; }
+.quick-discovery-card strong { margin-top: 7px; font-size: 16px; font-weight: 820; letter-spacing: -0.025em; }
+.quick-discovery-card > i { position: absolute; top: 17px; right: 17px; display: grid; width: 30px; aspect-ratio: 1; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 12px; font-style: normal; opacity: 0.45; }
+.quick-discovery-card.is-random { color: #fff; background: #242426; }
+.quick-discovery-card.is-release { background: #f1dfe3; }
+.quick-discovery-card.is-chart { background: #e0e8f2; }
+.quick-discovery-card.is-airwave { background: #eae4f0; }
+
+.featured-block { margin-top: 72px; }
+.featured-block-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+.featured-block-heading small { color: #fa2d48; font-size: 8px; font-weight: 800; letter-spacing: 0.14em; }
+.featured-block-heading h3 { margin: 6px 0 0; font-size: clamp(26px, 3vw, 36px); font-weight: 820; letter-spacing: -0.04em; }
+.featured-block-heading > button { display: flex; align-items: center; gap: 8px; padding: 9px 0; color: #6e6e73; border: 0; background: transparent; font-size: 10px; font-weight: 720; }
+.featured-block-heading > button span { color: #fa2d48; font-size: 13px; transition: transform 180ms ease; }
+.featured-block-heading > button:hover span { transform: translateX(3px); }
+
+.featured-album-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; }
+.featured-album-card { min-width: 0; padding: 0; text-align: left; color: #1d1d1f; border: 0; background: transparent; }
+.featured-album-card > span { position: relative; display: block; overflow: hidden; aspect-ratio: 1; border-radius: 18px; background: #e3e3e7; box-shadow: 0 9px 23px rgba(34, 30, 31, 0.08); }
+.featured-album-card > span :deep(> div),
+.featured-album-card > span :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.featured-album-card > span :deep(img) { transition: transform 360ms ease; }
+.featured-album-card:hover > span :deep(img) { transform: scale(1.04); }
+.featured-album-card > span > i { position: absolute; top: 9px; left: 9px; padding: 5px 7px; color: #2d2d30; border-radius: 999px; background: rgba(255, 255, 255, 0.88); font-size: 7px; font-style: normal; font-weight: 780; backdrop-filter: blur(9px); }
+.featured-album-card > strong,
+.featured-album-card > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-album-card > strong { margin-top: 12px; font-size: 12px; font-weight: 780; }
+.featured-album-card > small { margin-top: 5px; color: #89898f; font-size: 9px; }
+
+.featured-split { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(420px, 0.88fr); gap: 42px; }
+.featured-split .featured-block { min-width: 0; }
+.featured-chart-list { overflow: hidden; border-top: 1px solid rgba(29, 29, 31, 0.07); }
+.featured-chart-list > button { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 82px 24px minmax(0, 1fr) 22px; gap: 14px; padding: 12px 8px 12px 0; text-align: left; color: #1d1d1f; border: 0; border-bottom: 1px solid rgba(29, 29, 31, 0.07); background: transparent; transition: background 180ms ease, padding 180ms ease; }
+.featured-chart-list > button:hover { padding-right: 13px; padding-left: 8px; background: rgba(255, 255, 255, 0.55); }
+.featured-chart-art { display: block; width: 82px; overflow: hidden; aspect-ratio: 1; border-radius: 15px; background: #e3e3e7; }
+.featured-chart-art :deep(> div),
+.featured-chart-art :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.featured-chart-index { color: #b0b0b5; font-size: 8px; font-weight: 800; }
+.featured-chart-copy { min-width: 0; }
+.featured-chart-copy small,
+.featured-chart-copy strong,
+.featured-chart-copy i { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-chart-copy small { color: #fa2d48; font-size: 7px; font-weight: 760; }
+.featured-chart-copy strong { margin-top: 6px; font-size: 13px; font-weight: 790; }
+.featured-chart-copy i { margin-top: 6px; color: #909096; font-size: 8px; font-style: normal; }
+.featured-chart-list > button > b { color: #a1a1a6; font-size: 12px; }
+
+.featured-artist-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 18px; }
+.featured-artist-grid > button { min-width: 0; padding: 0; text-align: center; color: #1d1d1f; border: 0; background: transparent; }
+.featured-artist-grid > button > span { display: block; width: min(100%, 126px); overflow: hidden; aspect-ratio: 1; margin: 0 auto; border-radius: 50%; background: #e3e3e7; box-shadow: 0 9px 24px rgba(34, 30, 31, 0.07); }
+.featured-artist-grid > button > span :deep(> div),
+.featured-artist-grid > button > span :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.featured-artist-grid > button > span :deep(img) { transition: transform 360ms ease; }
+.featured-artist-grid > button:hover > span :deep(img) { transform: scale(1.055); }
+.featured-artist-grid strong,
+.featured-artist-grid small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-artist-grid strong { margin-top: 10px; font-size: 11px; font-weight: 780; }
+.featured-artist-grid small { margin-top: 4px; color: #96969c; font-size: 8px; }
+
+.featured-video-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.featured-video-grid > button { min-width: 0; padding: 0; text-align: left; color: #1d1d1f; border: 0; background: transparent; }
+.featured-video-grid > button > span { position: relative; display: block; overflow: hidden; aspect-ratio: 16 / 10; border-radius: 18px; background: #e3e3e7; box-shadow: 0 10px 25px rgba(34, 30, 31, 0.08); }
+.featured-video-grid > button > span :deep(> div),
+.featured-video-grid > button > span :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.featured-video-grid > button > span :deep(img) { transition: transform 380ms ease; }
+.featured-video-grid > button:hover > span :deep(img) { transform: scale(1.035); }
+.featured-video-grid > button > span > i { position: absolute; right: 12px; bottom: 12px; display: grid; width: 36px; aspect-ratio: 1; place-items: center; padding-left: 2px; color: #1d1d1f; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14); font-size: 9px; font-style: normal; backdrop-filter: blur(8px); }
+.featured-video-grid strong,
+.featured-video-grid small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-video-grid strong { margin-top: 12px; font-size: 12px; font-weight: 780; }
+.featured-video-grid small { margin-top: 5px; color: #929297; font-size: 9px; }
+
+.featured-skeleton-grid { display: grid; gap: 18px; }
+.featured-skeleton-grid.is-albums { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.featured-skeleton-grid.is-artists { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.featured-skeleton-grid.is-videos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.featured-skeleton-grid > span { display: block; aspect-ratio: 1; border-radius: 18px; background: #e4e4e8; animation: pulse 1.2s ease-in-out infinite; }
+.featured-skeleton-grid.is-artists > span { border-radius: 50%; }
+.featured-skeleton-grid.is-videos > span { aspect-ratio: 16 / 10; }
+.featured-skeleton-list { display: grid; gap: 8px; }
+.featured-skeleton-list span { height: 104px; border-radius: 16px; background: #e4e4e8; animation: pulse 1.2s ease-in-out infinite; }
+.featured-empty { display: flex; min-height: 120px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: #8b8b91; border: 1px dashed rgba(29, 29, 31, 0.1); border-radius: 18px; font-size: 10px; }
+.featured-empty button { padding: 8px 12px; color: #1d1d1f; border: 0; border-radius: 999px; background: #fff; font-size: 9px; font-weight: 740; }
 
 .genre-marquee { display: grid; overflow: hidden; gap: 12px; margin-inline: calc(50% - 50vw); padding: 4px 0 14px; }
 .genre-row { width: 100%; overflow: hidden; padding-block: 3px; }
@@ -544,6 +764,12 @@ button { cursor: pointer; }
 }
 
 @media (max-width: 1060px) {
+  .quick-discovery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .featured-album-grid,
+  .featured-skeleton-grid.is-albums { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .featured-split { grid-template-columns: 1fr; gap: 0; }
+  .featured-artist-grid,
+  .featured-skeleton-grid.is-artists { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .media-card-grid,
   .artist-directory { grid-template-columns: repeat(4, 1fr); }
   .radio-layout { grid-template-columns: 1fr; }
@@ -555,7 +781,11 @@ button { cursor: pointer; }
   .browse-hero-heading,
   .section-heading { align-items: start; flex-direction: column; }
   .release-spotlight { height: 390px; grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr); }
-  .browse-tabs { margin-right: -18px; margin-left: -18px; padding-inline: 18px; }
+  .browse-tabs { padding-inline: 0; }
+  .featured-artist-grid,
+  .featured-skeleton-grid.is-artists { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .featured-video-grid,
+  .featured-skeleton-grid.is-videos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .media-card-grid,
   .artist-directory { grid-template-columns: repeat(3, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
@@ -574,9 +804,26 @@ button { cursor: pointer; }
   .spotlight-loading > span:first-child { width: 84vw; flex: none; border-radius: 18px; }
   .spotlight-card.is-main .spotlight-copy { right: 20px; bottom: 19px; left: 20px; }
   .spotlight-card.is-main .spotlight-copy strong { font-size: 28px; }
-  .browse-tabs { top: 68px; margin-right: -13px; margin-left: -13px; gap: 22px; padding-inline: 13px; }
+  .browse-tabs { gap: 5px; padding-inline: 0; }
+  .browse-tabs button { padding-inline: 13px; }
   .browse-section { padding-top: 42px; }
   .section-heading h2 { font-size: 36px; }
+  .quick-discovery { display: flex; margin-right: -13px; overflow-x: auto; gap: 9px; padding-right: 13px; padding-bottom: 9px; scrollbar-width: none; }
+  .quick-discovery-card { width: 72vw; min-height: 148px; flex: none; border-radius: 20px; }
+  .featured-block { margin-top: 58px; }
+  .featured-block-heading { align-items: center; }
+  .featured-block-heading h3 { font-size: 27px; }
+  .featured-album-grid,
+  .featured-video-grid,
+  .featured-skeleton-grid.is-albums,
+  .featured-skeleton-grid.is-videos { display: flex; margin-right: -13px; overflow-x: auto; gap: 13px; padding-right: 13px; padding-bottom: 10px; scrollbar-width: none; }
+  .featured-album-card,
+  .featured-skeleton-grid.is-albums > span { width: 52vw; flex: none; }
+  .featured-video-grid > button,
+  .featured-skeleton-grid.is-videos > span { width: 76vw; flex: none; }
+  .featured-chart-list > button { grid-template-columns: 72px 20px minmax(0, 1fr) 18px; gap: 10px; }
+  .featured-chart-art { width: 72px; border-radius: 13px; }
+  .featured-artist-grid { gap: 20px 12px; }
   .genre-marquee { gap: 9px; }
   .genre-track { gap: 9px; padding-right: 9px; }
   .genre-row:nth-child(2) .genre-track { margin-left: -76px; }
