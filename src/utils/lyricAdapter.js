@@ -29,6 +29,9 @@ function hasMeaningfulText(text = "") {
 
 const MAX_YRC_WORDS_PER_LINE = 48;
 const MAX_YRC_TOTAL_WORDS = 1800;
+const DEFAULT_LRC_LINE_DURATION_MS = 2600;
+const AMLL_INTERLUDE_MIN_DURATION_MS = 4000;
+const AMLL_INTERLUDE_END_PADDING_MS = 250;
 
 function createLineLevelWord(startTime, duration, text = "") {
 	const safeStart = Number.isFinite(startTime) ? Math.max(0, startTime) : 0;
@@ -54,18 +57,77 @@ function parseLrcRows(raw = "") {
 		];
 		if (!stamps.length) continue;
 
-		const text = row.replace(/\[[^\]]+\]/g, "").trim();
+		const hasTextBetweenStamps = stamps.slice(0, -1).some((stamp, index) => {
+			const nextStamp = stamps[index + 1];
+			return row
+				.slice(stamp.index + stamp[0].length, nextStamp.index)
+				.trim().length > 0;
+		});
+		const lastStamp = stamps[stamps.length - 1];
+		const hasTrailingEndStamp =
+			stamps.length > 1 &&
+			row.slice(lastStamp.index + lastStamp[0].length).trim().length === 0;
 
-		const hasInlineWordTiming = /\]\s*[^[]+\[/.test(row);
-		if (hasInlineWordTiming) {
-			const firstStamp = stamps[0];
-			result.push({
-				time: parseTimestampToMs(firstStamp[1], firstStamp[2], firstStamp[3]),
-				text,
-			});
+		if (hasTextBetweenStamps && hasTrailingEndStamp) {
+			// Enhanced LRC uses the first timestamp as the line start, subsequent
+			// timestamps as word boundaries, and a trailing empty timestamp as the
+			// exact line end.
+			const words = [];
+			for (let index = 0; index < stamps.length - 1; index += 1) {
+				const stamp = stamps[index];
+				const nextStamp = stamps[index + 1];
+				const word = row.slice(stamp.index + stamp[0].length, nextStamp.index);
+				if (!hasMeaningfulText(word)) continue;
+
+				const startTime = parseTimestampToMs(stamp[1], stamp[2], stamp[3]);
+				const nextTime = parseTimestampToMs(
+					nextStamp[1],
+					nextStamp[2],
+					nextStamp[3],
+				);
+				words.push({
+					startTime,
+					endTime: Math.max(startTime + 1, nextTime),
+					word,
+					romanWord: "",
+					obscene: false,
+				});
+			}
+
+			if (words.length) {
+				result.push({
+					time: parseTimestampToMs(stamps[0][1], stamps[0][2], stamps[0][3]),
+					endTime: parseTimestampToMs(lastStamp[1], lastStamp[2], lastStamp[3]),
+					text: words.map((word) => word.word).join("").trim(),
+					words,
+				});
+			}
 			continue;
 		}
 
+		if (hasTextBetweenStamps) {
+			// Some providers flatten a complete LRC document into one physical line.
+			// Square-bracket timestamps still denote separate lyric lines, so retain
+			// each timestamp/text pair instead of collapsing everything into one line.
+			for (let index = 0; index < stamps.length; index += 1) {
+				const stamp = stamps[index];
+				const nextStamp = stamps[index + 1];
+				const text = row
+					.slice(stamp.index + stamp[0].length, nextStamp?.index ?? row.length)
+					.replace(/\[[^\]]+\]/g, "")
+					.trim();
+				result.push({
+					time: parseTimestampToMs(stamp[1], stamp[2], stamp[3]),
+					text,
+				});
+			}
+			continue;
+		}
+
+		const text = row
+			.slice(lastStamp.index + lastStamp[0].length)
+			.replace(/\[[^\]]+\]/g, "")
+			.trim();
 		for (const stamp of stamps) {
 			result.push({
 				time: parseTimestampToMs(stamp[1], stamp[2], stamp[3]),
@@ -75,6 +137,19 @@ function parseLrcRows(raw = "") {
 	}
 
 	return result.sort((a, b) => a.time - b.time);
+}
+
+function inferLrcLineEndTime(current, next) {
+	const estimatedEndTime = current.time + DEFAULT_LRC_LINE_DURATION_MS;
+	if (!next || next.time <= current.time) return estimatedEndTime;
+
+	const minimumGapForAmll =
+		AMLL_INTERLUDE_MIN_DURATION_MS + AMLL_INTERLUDE_END_PADDING_MS;
+	if (next.time - estimatedEndTime >= minimumGapForAmll) {
+		return estimatedEndTime;
+	}
+
+	return next.time;
 }
 
 function resolveLyricByTime(map, targetTime) {
@@ -191,7 +266,7 @@ function mapByStartTime(raw = "") {
 }
 
 function toAmllFromLrc(main = "", translated = "", roman = "") {
-	const rows = parseLrcRows(main);
+	const rows = parseLrcRows(main).filter((row) => hasMeaningfulText(row.text));
 	if (!rows.length) return [];
 
 	const translatedByStart = mapByStartTime(translated);
@@ -201,20 +276,25 @@ function toAmllFromLrc(main = "", translated = "", roman = "") {
 	for (let i = 0; i < rows.length; i += 1) {
 		const current = rows[i];
 		const next = rows[i + 1];
-		const endTime =
-			next && next.time > current.time ? next.time : current.time + 2600;
-		if (!hasMeaningfulText(current.text)) continue;
+		const hasExactTiming =
+			current.words?.length > 0 && Number.isFinite(current.endTime);
+		const endTime = hasExactTiming
+			? Math.max(current.time + 1, current.endTime)
+			: inferLrcLineEndTime(current, next);
+		const words = hasExactTiming
+			? current.words
+			: [
+					{
+						startTime: current.time,
+						endTime,
+						word: current.text,
+						romanWord: "",
+						obscene: false,
+					},
+				];
 
 		lines.push({
-			words: [
-				{
-					startTime: current.time,
-					endTime,
-					word: current.text,
-					romanWord: "",
-					obscene: false,
-				},
-			],
+			words,
 			translatedLyric: translatedByStart.get(current.time) || "",
 			romanLyric: romanByStart.get(current.time) || "",
 			startTime: current.time,
