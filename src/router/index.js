@@ -17,9 +17,10 @@ export function consumeNavigatingBack(maxAgeMs = 800) {
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, from) {
+  scrollBehavior(to, from, savedPosition) {
     const modalRoutes = new Set(['playlistDetail', 'discoverPlaylistDetail', 'discoverAlbumDetail', 'discoverArtistDetail'])
     if (modalRoutes.has(to.name) || modalRoutes.has(from.name)) return false
+    if (savedPosition) return savedPosition
     if (to.path === from.path) return false
     return { left: 0, top: 0, behavior: 'auto' }
   },
@@ -82,6 +83,18 @@ const router = createRouter({
       name: 'search',
       component: () => import('@/view/search/search.vue'),
       meta: { title: '搜索' },
+    },
+    {
+      path: '/messages',
+      name: 'messages',
+      component: () => import('@/view/messages/messages.vue'),
+      meta: { title: '消息中心' },
+    },
+    {
+      path: '/moments',
+      name: 'moments',
+      component: () => import('@/view/moments/moments.vue'),
+      meta: { title: '音乐动态' },
     },
     {
       path: '/artistDetial',

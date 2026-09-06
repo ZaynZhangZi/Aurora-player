@@ -25,38 +25,75 @@
         </slot>
       </div>
 
-      <button
-        class="aurora-profile"
-        :class="{ 'is-guest': !userStore.isLoggedIn }"
-        type="button"
-        :aria-label="userStore.isLoggedIn ? '打开个人音乐库' : '登录网易云音乐'"
-        @click="openProfile"
-      >
-        <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
-        <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.25" />
-          <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
-        </svg>
-      </button>
+      <div ref="profileMenuRef" class="aurora-profile-wrap">
+        <button
+          class="aurora-profile"
+          :class="{ 'is-guest': !userStore.isLoggedIn, 'has-unread': totalMessageBadge > 0 }"
+          type="button"
+          :aria-expanded="userStore.isLoggedIn ? profileMenuOpen : undefined"
+          :aria-label="userStore.isLoggedIn ? '打开个人菜单' : '登录网易云音乐'"
+          @click="handleProfileClick"
+        >
+          <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
+          <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
+          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.25" />
+            <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
+          </svg>
+        </button>
+
+        <Transition name="profile-menu">
+          <div v-if="userStore.isLoggedIn && profileMenuOpen" class="aurora-profile-menu">
+            <header>
+              <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="" />
+              <span v-else>{{ profileInitial }}</span>
+              <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
+            </header>
+            <nav aria-label="个人功能">
+              <button type="button" :class="{ 'is-active': isMessages }" @click="openMessages">
+                <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
+                <span><strong>消息中心</strong><small>通知与私信</small></span>
+                <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else>→</b>
+              </button>
+              <button type="button" :class="{ 'is-active': isMoments }" @click="openMoments">
+                <svg viewBox="0 0 24 24"><path d="M8 18V6l10-2v12"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>
+                <span><strong>音乐动态</strong><small>关注与分享</small></span>
+                <b>→</b>
+              </button>
+              <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">
+                <svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h6M8 15h4"/></svg>
+                <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
+                <b>→</b>
+              </button>
+            </nav>
+          </div>
+        </Transition>
+      </div>
     </div>
   </header>
 </template>
 
 <script setup>
-import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted} from 'vue'
+import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
+import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
+const profileMenuRef = ref(null)
+const profileMenuOpen = ref(false)
+const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCenter(userStore)
 
 const isProfile = computed(() => ['profile', 'profilePlaylistDetail'].includes(String(route.name || '')))
 const isHome = computed(() => ['home', 'playlistDetail'].includes(String(route.name || '')))
 const isDiscover = computed(() => ['discover', 'discoverPlaylistDetail', 'discoverAlbumDetail', 'discoverArtistDetail'].includes(String(route.name || '')))
+const isMessages = computed(() => route.name === 'messages')
+const isMoments = computed(() => route.name === 'moments')
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
+const totalMessageBadge = computed(() => Number(noticeBadgeCount.value || 0) + Number(privateBadgeCount.value || 0))
 
 function scrollToPageTop(behavior = 'auto') {
   requestAnimationFrame(() => {
@@ -80,12 +117,45 @@ function openDiscover() {
 }
 
 function openProfile() {
+  profileMenuOpen.value = false
   if (!userStore.isLoggedIn) {
     openLoginDialog()
     return
   }
   if (isProfile.value) return
   router.push({name: 'profile'})
+}
+
+function handleProfileClick() {
+  if (!userStore.isLoggedIn) {
+    openLoginDialog()
+    return
+  }
+  profileMenuOpen.value = !profileMenuOpen.value
+}
+
+function openMessages() {
+  profileMenuOpen.value = false
+  if (!isMessages.value) router.push({name: 'messages'})
+}
+
+function openMoments() {
+  profileMenuOpen.value = false
+  if (!isMoments.value) router.push({name: 'moments'})
+}
+
+function badgeText(value) {
+  const count = Number(value || 0)
+  return count > 99 ? '99+' : count
+}
+
+function handleProfileMenuPointerDown(event) {
+  if (!profileMenuOpen.value || profileMenuRef.value?.contains(event.target)) return
+  profileMenuOpen.value = false
+}
+
+function handleProfileMenuEscape(event) {
+  if (event.key === 'Escape') profileMenuOpen.value = false
 }
 
 async function openSearch() {
@@ -108,19 +178,42 @@ let shortcutBound = false
 function bindShortcut() {
   if (shortcutBound) return
   window.addEventListener('keydown', handleSearchShortcut)
+  window.addEventListener('keydown', handleProfileMenuEscape)
+  window.addEventListener('pointerdown', handleProfileMenuPointerDown)
   shortcutBound = true
 }
 
 function unbindShortcut() {
   if (!shortcutBound) return
   window.removeEventListener('keydown', handleSearchShortcut)
+  window.removeEventListener('keydown', handleProfileMenuEscape)
+  window.removeEventListener('pointerdown', handleProfileMenuPointerDown)
   shortcutBound = false
 }
 
-onMounted(bindShortcut)
-onActivated(bindShortcut)
+function refreshHeaderMessages() {
+  if (userStore.isLoggedIn) void refreshMessageBadges()
+}
+
+onMounted(() => {
+  bindShortcut()
+  refreshHeaderMessages()
+})
+onActivated(() => {
+  bindShortcut()
+  refreshHeaderMessages()
+})
 onDeactivated(unbindShortcut)
 onBeforeUnmount(unbindShortcut)
+
+watch(() => [userStore.isLoggedIn, userStore.userId], ([loggedIn]) => {
+  profileMenuOpen.value = false
+  if (loggedIn) refreshHeaderMessages()
+})
+
+watch(() => route.fullPath, () => {
+  profileMenuOpen.value = false
+})
 </script>
 
 <style scoped>
@@ -194,11 +287,36 @@ onBeforeUnmount(unbindShortcut)
 .aurora-search-trigger span { overflow: hidden; font-size: 12px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
 .aurora-search-trigger kbd { padding: 3px 6px; color: #a1a1aa; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 6px; background: rgba(255, 255, 255, 0.7); font-size: 9px; }
 
-.aurora-profile { display: grid; width: 40px; aspect-ratio: 1; overflow: hidden; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
-.aurora-profile img { width: 100%; height: 100%; object-fit: cover; }
+.aurora-profile-wrap { position: relative; }
+.aurora-profile { position: relative; display: grid; width: 40px; aspect-ratio: 1; overflow: visible; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
+.aurora-profile.has-unread::after { position: absolute; top: -2px; right: -1px; width: 8px; height: 8px; border: 2px solid #f7f7f8; border-radius: 50%; background: #ef5267; content: ''; }
+.aurora-profile img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .aurora-profile svg { width: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
 .aurora-profile.is-guest { color: #69666b; border-color: rgba(255, 255, 255, 0.92); background: #e8e6e4; box-shadow: 0 8px 20px rgba(24, 24, 27, 0.08); }
 .aurora-profile.is-guest:hover { color: #fff; background: linear-gradient(135deg, #ef7180, #ef9a68); }
+.aurora-profile-menu { position: absolute; top: calc(100% + 14px); right: -4px; z-index: 120; width: 286px; overflow: hidden; padding: 8px; border: 1px solid rgba(24, 24, 27, .08); border-radius: 22px; background: rgba(255, 255, 255, .97); box-shadow: 0 24px 64px rgba(24, 24, 27, .16); backdrop-filter: blur(24px); }
+.aurora-profile-menu > header { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 10px 13px; border-bottom: 1px solid #ececef; }
+.aurora-profile-menu > header > img,
+.aurora-profile-menu > header > span { display: grid; width: 38px; height: 38px; overflow: hidden; place-items: center; color: #fff; border-radius: 50%; background: #313134; object-fit: cover; font-size: 11px; font-weight: 820; }
+.aurora-profile-menu header div { min-width: 0; }
+.aurora-profile-menu header small,
+.aurora-profile-menu header strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aurora-profile-menu header small { color: #e35c6c; font-size: 7px; font-weight: 850; letter-spacing: .14em; }
+.aurora-profile-menu header strong { margin-top: 4px; color: #333337; font-size: 11px; }
+.aurora-profile-menu nav { display: grid; gap: 2px; padding-top: 6px; }
+.aurora-profile-menu nav button { display: grid; width: 100%; grid-template-columns: 31px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; text-align: left; border: 0; border-radius: 13px; background: transparent; }
+.aurora-profile-menu nav button:hover,
+.aurora-profile-menu nav button.is-active { background: #f2f2f3; }
+.aurora-profile-menu nav svg { width: 20px; fill: none; stroke: #6f6f76; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.55; }
+.aurora-profile-menu nav span { min-width: 0; }
+.aurora-profile-menu nav strong,
+.aurora-profile-menu nav small { display: block; }
+.aurora-profile-menu nav strong { color: #39393d; font-size: 10px; }
+.aurora-profile-menu nav small { margin-top: 3px; color: #9999a0; font-size: 8px; }
+.aurora-profile-menu nav b { color: #aaaab0; font-size: 10px; font-weight: 500; }
+.aurora-profile-menu nav i { display: grid; min-width: 19px; height: 19px; place-items: center; padding: 0 3px; color: #fff; border-radius: 10px; background: #ee5668; font-size: 8px; font-style: normal; }
+.profile-menu-enter-active, .profile-menu-leave-active { transition: opacity 150ms ease, transform 180ms ease; transform-origin: top right; }
+.profile-menu-enter-from, .profile-menu-leave-to { opacity: 0; transform: translateY(-5px) scale(.97); }
 
 @media (max-width: 1080px) {
   .aurora-header-inner { grid-template-columns: auto minmax(230px, 1fr) auto; }

@@ -230,6 +230,16 @@ export const userApi={
         })
     },
 
+    // 获取关注用户的动态流
+    getFollowEvents(pagesize = 30, lasttime = -1) {
+        return apiClient.get('/event', {
+            params: {
+                pagesize,
+                lasttime,
+            },
+        })
+    },
+
     //转发用户动态
     forwardUserEvent(evId, forwards, uid = null) {
         return apiClient.post('/event/forward', null, {
@@ -267,10 +277,34 @@ export const userApi={
         return apiClient.get('/comment/event', {
             params: {
                 threadId,
-                id,
+                ...(id ? {id} : {}),
                 limit,
                 offset,
                 before,
+            },
+        })
+    },
+
+    // 动态点赞/取消点赞，动态资源类型固定为 6
+    likeEvent(threadId, t = 1) {
+        return apiClient.get('/resource/like', {
+            params: {
+                threadId,
+                type: 6,
+                t,
+            },
+        })
+    },
+
+    // 发送动态评论；传 commentId 时回复指定评论
+    sendEventComment(threadId, content, commentId = null) {
+        return apiClient.post('/comment', null, {
+            params: {
+                t: commentId ? 2 : 1,
+                type: 6,
+                threadId,
+                content,
+                ...(commentId ? {commentId} : {}),
             },
         })
     },
