@@ -91,9 +91,11 @@ import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {useDiscoverData} from '@/composables/useDiscoverData.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
 
 const route = useRoute()
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 const activeContent = ref('songs')
 const contentTabs = [
   {label: '代表歌曲', value: 'songs'},
@@ -149,9 +151,9 @@ function backToDiscover() {
   router.push({name: 'discover', query: {tab: 'styles'}})
 }
 
-function openPlaylist(item) { const id = Number(item?.id || 0); if (id) router.push({name: 'playlistDetailPage', query: {id}}) }
-function openAlbum(item) { const id = Number(item?.id || 0); if (id) router.push({name: 'albumDetailPage', query: {id}}) }
-function openArtist(item) { const id = Number(item?.id || 0); if (id) router.push({name: 'artistDetailPage', query: {id}}) }
+function openPlaylist(item) { const id = Number(item?.id || 0); if (id) openDetail('playlist', id) }
+function openAlbum(item) { const id = Number(item?.id || 0); if (id) openDetail('album', id) }
+function openArtist(item) { const id = Number(item?.id || 0); if (id) openDetail('artist', id) }
 async function playStyleSong(song, index = 0) { await playSongWithQueue(song, styleSongs.value, index) }
 
 function formatCount(value) {

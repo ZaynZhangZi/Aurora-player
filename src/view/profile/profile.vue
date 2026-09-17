@@ -385,9 +385,6 @@
         </section>
       </transition>
     </main>
-
-    <!-- Global App Route Frame Modal Drawer Router -->
-    <ModalRouterView content-width="85vw" content-height="80vh" content-radius="24px" />
   </div>
 
   <Teleport to="body">
@@ -466,11 +463,12 @@ import {userApi} from '@/api/userApi/userApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
-import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
+import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 
 const loading = ref(true)
@@ -1502,7 +1500,7 @@ function openPlaylist(item, event) {
     })
   }
 
-  router.push({name: 'profilePlaylistDetail', query: {id: playlistId}})
+  openDetail('playlist', playlistId)
 }
 
 function normalizeCloudSong(item = {}) {
@@ -1818,6 +1816,7 @@ onMounted(async () => {
     void pickAvatarTheme(profile.value.avatarUrl, profile.value.nickname)
   }
   loadProfilePage()
+  window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 
 onActivated(() => {
@@ -1833,6 +1832,7 @@ onDeactivated(() => {
 
 onBeforeUnmount(() => {
   profileUnmounted = true
+  window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
@@ -1861,14 +1861,11 @@ watch(
   {immediate: true},
 )
 
-watch(
-  () => route.name,
-  (name) => {
-    if (name === 'profile') {
-      runPlaylistHeroReturn()
-    }
-  },
-)
+function onDetailClosed(event) {
+  if (route.name !== 'profile') return
+  if (event?.detail?.type && event.detail.type !== 'playlist') return
+  runPlaylistHeroReturn()
+}
 
 watch(
   () => profile.value.avatarUrl,

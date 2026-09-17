@@ -11,13 +11,19 @@
 		:inert="showSplash ? '' : null"
 		:aria-hidden="showSplash ? 'true' : null"
 	>
-		<div ref="contentRef" class="app-content">
-			<router-view v-slot="{ Component }">
+		<div
+			ref="contentRef"
+			class="app-content"
+			:inert="overlay ? '' : null"
+			:aria-hidden="overlay ? 'true' : null"
+		>
+			<BackgroundRouteProvider :route="bgRouteState" :record="bgRecord">
 				<keep-alive :include="keepAliveNames">
-					<component :is="Component" />
+					<component :is="bgComponent" v-if="bgComponent" :key="bgKey" />
 				</keep-alive>
-			</router-view>
+			</BackgroundRouteProvider>
 		</div>
+		<DetailOverlayHost :overlay="overlay" @request-close="closeOverlay" />
 		<globalFooterPlayer />
 		<QrLoginDialog />
 		<div class="playback-notice-host" aria-live="polite" aria-atomic="true">
@@ -102,15 +108,18 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
-import { consumeNavigatingBack, markNavigatingBack } from "@/router/index.js";
+import { markNavigatingBack } from "@/router/index.js";
 import { useCounterStore } from "@/stores/userStores.js";
 import { reportApi } from "@/api/reportApi/reportApi.js";
 import { userApi } from "@/api/userApi/userApi.js";
 import AppSplashScreen from "@/components/AppSplashScreen/AppSplashScreen.vue";
 import QrLoginDialog from "@/components/login/QrLoginDialog.vue";
+import BackgroundRouteProvider from "@/components/detailOverlay/BackgroundRouteProvider.vue";
+import DetailOverlayHost from "@/components/detailOverlay/DetailOverlayHost.vue";
+import { DETAIL_CLOSE_EVENT, isDetailRoute } from "@/composables/useDetailNavigation.js";
 import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
@@ -120,6 +129,125 @@ const router = useRouter();
 const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
+
+/* ============================================================
+   背景 / 悬浮层状态机
+   - 主页面：作为「背景」渲染在主内容区，并被 keep-alive 缓存。
+   - 实体详情（/playlist/:id 等）：
+       · 已有背景（应用内点击进入） -> 悬浮层模式，背景保持挂载不动；
+       · 无背景（直接访问 / 刷新详情 URL） -> 整页模式，详情作为背景渲染。
+   背景页通过 BackgroundRouteProvider 读到「自己被冻结时的路由快照」，
+   因此悬浮层开/关不会误触发背景页的 watch(route.name / route.query)。
+   ============================================================ */
+const bgRouteState = reactive({
+	name: undefined,
+	path: "/",
+	fullPath: "/",
+	hash: "",
+	href: "/",
+	query: {},
+	params: {},
+	matched: [],
+	meta: {},
+	redirectedFrom: undefined,
+});
+const bgComponent = shallowRef(null);
+const bgRecord = shallowRef(null);
+const bgKey = ref("");
+const overlay = shallowRef(null);
+// 背景是否为「整页详情」。只有背景是主页面（非详情）时，新详情才以悬浮层打开；
+// 若背景本身是整页详情（直接访问详情进入），则新详情替换背景、继续整页，
+// 避免「回退到与背景相同的详情」时把详情叠在自己上面。
+let bgIsDetail = false;
+let prevRouteWasDetail = false;
+
+const keepAliveNames = computed(() => {
+	const meta = bgRouteState.meta || {};
+	if (meta.keepAlive) return [meta.keepAliveName || bgRouteState.name];
+	return [];
+});
+
+function snapshotBackgroundRoute(target) {
+	bgRouteState.name = target.name;
+	bgRouteState.path = target.path;
+	bgRouteState.fullPath = target.fullPath;
+	bgRouteState.hash = target.hash;
+	bgRouteState.href = target.href;
+	bgRouteState.query = { ...target.query };
+	bgRouteState.params = { ...target.params };
+	bgRouteState.matched = target.matched;
+	bgRouteState.meta = target.meta || {};
+	bgRouteState.redirectedFrom = target.redirectedFrom;
+}
+
+function setBackground(target, record, comp, key) {
+	snapshotBackgroundRoute(target);
+	bgRecord.value = record;
+	bgComponent.value = comp;
+	bgKey.value = key;
+	bgIsDetail = isDetailRoute(target);
+}
+
+/** 关闭详情：有应用内历史则 back（只消耗一条历史），否则回退到首页兜底。 */
+function closeOverlay() {
+	if (window.history.state?.back) {
+		router.back();
+		return;
+	}
+	void router.replace({ name: "home" });
+}
+
+watch(
+	() => route.fullPath,
+	() => {
+		const record = route.matched[route.matched.length - 1] || null;
+		const comp = record?.components?.default || null;
+		const detail = isDetailRoute(route);
+		const closedOverlay = overlay.value;
+
+		if (detail) {
+			if (bgComponent.value && !bgIsDetail) {
+				// 悬浮层模式：背景是主页面，冻结不动，详情进覆盖层
+				overlay.value = {
+					comp,
+					record,
+					route,
+					type: route.meta?.type || null,
+					id: String(route.params?.id || route.query?.id || ""),
+				};
+			} else {
+				// 整页模式：直接访问 / 刷新（无背景），或背景本身是整页详情
+				const id = String(route.params?.id || route.query?.id || "");
+				setBackground(route, record, comp, `${String(route.name)}:${id}`);
+				overlay.value = null;
+			}
+		} else {
+			setBackground(route, record, comp, String(route.name || route.path));
+			overlay.value = null;
+		}
+
+		// 底层页面入场动画：仅在「主页面 -> 主页面」时播放；
+		// 打开/关闭详情悬浮层、或从整页详情返回时都不重播背景动画。
+		const shouldAnimateEnter = !detail && !prevRouteWasDetail;
+		prevRouteWasDetail = detail;
+
+		if (shouldAnimateEnter) {
+			void nextTick(() => runRouteEnterMotion());
+		}
+
+		// 悬浮层关闭后，通知背景页播放封面 Hero 返回动画
+		if (closedOverlay && !detail) {
+			void nextTick(() => {
+				window.dispatchEvent(
+					new CustomEvent(DETAIL_CLOSE_EVENT, {
+						detail: { type: closedOverlay.type, id: closedOverlay.id },
+					}),
+				);
+			});
+		}
+	},
+	{ immediate: true },
+);
 
 const SPLASH_SESSION_KEY = "aurora-splash-seen";
 
@@ -163,16 +291,6 @@ onMounted(() => {
 	}
 });
 
-// 需要 keepAlive 的组件名（对应 defineOptions({ name })）
-const keepAliveNames = computed(() => {
-  const names = [];
-  for (const record of route.matched) {
-    if (record.meta?.keepAlive) {
-		names.push(record.meta?.keepAliveName || record.name);
-    }
-  }
-  return names;
-});
 const restrictionDialog = ref({
 	open: false,
 	title: "",
@@ -239,20 +357,15 @@ function handlePlaybackNotice(event) {
 
 function goBack() {
 	markNavigatingBack();
-	const matched = route.matched || [];
-	if (matched.length > 1) {
-		const parent = matched[matched.length - 2];
-		if (parent?.name) {
-			router.push({ name: parent.name });
-			return;
-		}
-		if (parent?.path) {
-			router.push(parent.path);
-			return;
-		}
+
+	// 详情（悬浮层或整页）：优先关闭当前详情。
+	// 用 router.back() 弹出详情历史，只消耗一条记录，不用 push(parent) 污染历史。
+	if (isDetailRoute(route)) {
+		closeOverlay();
+		return;
 	}
 
-	if (window.history.length > 1) {
+	if (window.history.state?.back) {
 		router.back();
 		return;
 	}
@@ -424,16 +537,6 @@ watch(
 	() => [userStore.isLoggedIn, userStore.userId],
 	() => {
 		startUserStatusPolling();
-	},
-);
-
-watch(
-	() => route.path,
-	async () => {
-		await nextTick();
-		if (!consumeNavigatingBack()) {
-			runRouteEnterMotion();
-		}
 	},
 );
 </script>

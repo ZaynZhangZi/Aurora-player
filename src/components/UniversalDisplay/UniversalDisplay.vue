@@ -68,15 +68,12 @@
       </div>
     </div>
   </div>
-
-  <ModalRouterView />
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { gsap } from 'gsap'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
-import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import router from '@/router/index.js'
 
 const emit = defineEmits(['view-more'])

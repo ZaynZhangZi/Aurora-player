@@ -141,9 +141,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
+import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
 import { HeartIcon as HeartOutlineIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
@@ -164,7 +165,12 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
 const playerStore = usePlayerStore()
-const isModalPlaylistDetail = computed(() => ['playlistDetail', 'profilePlaylistDetail', 'discoverPlaylistDetail'].includes(String(route.name || '')))
+const { closeDetail } = useDetailNavigation()
+// 悬浮模式由 DetailOverlayHost 注入；整页模式（直接访问/刷新）为 false。
+// 详情组件挂载期间模式不变，用静态布尔即可。
+const isModalPlaylistDetail = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
+// 详情 id：规范 URL 用 params，旧地址回退 query。
+const detailId = computed(() => String(route.params?.id || route.query?.id || ''))
 const playlistHeroCardRef = ref(null)
 const playlistHeroCoverRef = ref(null)
 let heroEnterDone = Promise.resolve()
@@ -200,6 +206,15 @@ const songLikeAnimationTimers = new Map()
 const pageStyle = computed(() => {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
   const baseColor = '#FAFAFA'
+
+  // 悬浮层高度远小于整页，固定 px/100vh 的渐变停止点会提前走到近白底色，
+  // 导致弹窗下半截出现一块平白。悬浮模式改用百分比停止点，让主题色铺满容器。
+  if (isModalPlaylistDetail) {
+    return {
+      backgroundColor: baseColor,
+      backgroundImage: `linear-gradient(180deg, rgba(${r},${g},${b},0.35) 0%, rgba(${r},${g},${b},0.12) 42%, rgba(${r},${g},${b},0.07) 100%)`,
+    }
+  }
 
   return {
     backgroundColor: baseColor,
@@ -349,7 +364,7 @@ function triggerPlaylistLikeAnimation(subscribed) {
 }
 
 function preparePlaylistHeroReturn() {
-  const id = Number(route.query.id || playlist.value.id || 0)
+  const id = Number(detailId.value || playlist.value.id || 0)
   if (!id) return
 
   const coverEl = playlistHeroCoverRef.value
@@ -362,43 +377,16 @@ function preparePlaylistHeroReturn() {
   })
 }
 
-function resolveBackTarget() {
-  const matched = route.matched || []
-  if (matched.length > 1) {
-    const parent = matched[matched.length - 2]
-    if (parent?.name) {
-      return {name: parent.name}
-    }
-    if (parent?.path) {
-      return parent.path
-    }
-  }
-
-  return null
-}
-
 async function goBack() {
   markNavigatingBack()
   preparePlaylistHeroReturn()
-  const target = resolveBackTarget()
-
-  if (target) {
-    await router.push(target)
-    return
-  }
-
-  if (window.history.length > 1) {
-    router.back()
-    return
-  }
-
-  await router.push('/home')
+  // 统一关闭：悬浮层用 router.back() 弹出一条历史；整页直接访问回退到首页兜底。
+  closeDetail()
 }
 
-onBeforeRouteLeave((to) => {
-  if (to?.name === 'home' || to?.name === 'profile' || to?.name === 'discover') {
-    preparePlaylistHeroReturn()
-  }
+onBeforeRouteLeave(() => {
+  // 无论返回哪个背景页，都准备封面 Hero 返回动画（由背景页消费）。
+  preparePlaylistHeroReturn()
 })
 
 async function openSong(track, index = 0) {
@@ -413,7 +401,7 @@ async function playAllTracks() {
   if (!tracks.value.length) return
   reportApi.reportBehavior({
     actionType: 'PLAY_PLAYLIST',
-    actionTarget: String(playlist.value.id || route.query.id || ''),
+    actionTarget: String(playlist.value.id || detailId.value || ''),
     actionDetail: JSON.stringify({name: playlist.value.name || '', trackCount: tracks.value.length}),
   })
   await playSongWithQueue(tracks.value[0], tracks.value, 0)
@@ -626,7 +614,7 @@ async function loadPlaylist() {
   error.value = ''
   tracks.value = []
 
-  const id = route.query.id
+  const id = detailId.value
   if (!id) {
     error.value = '缺少歌单 id'
     loading.value = false
@@ -705,7 +693,7 @@ async function loadPlaylist() {
 }
 
 async function runHeroFlipEnter() {
-  const id = Number(route.query.id || playlist.value.id || 0)
+  const id = Number(detailId.value || playlist.value.id || 0)
   if (!id) return
   const payload = consumePendingPlaylistHeroTransition(id)
   if (!payload) {
@@ -779,7 +767,7 @@ watch(
 )
 
 watch(
-  () => route.query.id,
+  () => detailId.value,
   () => {
     actionFeedback.value = ''
     playlistLikeAnimationClass.value = ''

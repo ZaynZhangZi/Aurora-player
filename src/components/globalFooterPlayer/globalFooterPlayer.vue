@@ -1,7 +1,7 @@
 <template>
   <div
     ref="playerRootRef"
-    class="player-root fixed inset-x-0 z-[999]"
+    class="player-root fixed inset-x-0 z-[1210]"
     role="region"
     aria-label="全局播放器"
   >
@@ -681,6 +681,7 @@ import {
   watch,
 } from "vue";
 import {useRouter} from "vue-router";
+import {useDetailNavigation} from "@/composables/useDetailNavigation.js";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
@@ -744,6 +745,7 @@ let stopAutomixRuntimeSubscription = autoMixEngine.subscribe((snapshot) => {
   playerStore.setAutomixRuntimeSnapshot(snapshot);
 });
 const router = useRouter();
+const {openDetail} = useDetailNavigation();
 const {
   collectLyricRowsForTranslate,
   hasLyricText,
@@ -1465,13 +1467,12 @@ function setAudioSessionPlaybackMode() {
 
 function openArtistFromPlayer(artist) {
   if (!artist?.name) return;
-  router.push({
-    path: "/artistDetial",
-    query: {
-      id: artist.id || "",
-      name: artist.name,
-    },
-  });
+  const id = String(artist.id || "").trim();
+  if (id) {
+    openDetail("artist", id, {query: {name: artist.name}});
+    return;
+  }
+  router.push({name: "artistByName", query: {name: artist.name}});
 }
 
 function resolveMediaSessionArtworkUrl() {

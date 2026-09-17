@@ -19,6 +19,7 @@
 <script setup>
 import {computed} from 'vue'
 import {useRouter} from 'vue-router'
+import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
 
 const props = defineProps({
   artists: {type: Array, default: () => []},
@@ -30,6 +31,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 
 const normalizedArtists = computed(() => {
   return (props.artists || [])
@@ -42,12 +44,13 @@ const normalizedArtists = computed(() => {
 
 function openArtist(artist) {
   if (!artist?.name) return
-  router.push({
-    path: '/artistDetial',
-    query: {
-      id: artist.id || '',
-      name: artist.name,
-    },
-  })
+  const id = String(artist.id || '').trim()
+  if (id) {
+    // 有 id：走统一详情入口（悬浮层/整页由 App 决定），保留 name 以便标题展示
+    openDetail('artist', id, {query: {name: artist.name}})
+    return
+  }
+  // 仅有歌手名、无 id：进入按名称解析的歌手页
+  router.push({name: 'artistByName', query: {name: artist.name}})
 }
 </script>

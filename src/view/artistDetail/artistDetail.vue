@@ -274,10 +274,11 @@
 </template>
 
 <script setup>
-import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import {useRoute, useRouter} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
+import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
@@ -287,6 +288,11 @@ import {setPendingTransition, consumePendingTransition, peekPendingTransition, p
 
 const route = useRoute()
 const router = useRouter()
+const { closeDetail, openDetail } = useDetailNavigation()
+// 悬浮模式（DetailOverlayHost 注入）；整页模式为 false。
+const isOverlay = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
+// 详情 id：规范 URL 用 params，旧地址回退 query。
+const detailId = computed(() => String(route.params?.id || route.query?.id || ''))
 const playerStore = usePlayerStore()
 
 const loading = ref(true)
@@ -421,6 +427,15 @@ const pageStyle = computed(() => {
   const softR = Math.min(245, Math.round((r + 242) / 2))
   const softG = Math.min(245, Math.round((g + 242) / 2))
   const softB = Math.min(245, Math.round((b + 242) / 2))
+
+  // 悬浮层里 620px 的近白终点会提前出现，弹窗下半截变成平白；
+  // 悬浮模式改用百分比停止点并保留同色系柔色到底部。
+  if (isOverlay) {
+    return {
+      background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 40%, rgba(${softR},${softG},${softB},0.88) 100%)`,
+    }
+  }
+
   return {
     background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 280px, rgba(250,250,250,1) 620px)`,
   }
@@ -749,7 +764,7 @@ async function pickThemeFromImage(imageUrl, seed) {
 /* ===== Hero 过渡 ===== */
 
 function prepareArtistHeroReturn() {
-  const id = Number(route.query?.id || 0)
+  const id = Number(detailId.value || 0)
   if (!id) return
   const coverEl = artistHeroCoverRef.value
   if (!(coverEl instanceof HTMLElement)) return
@@ -762,7 +777,7 @@ function prepareArtistHeroReturn() {
 }
 
 async function runArtistHeroFlipEnter() {
-  const id = Number(route.query?.id || 0)
+  const id = Number(detailId.value || 0)
   if (!id) return
   const payload = consumePendingTransition('artist', id)
   if (!payload) return
@@ -800,7 +815,8 @@ async function runAlbumHeroReturn() {
 function goBack() {
   markNavigatingBack()
   prepareArtistHeroReturn()
-  router.back()
+  // 统一关闭：悬浮层 back 弹出一条历史；整页直接访问回退首页兜底。
+  closeDetail()
 }
 
 function onHeroVideoError() {
@@ -886,7 +902,8 @@ function openAlbum(album, event) {
     })
   }
 
-  router.push({path: '/albumDetail', query: {id: albumId}})
+  // 统一详情入口：从歌手页打开专辑，作为悬浮层叠加（历史记录正确）
+  openDetail('album', albumId)
 }
 
 function openMv(mv) {
@@ -1194,7 +1211,7 @@ function onBlockImageError(event) {
 }
 
 async function ensureArtistId() {
-  const fromQueryId = route.query.id
+  const fromQueryId = detailId.value
   const fromQueryName = route.query.name
 
   if (fromQueryId) {
@@ -1388,10 +1405,9 @@ onMounted(async () => {
   runAlbumHeroReturn()
 })
 
-onBeforeRouteLeave((to) => {
-  if (to?.name === 'home' || to?.name === 'discover') {
-    prepareArtistHeroReturn()
-  }
+onBeforeRouteLeave(() => {
+  // 无论返回哪个背景页，都准备封面 Hero 返回动画（由背景页消费）。
+  prepareArtistHeroReturn()
 })
 
 onBeforeUnmount(() => {
@@ -1458,7 +1474,7 @@ watch(
 )
 
 watch(
-  () => [route.query.id, route.query.name],
+  () => [detailId.value, route.query.name],
   () => {
     loadArtistPage()
   },

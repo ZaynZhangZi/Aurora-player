@@ -259,8 +259,10 @@ import {searchApi} from '@/api/searchApi/searchApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
+import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
 
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 
 const follows = ref([])
@@ -780,8 +782,8 @@ async function openResource(resource) {
     await playSongWithQueue(resource.raw, [resource.raw], 0)
     return
   }
-  if (resource.kind === 'playlist' && resource.id) router.push({name: 'playlistDetailPage', query: {id: resource.id}})
-  if (resource.kind === 'album' && resource.id) router.push({name: 'albumDetailPage', query: {id: resource.id}})
+  if (resource.kind === 'playlist' && resource.id) openDetail('playlist', resource.id)
+  if (resource.kind === 'album' && resource.id) openDetail('album', resource.id)
   if (['mv', 'program', 'radio', 'video'].includes(resource.kind)) router.push({name: 'discover', query: {tab: 'airwaves'}})
 }
 

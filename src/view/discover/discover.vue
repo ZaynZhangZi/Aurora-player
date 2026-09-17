@@ -252,27 +252,27 @@
       @change-resolution="changeMvResolution"
       @close="closeMvPlayer"
     />
-    <ModalRouterView content-width="90vw" content-height="86vh" content-radius="26px" />
   </div>
 </template>
 
 <script setup>
 defineOptions({name: 'DiscoverPage'})
 
-import {computed, nextTick, onBeforeUnmount, reactive, ref, watch} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomeMvModal from '@/components/home/HomeMvModal.vue'
-import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {useDiscoverData} from '@/composables/useDiscoverData.js'
 import {useHomeMv} from '@/composables/useHomeMv.js'
+import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {consumeLatestPendingTransition, playHeroEnter, setPendingTransition} from '@/utils/heroTransition.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 
 const route = useRoute()
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 const playerStore = usePlayerStore()
 
 const tabs = [
@@ -407,23 +407,19 @@ function rememberHero(namespace, item, event) {
   return id
 }
 
-function modalQuery(id) {
-  return {id, tab: activeTab.value}
-}
-
 function openPlaylist(item, event) {
   const id = rememberHero('playlist', item, event)
-  if (id) router.push({name: 'discoverPlaylistDetail', query: modalQuery(id)})
+  if (id) openDetail('playlist', id)
 }
 
 function openAlbum(item, event) {
   const id = rememberHero('album', item, event)
-  if (id) router.push({name: 'discoverAlbumDetail', query: modalQuery(id)})
+  if (id) openDetail('album', id)
 }
 
 function openArtist(item, event) {
   const id = rememberHero('artist', item, event)
-  if (id) router.push({name: 'discoverArtistDetail', query: modalQuery(id)})
+  if (id) openDetail('artist', id)
 }
 
 async function runHeroReturn(namespace) {
@@ -474,8 +470,18 @@ watch(
   {immediate: true},
 )
 
-watch(() => route.name, name => {
-  if (name === 'discover') runDiscoverHeroReturn()
+function onDetailClosed(event) {
+  if (route.name !== 'discover') return
+  const type = event?.detail?.type
+  if (type && type !== 'playlist' && type !== 'album' && type !== 'artist') return
+  runDiscoverHeroReturn()
+}
+
+onMounted(() => {
+  window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
+})
+onUnmounted(() => {
+  window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 
 onBeforeUnmount(closeMvPlayer)

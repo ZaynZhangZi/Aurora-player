@@ -179,9 +179,11 @@ import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {searchApi} from '@/api/searchApi/searchApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
 
 const route = useRoute()
 const router = useRouter()
+const {openDetail} = useDetailNavigation()
 const searchInputRef = ref(null)
 const searchInput = ref('')
 const keyword = ref('')
@@ -365,17 +367,17 @@ async function playSong(song, index = 0) {
 
 function openArtist(artist) {
   const id = Number(artist?.id || 0)
-  if (id) router.push({name: 'artistDetailPage', query: {id}})
+  if (id) openDetail('artist', id)
 }
 
 function openAlbum(album) {
   const id = Number(album?.id || 0)
-  if (id) router.push({name: 'albumDetailPage', query: {id}})
+  if (id) openDetail('album', id)
 }
 
 function openPlaylist(playlist) {
   const id = Number(playlist?.id || playlist?.playlistId || 0)
-  if (id) router.push({name: 'playlistDetailPage', query: {id}})
+  if (id) openDetail('playlist', id)
 }
 
 function formatCount(value) {

@@ -204,23 +204,21 @@
         <button type="button" @click="router.push({name: 'releaseNotes'})">查看版本更新</button>
       </footer>
     </main>
-
-    <ModalRouterView content-width="85vw" content-height="80vh" />
   </div>
 </template>
 
 <script setup>
 defineOptions({name: 'HomePage'})
 
-import {computed, nextTick, onActivated, onMounted, watch} from 'vue'
+import {computed, nextTick, onActivated, onMounted, onUnmounted, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
-import ModalRouterView from '@/components/modalRouterView/ModalRouterView.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {useHomeData} from '@/composables/useHomeData.js'
 import {usePersonalHomeData} from '@/composables/usePersonalHomeData.js'
+import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
@@ -233,6 +231,7 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 const playerStore = usePlayerStore()
 const {hero: bannerHero, loadHomeBanner} = useHomeData(userStore)
@@ -345,7 +344,7 @@ async function openPlaylist(item, event) {
       playlistName: item.name || '',
     })
   }
-  await router.push({name: 'playlistDetail', query: {id}})
+  await openDetail('playlist', id)
 }
 
 async function runPlaylistHeroReturn() {
@@ -358,8 +357,10 @@ async function runPlaylistHeroReturn() {
 }
 
 function openRecentCollection(item) {
-  if (item.type === 'album') router.push({name: 'albumDetailPage', query: {id: item.id}})
-  else router.push({name: 'playlistDetailPage', query: {id: item.id}})
+  const id = Number(item?.id || 0)
+  if (!id) return
+  if (item.type === 'album') openDetail('album', id)
+  else openDetail('playlist', id)
 }
 
 function openStyle(tag) {
@@ -370,17 +371,24 @@ function openDiscover() {
   router.push({name: 'discover', query: {tab: 'styles'}})
 }
 
+function onDetailClosed(event) {
+  if (route.name !== 'home') return
+  if (event?.detail?.type && event.detail.type !== 'playlist') return
+  void runPlaylistHeroReturn()
+}
+
 onMounted(() => {
   void runPlaylistHeroReturn()
   void loadHomeBanner()
   void loadPersonalHome(userStore.isLoggedIn)
+  window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
+})
+onUnmounted(() => {
+  window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 onActivated(() => {
   if (route.name !== 'home') return
   requestAnimationFrame(() => window.scrollTo({left: 0, top: 0, behavior: 'auto'}))
-})
-watch(() => route.name, name => {
-  if (name === 'home') void runPlaylistHeroReturn()
 })
 watch(() => userStore.isLoggedIn, value => loadPersonalHome(value))
 </script>

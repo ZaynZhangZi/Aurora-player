@@ -87,9 +87,11 @@ const profileMenuRef = ref(null)
 const profileMenuOpen = ref(false)
 const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCenter(userStore)
 
-const isProfile = computed(() => ['profile', 'profilePlaylistDetail'].includes(String(route.name || '')))
-const isHome = computed(() => ['home', 'playlistDetail'].includes(String(route.name || '')))
-const isDiscover = computed(() => ['discover', 'discoverPlaylistDetail', 'discoverAlbumDetail', 'discoverArtistDetail'].includes(String(route.name || '')))
+// 背景冻结：AppHeader 始终位于主页子树内，route.name 即当前主页名；
+// 详情悬浮层打开时背景路由保持不变，导航高亮天然正确。
+const isProfile = computed(() => String(route.name || '') === 'profile')
+const isHome = computed(() => String(route.name || '') === 'home')
+const isDiscover = computed(() => String(route.name || '') === 'discover')
 const isMessages = computed(() => route.name === 'messages')
 const isMoments = computed(() => route.name === 'moments')
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())

@@ -1,5 +1,9 @@
 ﻿<template>
-  <div class="album-page min-h-screen text-stone-900 transition-colors duration-700" :style="pageStyle">
+  <div
+    class="album-page text-stone-900 transition-colors duration-700"
+    :class="isOverlay ? 'h-full overflow-y-auto overscroll-contain' : 'min-h-screen'"
+    :style="pageStyle"
+  >
     <nav class="sticky top-0 z-50 flex items-center justify-between px-6 py-4">
       <div class="h-5"></div>
     </nav>
@@ -144,10 +148,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useRoute, useRouter } from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
+import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
+import { lockScroll, unlockScroll } from '@/utils/scrollLock.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
@@ -155,6 +161,11 @@ import {setPendingTransition, consumePendingTransition, peekPendingTransition, p
 
 const route = useRoute()
 const router = useRouter()
+const { closeDetail } = useDetailNavigation()
+// 悬浮模式（DetailOverlayHost 注入）；整页模式为 false。
+const isOverlay = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
+// 详情 id：规范 URL 用 params，旧地址回退 query。
+const detailId = computed(() => String(route.params?.id || route.query?.id || ''))
 
 const loading = ref(true)
 const error = ref('')
@@ -179,12 +190,12 @@ let themeRaf = 0
 // 控制弹窗显示的变量
 const showModal = ref(false)
 
-// 监听弹窗状态，当打开时禁用底层页面的滚动条
+// 监听弹窗状态：使用支持嵌套的滚动锁，内层弹窗关闭不会提前解除外层（详情悬浮层）锁定
 watch(showModal, (isOpen) => {
   if (isOpen) {
-    document.body.style.overflow = 'hidden'
+    lockScroll()
   } else {
-    document.body.style.overflow = ''
+    unlockScroll()
   }
 })
 
@@ -221,6 +232,14 @@ const pageStyle = computed(() => {
   const lightR = Math.min(255, Math.round(r + (255 - r) * 0.92))
   const lightG = Math.min(255, Math.round(g + (255 - g) * 0.92))
   const lightB = Math.min(255, Math.round(b + (255 - b) * 0.92))
+
+  // 悬浮层高度远小于 100vh，固定 100vh 的渐变终点在弹窗里分布不均；
+  // 悬浮模式改用百分比停止点，让同色系底色均匀铺到弹窗底部。
+  if (isOverlay) {
+    return {
+      background: `linear-gradient(180deg, rgba(${r},${g},${b},0.65) 0%, rgba(${r},${g},${b},0.24) 46%, rgba(${lightR},${lightG},${lightB},1) 100%)`,
+    }
+  }
 
   return {
     // 顶部使用 0.65 的高透明度，在 500px 处平滑过渡，最后变为浅色底
@@ -350,7 +369,7 @@ async function playAll() {
 const albumHeroCoverRef = ref(null)
 
 function prepareAlbumHeroReturn() {
-  const id = Number(route.query?.id || 0)
+  const id = Number(detailId.value || 0)
   if (!id) return
   const coverEl = albumHeroCoverRef.value
   if (!(coverEl instanceof HTMLElement)) return
@@ -363,7 +382,7 @@ function prepareAlbumHeroReturn() {
 }
 
 async function runAlbumHeroFlipEnter() {
-  const id = Number(route.query?.id || 0)
+  const id = Number(detailId.value || 0)
   if (!id) return
   const payload = consumePendingTransition('album', id)
   if (!payload) return
@@ -387,7 +406,8 @@ async function runAlbumHeroFlipEnter() {
 function goBack() {
   markNavigatingBack()
   prepareAlbumHeroReturn()
-  router.back()
+  // 统一关闭：悬浮层 back 弹出一条历史；整页直接访问回退首页兜底。
+  closeDetail()
 }
 
 function easeOutCubic(t) {
@@ -468,7 +488,7 @@ async function loadAlbum() {
   dynamicCover.value = { url: '', isVideo: false }
   showModal.value = false // 切换专辑时确保弹窗关闭
 
-  const id = Number(route.query.id || 0)
+  const id = Number(detailId.value || 0)
   if (!id) {
     error.value = '缺少专辑 id'
     loading.value = false
@@ -506,10 +526,9 @@ onMounted(() => {
   runAlbumHeroFlipEnter()
 })
 
-onBeforeRouteLeave((to) => {
-  if (to?.name === 'artistDetailPage' || to?.name === 'discover') {
-    prepareAlbumHeroReturn()
-  }
+onBeforeRouteLeave(() => {
+  // 无论返回哪个背景页，都准备封面 Hero 返回动画（由背景页消费）。
+  prepareAlbumHeroReturn()
 })
 
 onBeforeUnmount(() => {
@@ -517,8 +536,8 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(themeRaf)
     themeRaf = 0
   }
-  // 确保组件销毁时恢复滚动条
-  document.body.style.overflow = ''
+  // 若内部弹窗仍打开，释放其持有的滚动锁（计数归零才真正还原 overflow）
+  if (showModal.value) unlockScroll()
 })
 
 watch(themeRgb, (nextValue, prevValue) => {
@@ -529,7 +548,7 @@ watch(themeRgb, (nextValue, prevValue) => {
   animateThemeTo(nextValue)
 }, {immediate: true})
 
-watch(() => route.query.id, () => {
+watch(() => detailId.value, () => {
   loadAlbum()
 })
 </script>
