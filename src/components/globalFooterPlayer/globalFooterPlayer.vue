@@ -13,16 +13,14 @@
       :class="{ 'player-shell-idle': !isPlaying, 'player-shell-crossfading': crossfadeVisualActive }"
       :style="playerStyle"
     >
-      <div
-        class="hidden h-[74px] grid-cols-[minmax(360px,1fr)_minmax(320px,520px)_minmax(180px,1fr)] items-center gap-3 px-4 lg:grid"
-      >
-        <div class="flex min-w-0 items-center gap-3">
+      <div class="player-desktop-layout hidden lg:grid">
+        <div class="player-desktop-track">
           <Transition :name="trackSwapTransitionName" mode="out-in">
             <div :key="songTransitionKey" class="flex min-w-0 flex-1 items-center gap-3">
               <button
                 ref="desktopCoverRef"
                 data-player-transition-cover
-                class="h-12 w-12 overflow-hidden rounded-lg bg-white/20"
+                class="player-cover-button h-[52px] w-[52px] overflow-hidden rounded-xl bg-white/20"
                 type="button"
                 :disabled="!hasSong"
                 aria-label="打开歌词页"
@@ -75,8 +73,11 @@
                   </div>
                 </div>
               </button>
-              <div class="min-w-0">
-                <p class="player-text-primary truncate text-sm font-semibold">
+              <div class="player-track-copy min-w-0 flex-1">
+                <p
+                  class="player-track-title player-text-primary truncate text-sm font-semibold"
+                  :title="songName || '未在播放'"
+                >
                   {{ songName || '未在播放' }}
                 </p>
                 <div
@@ -131,58 +132,59 @@
               </div>
             </div>
           </Transition>
-
-          <div class="flex shrink-0 items-center gap-2.5">
-            <button
-              class="player-soft-btn grid h-7 w-7 place-items-center rounded-full transition disabled:opacity-50"
-              type="button"
-              :disabled="!canPlayPrev"
-              aria-label="播放上一首"
-              @click="playPrevSong"
-            >
-              <BackwardIcon class="h-3.5 w-3.5"/>
-            </button>
-            <button
-              class="player-main-btn grid h-9 w-9 place-items-center rounded-full transition disabled:opacity-40"
-              type="button"
-              :disabled="!hasSong"
-              :aria-label="isPlaying ? '暂停播放' : '开始播放'"
-              @click="togglePlay"
-            >
-              <PauseIcon v-if="isPlaying" class="h-[18px] w-[18px]"/>
-              <PlayIcon v-else class="h-[18px] w-[18px]"/>
-            </button>
-            <button
-              class="player-soft-btn grid h-7 w-7 place-items-center rounded-full transition disabled:opacity-50"
-              type="button"
-              :disabled="!canPlayNext"
-              aria-label="播放下一首"
-              @click="playNextSong"
-            >
-              <ForwardIcon class="h-3.5 w-3.5"/>
-            </button>
-          </div>
         </div>
 
-        <div class="player-text-muted flex h-full items-center gap-2 text-[11px]">
-          <span class="w-10 text-right">{{ formatMs(currentTimeMs) }}</span>
+        <div class="player-desktop-transport">
+          <button
+            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
+            type="button"
+            :disabled="!canPlayPrev"
+            aria-label="播放上一首"
+            @click="playPrevSong"
+          >
+            <BackwardIcon class="h-3.5 w-3.5"/>
+          </button>
+          <button
+            class="player-main-btn grid h-11 w-11 place-items-center rounded-full transition disabled:opacity-40"
+            type="button"
+            :disabled="!hasSong"
+            :aria-label="isPlaying ? '暂停播放' : '开始播放'"
+            @click="togglePlay"
+          >
+            <PauseIcon v-if="isPlaying" class="h-5 w-5"/>
+            <PlayIcon v-else class="h-5 w-5"/>
+          </button>
+          <button
+            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
+            type="button"
+            :disabled="!canPlayNext"
+            aria-label="播放下一首"
+            @click="playNextSong"
+          >
+            <ForwardIcon class="h-3.5 w-3.5"/>
+          </button>
+        </div>
+
+        <div class="player-desktop-timeline player-text-muted">
+          <span class="player-time text-right">{{ formatMs(currentTimeMs) }}</span>
           <input
-            class="player-range h-1.5 flex-1 cursor-pointer appearance-none rounded-full"
+            class="player-range flex-1 cursor-pointer appearance-none rounded-full"
             type="range"
             min="0"
             :max="Math.max(durationMs, 1)"
             :value="Math.min(currentTimeMs, durationMs || 0)"
+            :style="timelineRangeStyle"
             aria-label="播放进度"
             @input="seekByInput"
           >
-          <span class="w-10">{{ formatMs(durationMs) }}</span>
+          <span class="player-time">{{ formatMs(durationMs) }}</span>
         </div>
 
-        <div class="flex items-center justify-end gap-2">
+        <div class="player-desktop-volume">
           <div class="player-side-menu">
             <button
               ref="moreMenuButtonRef"
-              class="player-chip-btn grid h-7 w-7 place-items-center rounded-full text-[11px] transition"
+              class="player-chip-btn grid h-8 w-8 place-items-center rounded-full text-[11px] transition"
               type="button"
               aria-label="显示更多播放设置"
               @click="toggleMorePanel"
@@ -190,14 +192,15 @@
               <EllipsisHorizontalIcon class="h-4 w-4"/>
             </button>
           </div>
-          <SpeakerWaveIcon class="player-text-muted h-4 w-4"/>
+          <SpeakerWaveIcon class="player-volume-icon player-text-muted h-4 w-4"/>
           <input
-            class="player-range h-1.5 w-24 cursor-pointer appearance-none rounded-full"
+            class="player-range w-24 cursor-pointer appearance-none rounded-full"
             type="range"
             min="0"
             max="1"
             step="0.01"
             :value="volume"
+            :style="volumeRangeStyle"
             aria-label="播放音量"
             @input="changeVolume"
           >
@@ -265,8 +268,11 @@
                 </div>
               </div>
             </button>
-            <div class="min-w-0 flex-1">
-              <p class="player-text-primary truncate text-sm font-semibold">
+            <div class="min-w-0 flex-1 overflow-hidden">
+              <p
+                class="player-text-primary truncate text-sm font-semibold"
+                :title="songName || '未在播放'"
+              >
                 {{ songName || '未在播放' }}
               </p>
               <div
@@ -322,7 +328,7 @@
 
             <div class="ml-1 flex shrink-0 items-center gap-1">
               <button
-                class="player-soft-btn grid h-7 w-7 place-items-center rounded-full disabled:opacity-50"
+                class="player-soft-btn hidden h-7 w-7 place-items-center rounded-full disabled:opacity-50 sm:grid"
                 type="button"
                 :disabled="!canPlayPrev"
                 aria-label="播放上一首"
@@ -341,7 +347,7 @@
                 <PlayIcon v-else class="h-4 w-4"/>
               </button>
               <button
-                class="player-soft-btn grid h-7 w-7 place-items-center rounded-full disabled:opacity-50"
+                class="player-soft-btn hidden h-7 w-7 place-items-center rounded-full disabled:opacity-50 sm:grid"
                 type="button"
                 :disabled="!canPlayNext"
                 aria-label="播放下一首"
@@ -353,20 +359,22 @@
           </div>
         </Transition>
 
-        <div class="flex max-w-[46vw] flex-wrap items-center justify-end gap-1 sm:gap-1.5">
+        <div class="player-mobile-options flex max-w-[46vw] flex-wrap items-center justify-end gap-1 sm:gap-1.5">
           <button
             class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
             type="button"
+            :title="automixLabel"
             @click="toggleAutomix"
           >
-            {{ automixLabel }}
+            {{ automixMobileLabel }}
           </button>
           <button
             class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
             type="button"
+            :title="lyricTranslateLabel"
             @click="toggleLyricTranslate"
           >
-            {{ lyricTranslateLabel }}
+            {{ lyricTranslateMobileLabel }}
           </button>
           <button
             class="player-chip-btn hidden rounded-full px-2 py-1 text-[10px] sm:inline-flex"
@@ -382,6 +390,7 @@
             max="1"
             step="0.01"
             :value="volume"
+            :style="volumeRangeStyle"
             aria-label="播放音量"
             @input="changeVolume"
           >
@@ -395,6 +404,7 @@
             min="0"
             :max="Math.max(durationMs, 1)"
             :value="Math.min(currentTimeMs, durationMs || 0)"
+            :style="timelineRangeStyle"
             aria-label="播放进度"
             @input="seekByInput"
           >
@@ -613,6 +623,13 @@
       </Transition>
     </Teleport>
 
+    <AutoMixDebugPanel
+      v-if="AUTOMIX_DEBUG_VISIBLE"
+      :status="playerStore.automixStatus"
+      :debug="playerStore.automixDebug"
+      :capabilities="playerStore.automixCapabilities"
+    />
+
     <audio
       ref="audioRef"
       crossorigin="anonymous"
@@ -666,6 +683,9 @@ import {
 import {useRouter} from "vue-router";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
+import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
+import {AudioEngine} from "@/audio/AudioEngine.js";
+import {autoMixEngine} from "@/audio/AutoMixEngine.js";
 import {usePlayerLyric} from "@/composables/usePlayerLyric.js";
 import {usePlayerLyricLoader} from "@/composables/usePlayerLyricLoader.js";
 import {usePlayerThemeFromCover} from "@/composables/usePlayerThemeFromCover.js";
@@ -700,7 +720,7 @@ import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
   resolveTempoRateForTransition,
-} from "@/utils/automixEngine.js";
+} from "@/audio/TransitionPlanner.js";
 import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
 import {dissolveElement} from "@/utils/particleDissolve.js";
 // 🔧 性能优化：导入性能工具
@@ -717,6 +737,12 @@ const AMLLWrapper = defineAsyncComponent({
 });
 
 const playerStore = usePlayerStore();
+const AUTOMIX_DEBUG_VISIBLE = Boolean(
+  import.meta.env.DEV && import.meta.env.VITE_AUTOMIX_DEBUG === "true",
+);
+let stopAutomixRuntimeSubscription = autoMixEngine.subscribe((snapshot) => {
+  playerStore.setAutomixRuntimeSnapshot(snapshot);
+});
 const router = useRouter();
 const {
   collectLyricRowsForTranslate,
@@ -750,6 +776,7 @@ let playerResizeObserver = null;
 let mediaQueryMotion = null;
 let mediaQueryMotionHandler = null;
 let visibilityChangeHandler = null;
+let automixProfileReadyHandler = null;
 let backgroundCheckTimer = null;
 
 const themeBaseRgb = ref([38, 56, 98]);
@@ -785,7 +812,13 @@ function syncQueueCrossfadeBusy() {
 }
 
 function setCrossfadeActiveState(next) {
+  const wasActive = crossfadeActive;
   crossfadeActive = Boolean(next);
+  if (crossfadeActive && !wasActive) {
+    autoMixEngine.startTransition(getLastAutomixAnalysis()?.transition);
+  } else if (!crossfadeActive && wasActive) {
+    autoMixEngine.completeTransition();
+  }
   syncQueueCrossfadeBusy();
 }
 
@@ -805,6 +838,12 @@ function getIdleAudio() {
 function flipActiveDeck() {
   activeDeck = activeDeck === "primary" ? "secondary" : "primary";
 }
+
+const automixAudioGraph = new AudioEngine({
+  getPrimaryAudio: () => audioRef.value,
+  getSecondaryAudio: () => crossfadeAudioRef.value,
+  getVolume: () => playerStore.volume,
+});
 
 function isEventFromActiveDeck(event) {
   const target = event?.target || null;
@@ -883,10 +922,14 @@ const normalizedArtistList = computed(() => {
     }))
     .filter((item) => item.name);
 });
-const shouldScrollArtists = computed(
-  () => normalizedArtistList.value.length > 5,
+const shouldScrollArtists = computed(() => {
+  const artists = normalizedArtistList.value;
+  const labelLength = artists.reduce((total, artist) => total + artist.name.length, 0);
+  return artists.length > 5 || labelLength + Math.max(0, artists.length - 1) * 2 > 64;
+});
+const artistLinksContainerClass = computed(
+  () => "player-artist-links text-xs player-text-muted",
 );
-const artistLinksContainerClass = computed(() => "text-xs player-text-muted");
 const artistLinksClass = computed(() => "hover:underline player-link");
 const artistSeparatorClass = computed(() => "player-separator");
 const coverUrl = computed(() => playerStore.currentSong?.cover || "");
@@ -895,6 +938,17 @@ const isPlaying = computed(() => playerStore.isPlaying);
 const currentTimeMs = computed(() => playerStore.currentTimeMs);
 const durationMs = computed(() => playerStore.durationMs);
 const volume = computed(() => playerStore.volume);
+const playbackProgressPercent = computed(() => {
+  const duration = Number(durationMs.value || 0);
+  if (duration <= 0) return 0;
+  return clamp((Number(currentTimeMs.value || 0) / duration) * 100, 0, 100);
+});
+const timelineRangeStyle = computed(() => ({
+  "--range-progress": `${playbackProgressPercent.value}%`,
+}));
+const volumeRangeStyle = computed(() => ({
+  "--range-progress": `${clamp(Number(volume.value || 0), 0, 1) * 100}%`,
+}));
 const playQueue = computed(() => playerStore.playQueue);
 const currentQueueIndex = computed(() => playerStore.currentQueueIndex);
 const playlistPanelOpen = computed(() => playerStore.playlistPanelOpen);
@@ -984,6 +1038,12 @@ const automixLabel = computed(() =>
 const lyricTranslateLabel = computed(() =>
   lyricTranslateEnabled.value ? "歌词翻译: 开" : "歌词翻译: 关",
 );
+const automixMobileLabel = computed(() =>
+  automixEnabled.value ? "混音 · 开" : "混音 · 关",
+);
+const lyricTranslateMobileLabel = computed(() =>
+  lyricTranslateEnabled.value ? "译词 · 开" : "译词 · 关",
+);
 const crossfadeVisualActive = ref(false);
 const queueMutationLocked = computed(
   () =>
@@ -1030,13 +1090,15 @@ const {
   getPlayQueueLength: () => playQueue.value.length,
   getCanPlayPrev: () => canPlayPrev.value,
   getCanPlayNext: () => canPlayNext.value,
-  playPrev: () => playQueueByDirection("prev", {trigger: "manual"}),
-  playNext: () => playQueueByDirection("next", {trigger: "manual"}),
+  playPrev: () => playPrevSong(),
+  playNext: () => playNextSong(),
   getActiveAudio: () => getActiveAudio(),
   onPlayFailed: () => playerStore.setPlaying(false),
   onPause: () => {
     playerStore.autoPlayOnLoad = false;
+    interruptAutomixForUserAction("media-session-pause");
   },
+  onSeek: () => interruptAutomixForUserAction("media-session-seek"),
   setCurrentTimeMs: (next) => playerStore.setCurrentTimeMs(next),
 });
 
@@ -1082,6 +1144,9 @@ const {
   getIsIOSDevice: () => isIOSDevice.value,
   getActiveAudio: () => getActiveAudio(),
   getPrimaryAudio: () => audioRef.value,
+  ensureSharedAudioGraph: () => automixAudioGraph.ensure(),
+  resumeSharedAudioGraph: () => automixAudioGraph.resume(),
+  getSharedAnalyserNode: () => automixAudioGraph.getAnalyserNode(),
   onSyncCurrentTimeMs: (nextMs) => {
     playerStore.setCurrentTimeMs(nextMs);
   },
@@ -1190,11 +1255,6 @@ const {
   getActiveAudio: () => getActiveAudio(),
   getIdleAudio: () => getIdleAudio(),
   getVolume: () => clamp(Number(volume.value || 0.85), 0, 1),
-  getCrossfadeCoverState: () => ({
-    progress: crossfadeCoverProgress.value,
-    url: crossfadeCoverUrl.value,
-    isVideo: crossfadeCoverIsVideo.value,
-  }),
   setCrossfadeCoverState: ({progress, url, isVideo}) => {
     if (typeof progress === "number") crossfadeCoverProgress.value = progress;
     if (typeof url === "string") crossfadeCoverUrl.value = url;
@@ -1222,6 +1282,7 @@ const {
   onResumePlayFailed: () => {
     playerStore.setPlaying(false);
   },
+  audioGraph: automixAudioGraph,
   debugCrossfade,
   log: (...args) => {
     if (typeof console !== "undefined") console.log(...args);
@@ -1278,6 +1339,7 @@ const {tryStartAutomixCrossfade} = usePlayerCrossfadeFlow({
     crossfadeRafId = next;
   },
   stopCrossfade,
+  audioGraph: automixAudioGraph,
   log: (...args) => {
     if (typeof console !== "undefined") console.log(...args);
   },
@@ -1303,7 +1365,10 @@ const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
   getVolume: () => volume.value,
   resolvePlayableUrlById,
   recommendNextQueueIndex,
+  getLastAutomixAnalysis,
   waitAudioMetadata,
+  sanitizePlaybackStartSec,
+  resolveTempoRateForTransition,
   resolveSongCover,
   pickThemeFromCover,
   getSongName: () => songName.value,
@@ -1318,6 +1383,11 @@ const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
   playQueueByDirection,
   playQueueByIndex,
   closePlaylistPanel,
+  onManualSkip: (reason) => {
+    interruptAutomixForUserAction(`manual-${reason}`);
+    void autoMixEngine.skip();
+  },
+  audioGraph: automixAudioGraph,
 });
 
 function clamp(value, min, max) {
@@ -1506,6 +1576,11 @@ async function loadDynamicCover(songId) {
 function syncAudioVolume() {
   const active = getActiveAudio();
   const idle = getIdleAudio();
+  if (automixAudioGraph.isReady() && automixAudioGraph.setMasterVolume(volume.value)) {
+    if (active) active.volume = 1;
+    if (idle) idle.volume = 1;
+    return;
+  }
   if (active) active.volume = volume.value;
   if (idle) {
     idle.volume = Math.min(Number(idle.volume || 0), Number(volume.value || 0));
@@ -1536,14 +1611,13 @@ function togglePlay() {
   // 用户主动操作时，清除 autoPlayOnLoad 防止 ensurePlaybackState 自动恢复播放
   playerStore.autoPlayOnLoad = false;
   if (crossfadeActive && idle) {
+    interruptAutomixForUserAction("pause-during-transition");
+    const restoredActive = getActiveAudio();
     if (active.paused) {
-      active.play().catch(() => {
-      });
-      idle.play().catch(() => {
+      restoredActive?.play().catch(() => {
       });
     } else {
-      active.pause();
-      idle.pause();
+      restoredActive?.pause();
     }
     return;
   }
@@ -1559,6 +1633,7 @@ function onAmllLineClick(event) {
   const startTime = event?.line?.getLine?.()?.startTime;
   const active = getActiveAudio();
   if (!active || !Number.isFinite(startTime)) return;
+  interruptAutomixForUserAction("lyric-seek");
   const targetSec = startTime / 1000;
   active.currentTime = targetSec;
   playerStore.setCurrentTimeMs(startTime);
@@ -1595,9 +1670,18 @@ function ensureAmllClock() {
 function seekByInput(event) {
   const active = getActiveAudio();
   if (!active) return;
+  interruptAutomixForUserAction("timeline-seek");
   const nextMs = Number(event?.target?.value || 0);
   active.currentTime = nextMs / 1000;
   playerStore.setCurrentTimeMs(nextMs);
+}
+
+function interruptAutomixForUserAction(reason) {
+  if (crossfadeActive || crossfadePreparing) {
+    stopCrossfade();
+    setCrossfadePreparingState(false);
+  }
+  autoMixEngine.cancelTransition(reason);
 }
 
 function changeVolume(event) {
@@ -1609,18 +1693,50 @@ function cyclePlayMode() {
   playerStore.cyclePlayMode();
 }
 
+function prewarmLoopTransition(reason = "unknown") {
+  if (!playerStore.automixEnabled) return false;
+  const active = getActiveAudio();
+  const analysis = getLastAutomixAnalysis();
+  const transition = analysis?.transition;
+  const currentTrackId = String(playerStore.currentSong?.id || "");
+  if (!active || String(analysis?.currentTrackId || "") !== currentTrackId) return false;
+  if (String(transition?.kind || "") !== "loop_bridge") return false;
+  if (!automixAudioGraph.supportsSampleAccurateLoop()) return false;
+
+  const prepared = automixAudioGraph.prepareLoopTransition(active, transition);
+  if (prepared) {
+    debugCrossfade("loopCaptureArmed", {
+      reason,
+      currentTrackId,
+      loopStart: Number(transition.loop_start || 0),
+      loopEnd: Number(transition.loop_end || 0),
+    });
+  }
+  return prepared;
+}
+
 function requestAutomixWarmup(reason = "unknown") {
   warmupNextTrack()
-    .then(() => prewarmCrossfadeDeck(reason))
+    .then(() => {
+      prewarmLoopTransition(reason);
+      return prewarmCrossfadeDeck(reason);
+    })
     .catch(() => {
       if (typeof console !== "undefined") {
-        console.log("[Automix/Warmup] failed", {reason});
+        console.log("[AutoMix/Warmup] failed", {reason});
       }
     });
 }
 
 function toggleAutomix() {
   playerStore.toggleAutomixEnabled();
+  if (playerStore.automixEnabled) {
+    autoMixEngine.enable();
+    autoMixEngine.setQueue(playerStore.playQueue);
+    autoMixEngine.setCurrentTrack(playerStore.currentSong);
+  } else {
+    autoMixEngine.disable();
+  }
   reportBehavior("TOGGLE_AUTOMIX", "global-player", {
     enabled: Boolean(playerStore.automixEnabled),
   });
@@ -1630,7 +1746,7 @@ function toggleAutomix() {
     requestAutomixWarmup("toggle-enabled");
   }
   if (typeof console !== "undefined") {
-    console.log("[Automix] feature toggled", {
+    console.log("[AutoMix] feature toggled", {
       enabled: Boolean(playerStore.automixEnabled),
     });
   }
@@ -2021,6 +2137,15 @@ const throttledOnTimeUpdate = rafThrottle(onTimeUpdate);
 
 function onPlay(event) {
   if (!isEventFromActiveDeck(event)) return;
+  if (playerStore.automixEnabled) {
+    autoMixEngine.enable();
+    autoMixEngine.setQueue(playerStore.playQueue);
+    autoMixEngine.setCurrentTrack(playerStore.currentSong);
+    autoMixEngine.resume();
+  }
+  automixAudioGraph.resume().then((ready) => {
+    if (ready) syncAudioVolume();
+  }).catch(() => {});
   playerStore.setPlaying(true);
   setupMediaSessionHandlers({force: isIOSDevice.value});
   startRhythmLoop();
@@ -2034,6 +2159,7 @@ function onPause(event) {
   // ✅ crossfade 进行中或刚完成时，忽略来自 deck 切换产生的 pause 事件
   if (crossfadeActive || crossfadePreparing) return;
   playerStore.setPlaying(false);
+  autoMixEngine.pause();
   stopRhythmLoop();
   updateMediaSessionPlaybackState();
   resetRhythmVisual();
@@ -2057,9 +2183,22 @@ function updatePlayerSpaceVar() {
 
 async function onEnded(event) {
   if (!isEventFromActiveDeck(event)) return;
-  const active = getActiveAudio();
+  let active = getActiveAudio();
   if (!active) return;
   if (crossfadeActive) return;
+
+  // A cold CDN response can finish a fraction after the outgoing media fires
+  // `ended`. Give the already-running deck preparation a brief chance to take
+  // ownership instead of racing it with the ordinary hard-switch path.
+  if (crossfadePreparing) {
+    const waitStartedAt = performance.now();
+    while (crossfadePreparing && performance.now() - waitStartedAt < 1600) {
+      await new Promise((resolve) => window.setTimeout(resolve, 40));
+    }
+    if (crossfadeActive || !isEventFromActiveDeck(event)) return;
+    active = getActiveAudio();
+    if (!active) return;
+  }
 
   reportCurrentPlayRecord({completed: true});
 
@@ -2292,9 +2431,13 @@ watch(
   automixEnabled,
   (enabled) => {
     if (!enabled) {
+      autoMixEngine.disable();
       stopCrossfade();
       return;
     }
+    autoMixEngine.enable();
+    autoMixEngine.setQueue(playerStore.playQueue);
+    autoMixEngine.setCurrentTrack(playerStore.currentSong);
     requestAutomixWarmup("automix-watch-enabled");
   },
 );
@@ -2308,11 +2451,15 @@ watch(
 
 watch(
   [
-    () => playerStore.playQueue.length,
+    () => playerStore.playQueue
+      .map((item) => String(item?.queueEntryId || item?.id || ""))
+      .join("|"),
     currentQueueIndex,
     () => playerStore.playMode,
   ],
   () => {
+    autoMixEngine.setQueue(playerStore.playQueue);
+    autoMixEngine.setCurrentTrack(playerStore.currentSong);
     setupMediaSessionHandlers({force: isIOSDevice.value});
     requestAutomixWarmup("queue-or-mode-changed");
   },
@@ -2323,6 +2470,13 @@ watch([currentTimeMs, durationMs], () => {
 });
 
 onMounted(() => {
+  if (playerStore.automixEnabled) {
+    autoMixEngine.enable();
+    autoMixEngine.setQueue(playerStore.playQueue);
+    autoMixEngine.setCurrentTrack(playerStore.currentSong);
+  } else {
+    autoMixEngine.disable();
+  }
   isIOSDevice.value = detectIOSDevice();
   setAudioSessionPlaybackMode();
   setupMediaSessionHandlers();
@@ -2339,6 +2493,8 @@ onMounted(() => {
     playerResizeObserver.observe(playerRootRef.value);
   }
   window.addEventListener("resize", updatePlayerSpaceVar);
+  automixProfileReadyHandler = () => requestAutomixWarmup("analysis-profile-ready");
+  window.addEventListener("aurora:automix-profile-ready", automixProfileReadyHandler);
 
   visibilityChangeHandler = () => {
     if (typeof document === "undefined") return;
@@ -2395,16 +2551,24 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  autoMixEngine.cancelAnalysis();
+  stopAutomixRuntimeSubscription?.();
+  stopAutomixRuntimeSubscription = null;
   cancelQueueEffects();
   queueRowRefs.clear();
   resetQueueSwipe();
   clearMediaSessionHandlers();
   stopCrossfade();
   disposeRhythmAnalyzer();
+  automixAudioGraph.dispose();
   disposeFullscreenTransition();
   disposeLyricOverlay();
   stopAmllClock();
   clearScheduledPositionStateUpdate();
+  if (automixProfileReadyHandler) {
+    window.removeEventListener("aurora:automix-profile-ready", automixProfileReadyHandler);
+    automixProfileReadyHandler = null;
+  }
 
   // 🔧 性能优化：清理所有定时器和监听器
   memoryManager.cleanup();
@@ -2447,7 +2611,7 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  width: min(calc(100vw - 20px), 1240px);
+  width: min(calc(100vw - 20px), 1380px);
   margin-inline: auto;
   border-radius: 22px;
   pointer-events: auto;
@@ -2485,8 +2649,85 @@ onBeforeUnmount(() => {
   }
 
   .player-shell {
-    width: min(calc(100vw - 32px), 1240px);
+    width: min(calc(100vw - 40px), 1380px);
     border-radius: 24px;
+  }
+}
+
+.player-desktop-layout {
+  min-height: 78px;
+  grid-template-columns: minmax(250px, 0.95fr) auto minmax(280px, 1.45fr) auto;
+  align-items: center;
+  gap: clamp(14px, 1.6vw, 28px);
+  padding-inline: 20px;
+}
+
+.player-desktop-track,
+.player-desktop-transport,
+.player-desktop-timeline,
+.player-desktop-volume {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.player-desktop-transport {
+  flex: none;
+  gap: 9px;
+}
+
+.player-desktop-timeline {
+  gap: 10px;
+  font-size: 11px;
+}
+
+.player-desktop-volume {
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.player-track-copy {
+  overflow: hidden;
+}
+
+.player-track-title {
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.player-time {
+  width: 38px;
+  flex: none;
+  color: rgba(var(--player-fg-muted), 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-cover-button {
+  flex: none;
+  border: 1px solid rgba(var(--player-fg), 0.14);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.player-cover-button:hover {
+  transform: translateY(-1px) scale(1.025);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.3);
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .player-desktop-layout {
+    grid-template-columns: minmax(210px, 0.9fr) auto minmax(220px, 1.2fr) auto;
+    gap: 12px;
+    padding-inline: 14px;
+  }
+
+  .player-desktop-transport,
+  .player-desktop-volume {
+    gap: 6px;
+  }
+
+  .player-desktop-volume .player-range {
+    width: 64px;
   }
 }
 
@@ -2579,20 +2820,26 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(var(--player-border), 0.34);
   color: rgba(var(--player-fg), 0.9);
   background: rgba(var(--player-fg), var(--player-soft-bg-alpha));
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
 }
 
 .player-soft-btn:hover {
   background: rgba(var(--player-fg), calc(var(--player-soft-bg-alpha) + 0.08));
+  transform: translateY(-1px);
 }
 
 .player-main-btn {
   border: 1px solid rgba(var(--player-main-bg), 0.65);
   color: rgb(var(--player-main-fg));
   background: rgba(var(--player-main-bg), 0.96);
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.2);
+  transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .player-main-btn:hover {
   background: rgba(var(--player-main-bg), 0.88);
+  transform: translateY(-1px) scale(1.025);
+  box-shadow: 0 9px 22px rgba(15, 23, 42, 0.26);
 }
 
 .player-chip-btn {
@@ -2662,8 +2909,64 @@ onBeforeUnmount(() => {
 }
 
 .player-range {
-  background: rgba(var(--player-fg), 0.2);
+  --range-progress: 0%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--player-fg), 0.88) 0%,
+    rgba(var(--player-fg), 0.88) var(--range-progress),
+    rgba(var(--player-fg), 0.22) var(--range-progress),
+    rgba(var(--player-fg), 0.22) 100%
+  );
   accent-color: rgba(var(--player-main-bg), 0.95);
+  transition: filter 160ms ease;
+}
+
+.player-range:hover {
+  filter: brightness(1.08);
+}
+
+.player-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  appearance: none;
+  border: 3px solid rgba(var(--player-main-bg), 0.98);
+  border-radius: 999px;
+  background: rgb(var(--player-main-fg));
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+}
+
+.player-range::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 3px solid rgba(var(--player-main-bg), 0.98);
+  border-radius: 999px;
+  background: rgb(var(--player-main-fg));
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+}
+
+.player-range:focus-visible,
+.player-soft-btn:focus-visible,
+.player-main-btn:focus-visible,
+.player-chip-btn:focus-visible,
+.player-cover-button:focus-visible {
+  outline: 2px solid rgba(var(--player-fg), 0.9);
+  outline-offset: 3px;
 }
 
 .cover-stack {
@@ -2774,14 +3077,24 @@ onBeforeUnmount(() => {
 
 .artist-marquee {
   overflow: hidden;
-  width: min(300px, 50vw);
+  width: 100%;
+  max-width: 100%;
   white-space: nowrap;
+  mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
 }
 
 @media (max-width: 639px) {
   .artist-marquee {
     width: min(210px, 54vw);
   }
+}
+
+:deep(.player-artist-links) {
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
 }
 
 .artist-marquee-track {
@@ -2859,7 +3172,8 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .player-shell,
   .player-shell::before,
-  .player-shell::after {
+  .player-shell::after,
+  .artist-marquee-track {
     animation: none;
   }
 }

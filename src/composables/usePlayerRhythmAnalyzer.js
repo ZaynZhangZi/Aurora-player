@@ -16,6 +16,9 @@ export function usePlayerRhythmAnalyzer({
   getIsIOSDevice,
   getActiveAudio,
   getPrimaryAudio,
+  ensureSharedAudioGraph,
+  resumeSharedAudioGraph,
+  getSharedAnalyserNode,
   onSyncCurrentTimeMs,
 }) {
   const rhythmLevel = ref(0);
@@ -25,6 +28,7 @@ export function usePlayerRhythmAnalyzer({
   let audioContext = null;
   let analyserNode = null;
   let mediaSourceNode = null;
+  let ownsAudioGraph = false;
   let analyserFrame = 0;
   let analyserData = null;
   let analyserPrevData = null;
@@ -57,12 +61,27 @@ export function usePlayerRhythmAnalyzer({
     const primaryAudio = getPrimaryAudio?.();
     if (!primaryAudio || typeof window === "undefined") return false;
     if (getIsIOSDevice?.()) return false;
+
+    if (ensureSharedAudioGraph?.()) {
+      const sharedAnalyser = getSharedAnalyserNode?.();
+      if (sharedAnalyser) {
+        analyserNode = sharedAnalyser;
+        ownsAudioGraph = false;
+        if (!analyserData || analyserData.length !== analyserNode.frequencyBinCount) {
+          analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+          analyserPrevData = new Uint8Array(analyserNode.frequencyBinCount);
+        }
+        return true;
+      }
+    }
+
     const Context = window.AudioContext || window.webkitAudioContext;
     if (!Context) return false;
 
     try {
       if (!audioContext) {
         audioContext = new Context();
+        ownsAudioGraph = true;
       }
       if (!analyserNode) {
         analyserNode = audioContext.createAnalyser();
@@ -220,6 +239,11 @@ export function usePlayerRhythmAnalyzer({
     if (getPrefersReducedMotion?.()) return;
     if (!ensureAnalyser()) return;
 
+    if (!ownsAudioGraph && resumeSharedAudioGraph) {
+      const resumed = await resumeSharedAudioGraph();
+      if (!resumed) return;
+    }
+
     if (audioContext?.state === "suspended") {
       try {
         await audioContext.resume();
@@ -246,7 +270,7 @@ export function usePlayerRhythmAnalyzer({
       mediaSourceNode = null;
     }
 
-    if (analyserNode) {
+    if (analyserNode && ownsAudioGraph) {
       try {
         analyserNode.disconnect();
       } catch {
@@ -255,11 +279,13 @@ export function usePlayerRhythmAnalyzer({
       analyserNode = null;
     }
 
-    if (audioContext) {
+    if (audioContext && ownsAudioGraph) {
       audioContext.close().catch(() => {
       });
       audioContext = null;
     }
+    analyserNode = null;
+    ownsAudioGraph = false;
   }
 
   return {

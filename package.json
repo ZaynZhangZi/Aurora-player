@@ -11,6 +11,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "automix:build": "wasm-pack build rust/automix --target web --release --out-dir ../../src/wasm/automix --out-name automix",
+    "automix:test": "cargo test --manifest-path rust/automix/Cargo.toml",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "lint:eslint": "eslint . --fix",
     "lint": "run-s lint:*"

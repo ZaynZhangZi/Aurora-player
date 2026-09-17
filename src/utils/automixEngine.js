@@ -1,41 +1,145 @@
 import initAutomix, {
-  choose_next_track_js,
+  analyze_pcm_js,
   compute_transition_plan_v2_js,
+  engine_version_js,
   init_wasm,
   mix_score_js,
   plan_track_path_js,
 } from '@/wasm/automix/automix.js'
+import {autoMixEngine} from '@/audio/AutoMixEngine.js'
 
 const DEFAULT_BPM = 124
-const DEFAULT_ENERGY = 0.62
 const BEATS_PER_BAR = 4
-const MAX_AUTOMIX_CANDIDATES = 24
+const MAX_AUTOMIX_CANDIDATES = 48
+const DEFAULT_PATH_HORIZON = 4
+const DEFAULT_BEAM_WIDTH = 7
+const MIN_PATH_CONFIDENCE = 0.62
+const MIN_STEP_CONFIDENCE = 0.60
+const MIN_STEP_TOTAL = 0.62
+const MIN_REORDER_ADVANTAGE = 0.08
 
 let automixReadyPromise = null
 let automixInitError = null
+let automixEngineVersion = ''
 let recommendationCache = {
   signature: '',
   currentQueueIndex: -1,
   recommendedQueueIndex: -1,
+  forwardOnly: false,
+  preserveOrder: false,
 }
 let lastAutomixAnalysis = null
-
-function hashNumber(input = '') {
-  let hash = 0
-  const source = String(input)
-  for (let i = 0; i < source.length; i += 1) {
-    hash = (hash * 31 + source.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash)
-}
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
+function finiteNumber(value, {min = -Infinity, max = Infinity} = {}) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < min || number > max) return null
+  return number
+}
+
+function normalizedConfidence(value) {
+  const number = finiteNumber(value, {min: 0, max: 1})
+  return number === null ? null : number
+}
+
+function normalizeMode(mode) {
+  const value = String(mode || '').trim().toLowerCase()
+  return value === 'major' || value === 'minor' ? value : null
+}
+
+function normalizePositions(values, duration) {
+  if (!Array.isArray(values)) return []
+  const upper = Number.isFinite(duration) && duration > 0 ? duration + 0.25 : Infinity
+  return [...new Set(values
+    .map(value => finiteNumber(value, {min: 0, max: upper}))
+    .filter(value => value !== null)
+    .sort((a, b) => a - b))]
+}
+
+function normalizeSections(values, duration) {
+  if (!Array.isArray(values)) return []
+  return values
+    .map(segment => ({
+      start: finiteNumber(segment?.start, {min: 0, max: duration}),
+      end: finiteNumber(segment?.end, {min: 0, max: duration}),
+      label: String(segment?.label || 'other').trim().toLowerCase() || 'other',
+      confidence: normalizedConfidence(segment?.confidence),
+    }))
+    .filter(segment => segment.start !== null && segment.end !== null && segment.end > segment.start)
+    .sort((a, b) => a.start - b.start)
+}
+
+function normalizeRanges(values, duration) {
+  if (!Array.isArray(values)) return []
+  return values
+    .map(range => ({
+      start: finiteNumber(range?.start, {min: 0, max: duration}),
+      end: finiteNumber(range?.end, {min: 0, max: duration}),
+    }))
+    .filter(range => range.start !== null && range.end !== null && range.end > range.start)
+    .sort((a, b) => a.start - b.start)
+}
+
+function normalizeMixRegions(values, duration) {
+  if (!Array.isArray(values)) return []
+  return values
+    .map(region => ({
+      start: finiteNumber(region?.start, {min: 0, max: duration}),
+      end: finiteNumber(region?.end, {min: 0, max: duration}),
+      direction: String(region?.direction || '').trim().toLowerCase(),
+      confidence: normalizedConfidence(region?.confidence),
+    }))
+    .filter(region => (
+      region.start !== null &&
+      region.end !== null &&
+      region.end > region.start &&
+      ['in', 'out'].includes(region.direction)
+    ))
+    .sort((a, b) => a.start - b.start)
+}
+
+function normalizeEnergyCurve(values, duration) {
+  if (!Array.isArray(values)) return []
+  return values
+    .map(point => ({
+      time: finiteNumber(point?.time, {min: 0, max: duration}),
+      value: finiteNumber(point?.value, {min: 0, max: 1}),
+    }))
+    .filter(point => point.time !== null && point.value !== null)
+    .sort((a, b) => a.time - b.time)
+}
+
+function normalizeConfidence(profile = {}) {
+  const confidence = profile?.confidence || profile?.feature_confidence || {}
+  return {
+    tempo: normalizedConfidence(confidence.tempo),
+    beat_grid: normalizedConfidence(confidence.beat_grid),
+    key: normalizedConfidence(confidence.key),
+    energy: normalizedConfidence(confidence.energy),
+    loudness: normalizedConfidence(confidence.loudness),
+    structure: normalizedConfidence(confidence.structure),
+    vocal: normalizedConfidence(confidence.vocal),
+    overall: normalizedConfidence(confidence.overall),
+  }
+}
+
 function createQueueSignature(playQueue = []) {
   return playQueue
-    .map((song) => String(song?.id || 'x'))
+    .map((song) => {
+      const profile = song?.mixProfile || {}
+      return [
+        song?.id || 'x',
+        profile.analysis_version || 0,
+        finiteNumber(profile.bpm, {min: 40, max: 240}) ?? 'x',
+        finiteNumber(profile.energy, {min: 0, max: 1}) ?? 'x',
+        Array.isArray(profile.beat_positions) ? profile.beat_positions.length : 0,
+        finiteNumber(profile.loudness_lufs, {min: -80, max: 3}) ?? 'x',
+      ].join(':')
+    })
     .join('|')
 }
 
@@ -45,6 +149,7 @@ async function ensureAutomixReady() {
     automixReadyPromise = initAutomix()
       .then(() => {
         init_wasm()
+        automixEngineVersion = engine_version_js()
         return true
       })
       .catch((error) => {
@@ -57,296 +162,283 @@ async function ensureAutomixReady() {
   return automixReadyPromise
 }
 
-function enrichTransitionPlan(currentTrack, nextTrack, fallbackTransition = null) {
-  try {
-    const v2 = compute_transition_plan_v2_js(currentTrack, nextTrack)
-    if (!v2 || typeof v2 !== 'object') return fallbackTransition
-    return {
-      ...fallbackTransition,
-      ...v2,
-    }
-  } catch {
-    return fallbackTransition
-  }
-}
-
-function normalizeMode(mode) {
-  return String(mode || '').toLowerCase() === 'major' ? 'major' : 'minor'
-}
-
-function normalizeSectionLabel(label) {
-  const value = String(label || '').toLowerCase()
-  if (!value) return 'other'
-  const allow = ['intro', 'verse', 'chorus', 'breakdown', 'build', 'drop', 'bridge', 'outro', 'other']
-  return allow.includes(value) ? value : 'other'
-}
-
-function ensureBeatGrid(existingBeats, {duration, bpm}) {
-  if (Array.isArray(existingBeats) && existingBeats.length >= 8) {
-    return existingBeats
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value >= 0)
-      .sort((a, b) => a - b)
-  }
-
-  const safeDuration = clamp(Number(duration) || 0, 8, 3600)
-  const safeBpm = clamp(Number(bpm) || DEFAULT_BPM, 60, 200)
-  const beatSec = 60 / safeBpm
-  const totalBeats = Math.max(8, Math.floor(safeDuration / beatSec))
-  return Array.from({length: totalBeats}, (_, i) => i * beatSec)
-}
-
-function ensureSections(existingSections, {duration, introEnd, outroStart}) {
-  if (Array.isArray(existingSections) && existingSections.length > 0) {
-    const normalized = existingSections
-      .map((segment) => ({
-        start: Number(segment?.start),
-        end: Number(segment?.end),
-        label: normalizeSectionLabel(segment?.label),
-      }))
-      .filter((segment) => Number.isFinite(segment.start) && Number.isFinite(segment.end) && segment.end > segment.start)
-      .sort((a, b) => a.start - b.start)
-
-    if (normalized.length > 0) return normalized
-  }
-
-  const safeDuration = clamp(Number(duration) || 180, 8, 3600)
-  const safeIntroEnd = clamp(Number(introEnd) || Math.min(24, safeDuration * 0.12), 0, safeDuration)
-  const safeOutroStart = clamp(Number(outroStart) || Math.max(safeDuration - 32, safeIntroEnd), safeIntroEnd, safeDuration)
-
-  return [
-    {start: 0, end: safeIntroEnd, label: 'intro'},
-    {start: safeIntroEnd, end: safeOutroStart, label: 'verse'},
-    {start: safeOutroStart, end: safeDuration, label: 'outro'},
-  ].filter((segment) => segment.end > segment.start)
-}
-
 function buildTrackForAutomix(song) {
   const id = song?.id
   if (!id) return null
 
   const profile = song?.mixProfile || {}
-  const durationCandidate = Number(profile.duration ?? song?.duration ?? (Number(song?.dt) / 1000))
-  const duration = Number.isFinite(durationCandidate) && durationCandidate > 0 ? durationCandidate : 180
-
-  const seed = hashNumber(id)
-  const bpmSeed = 112 + (seed % 36)
-  const energySeed = 0.4 + (seed % 50) / 100
-
-  const bpm = clamp(Number(profile.bpm) || bpmSeed, 60, 200)
-  const energy = clamp(Number(profile.energy) || energySeed, 0.1, 1)
-
-  const tonicRaw = Number(profile?.key?.tonic)
-  const tonic = Number.isInteger(tonicRaw) ? ((tonicRaw % 12) + 12) % 12 : seed % 12
-  const mode = normalizeMode(profile?.key?.mode)
-
-  const introEnd = clamp(Number(profile.intro_end) || Math.min(24, duration * 0.12), 0, duration)
-  const outroStart = clamp(Number(profile.outro_start) || Math.max(duration - 32, introEnd), introEnd, duration)
-  const beat_positions = ensureBeatGrid(profile.beat_positions, {duration, bpm})
-  const section_segments = ensureSections(profile.section_segments, {duration, introEnd, outroStart})
+  const durationCandidate = profile.duration ?? song?.duration ?? (Number(song?.dt) / 1000)
+  const duration = finiteNumber(durationCandidate, {min: 1, max: 14400}) || 180
+  const bpm = finiteNumber(profile.bpm ?? song?.bpm ?? song?.audioFeatures?.bpm, {min: 40, max: 240})
+  const energy = finiteNumber(profile.energy ?? song?.energy ?? song?.audioFeatures?.energy, {min: 0, max: 1})
+  const tonic = finiteNumber(profile?.key?.tonic ?? song?.key?.tonic ?? song?.audioFeatures?.key?.tonic, {min: 0, max: 11})
+  const mode = normalizeMode(profile?.key?.mode ?? song?.key?.mode ?? song?.audioFeatures?.key?.mode)
+  const introEnd = finiteNumber(profile.intro_end ?? song?.intro_end, {min: 0.001, max: duration})
+  const outroStart = finiteNumber(profile.outro_start ?? song?.outro_start, {min: 0.001, max: duration})
+  const artists = song?.artists || song?.ar || []
+  const album = song?.album || song?.al || {}
 
   return {
     id: String(id),
     bpm,
-    key: {tonic, mode},
+    key: tonic !== null && Number.isInteger(tonic) && mode ? {tonic, mode} : null,
     energy,
     duration,
     intro_end: introEnd,
     outro_start: outroStart,
-    beat_positions,
-    section_segments,
+    beat_positions: normalizePositions(profile.beat_positions, duration),
+    downbeat_positions: normalizePositions(profile.downbeat_positions, duration),
+    section_segments: normalizeSections(profile.section_segments, duration),
+    energy_curve: normalizeEnergyCurve(profile.energy_curve, duration),
+    vocal_regions: normalizeRanges(profile.vocal_regions, duration),
+    mix_regions: normalizeMixRegions(profile.mix_regions, duration),
+    loudness_lufs: finiteNumber(profile.loudness_lufs, {min: -80, max: 3}),
+    peak_dbfs: finiteNumber(profile.peak_dbfs, {min: -120, max: 6}),
+    confidence: normalizeConfidence(profile),
+    artist_ids: artists.map(artist => String(artist?.id || '')).filter(Boolean),
+    album_id: String(profile.album_id || album?.id || song?.albumId || '').trim() || null,
+    tags: Array.isArray(profile.tags) ? profile.tags.map(String).filter(Boolean) : [],
+    analysis_version: finiteNumber(profile.analysis_version, {min: 1, max: 100000}),
   }
 }
 
-function buildCandidates(playQueue, currentQueueIndex) {
-  return playQueue
-    .map((song, index) => ({song, index}))
-    .filter(({index}) => index !== currentQueueIndex)
-    .map(({song, index}) => ({index, track: buildTrackForAutomix(song)}))
-    .filter((item) => item.track)
+function buildPlaybackTransitionProfile(track) {
+  if (!track) return null
+  return {
+    id: track.id,
+    bpm: track.bpm,
+    energy: track.energy,
+    duration: track.duration,
+    intro_end: track.intro_end,
+    outro_start: track.outro_start,
+    energy_curve: track.energy_curve,
+    vocal_regions: track.vocal_regions,
+    section_segments: track.section_segments,
+    confidence: track.confidence,
+  }
+}
+
+function buildCandidates(playQueue, currentQueueIndex, {forwardOnly = false} = {}) {
+  const indexes = []
+  for (let index = currentQueueIndex + 1; index < playQueue.length; index += 1) indexes.push(index)
+  if (!forwardOnly) {
+    for (let index = 0; index < currentQueueIndex; index += 1) indexes.push(index)
+  }
+
+  return indexes
+    .map(index => ({index, track: buildTrackForAutomix(playQueue[index])}))
+    .filter(item => item.track)
     .slice(0, MAX_AUTOMIX_CANDIDATES)
 }
 
-async function analyzeNextTrack(playQueue = [], currentQueueIndex = -1, {logPrefix = '[Automix]'} = {}) {
-  const list = Array.isArray(playQueue) ? playQueue : []
-  if (list.length <= 1 || currentQueueIndex < 0 || currentQueueIndex >= list.length) {
-    if (typeof console !== 'undefined') {
-      console.log(`${logPrefix} skip: invalid queue state`, {
-        queueLength: list.length,
-        currentQueueIndex,
-      })
+function analyzeCandidateScores(currentTrack, candidates) {
+  return candidates.map(item => {
+    try {
+      const score = mix_score_js(currentTrack, item.track)
+      return {
+        queueIndex: item.index,
+        trackId: item.track.id,
+        bpm: item.track.bpm ?? '—',
+        energy: item.track.energy ?? '—',
+        scoreTotal: Number(score?.total ?? 0).toFixed(3),
+        confidence: Number(score?.confidence_score ?? 0).toFixed(3),
+        strategyReady: Boolean(score?.reliable),
+        reasons: Array.isArray(score?.reason_codes) ? score.reason_codes.join(', ') : '',
+      }
+    } catch {
+      return {queueIndex: item.index, trackId: item.track.id, scoreTotal: 'ERR'}
     }
-    return -1
-  }
+  })
+}
+
+async function analyzeNextTrack(
+  playQueue = [],
+  currentQueueIndex = -1,
+  {logPrefix = '[AutoMix]', forwardOnly = false, preserveOrder = false} = {},
+) {
+  const list = Array.isArray(playQueue) ? playQueue : []
+  if (list.length <= 1 || currentQueueIndex < 0 || currentQueueIndex >= list.length) return -1
 
   const currentTrack = buildTrackForAutomix(list[currentQueueIndex])
-  if (!currentTrack) {
-    if (typeof console !== 'undefined') {
-      console.log(`${logPrefix} skip: current track has no valid id`)
-    }
-    return -1
-  }
-
-  const candidates = buildCandidates(list, currentQueueIndex)
-  if (!candidates.length) {
-    if (typeof console !== 'undefined') {
-      console.log(`${logPrefix} skip: no valid candidates`)
-    }
-    return -1
-  }
+  if (!currentTrack) return -1
+  const candidates = buildCandidates(list, currentQueueIndex, {forwardOnly})
+  if (!candidates.length) return -1
+  const queueNext = candidates.find(item => item.index === currentQueueIndex + 1) || null
+  if (preserveOrder && !queueNext) return -1
 
   const ready = await ensureAutomixReady()
-  if (!ready) {
-    if (typeof console !== 'undefined') {
-      console.log(`${logPrefix} skip: wasm init failed`)
-    }
-    return -1
-  }
+  if (!ready) return -1
 
   try {
-    const candidateAnalyses = candidates.map((item) => {
-      try {
-        const score = mix_score_js(currentTrack, item.track)
-        return {
-          queueIndex: item.index,
-          trackId: item.track.id,
-          bpm: item.track.bpm,
-          energy: item.track.energy,
-          scoreTotal: Number(score?.total ?? 0).toFixed(3),
-          bpmScore: Number(score?.bpm_score ?? 0).toFixed(3),
-          keyScore: Number(score?.key_score ?? 0).toFixed(3),
-          energyScore: Number(score?.energy_score ?? 0).toFixed(3),
-          structureScore: Number(score?.structure_score ?? 0).toFixed(3),
-          tempoRatioDelta: Number(score?.tempo_ratio_delta ?? 0).toFixed(4),
-        }
-      } catch {
-        return {
-          queueIndex: item.index,
-          trackId: item.track.id,
-          bpm: item.track.bpm,
-          energy: item.track.energy,
-          scoreTotal: 'ERR',
-          bpmScore: 'ERR',
-          keyScore: 'ERR',
-          energyScore: 'ERR',
-          structureScore: 'ERR',
-          tempoRatioDelta: 'ERR',
-        }
-      }
+    const candidateAnalyses = analyzeCandidateScores(currentTrack, candidates)
+    const path = plan_track_path_js({
+      current: currentTrack,
+      candidate_tracks: candidates.map(item => item.track),
+      horizon: Math.min(DEFAULT_PATH_HORIZON, candidates.length),
+      beam_width: DEFAULT_BEAM_WIDTH,
+      context: {
+        max_tempo_shift: 0.06,
+        avoid_vocal_overlap: true,
+        preferred_bars: [4, 8],
+        min_beatmix_confidence: 0.82,
+      },
     })
-
-    const choice = choose_next_track_js(
-      currentTrack,
-      candidates.map((item) => item.track),
+    const plannedStep = path?.steps?.[0] || null
+    const pathConfidence = Number(path?.confidence || 0)
+    const stepConfidence = Number(plannedStep?.score?.confidence_score || 0)
+    const stepTotal = Number(plannedStep?.score?.total || 0)
+    const pathIsReliable = Boolean(
+      plannedStep
+      && pathConfidence >= MIN_PATH_CONFIDENCE
+      && plannedStep?.score?.reliable === true
+      && stepConfidence >= MIN_STEP_CONFIDENCE
+      && stepTotal >= MIN_STEP_TOTAL
     )
-    const selectedId = choice?.track_id
-    const selected = selectedId
-      ? candidates.find((item) => String(item.track.id) === String(selectedId))
-      : null
-    const transition = selected
-      ? enrichTransitionPlan(currentTrack, selected.track, choice?.transition || null)
-      : (choice?.transition || null)
+    const plannedId = String(plannedStep?.track_id || '')
+    const plannedCandidate = candidates.find(item => String(item.track.id) === plannedId) || null
+    const sequentialCandidate = queueNext || candidates[0]
+    const sequentialScore = mix_score_js(currentTrack, sequentialCandidate.track)
+    const changesQueueOrder = Boolean(
+      plannedCandidate && plannedCandidate.index !== sequentialCandidate.index,
+    )
+    const reorderAdvantage = plannedCandidate
+      ? stepTotal - Number(sequentialScore?.total || 0)
+      : Number.NEGATIVE_INFINITY
+    const reorderIsJustified = !changesQueueOrder
+      || (!preserveOrder && reorderAdvantage >= MIN_REORDER_ADVANTAGE)
+    const usePlannedSelection = Boolean(
+      pathIsReliable && plannedCandidate && reorderIsJustified,
+    )
+    const selected = preserveOrder
+      ? sequentialCandidate
+      : usePlannedSelection
+        ? plannedCandidate
+        : sequentialCandidate
+    const selectedUsesPlannedStep = Boolean(
+      pathIsReliable
+      && plannedCandidate
+      && plannedCandidate.index === selected.index
+      && plannedStep?.transition,
+    )
+    const fallbackScore = selected.index === sequentialCandidate.index
+      ? sequentialScore
+      : mix_score_js(currentTrack, selected.track)
+    const transition = selectedUsesPlannedStep
+      ? plannedStep.transition
+      : compute_transition_plan_v2_js(currentTrack, selected.track)
+    const score = selectedUsesPlannedStep && plannedStep?.score ? plannedStep.score : fallbackScore
+    const reasonCodes = [
+      ...(Array.isArray(score?.reason_codes) ? score.reason_codes : []),
+      ...(preserveOrder ? ['queue_order_preserved'] : []),
+      ...(!pathIsReliable ? ['path_confidence_rejected'] : []),
+      ...(pathIsReliable && changesQueueOrder && !reorderIsJustified
+        ? ['path_reorder_margin_rejected']
+        : []),
+    ]
 
     lastAutomixAnalysis = {
+      engineVersion: automixEngineVersion,
       currentTrackId: currentTrack.id,
-      selectedTrackId: selectedId || null,
-      selectedQueueIndex: selected?.index ?? -1,
+      selectedTrackId: selected.track.id,
+      selectedQueueIndex: selected.index,
       transition,
-      score: choice?.score || null,
+      score,
+      path,
+      decisionConfidence: Number(
+        selectedUsesPlannedStep ? pathConfidence : transition?.confidence || 0,
+      ),
+      usesAnalyzedFeatures: Boolean(score?.reliable),
+      selectionPolicy: preserveOrder ? 'queue_order' : 'confidence_margin',
+      reasonCodes,
+      transitionContext: {
+        currentTrack: buildPlaybackTransitionProfile(currentTrack),
+        nextTrack: buildPlaybackTransitionProfile(selected.track),
+      },
     }
+    autoMixEngine.setTransitionPlan({
+      transition,
+      score,
+      currentTrack,
+      nextTrack: selected.track,
+    })
 
     if (typeof console !== 'undefined') {
       console.groupCollapsed(
-        `${logPrefix} current=${currentTrack.id}, candidates=${candidates.length}, selected=${choice?.track_id || 'none'}`,
+        `${logPrefix} v${automixEngineVersion || '?'} current=${currentTrack.id}, selected=${selected.track.id}, strategy=${transition?.kind || 'safe_fade'}`,
       )
-      console.log(`${logPrefix} current track`, currentTrack)
       console.table(candidateAnalyses)
-      if (choice) {
-        console.log(`${logPrefix} selected detail`, choice)
-        if (choice?.transition) {
-          console.log(`${logPrefix} transition`, choice.transition)
-          console.log(
-            `${logPrefix} 过渡时机: 当前歌在 ${Number(choice.transition.mix_out_start || 0).toFixed(2)}s 开始混出；下一首从 ${Number(choice.transition.mix_in_start || 0).toFixed(2)}s 混入；交叉淡化 ${Number(choice.transition.crossfade_duration || 0).toFixed(2)}s`,
-          )
-        }
-      } else {
-        console.log(`${logPrefix} no candidate passed threshold`)
-      }
+      console.log(`${logPrefix} path`, path)
+      console.log(`${logPrefix} decision`, lastAutomixAnalysis)
       console.groupEnd()
     }
 
-    if (!selectedId) return -1
-    return selected?.index ?? -1
-  } catch {
-    if (typeof console !== 'undefined') {
-      console.log(`${logPrefix} error: scoring failed`)
-    }
+    return selected.index
+  } catch (error) {
+    autoMixEngine.cancelTransition('planner-error')
+    if (typeof console !== 'undefined') console.warn(`${logPrefix} planning failed`, error)
     return -1
   }
 }
 
-export async function warmupAutomixRecommendation(playQueue = [], currentQueueIndex = -1) {
+export async function warmupAutomixRecommendation(playQueue = [], currentQueueIndex = -1, options = {}) {
   const signature = createQueueSignature(playQueue)
+  const forwardOnly = Boolean(options?.forwardOnly)
+  const preserveOrder = Boolean(options?.preserveOrder)
   const recommendedQueueIndex = await analyzeNextTrack(playQueue, currentQueueIndex, {
-    logPrefix: '[Automix/Warmup]',
+    logPrefix: '[AutoMix/Warmup]',
+    forwardOnly,
+    preserveOrder,
   })
 
   recommendationCache = {
     signature,
     currentQueueIndex,
     recommendedQueueIndex,
+    forwardOnly,
+    preserveOrder,
   }
-
   return recommendedQueueIndex
 }
 
 export function prewarmAutomixEngine({idle = true} = {}) {
-  const trigger = () => {
-    ensureAutomixReady().catch(() => false)
-  }
-
+  const trigger = () => ensureAutomixReady().catch(() => false)
   if (!idle) {
     trigger()
     return
   }
-
   if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(() => {
-      trigger()
-    })
-    return
+    window.requestIdleCallback(trigger)
+  } else if (typeof window !== 'undefined') {
+    window.setTimeout(trigger, 0)
+  } else {
+    trigger()
   }
-
-  if (typeof window !== 'undefined') {
-    window.setTimeout(() => {
-      trigger()
-    }, 0)
-    return
-  }
-
-  trigger()
 }
 
-export async function recommendNextQueueIndex(playQueue = [], currentQueueIndex = -1) {
+export async function recommendNextQueueIndex(playQueue = [], currentQueueIndex = -1, options = {}) {
   const signature = createQueueSignature(playQueue)
+  const forwardOnly = Boolean(options?.forwardOnly)
+  const preserveOrder = Boolean(options?.preserveOrder)
   if (
     recommendationCache.signature === signature &&
-    recommendationCache.currentQueueIndex === currentQueueIndex
+    recommendationCache.currentQueueIndex === currentQueueIndex &&
+    recommendationCache.forwardOnly === forwardOnly &&
+    recommendationCache.preserveOrder === preserveOrder
   ) {
-    if (typeof console !== 'undefined') {
-      console.log('[Automix] cache hit', {
-        currentQueueIndex,
-        recommendedQueueIndex: recommendationCache.recommendedQueueIndex,
-      })
-    }
     return recommendationCache.recommendedQueueIndex
   }
 
-  const recommendedQueueIndex = await analyzeNextTrack(playQueue, currentQueueIndex, {logPrefix: '[Automix]'})
+  const recommendedQueueIndex = await analyzeNextTrack(playQueue, currentQueueIndex, {
+    logPrefix: '[AutoMix]',
+    forwardOnly,
+    preserveOrder,
+  })
   recommendationCache = {
     signature,
     currentQueueIndex,
     recommendedQueueIndex,
+    forwardOnly,
+    preserveOrder,
   }
   return recommendedQueueIndex
 }
@@ -358,20 +450,13 @@ export function estimateCrossfadeDurationMs(bpm = DEFAULT_BPM, bars = 8) {
 }
 
 function chooseBestBpmMatch(currentBpm, nextBpm) {
-  const multipliers = [0.5, 1.0, 2.0]
-  let best = {
-    adjustedBpm: nextBpm,
-    ratioDelta: Number.POSITIVE_INFINITY,
-  }
-
+  const multipliers = [0.5, 1, 2]
+  let best = {adjustedBpm: nextBpm, ratioDelta: Number.POSITIVE_INFINITY}
   for (const multiplier of multipliers) {
     const adjustedBpm = nextBpm * multiplier
     const ratioDelta = Math.abs((adjustedBpm - currentBpm) / currentBpm)
-    if (ratioDelta < best.ratioDelta) {
-      best = {adjustedBpm, ratioDelta}
-    }
+    if (ratioDelta < best.ratioDelta) best = {adjustedBpm, ratioDelta}
   }
-
   return best
 }
 
@@ -379,57 +464,61 @@ export function resolveTempoRateForTransition(
   currentSong,
   nextSong,
   transition = null,
-  {maxAdjustRatio = 0.06, minRate = 0.5, maxRate = 2.0} = {},
+  {maxAdjustRatio = 0.06, minRate = 0.92, maxRate = 1.08} = {},
 ) {
   if (!transition?.tempo_adjust_required) return 1
 
+  const plannedRate = finiteNumber(transition?.incoming_rate, {min: minRate, max: maxRate})
+  if (plannedRate !== null && Math.abs(plannedRate - 1) <= maxAdjustRatio + 0.001) {
+    return plannedRate
+  }
+
   const currentTrack = buildTrackForAutomix(currentSong)
   const nextTrack = buildTrackForAutomix(nextSong)
-  if (!currentTrack || !nextTrack) return 1
-  if (!currentTrack.bpm || !nextTrack.bpm) return 1
-
+  if (!currentTrack?.bpm || !nextTrack?.bpm) return 1
   const match = chooseBestBpmMatch(currentTrack.bpm, nextTrack.bpm)
-  if (!Number.isFinite(match.ratioDelta) || match.ratioDelta > maxAdjustRatio) {
-    return 1
-  }
-  if (!match.adjustedBpm || !Number.isFinite(match.adjustedBpm) || match.adjustedBpm <= 0) {
-    return 1
-  }
-
-  const rate = currentTrack.bpm / match.adjustedBpm
-  if (!Number.isFinite(rate)) return 1
-  return clamp(rate, minRate, maxRate)
+  if (!Number.isFinite(match.ratioDelta) || match.ratioDelta > maxAdjustRatio || !match.adjustedBpm) return 1
+  return clamp(currentTrack.bpm / match.adjustedBpm, minRate, maxRate)
 }
 
 export function getLastAutomixAnalysis() {
   return lastAutomixAnalysis
 }
 
-export async function planAutomixPath(playQueue = [], currentQueueIndex = -1, {horizon = 3, beamWidth = 5} = {}) {
+export async function planAutomixPath(
+  playQueue = [],
+  currentQueueIndex = -1,
+  {horizon = 4, beamWidth = 7, forwardOnly = false, targetEnergyCurve = []} = {},
+) {
   const list = Array.isArray(playQueue) ? playQueue : []
-  if (!list.length || currentQueueIndex < 0 || currentQueueIndex >= list.length) {
-    return null
-  }
-
+  if (!list.length || currentQueueIndex < 0 || currentQueueIndex >= list.length) return null
   const current = buildTrackForAutomix(list[currentQueueIndex])
-  if (!current) return null
-
-  const candidate_tracks = buildCandidates(list, currentQueueIndex).map((item) => item.track)
-  if (!candidate_tracks.length) return null
-
-  const ready = await ensureAutomixReady()
-  if (!ready) return null
+  const candidateTracks = buildCandidates(list, currentQueueIndex, {forwardOnly}).map(item => item.track)
+  if (!current || !candidateTracks.length || !(await ensureAutomixReady())) return null
 
   try {
     return plan_track_path_js({
       current,
-      candidate_tracks,
-      horizon: Number(horizon) || 3,
-      beam_width: Number(beamWidth) || 5,
+      candidate_tracks: candidateTracks,
+      horizon: Number(horizon) || 4,
+      beam_width: Number(beamWidth) || 7,
+      context: {
+        target_energy_curve: Array.isArray(targetEnergyCurve) ? targetEnergyCurve : [],
+        max_tempo_shift: 0.06,
+        avoid_vocal_overlap: true,
+        preferred_bars: [4, 8],
+        min_beatmix_confidence: 0.82,
+      },
     })
   } catch {
     return null
   }
+}
+
+export async function analyzePcmForAutomix(samples, sampleRate, channels = 1) {
+  if (!(samples instanceof Float32Array)) throw new TypeError('samples must be a Float32Array')
+  if (!(await ensureAutomixReady())) throw automixInitError || new Error('Automix WASM unavailable')
+  return analyze_pcm_js(samples, Number(sampleRate), Number(channels))
 }
 
 export function getAutomixInitError() {

@@ -1,11 +1,15 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export function analyze_pcm_js(samples: Float32Array, sample_rate: number, channels: number): any;
+
 export function choose_next_track_js(current: any, candidate_tracks: any): any;
 
 export function compute_transition_plan_js(current: any, next: any): any;
 
 export function compute_transition_plan_v2_js(current: any, next: any): any;
+
+export function engine_version_js(): string;
 
 export function init_wasm(): void;
 
@@ -19,21 +23,20 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly choose_next_track_js: (a: any, b: any) => [number, number, number];
-    readonly compute_transition_plan_js: (a: any, b: any) => [number, number, number];
-    readonly compute_transition_plan_v2_js: (a: any, b: any) => [number, number, number];
+    readonly analyze_pcm_js: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly choose_next_track_js: (a: number, b: number, c: number) => void;
+    readonly compute_transition_plan_js: (a: number, b: number, c: number) => void;
+    readonly compute_transition_plan_v2_js: (a: number, b: number, c: number) => void;
+    readonly engine_version_js: (a: number) => void;
     readonly init_wasm: () => void;
-    readonly mix_score_js: (a: any, b: any) => [number, number, number];
-    readonly plan_track_path_js: (a: any) => [number, number, number];
-    readonly run_automix_js: (a: any) => [number, number, number];
-    readonly __wbindgen_malloc: (a: number, b: number) => number;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_exn_store: (a: number) => void;
-    readonly __externref_table_alloc: () => number;
-    readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __externref_table_dealloc: (a: number) => void;
-    readonly __wbindgen_start: () => void;
+    readonly mix_score_js: (a: number, b: number, c: number) => void;
+    readonly plan_track_path_js: (a: number, b: number) => void;
+    readonly run_automix_js: (a: number, b: number) => void;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export3: (a: number) => void;
+    readonly __wbindgen_export4: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

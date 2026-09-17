@@ -5,7 +5,6 @@ export function usePlayerCrossfadeRuntime(options) {
     getActiveAudio,
     getIdleAudio,
     getVolume,
-    getCrossfadeCoverState,
     setCrossfadeCoverState,
     setCrossfadeActive,
     setCrossfadeVisualActive,
@@ -18,9 +17,46 @@ export function usePlayerCrossfadeRuntime(options) {
     requestAutomixWarmup,
     resetTriggeredSong,
     onResumePlayFailed,
+    audioGraph,
     debugCrossfade,
     log,
   } = options
+
+  let playbackRateRelaxRafId = 0
+
+  function stopPlaybackRateRelaxation() {
+    if (!playbackRateRelaxRafId) return
+    cancelAnimationFrame(playbackRateRelaxRafId)
+    playbackRateRelaxRafId = 0
+  }
+
+  function relaxPlaybackRate(media, durationMs = 8000) {
+    stopPlaybackRateRelaxation()
+    const fromRate = Number(media?.playbackRate || 1)
+    if (!media || !Number.isFinite(fromRate) || Math.abs(fromRate - 1) < 0.001) {
+      if (media) media.playbackRate = 1
+      return
+    }
+
+    const startedAt = performance.now()
+    const step = (now) => {
+      if (!media || media.paused) {
+        if (media) media.playbackRate = 1
+        playbackRateRelaxRafId = 0
+        return
+      }
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / durationMs))
+      const eased = 1 - ((1 - progress) ** 3)
+      media.playbackRate = fromRate + (1 - fromRate) * eased
+      if (progress >= 1) {
+        media.playbackRate = 1
+        playbackRateRelaxRafId = 0
+        return
+      }
+      playbackRateRelaxRafId = requestAnimationFrame(step)
+    }
+    playbackRateRelaxRafId = requestAnimationFrame(step)
+  }
 
   function clearCrossfadeCoverSoon() {
     window.setTimeout(() => {
@@ -29,6 +65,7 @@ export function usePlayerCrossfadeRuntime(options) {
   }
 
   function stopCrossfade({ keepCoverOverlay = false } = {}) {
+    stopPlaybackRateRelaxation()
     const rafId = getCrossfadeRafId()
     if (rafId) {
       cancelAnimationFrame(rafId)
@@ -45,6 +82,12 @@ export function usePlayerCrossfadeRuntime(options) {
     }
     if (active) {
       active.volume = getVolume()
+      active.playbackRate = 1
+    }
+    const graphReset = audioGraph?.reset?.(active, idle)
+    if (graphReset) {
+      if (active) active.volume = 1
+      if (idle) idle.volume = 1
     }
 
     if (!keepCoverOverlay) {
@@ -67,9 +110,12 @@ export function usePlayerCrossfadeRuntime(options) {
     flipActiveDeck()
     const newActive = getActiveAudio()
 
+    audioGraph?.completeDeckSwap?.(oldActive, newActive)
+
     if (newActive) {
-      newActive.volume = getVolume()
+      newActive.volume = audioGraph?.isReady?.() ? 1 : getVolume()
       syncCurrentTimeMs(Math.floor((newActive.currentTime || 0) * 1000))
+      relaxPlaybackRate(newActive)
     }
 
     if (oldActive) {
@@ -105,7 +151,7 @@ export function usePlayerCrossfadeRuntime(options) {
       newActiveCurrentTime: Number(newActive?.currentTime || 0).toFixed(3),
     })
 
-    log('[Automix] crossfade complete', {
+    log('[AutoMix] crossfade complete', {
       fromTrackId,
       toTrackId,
       mixOutStart,

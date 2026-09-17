@@ -28,13 +28,16 @@ export function usePlayerCrossfade(options) {
       analysis.selectedQueueIndex >= 0
     ) {
       const selected = analysis.selectedQueueIndex
-      if (!sequenceMode || selected > currentIndex) {
+      if (!sequenceMode || selected === currentIndex + 1) {
         return selected
       }
     }
 
-    const suggested = await recommendNextQueueIndex(queue, currentIndex)
-    if (!sequenceMode || suggested > currentIndex) {
+    const suggested = await recommendNextQueueIndex(queue, currentIndex, {
+      forwardOnly: sequenceMode,
+      preserveOrder: sequenceMode,
+    })
+    if (!sequenceMode || suggested === currentIndex + 1) {
       return suggested
     }
 
@@ -69,7 +72,7 @@ export function usePlayerCrossfade(options) {
     crossfadePrewarmedSongId = String(targetSong.id)
     crossfadePrewarmedUrl = targetUrl
 
-    log('[Automix/Warmup] deck prewarmed', {
+    log('[AutoMix/Warmup] deck prewarmed', {
       reason,
       targetId: targetSong.id,
       targetIndex,

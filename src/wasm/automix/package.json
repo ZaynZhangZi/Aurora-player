@@ -4,7 +4,13 @@
   "collaborators": [
     "zijun <1129491453@qq.com>"
   ],
+  "description": "Confidence-aware analysis and transition planning core for AuroraPlayer AutoMix",
   "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/zhangxiaojunjun/AuroraPlayer"
+  },
   "files": [
     "automix_bg.wasm",
     "automix.js",

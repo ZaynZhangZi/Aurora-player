@@ -1,17 +1,84 @@
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
+import {MAX_ANALYSIS_LOOKAHEAD} from '@/audio/constants.js'
+import {AUTOMIX_ANALYSIS_VERSION} from '@/audio/analysis/AudioAnalyzer.js'
+import {autoMixEngine} from '@/audio/AutoMixEngine.js'
 import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
   warmupAutomixRecommendation,
-} from '@/utils/automixEngine.js'
+} from '@/audio/TransitionPlanner.js'
 import {dismissPlaybackNotice, showPlaybackNotice} from '@/utils/playbackNotice.js'
 
 const preloadedSongUrlCache = new Map()
 let warmupToken = 0
 let playbackRequestToken = 0
 let queueNavigationToken = 0
+
+function hasUsableBrowserMixProfile(song) {
+  const profile = song?.mixProfile
+  return Number(profile?.analysis_version || 0) >= AUTOMIX_ANALYSIS_VERSION
+    && Number(profile?.confidence?.overall || 0) > 0
+    && Array.isArray(profile?.beat_positions)
+    && profile.beat_positions.length >= 8
+}
+
+function scheduleBrowserAutomixAnalysis(playerStore, song, source, {role = 'next-1'} = {}) {
+  if (!playerStore?.automixEnabled || !song?.id || !source?.url || isTrialEntry(source.entry)) return
+  if (hasUsableBrowserMixProfile(song)) return
+
+  if (!autoMixEngine.enabled) autoMixEngine.enable()
+  autoMixEngine.analyzeTrack(song, source.url, {
+    quality: source.level || 'exhigh',
+    role,
+  })
+    .then((profile) => {
+      if (!profile) return
+      playerStore.setSongMixProfile(song.id, profile)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aurora:automix-profile-ready', {
+          detail: {songId: String(song.id)},
+        }))
+      }
+      if (typeof console !== 'undefined') {
+        console.log('[AutoMix/Analysis] browser profile ready', {
+          songId: song.id,
+          bpm: profile.bpm,
+          confidence: profile.confidence?.overall,
+        })
+      }
+    })
+    .catch((error) => {
+      if (error?.name === 'AbortError') return
+      if (typeof console !== 'undefined') {
+        console.warn('[AutoMix/Analysis] browser analysis unavailable; crossfade fallback remains active', {
+          songId: song.id,
+          reason: String(error?.message || error || 'unknown'),
+        })
+      }
+    })
+}
+
+function resolveProfileWarmupCount() {
+  if (typeof navigator === 'undefined') return 1
+  if (navigator.connection?.saveData) return 1
+  const memory = Number(navigator.deviceMemory || 0)
+  if (memory > 0 && memory <= 4) return 1
+  return MAX_ANALYSIS_LOOKAHEAD
+}
+
+function warmupNearbyAutomixProfiles(playerStore, currentIndex) {
+  const queue = playerStore?.playQueue || []
+  const count = resolveProfileWarmupCount()
+  const nearby = queue.slice(currentIndex + 1, currentIndex + 1 + count)
+  nearby.forEach((song, index) => {
+    if (!song?.id || hasUsableBrowserMixProfile(song)) return
+    resolveSongPlayableSource(song.id)
+      .then(source => scheduleBrowserAutomixAnalysis(playerStore, song, source, {role: `next-${index + 1}`}))
+      .catch(() => {})
+  })
+}
 
 function normalizeCoverUrlProtocol(url = '') {
   const raw = String(url || '').trim()
@@ -277,7 +344,7 @@ async function resolveSongPlayableSource(id) {
   const primary = await requestLevel('exhigh')
   recordResult(primary)
   if (primary.entry?.url) {
-    const source = {url: primary.entry.url, entry: primary.entry, observations, requestErrors}
+    const source = {url: primary.entry.url, entry: primary.entry, level: primary.level, observations, requestErrors}
     preloadedSongUrlCache.set(cacheKey, source)
     return source
   }
@@ -293,7 +360,7 @@ async function resolveSongPlayableSource(id) {
   for (const result of fallbackResults) {
     recordResult(result)
     if (result.entry?.url) {
-      const source = {url: result.entry.url, entry: result.entry, observations, requestErrors}
+      const source = {url: result.entry.url, entry: result.entry, level: result.level, observations, requestErrors}
       preloadedSongUrlCache.set(cacheKey, source)
       return source
     }
@@ -325,15 +392,22 @@ export async function warmupNextTrack() {
   if (!playerStore.playQueue.length) return
   const currentQueueIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   if (currentQueueIndex < 0) return
+  autoMixEngine.enable()
+  autoMixEngine.setQueue(playerStore.playQueue)
+  autoMixEngine.setCurrentTrack(playerStore.currentSong)
+  warmupNearbyAutomixProfiles(playerStore, currentQueueIndex)
 
-  const nextIndex = await warmupAutomixRecommendation(playerStore.playQueue, currentQueueIndex)
+  const nextIndex = await warmupAutomixRecommendation(playerStore.playQueue, currentQueueIndex, {
+    forwardOnly: playerStore.playMode === PLAY_MODE.SEQUENCE,
+    preserveOrder: playerStore.playMode === PLAY_MODE.SEQUENCE,
+  })
   if (token !== warmupToken) return
   if (nextIndex < 0 || nextIndex >= playerStore.playQueue.length || nextIndex === currentQueueIndex) return
 
   const analysis = getLastAutomixAnalysis()
   if (analysis?.transition && typeof console !== 'undefined') {
     const transition = analysis.transition
-    console.log('[Automix/Warmup] 建议过渡点', {
+    console.log('[AutoMix/Warmup] 建议过渡点', {
       currentTrackId: analysis.currentTrackId,
       selectedTrackId: analysis.selectedTrackId,
       currentMixOutSecond: Number(transition.mix_out_start || 0).toFixed(2),
@@ -350,16 +424,18 @@ export async function warmupNextTrack() {
 
   const cacheKey = String(targetId)
   if (preloadedSongUrlCache.has(cacheKey)) {
+    scheduleBrowserAutomixAnalysis(playerStore, targetSong, preloadedSongUrlCache.get(cacheKey), {role: 'next-1'})
     if (typeof console !== 'undefined') {
-      console.log('[Automix/Warmup] next song URL cache hit', {targetId, nextIndex})
+      console.log('[AutoMix/Warmup] next song URL cache hit', {targetId, nextIndex})
     }
     return
   }
 
   const source = await resolveSongPlayableSource(targetId)
   if (token !== warmupToken) return
+  scheduleBrowserAutomixAnalysis(playerStore, targetSong, source, {role: 'next-1'})
   if (typeof console !== 'undefined') {
-    console.log('[Automix/Warmup] next song URL preloaded', {
+    console.log('[AutoMix/Warmup] next song URL preloaded', {
       targetId,
       nextIndex,
       ok: Boolean(source?.url),
@@ -403,6 +479,14 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
     }
 
     playerStore.setTrack(nextTrack, {autoplay, resetTime: true})
+    if (playerStore.automixEnabled) {
+      autoMixEngine.enable()
+      autoMixEngine.setQueue(playerStore.playQueue)
+      autoMixEngine.setCurrentTrack(nextTrack)
+      scheduleBrowserAutomixAnalysis(playerStore, nextTrack, source, {role: 'current'})
+    } else {
+      autoMixEngine.disable()
+    }
     const queueCurrent = playerStore.playQueue[playerStore.currentQueueIndex]
     if (String(queueCurrent?.id || '') !== String(id)) {
       const matchedIndex = playerStore.playQueue.findIndex(item => String(item.id) === String(id))
@@ -424,7 +508,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
 
     warmupNextTrack().catch(() => {
       if (typeof console !== 'undefined') {
-        console.log('[Automix/Warmup] failed to warm up next track')
+        console.log('[AutoMix/Warmup] failed to warm up next track')
       }
     })
 
@@ -442,7 +526,9 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
             artists: resolveArtists(songInput, detail),
             cover: resolveCover(songInput, detail),
             url,
-            mixProfile: songInput?.mixProfile || null,
+            mixProfile: String(playerStore.currentSong?.id || '') === String(id)
+              ? playerStore.currentSong?.mixProfile || songInput?.mixProfile || null
+              : songInput?.mixProfile || null,
           },
           {autoplay: playerStore.isPlaying, resetTime: false},
         )
@@ -505,7 +591,12 @@ async function resolveNextIndex({direction = 'next', trigger = 'manual'} = {}) {
   }
 
   if (playerStore.automixEnabled) {
-    const suggestedIndex = await recommendNextQueueIndex(playerStore.playQueue, normalizedCurrentIndex)
+    const sequenceMode = mode === PLAY_MODE.SEQUENCE
+    const suggestedIndex = await recommendNextQueueIndex(
+      playerStore.playQueue,
+      normalizedCurrentIndex,
+      {forwardOnly: sequenceMode, preserveOrder: sequenceMode},
+    )
     if (suggestedIndex >= 0 && suggestedIndex < length && suggestedIndex !== normalizedCurrentIndex) {
       return suggestedIndex
     }

@@ -16,6 +16,7 @@ export function usePlayerMediaSession(options) {
     getActiveAudio,
     onPlayFailed,
     onPause,
+    onSeek,
     setCurrentTimeMs,
   } = options
 
@@ -143,6 +144,7 @@ export function usePlayerMediaSession(options) {
       if (!active) return
       const seekTime = Number(details.seekTime)
       if (!Number.isFinite(seekTime)) return
+      onSeek?.()
       active.currentTime = Math.max(0, seekTime)
       setCurrentTimeMs(Math.floor((active.currentTime || 0) * 1000))
       updateMediaSessionPositionState()

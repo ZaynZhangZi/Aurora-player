@@ -9,7 +9,7 @@ AuroraPlayer 是一个基于 Vue 3 + Vite 的音乐 Web 应用，目标是把「
 
 ## 近期新增功能
 
-- 智能混音播放器：新增 Rust + WASM 自动混音引擎（选曲推荐、过渡点规划、双 Deck Crossfade）
+- AutoMix 3.0：纯前端 Rust/WASM 分析 Worker、IndexedDB 版本化缓存、显式状态机、插件化转场，以及 Web Audio 双 Deck、AudioWorklet、动态 EQ Bass Swap、Bar Loop Bridge、Echo/Filter Out 与 limiter
 - 动态封面联动：歌曲支持动态封面拉取，播放器封面过渡与下一首预热
 - 悬浮搜索重构：支持歌手/歌曲/歌单并行搜索、意图识别、键盘导航、分区分页
 - 首页内容升级：新增最近听歌分页、MV 多来源切换（全部/最新/网易出品/推荐）和清晰度切换
@@ -47,14 +47,18 @@ AuroraPlayer 是一个基于 Vue 3 + Vite 的音乐 Web 应用，目标是把「
 │  ├─ api/                     # 接口封装（歌曲、歌单、用户、搜索等）
 │  ├─ axios/                   # 请求实例与拦截器
 │  ├─ components/              # 组件（播放器、搜索、弹层、媒体组件等）
+│  ├─ audio/                   # AutoMix 引擎、Deck、Mixer、分析门面、转场注册表与 Worklet
 │  ├─ stores/                  # Pinia 状态
 │  ├─ utils/                   # 工具（全局播放、automix、转场等）
 │  ├─ view/                    # 页面（home、artist、album、playlist、profile）
-│  ├─ wasm/automix/            # Rust/WASM 自动混音引擎
+│  ├─ wasm/automix/            # 由 Rust 生成的 WASM 浏览器绑定
+│  ├─ workers/                 # 后台 PCM 分析 Worker
+│  ├─ utils/player/            # Web Audio 双 Deck 与播放器音频图
 │  ├─ router/
 │  ├─ App.vue
 │  └─ main.js
 ├─ .env.example
+├─ rust/automix/               # AutoMix Rust/WASM 分析与规划内核、算法与测试
 ├─ vite.config.js
 ├─ package.json
 └─ README.md

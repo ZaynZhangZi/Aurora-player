@@ -9,12 +9,10 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), "");
 	const neteaseApiProxyTarget = env.VITE_API_PROXY_TARGET || "http://localhost:3000";
 	const adminApiProxyTarget = env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8080";
-
-
-
+	const enableVueDevTools = mode === "development" && env.VITE_ENABLE_VUE_DEVTOOLS === "true";
 
 	return {
-		plugins: [vue(), tailwindcss(), ...(mode === "development" ? [vueDevTools()] : [])],
+		plugins: [vue(), tailwindcss(), ...(enableVueDevTools ? [vueDevTools()] : [])],
 		build: {
 			esbuild: mode === "production" ? { drop: ["console", "debugger"] } : {},
 			// 性能优化：代码分割

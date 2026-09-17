@@ -72,6 +72,22 @@ function createDefaultPlayerState() {
     playMode: PLAY_MODE.SEQUENCE,
     playlistPanelOpen: false,
     automixEnabled: true,
+    automixStatus: 'IDLE',
+    currentTransition: null,
+    automixCapabilities: {},
+    automixDebug: {
+      analyzerStatus: 'idle',
+      analyzerRole: '',
+      current: {},
+      next: {},
+      transitionType: '',
+      transitionFamily: '',
+      transitionScore: 0,
+      playbackRate: 1,
+      duration: 0,
+      lastFallback: '',
+      lastError: '',
+    },
     lyricTranslateEnabled: false,
   }
 }
@@ -150,6 +166,12 @@ function normalizeCoverUrlProtocol(url = '') {
   return raw.replace(/^http:\/\//i, 'https://')
 }
 
+function normalizeOptionalNumber(value, {min = -Infinity, max = Infinity} = {}) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) && number >= min && number <= max ? number : null
+}
+
 function normalizeQueueItem(song, usedQueueEntryIds = new Set()) {
   const songDurationSec = Number(song?.dt) / 1000
   const durationCandidate = song?.mixProfile?.duration ?? song?.duration ?? songDurationSec
@@ -159,17 +181,29 @@ function normalizeQueueItem(song, usedQueueEntryIds = new Set()) {
   const outroStartRaw = Number(song?.mixProfile?.outro_start ?? song?.outro_start)
 
   const mixProfile = {
-    bpm: Number(song?.mixProfile?.bpm ?? song?.bpm ?? song?.audioFeatures?.bpm),
+    bpm: normalizeOptionalNumber(song?.mixProfile?.bpm ?? song?.bpm ?? song?.audioFeatures?.bpm, {min: 40, max: 240}),
     key: {
-      tonic: Number(song?.mixProfile?.key?.tonic ?? song?.key?.tonic ?? song?.audioFeatures?.key?.tonic),
+      tonic: normalizeOptionalNumber(song?.mixProfile?.key?.tonic ?? song?.key?.tonic ?? song?.audioFeatures?.key?.tonic, {min: 0, max: 11}),
       mode: String((song?.mixProfile?.key?.mode ?? song?.key?.mode ?? song?.audioFeatures?.key?.mode) || '').toLowerCase(),
     },
-    energy: Number(song?.mixProfile?.energy ?? song?.energy ?? song?.audioFeatures?.energy),
+    energy: normalizeOptionalNumber(song?.mixProfile?.energy ?? song?.energy ?? song?.audioFeatures?.energy, {min: 0, max: 1}),
     duration: durationSec,
-    intro_end: Number.isFinite(introEndRaw) ? Math.max(0, introEndRaw) : 0,
-    outro_start: Number.isFinite(outroStartRaw) ? Math.max(0, outroStartRaw) : 0,
+    intro_end: Number.isFinite(introEndRaw) && introEndRaw > 0 ? Math.max(0, introEndRaw) : null,
+    outro_start: Number.isFinite(outroStartRaw) && outroStartRaw > 0 ? Math.max(0, outroStartRaw) : null,
     beat_positions: Array.isArray(song?.mixProfile?.beat_positions) ? song.mixProfile.beat_positions : [],
+    downbeat_positions: Array.isArray(song?.mixProfile?.downbeat_positions) ? song.mixProfile.downbeat_positions : [],
     section_segments: Array.isArray(song?.mixProfile?.section_segments) ? song.mixProfile.section_segments : [],
+    energy_curve: Array.isArray(song?.mixProfile?.energy_curve) ? song.mixProfile.energy_curve : [],
+    vocal_regions: Array.isArray(song?.mixProfile?.vocal_regions) ? song.mixProfile.vocal_regions : [],
+    mix_regions: Array.isArray(song?.mixProfile?.mix_regions) ? song.mixProfile.mix_regions : [],
+    loudness_lufs: normalizeOptionalNumber(song?.mixProfile?.loudness_lufs, {min: -80, max: 3}),
+    peak_dbfs: normalizeOptionalNumber(song?.mixProfile?.peak_dbfs, {min: -120, max: 6}),
+    confidence: song?.mixProfile?.confidence && typeof song.mixProfile.confidence === 'object'
+      ? {...song.mixProfile.confidence}
+      : {},
+    analysis_version: normalizeOptionalNumber(song?.mixProfile?.analysis_version, {min: 1, max: 100000}),
+    album_id: song?.mixProfile?.album_id ?? song?.album?.id ?? song?.al?.id ?? null,
+    tags: Array.isArray(song?.mixProfile?.tags) ? [...song.mixProfile.tags] : [],
   }
 
   return {
@@ -274,6 +308,22 @@ export const usePlayerStore = defineStore('global-player', {
       if (nextIndex < 0 || nextIndex >= this.playQueue.length) return
       this.currentQueueIndex = nextIndex
       persistPlayerState(this)
+    },
+
+    setSongMixProfile(songId, mixProfile) {
+      const id = String(songId || '').trim()
+      if (!id || !mixProfile || typeof mixProfile !== 'object') return false
+      let updated = false
+      this.playQueue = this.playQueue.map((song) => {
+        if (String(song?.id || '') !== id) return song
+        updated = true
+        return {...song, mixProfile: {...mixProfile}}
+      })
+      if (String(this.currentSong?.id || '') === id) {
+        this.currentSong = {...this.currentSong, mixProfile: {...mixProfile}}
+        updated = true
+      }
+      return updated
     },
 
     syncQueueIndexBySongId(songId) {
@@ -382,6 +432,23 @@ export const usePlayerStore = defineStore('global-player', {
     toggleAutomixEnabled() {
       this.automixEnabled = !this.automixEnabled
       persistPlayerState(this)
+    },
+
+    setAutomixRuntimeSnapshot(snapshot = {}) {
+      this.automixStatus = String(snapshot?.state || 'IDLE')
+      this.currentTransition = snapshot?.currentTransition
+        ? {...snapshot.currentTransition}
+        : null
+      this.automixCapabilities = snapshot?.capabilities
+        ? {...snapshot.capabilities}
+        : {}
+      this.automixDebug = snapshot?.debug
+        ? {
+            ...snapshot.debug,
+            current: {...snapshot.debug.current},
+            next: {...snapshot.debug.next},
+          }
+        : {...this.automixDebug}
     },
 
     setLyricTranslateEnabled(value) {

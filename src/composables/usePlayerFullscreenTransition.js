@@ -1,8 +1,10 @@
 import {ref} from "vue";
 
-const DEFAULT_DURATION = 680;
+const DEFAULT_DURATION = 560;
 const DEFAULT_WRAPPER_TIMEOUT = 1600;
 const WRAPPER_SELECTOR = ".amll-wrapper";
+const EXPAND_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+const COLLAPSE_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
 
 function prefersReducedMotion() {
   return (
@@ -245,7 +247,7 @@ function cloneTransitionElement(source, rect, zIndex) {
   return clone;
 }
 
-function createTransitionStage(shell, shellRect) {
+function createTransitionStage(shell, shellRect, fullscreenSurface = shell) {
   const stage = document.createElement("div");
   stage.className = "player-fullscreen-transition-stage";
   stage.setAttribute("aria-hidden", "true");
@@ -259,17 +261,18 @@ function createTransitionStage(shell, shellRect) {
   });
 
   const computed = window.getComputedStyle(shell);
+  const fullscreenComputed = window.getComputedStyle(fullscreenSurface);
   const surface = document.createElement("div");
   surface.className = "player-fullscreen-transition-surface";
   Object.assign(surface.style, {
     position: "absolute",
     inset: "0",
     zIndex: "1",
-    backgroundColor: computed.backgroundColor,
-    backgroundImage: computed.backgroundImage,
-    backgroundPosition: computed.backgroundPosition,
-    backgroundSize: computed.backgroundSize,
-    backgroundRepeat: computed.backgroundRepeat,
+    backgroundColor: fullscreenComputed.backgroundColor,
+    backgroundImage: fullscreenComputed.backgroundImage,
+    backgroundPosition: fullscreenComputed.backgroundPosition,
+    backgroundSize: fullscreenComputed.backgroundSize,
+    backgroundRepeat: fullscreenComputed.backgroundRepeat,
     borderColor: computed.borderColor,
     borderStyle: computed.borderStyle,
     borderWidth: computed.borderWidth,
@@ -312,6 +315,7 @@ function animateCover(
   fromShadow,
   toShadow,
   duration,
+  easing = EXPAND_EASING,
 ) {
   return clone.animate(
     [
@@ -334,7 +338,7 @@ function animateCover(
     ],
     {
       duration,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      easing,
       fill: "both",
     },
   );
@@ -506,11 +510,11 @@ export function usePlayerFullscreenTransition({
 
       Object.assign(wrapper.style, {
         transition: "none",
-        transform: "translateY(0)",
+        transform: "translateY(0) scale(1)",
         opacity: "0",
         pointerEvents: "none",
         borderRadius: "0",
-        willChange: "opacity",
+        willChange: "opacity, transform",
       });
 
       commitOverlayOpened(true);
@@ -539,7 +543,7 @@ export function usePlayerFullscreenTransition({
       miniShell.style.opacity = "0";
       miniShell.style.pointerEvents = "none";
 
-      const stageParts = createTransitionStage(miniShell, shellRect);
+      const stageParts = createTransitionStage(miniShell, shellRect, wrapper);
       run.stage = stageParts.stage;
       const coverClone = cloneTransitionElement(miniCover, sourceCoverRect, 4);
       stageParts.stage.appendChild(coverClone);
@@ -555,12 +559,13 @@ export function usePlayerFullscreenTransition({
         stageParts.surface.animate(
           [
             {clipPath: cardClip, opacity: 1},
-            {clipPath: fullClip, opacity: 0.9, offset: 0.74},
+            {clipPath: fullClip, opacity: 1, offset: 0.72},
+            {clipPath: fullClip, opacity: 0.68, offset: 0.82},
             {clipPath: fullClip, opacity: 0},
           ],
           {
             duration,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            easing: EXPAND_EASING,
             fill: "both",
           },
         ),
@@ -569,19 +574,31 @@ export function usePlayerFullscreenTransition({
             {opacity: 1, transform: "scale(1)"},
             {
               opacity: 0,
-              transform: "scale(1.025)",
-              offset: 0.36,
+              transform: "translateY(-3px) scale(0.995)",
+              offset: 0.44,
             },
-            {opacity: 0, transform: "scale(1.025)"},
+            {opacity: 0, transform: "translateY(-3px) scale(0.995)"},
           ],
-          {duration, easing: "ease-out", fill: "both"},
+          {duration, easing: EXPAND_EASING, fill: "both"},
         ),
         wrapper.animate(
-          [{opacity: 0}, {opacity: 1}],
+          [
+            {opacity: 0, transform: "translateY(12px) scale(0.992)"},
+            {
+              opacity: 0,
+              transform: "translateY(12px) scale(0.992)",
+              offset: 0.46,
+            },
+            {
+              opacity: 1,
+              transform: "translateY(0) scale(1)",
+              offset: 0.94,
+            },
+            {opacity: 1, transform: "translateY(0) scale(1)"},
+          ],
           {
-            duration: Math.round(duration * 0.76),
-            delay: Math.round(duration * 0.14),
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            duration,
+            easing: EXPAND_EASING,
             fill: "both",
           },
         ),
@@ -670,14 +687,14 @@ export function usePlayerFullscreenTransition({
         opacity: "1",
         pointerEvents: "none",
         borderRadius: "0",
-        willChange: "opacity",
+        willChange: "opacity, transform",
       });
       syncMediaVideos(fullscreenCover, miniCover);
       fullscreenCover.style.opacity = "0";
       miniShell.style.opacity = "0";
       miniShell.style.pointerEvents = "none";
 
-      const stageParts = createTransitionStage(miniShell, shellRect);
+      const stageParts = createTransitionStage(miniShell, shellRect, wrapper);
       run.stage = stageParts.stage;
       const coverClone = cloneTransitionElement(
         fullscreenCover,
@@ -690,43 +707,44 @@ export function usePlayerFullscreenTransition({
       const targetCoverStyle = window.getComputedStyle(miniCover);
       const sourceRadius = sourceCoverStyle.borderTopLeftRadius || "18px";
       const targetRadius = targetCoverStyle.borderTopLeftRadius || "8px";
-      const cardClip = clipPathForRect(shellRect, stageParts.shellRadius);
-      const fullClip = "inset(0px 0px 0px 0px round 0px)";
+      const closeDuration = Math.max(520, Math.round(duration * 1.05));
+      stageParts.surface.remove();
 
       run.animations.push(
-        stageParts.surface.animate(
-          [
-            {clipPath: fullClip, opacity: 0},
-            {clipPath: fullClip, opacity: 0.32, offset: 0.18},
-            {clipPath: cardClip, opacity: 1},
-          ],
-          {
-            duration,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-            fill: "both",
-          },
-        ),
         stageParts.shellClone.animate(
           [
-            {opacity: 0, transform: "translateY(8px) scale(0.985)"},
+            {opacity: 0, transform: "translateY(12px) scale(0.985)"},
             {
               opacity: 0,
-              transform: "translateY(8px) scale(0.985)",
-              offset: 0.6,
+              transform: "translateY(12px) scale(0.985)",
+              offset: 0.36,
             },
             {opacity: 1, transform: "translateY(0) scale(1)"},
           ],
           {
-            duration,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            duration: closeDuration,
+            easing: EXPAND_EASING,
             fill: "both",
           },
         ),
         wrapper.animate(
-          [{opacity: 1}, {opacity: 0}],
+          [
+            {opacity: 1, transform: "translateY(0) scale(1)"},
+            {
+              opacity: 0.92,
+              transform: "translateY(1px) scale(0.998)",
+              offset: 0.18,
+            },
+            {
+              opacity: 0,
+              transform: "translateY(10px) scale(0.985)",
+              offset: 0.58,
+            },
+            {opacity: 0, transform: "translateY(10px) scale(0.985)"},
+          ],
           {
-            duration: Math.round(duration * 0.78),
-            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+            duration: closeDuration,
+            easing: COLLAPSE_EASING,
             fill: "both",
           },
         ),
@@ -738,7 +756,8 @@ export function usePlayerFullscreenTransition({
           targetRadius,
           sourceCoverStyle.boxShadow,
           targetCoverStyle.boxShadow,
-          duration,
+          closeDuration,
+          COLLAPSE_EASING,
         ),
       );
       watchViewportDuringRun(run, () => {
@@ -765,7 +784,6 @@ export function usePlayerFullscreenTransition({
 
       wrapper.style.opacity = "0";
       commitOverlayOpened(false);
-      await nextTick();
       const restoreWrapper = run.restoreWrapper;
       Object.assign(wrapper.style, {
         transition: "none",
@@ -776,7 +794,7 @@ export function usePlayerFullscreenTransition({
       });
       cleanupRun(run, {restoreWrapper: false});
       holdWrapperHiddenUntilUnmounted(wrapper, restoreWrapper);
-      focusElement(miniCover);
+      void nextTick(() => focusElement(miniCover));
       return true;
     } catch {
       cleanupRun(run);
