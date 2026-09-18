@@ -1,14 +1,21 @@
 <template>
   <button
     class="song-row"
-    :class="{ 'song-row-compact': compact }"
+    :class="{ 'song-row-compact': compact, 'song-row-album': showAlbum, 'is-current': isCurrent }"
     type="button"
     :aria-label="`播放歌曲：${title}`"
+    :aria-current="isCurrent ? 'true' : undefined"
     :aria-busy="isStarting"
     :disabled="isStarting"
     @click="emit('play', song, index)"
   >
-    <span v-if="showIndex" class="song-index">{{ String(index + 1).padStart(2, '0') }}</span>
+    <span v-if="showIndex" class="song-index">
+      <span class="song-index-num">{{ String(index + 1).padStart(2, '0') }}</span>
+      <span class="song-index-play" aria-hidden="true">
+        <span v-if="isStarting" class="song-play-spinner" />
+        <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+      </span>
+    </span>
     <span class="song-cover">
       <SmartMedia
         :src="cover"
@@ -22,6 +29,7 @@
       <span class="song-title">{{ title }}</span>
       <span class="song-artist">{{ artist }}</span>
     </span>
+    <span v-if="showAlbum" class="song-album">{{ album }}</span>
     <span v-if="duration" class="song-duration">{{ duration }}</span>
     <span class="song-play" :class="{ 'is-loading': isStarting }" aria-hidden="true">
       <span v-if="isStarting" class="song-play-spinner" />
@@ -52,12 +60,17 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  showAlbum: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['play'])
 const playerStore = usePlayerStore()
 const title = computed(() => props.song?.name || props.song?.song?.name || '未知歌曲')
 const isStarting = computed(() => String(playerStore.playbackPendingId || '') === String(props.song?.id || ''))
+const isCurrent = computed(() => Boolean(props.song?.id) && String(playerStore.currentSong?.id || '') === String(props.song?.id))
 const cover = computed(() => (
   props.song?.cover
   || props.song?.picUrl
@@ -71,6 +84,12 @@ const artist = computed(() => {
   const names = list.map((item) => item?.name || item).filter(Boolean)
   return names.join(' / ') || '未知艺人'
 })
+const album = computed(() => (
+  props.song?.album?.name
+  || props.song?.al?.name
+  || props.song?.song?.album?.name
+  || ''
+))
 const duration = computed(() => {
   const milliseconds = Number(props.song?.dt || props.song?.duration || props.song?.song?.duration || 0)
   if (!milliseconds) return ''
@@ -106,11 +125,20 @@ const duration = computed(() => {
 .song-row:disabled { cursor: wait; }
 
 .song-index {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 22px;
   color: #a1a1aa;
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+.song-index-num,
+.song-index-play { grid-area: 1 / 1; display: grid; place-items: center; transition: opacity 160ms ease, transform 160ms ease; }
+.song-index-play { opacity: 0; transform: scale(0.82); color: #52525b; }
+.song-index-play svg { width: 13px; height: 13px; margin-left: 1px; }
 
 .song-cover {
   display: block;
@@ -129,6 +157,28 @@ const duration = computed(() => {
 .song-title { color: #27272a; font-size: 13px; font-weight: 780; }
 .song-artist { margin-top: 4px; color: #a1a1aa; font-size: 11px; font-weight: 620; }
 .song-duration { color: #a1a1aa; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* 搜索页专辑列变体：单列 + 序号⇄播放的 hover 变形（默认首页不受影响） */
+.song-album { overflow: hidden; color: #a1a1aa; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.song-row-album { grid-template-columns: 34px 52px minmax(0, 1.7fr) minmax(0, 1fr) 52px; }
+.song-row-album .song-play { display: none; }
+.song-row-album:hover .song-index-num,
+.song-row-album.is-current .song-index-num { opacity: 0; transform: scale(0.82); }
+.song-row-album:hover .song-index-play,
+.song-row-album.is-current .song-index-play,
+.song-row-album[aria-busy='true'] .song-index-play { opacity: 1; transform: none; }
+
+/* 当前播放曲目：克制的强调态 */
+.song-row.is-current { border-color: rgba(232, 87, 105, 0.14); background: rgba(232, 87, 105, 0.06); }
+.song-row.is-current .song-title { color: #e85769; }
+.song-row.is-current .song-index-num { color: #e85769; }
+
+@media (hover: none) {
+  .song-row-album { grid-template-columns: 52px minmax(0, 1fr) 34px; }
+  .song-row-album .song-index,
+  .song-row-album .song-album { display: none; }
+  .song-row-album .song-play { display: grid; }
+}
 
 .song-play {
   display: grid;

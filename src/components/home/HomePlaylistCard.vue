@@ -1,6 +1,7 @@
 <template>
   <button
     class="playlist-card"
+    :class="{ 'is-search': variant === 'search' }"
     type="button"
     :aria-label="`打开歌单：${item?.name || '未命名歌单'}`"
     @click="emit('open', item, $event)"
@@ -36,6 +37,10 @@ const props = defineProps({
   item: {
     type: Object,
     required: true,
+  },
+  variant: {
+    type: String,
+    default: 'default',
   },
 })
 
@@ -130,6 +135,16 @@ const meta = computed(() => {
 .playlist-card:focus-visible .playlist-play { opacity: 1; transform: translateY(0) scale(1); }
 
 .playlist-card:focus-visible { outline: 3px solid rgba(232, 87, 105, 0.22); outline-offset: 5px; border-radius: 24px; }
+
+/* 搜索页变体：更小圆角与更克制的浮起，贴合搜索工作台视觉 */
+.playlist-card.is-search .playlist-cover { border-radius: 20px; box-shadow: 0 10px 26px rgba(45, 36, 35, 0.07); }
+.playlist-card.is-search:hover .playlist-cover,
+.playlist-card.is-search:focus-visible .playlist-cover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(45, 36, 35, 0.12); }
+.playlist-card.is-search:hover .playlist-image,
+.playlist-card.is-search:focus-visible .playlist-image { transform: scale(1.025); }
+.playlist-card.is-search:focus-visible { border-radius: 20px; }
+.playlist-card.is-search .playlist-title { margin-top: 11px; font-size: 13px; }
+.playlist-card.is-search:active .playlist-cover { transform: scale(0.985); }
 
 @media (hover: none) {
   .playlist-play { opacity: 1; transform: none; }

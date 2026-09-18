@@ -200,6 +200,7 @@ function closeOverlay() {
 watch(
 	() => route.fullPath,
 	() => {
+		const previousBackgroundKey = bgKey.value;
 		const record = route.matched[route.matched.length - 1] || null;
 		const comp = record?.components?.default || null;
 		const detail = isDetailRoute(route);
@@ -228,7 +229,10 @@ watch(
 
 		// 底层页面入场动画：仅在「主页面 -> 主页面」时播放；
 		// 打开/关闭详情悬浮层、或从整页详情返回时都不重播背景动画。
-		const shouldAnimateEnter = !detail && !prevRouteWasDetail;
+		// 同一页面内仅修改 query/hash（例如搜索分类切换）不是页面导航，
+		// 不应重新播放整页入场动画，否则内容会先透明再出现。
+		const backgroundChanged = bgKey.value !== previousBackgroundKey;
+		const shouldAnimateEnter = !detail && !prevRouteWasDetail && backgroundChanged;
 		prevRouteWasDetail = detail;
 
 		if (shouldAnimateEnter) {

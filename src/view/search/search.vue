@@ -2,168 +2,196 @@
   <div class="search-page">
     <AppHeader />
 
-    <main class="search-main" data-route-motion-root>
-      <header class="search-hero">
-        <p><span /> SEARCH THE SOUND</p>
-        <h1>{{ keyword ? `“${keyword}”` : '想听什么？' }}</h1>
-        <p class="search-hero-copy">
-          {{ keyword ? resultSummary : '歌曲、艺人、专辑和歌单，都可以从这里找到。' }}
-        </p>
+    <div class="search-progress" :class="{ 'is-on': busy }" aria-hidden="true"><span /></div>
 
-        <form class="search-box" role="search" @submit.prevent="submitSearch">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            ref="searchInputRef"
-            v-model="searchInput"
-            type="search"
-            autocomplete="off"
-            aria-label="搜索歌曲、歌手、专辑或歌单"
-            placeholder="搜索歌曲、歌手、专辑或歌单"
-            @input="scheduleSearch"
-          >
-          <button v-if="searchInput" class="search-clear" type="button" aria-label="清空搜索" @click="clearSearch">×</button>
-          <button class="search-submit" type="submit">搜索</button>
-        </form>
+    <main class="search-main" :class="{ 'is-result': hasKeyword }" data-route-motion-root>
+      <!-- 空闲态 Hero：进入结果态时平滑折叠，不卸载重排 -->
+      <div class="hero-block">
+        <p class="hero-eyebrow"><span /> SEARCH THE SOUND</p>
+        <h1 class="hero-title">想听什么？</h1>
+        <p class="hero-copy">歌曲、艺人、专辑和歌单，都可以从这里找到。</p>
+      </div>
 
-        <div v-if="!keyword" class="search-suggestions" aria-label="搜索建议">
-          <span>试试搜索</span>
-          <button v-for="item in suggestions" :key="item" type="button" @click="useSuggestion(item)">{{ item }}</button>
-        </div>
-      </header>
+      <!-- 常驻搜索工具栏：搜索框在两种状态间保持视觉连续 -->
+      <div class="search-toolbar">
+        <div class="search-toolbar-primary">
+          <form class="search-box" role="search" @submit.prevent="submitSearch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" stroke-linecap="round" />
+            </svg>
+            <input
+              ref="searchInputRef"
+              v-model="searchInput"
+              type="search"
+              autocomplete="off"
+              aria-label="搜索歌曲、歌手、专辑或歌单"
+              placeholder="搜索歌曲、艺人、专辑或歌单"
+              @input="scheduleSearch"
+            >
+            <button v-if="searchInput" class="search-clear" type="button" aria-label="清空搜索" @click="clearSearch">×</button>
+            <button class="search-submit" type="submit" aria-label="搜索">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+          </form>
 
-      <template v-if="keyword">
-        <nav class="search-tabs" aria-label="搜索结果分类">
-          <button
-            v-for="tab in tabs"
-            :key="tab.value"
-            type="button"
-            :class="{ 'is-active': activeTab === tab.value }"
-            @click="switchTab(tab.value)"
-          >
-            {{ tab.label }}
-            <small v-if="counts[tab.value] !== undefined">{{ formatCount(counts[tab.value]) }}</small>
-          </button>
-        </nav>
-
-        <div v-if="loading" class="search-loading" aria-label="正在搜索">
-          <span class="search-loading-line" />
-          <div class="search-loading-grid"><i v-for="index in 8" :key="index" /></div>
         </div>
 
-        <section v-else-if="error" class="search-state search-error">
-          <span>!</span><h2>这次没有搜到结果</h2><p>{{ error }}</p>
-          <button type="button" @click="runSearch">重新搜索</button>
-        </section>
+        <div v-if="hasKeyword" class="toolbar-tabs">
+          <SearchTabs :tabs="tabs" :active="activeTab" @change="switchTab" />
+        </div>
+      </div>
 
-        <section v-else-if="!hasResults" class="search-state">
-          <span>⌕</span><h2>没有找到“{{ keyword }}”</h2><p>换一个歌名、艺人名或更短的关键词试试。</p>
+      <!-- 空闲态：最近搜索 -->
+      <div class="idle-extras">
+        <section v-if="history.length" class="idle-group">
+          <header class="idle-head">
+            <h2>最近搜索</h2>
+            <button type="button" class="idle-clear" @click="clearHistory">清空</button>
+          </header>
+          <div class="chip-row">
+            <span v-for="item in history" :key="item" class="chip">
+              <button type="button" class="chip-main" @click="useSuggestion(item)">{{ item }}</button>
+              <button type="button" class="chip-del" :aria-label="`删除搜索记录 ${item}`" @click="removeHistory(item)">×</button>
+            </span>
+          </div>
         </section>
-
-        <div v-else-if="activeTab === 'all'" class="search-overview">
-          <section v-if="results.songs.length" class="search-result-section search-song-section">
-            <div class="search-section-heading">
-              <div><p>TRACKS</p><h2>歌曲</h2></div>
-              <button type="button" @click="switchTab('songs')">查看全部 {{ formatCount(counts.songs) }} 首 <span>→</span></button>
+        <section class="idle-group idle-discover">
+          <header class="idle-head">
+            <div>
+              <small>QUICK DISCOVERY</small>
+              <h2>从这些声音开始</h2>
             </div>
-            <div class="search-song-list">
-              <HomeSongRow
-                v-for="(song, index) in results.songs"
-                :key="song.id"
-                :song="song"
-                :index="index"
-                @play="playSong"
+            <span>点击即可搜索</span>
+          </header>
+          <div class="discovery-grid">
+            <button
+              v-for="(item, index) in suggestions"
+              :key="item"
+              type="button"
+              @click="useSuggestion(item)"
+            >
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <strong>{{ item }}</strong>
+              <i aria-hidden="true">↗</i>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- 结果态 -->
+      <div v-if="hasKeyword" ref="resultsTopRef" class="results" :aria-busy="busy">
+        <div v-if="loading && !visibleHasResults" class="results-skeleton">
+          <SearchSkeleton />
+        </div>
+
+        <section v-else-if="error && !visibleHasResults" class="state state-error">
+          <span class="state-icon">!</span>
+          <h2>搜索遇到了一点问题</h2>
+          <p>{{ error }}</p>
+          <button type="button" class="state-btn" @click="runSearch">重新搜索</button>
+        </section>
+
+        <section v-else-if="!visibleHasResults && !busy" class="state">
+          <span class="state-icon">⌕</span>
+          <h2>没有找到“{{ keyword }}”</h2>
+          <p>换一个歌名、艺人名，或试试更短的关键词。</p>
+        </section>
+
+        <div v-else-if="visibleHasResults" class="results-body">
+          <Transition name="tab-fade">
+            <div :key="panelKey" class="tab-panel">
+          <!-- 综合 -->
+          <template v-if="displayTab === 'all'">
+            <div class="overview-lead">
+              <SearchBestMatch
+                v-if="bestMatch"
+                :match="bestMatch"
+                @open="openBestMatch"
+              />
+              <div v-if="results.songs.length" class="overview-song-panel">
+                <SearchSongList
+                  :songs="results.songs.slice(0, 5)"
+                  :start-index="0"
+                  title="歌曲"
+                  :view-all-label="counts.songs > 5 ? `查看全部 ${formatCount(counts.songs)} 首` : ''"
+                  @play="playSong"
+                  @view-all="switchTab('songs')"
+                />
+              </div>
+            </div>
+            <div class="overview-sections">
+              <SearchMediaSection
+                v-if="results.albums.length"
+                variant="album"
+                title="专辑"
+                :items="results.albums.slice(0, 5)"
+                :view-all-label="counts.albums > 5 ? `查看全部 ${formatCount(counts.albums)} 张` : ''"
+                @open="openAlbum"
+                @view-all="switchTab('albums')"
+              />
+              <SearchMediaSection
+                v-if="results.playlists.length"
+                variant="playlist"
+                title="歌单"
+                :items="results.playlists.slice(0, 5)"
+                :view-all-label="counts.playlists > 5 ? `查看全部 ${formatCount(counts.playlists)} 个` : ''"
+                @open="openPlaylist"
+                @view-all="switchTab('playlists')"
+              />
+              <SearchMediaSection
+                v-if="results.artists.length"
+                variant="artist"
+                title="相关艺人"
+                :items="results.artists.slice(0, 6)"
+                :view-all-label="counts.artists > 6 ? `查看全部 ${formatCount(counts.artists)} 位` : ''"
+                @open="openArtist"
+                @view-all="switchTab('artists')"
               />
             </div>
-          </section>
+          </template>
 
-          <section v-if="results.artists.length" class="search-result-section">
-            <div class="search-section-heading">
-              <div><p>ARTISTS</p><h2>艺人</h2></div>
-              <button type="button" @click="switchTab('artists')">查看全部 {{ formatCount(counts.artists) }} 位 <span>→</span></button>
-            </div>
-            <div class="search-artist-grid">
-              <button v-for="artist in results.artists" :key="artist.id" type="button" @click="openArtist(artist)">
-                <span><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="420" sizes="210px" /></span>
-                <strong>{{ artist.name }}</strong>
-                <small>{{ artist.alias?.[0] || 'ARTIST' }}</small>
-              </button>
-            </div>
-          </section>
-
-          <section v-if="results.albums.length" class="search-result-section">
-            <div class="search-section-heading">
-              <div><p>ALBUMS</p><h2>专辑</h2></div>
-              <button type="button" @click="switchTab('albums')">查看全部 {{ formatCount(counts.albums) }} 张 <span>→</span></button>
-            </div>
-            <div class="search-media-grid">
-              <button v-for="album in results.albums" :key="album.id" type="button" @click="openAlbum(album)">
-                <span class="search-media-cover"><SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="480" sizes="230px" /></span>
-                <strong>{{ album.name }}</strong>
-                <small>{{ album.artist?.name || album.artists?.map(item => item.name).join(' / ') || '未知艺人' }}</small>
-              </button>
-            </div>
-          </section>
-
-          <section v-if="results.playlists.length" class="search-result-section">
-            <div class="search-section-heading">
-              <div><p>PLAYLISTS</p><h2>歌单</h2></div>
-              <button type="button" @click="switchTab('playlists')">查看全部 {{ formatCount(counts.playlists) }} 个 <span>→</span></button>
-            </div>
-            <div class="search-playlist-grid">
-              <HomePlaylistCard v-for="item in results.playlists" :key="item.id" :item="item" @open="openPlaylist" />
-            </div>
-          </section>
-        </div>
-
-        <section v-else class="search-result-page">
-          <div class="search-page-heading">
-            <div><p>{{ activeTabMeta.eyebrow }}</p><h2>{{ activeTabMeta.title }}</h2></div>
-            <span>共 {{ formatCount(activeCount) }} 个结果</span>
-          </div>
-
-          <div v-if="activeTab === 'songs'" class="search-song-page">
-            <HomeSongRow
-              v-for="(song, index) in results.songs"
-              :key="song.id"
-              :song="song"
-              :index="page * pageSize + index"
+          <!-- 单分类 -->
+          <section v-else class="result-page">
+            <SearchSongList
+              v-if="displayTab === 'songs'"
+              :songs="results.songs"
+              :start-index="page * pageSize"
+              title="歌曲"
               @play="playSong"
             />
-          </div>
+            <SearchMediaSection
+              v-else-if="displayTab === 'artists'"
+              variant="artist"
+              title="艺人"
+              :items="results.artists"
+              @open="openArtist"
+            />
+            <SearchMediaSection
+              v-else-if="displayTab === 'albums'"
+              variant="album"
+              title="专辑"
+              :items="results.albums"
+              @open="openAlbum"
+            />
+            <SearchMediaSection
+              v-else
+              variant="playlist"
+              title="歌单"
+              :items="results.playlists"
+              @open="openPlaylist"
+            />
 
-          <div v-else-if="activeTab === 'artists'" class="search-artist-page-grid">
-            <button v-for="(artist, index) in results.artists" :key="artist.id" type="button" @click="openArtist(artist)">
-              <span class="search-artist-page-cover">
-                <SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="520" sizes="240px" />
-                <i>{{ String(page * pageSize + index + 1).padStart(2, '0') }}</i>
-              </span>
-              <strong>{{ artist.name }}</strong>
-              <small>{{ artist.alias?.[0] || 'ARTIST · 查看艺人主页' }}</small>
-            </button>
-          </div>
-
-          <div v-else-if="activeTab === 'albums'" class="search-media-page-grid">
-            <button v-for="album in results.albums" :key="album.id" type="button" @click="openAlbum(album)">
-              <span class="search-media-cover"><SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="560" sizes="250px" /></span>
-              <strong>{{ album.name }}</strong>
-              <small>{{ album.artist?.name || album.artists?.map(item => item.name).join(' / ') || '未知艺人' }}</small>
-            </button>
-          </div>
-
-          <div v-else class="search-playlist-page-grid">
-            <HomePlaylistCard v-for="item in results.playlists" :key="item.id" :item="item" @open="openPlaylist" />
-          </div>
-
-          <div v-if="totalPages > 1" class="search-pagination">
-            <button type="button" :disabled="page <= 0" @click="changePage(page - 1)">← 上一页</button>
-            <span>PAGE {{ page + 1 }} / {{ totalPages }}</span>
-            <button type="button" :disabled="page + 1 >= totalPages" @click="changePage(page + 1)">下一页 →</button>
-          </div>
-        </section>
-      </template>
+            <div v-if="displayTab === activeTab && totalPages > 1" class="pagination">
+              <button type="button" :disabled="page <= 0 || busy" @click="changePage(page - 1)">← 上一页</button>
+              <span>第 {{ page + 1 }} / {{ totalPages }} 页</span>
+              <button type="button" :disabled="page + 1 >= totalPages || busy" @click="changePage(page + 1)">下一页 →</button>
+            </div>
+          </section>
+            </div>
+          </Transition>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -174,56 +202,68 @@ defineOptions({name: 'SearchPage'})
 import {computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
-import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
-import HomeSongRow from '@/components/home/HomeSongRow.vue'
-import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import SearchTabs from './components/SearchTabs.vue'
+import SearchBestMatch from './components/SearchBestMatch.vue'
+import SearchSongList from './components/SearchSongList.vue'
+import SearchMediaSection from './components/SearchMediaSection.vue'
+import SearchSkeleton from './components/SearchSkeleton.vue'
 import {searchApi} from '@/api/searchApi/searchApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
+import {useSearchHistory} from '@/composables/useSearchHistory.js'
 
 const route = useRoute()
 const router = useRouter()
 const {openDetail} = useDetailNavigation()
+const {history, add: addHistory, remove: removeHistory, clear: clearHistory} = useSearchHistory()
+
 const searchInputRef = ref(null)
+const resultsTopRef = ref(null)
 const searchInput = ref('')
 const keyword = ref('')
 const loading = ref(false)
+const refreshing = ref(false)
 const error = ref('')
 const activeTab = ref('all')
+const displayTab = ref('all')
+const displayQuery = ref('')
+const panelRevision = ref(0)
 const page = ref(0)
 const pageSize = 20
 let inputTimer = null
 let requestId = 0
 
 const tabs = [
-  {label: '全部', value: 'all'},
+  {label: '综合', value: 'all'},
   {label: '歌曲', value: 'songs'},
   {label: '艺人', value: 'artists'},
   {label: '专辑', value: 'albums'},
   {label: '歌单', value: 'playlists'},
 ]
+const suggestions = ['周杰伦', '陈奕迅', '林俊杰', 'Taylor Swift', '五月天', '陶喆']
 const tabValues = new Set(tabs.map(item => item.value))
-const suggestions = ['周杰伦', '陈奕迅', '轻音乐', '华语流行']
 const typeConfig = {
-  songs: {type: 1, key: 'songs', countKey: 'songCount', title: '歌曲', eyebrow: 'TRACK RESULTS'},
-  artists: {type: 100, key: 'artists', countKey: 'artistCount', title: '艺人', eyebrow: 'ARTIST RESULTS'},
-  albums: {type: 10, key: 'albums', countKey: 'albumCount', title: '专辑', eyebrow: 'ALBUM RESULTS'},
-  playlists: {type: 1000, key: 'playlists', countKey: 'playlistCount', title: '歌单', eyebrow: 'PLAYLIST RESULTS'},
+  songs: {type: 1, key: 'songs', countKey: 'songCount'},
+  artists: {type: 100, key: 'artists', countKey: 'artistCount'},
+  albums: {type: 10, key: 'albums', countKey: 'albumCount'},
+  playlists: {type: 1000, key: 'playlists', countKey: 'playlistCount'},
 }
-
 const results = reactive({songs: [], artists: [], albums: [], playlists: []})
 const counts = reactive({all: 0, songs: 0, artists: 0, albums: 0, playlists: 0})
+const loadedQuery = reactive({all: '', songs: '', artists: '', albums: '', playlists: ''})
 
+const hasKeyword = computed(() => Boolean(keyword.value))
+const busy = computed(() => loading.value || refreshing.value)
 const hasResults = computed(() => Object.values(results).some(list => list.length))
-const activeCount = computed(() => Number(counts[activeTab.value] || 0))
+const activeCount = computed(() => (
+  loadedQuery[activeTab.value] === keyword.value
+    ? Number(counts[activeTab.value] || 0)
+    : 0
+))
 const totalPages = computed(() => Math.max(1, Math.ceil(activeCount.value / pageSize)))
-const activeTabMeta = computed(() => typeConfig[activeTab.value] || {title: '搜索结果', eyebrow: 'SEARCH RESULTS'})
-const resultSummary = computed(() => {
-  if (loading.value) return '正在穿过音乐库寻找匹配的声音…'
-  if (error.value) return '搜索暂时遇到了一点问题。'
-  if (!counts.all) return '暂时没有找到匹配内容。'
-  return `共找到 ${formatCount(counts.all)} 个相关结果，可以按内容类型继续浏览。`
-})
+const visibleHasResults = computed(() => hasResultsForTab(displayTab.value, displayQuery.value))
+const panelKey = computed(() => `${displayQuery.value}:${displayTab.value}:${panelRevision.value}`)
+const bestMatch = computed(() => findBestMatch(keyword.value))
 
 function clearResults() {
   results.songs = []
@@ -235,6 +275,57 @@ function clearResults() {
   counts.artists = 0
   counts.albums = 0
   counts.playlists = 0
+  loadedQuery.all = ''
+  loadedQuery.songs = ''
+  loadedQuery.artists = ''
+  loadedQuery.albums = ''
+  loadedQuery.playlists = ''
+  displayQuery.value = ''
+  displayTab.value = 'all'
+}
+
+function hasResultsForTab(tab, query = keyword.value) {
+  if (!query || loadedQuery[tab] !== query) return false
+  if (tab === 'all') return Object.values(results).some(list => list.length)
+  return Boolean(results[tab]?.length)
+}
+
+function revealPanel(tab, query) {
+  const changed = displayTab.value !== tab || displayQuery.value !== query
+  displayTab.value = tab
+  displayQuery.value = query
+  if (changed) panelRevision.value += 1
+}
+
+function normalizedSearchText(value) {
+  return String(value || '').trim().toLocaleLowerCase().replace(/\s+/g, '')
+}
+
+function findBestMatch(query) {
+  const target = normalizedSearchText(query)
+  if (!target || loadedQuery.all !== query) return null
+  const candidates = [
+    ...results.artists.map((item, index) => ({type: 'artist', item, index, weight: 4})),
+    ...results.albums.map((item, index) => ({type: 'album', item, index, weight: 3})),
+    ...results.playlists.map((item, index) => ({type: 'playlist', item, index, weight: 2})),
+    ...results.songs.map((item, index) => ({type: 'song', item, index, weight: 1})),
+  ]
+  let winner = null
+  let winningScore = -Infinity
+  candidates.forEach((candidate) => {
+    const name = normalizedSearchText(candidate.item?.name)
+    if (!name) return
+    let score = candidate.weight - candidate.index * 0.1
+    if (name === target) score += 120
+    else if (name.startsWith(target)) score += 80
+    else if (name.includes(target)) score += 52
+    else if (target.includes(name)) score += 30
+    if (score > winningScore) {
+      winner = candidate
+      winningScore = score
+    }
+  })
+  return winner
 }
 
 function extractResult(response, config) {
@@ -245,45 +336,58 @@ function extractResult(response, config) {
   }
 }
 
-async function runSearch() {
-  const q = keyword.value.trim()
+async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
+  const q = String(query || '').trim()
+  const searchTab = tabValues.has(tab) ? tab : 'all'
   const currentRequest = ++requestId
   if (!q) {
     clearResults()
     loading.value = false
+    refreshing.value = false
     error.value = ''
     return
   }
 
-  loading.value = true
+  // 已有结果则保留并弱化（顶部进度线），首次搜索才展示骨架屏
+  if (hasResults.value) refreshing.value = true
+  else loading.value = true
   error.value = ''
-  clearResults()
 
   try {
-    if (activeTab.value === 'all') {
+    if (searchTab === 'all') {
       const entries = Object.entries(typeConfig)
       const settled = await Promise.allSettled(entries.map(([, config]) => searchApi.searchByType(q, {
         type: config.type,
-        limit: config.key === 'songs' ? 8 : 5,
+        limit: config.key === 'songs' ? 6 : 5,
         offset: 0,
       })))
       if (currentRequest !== requestId) return
 
       let successCount = 0
+      const nextResults = {songs: [], artists: [], albums: [], playlists: []}
+      const nextCounts = {songs: 0, artists: 0, albums: 0, playlists: 0}
       settled.forEach((result, index) => {
         const [name, config] = entries[index]
         if (result.status !== 'fulfilled') return
         successCount += 1
         const extracted = extractResult(result.value, config)
-        results[name] = extracted.items
-        counts[name] = extracted.count
+        nextResults[name] = extracted.items
+        nextCounts[name] = extracted.count
       })
       if (!successCount) throw new Error('搜索服务暂时不可用，请稍后重试')
+      Object.assign(results, nextResults)
+      Object.assign(counts, nextCounts)
       counts.all = counts.songs + counts.artists + counts.albums + counts.playlists
+      loadedQuery.all = q
+      loadedQuery.songs = q
+      loadedQuery.artists = q
+      loadedQuery.albums = q
+      loadedQuery.playlists = q
+      revealPanel(searchTab, q)
       return
     }
 
-    const config = typeConfig[activeTab.value]
+    const config = typeConfig[searchTab]
     const response = await searchApi.searchByType(q, {
       type: config.type,
       limit: pageSize,
@@ -291,14 +395,18 @@ async function runSearch() {
     })
     if (currentRequest !== requestId) return
     const extracted = extractResult(response, config)
-    results[activeTab.value] = extracted.items
-    counts[activeTab.value] = extracted.count
-    counts.all = extracted.count
+    results[searchTab] = extracted.items
+    counts[searchTab] = extracted.count
+    loadedQuery[searchTab] = q
+    revealPanel(searchTab, q)
   } catch (searchError) {
     if (currentRequest !== requestId) return
     error.value = searchError?.message || '搜索失败，请稍后重试'
   } finally {
-    if (currentRequest === requestId) loading.value = false
+    if (currentRequest === requestId) {
+      loading.value = false
+      refreshing.value = false
+    }
   }
 }
 
@@ -319,6 +427,7 @@ function submitSearch() {
     return
   }
   page.value = 0
+  addHistory(q)
   updateRoute(q, activeTab.value)
 }
 
@@ -327,8 +436,9 @@ function scheduleSearch() {
   const q = searchInput.value.trim()
   inputTimer = window.setTimeout(() => {
     page.value = 0
+    if (q) addHistory(q)
     updateRoute(q, activeTab.value, true)
-  }, 420)
+  }, 300)
 }
 
 function clearSearch() {
@@ -344,30 +454,48 @@ function clearSearch() {
 function useSuggestion(value) {
   searchInput.value = value
   page.value = 0
+  addHistory(value)
   updateRoute(value, 'all')
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function switchTab(tab) {
   if (!tabValues.has(tab) || tab === activeTab.value) return
   page.value = 0
-  updateRoute(keyword.value, tab)
+  updateRoute(keyword.value, tab, true)
 }
 
 function changePage(nextPage) {
   const safePage = Math.min(Math.max(Number(nextPage) || 0, 0), totalPages.value - 1)
-  if (safePage === page.value) return
+  if (safePage === page.value || busy.value) return
   page.value = safePage
-  void runSearch()
-  window.scrollTo({top: 310, behavior: 'smooth'})
+  void runSearch().then(() => {
+    const el = resultsTopRef.value
+    if (!el) return
+    const top = el.getBoundingClientRect().top + window.scrollY - 150
+    window.scrollTo({top: Math.max(0, top), behavior: 'smooth'})
+  })
 }
 
 async function playSong(song, index = 0) {
   await playSongWithQueue(song, results.songs, Math.max(0, index - page.value * pageSize))
 }
 
+function openBestMatch(match) {
+  if (!match?.item) return
+  if (match.type === 'song') {
+    const index = Math.max(0, results.songs.findIndex(item => String(item?.id) === String(match.item?.id)))
+    void playSong(match.item, index)
+    return
+  }
+  if (match.type === 'artist') openArtist(match.item)
+  else if (match.type === 'album') openAlbum(match.item)
+  else if (match.type === 'playlist') openPlaylist(match.item)
+}
+
 function openArtist(artist) {
   const id = Number(artist?.id || 0)
-  if (id) openDetail('artist', id)
+  if (id) openDetail('artist', id, {query: artist?.name ? {name: artist.name} : undefined})
 }
 
 function openAlbum(album) {
@@ -395,13 +523,25 @@ watch(
   ([query, tab]) => {
     const nextKeyword = String(query || '').trim()
     const nextTab = tabValues.has(String(tab || '')) ? String(tab) : 'all'
-    const changed = nextKeyword !== keyword.value || nextTab !== activeTab.value
+    const previousKeyword = keyword.value
+    const previousTab = activeTab.value
+    const keywordChanged = nextKeyword !== previousKeyword
+    const tabChanged = nextTab !== previousTab
+    const changed = keywordChanged || tabChanged
     keyword.value = nextKeyword
     searchInput.value = nextKeyword
     activeTab.value = nextTab
     page.value = 0
-    if (changed || (!loading.value && nextKeyword && !hasResults.value)) void runSearch()
-    if (!nextKeyword) clearResults()
+    if (!nextKeyword) {
+      clearResults()
+      return
+    }
+    if (!keywordChanged && tabChanged && hasResultsForTab(nextTab, nextKeyword)) {
+      revealPanel(nextTab, nextKeyword)
+    }
+    if (changed || (!loading.value && !hasResultsForTab(nextTab, nextKeyword))) {
+      void runSearch({query: nextKeyword, tab: nextTab})
+    }
   },
   {immediate: true},
 )
@@ -420,164 +560,186 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .search-page {
+  --sp-ink: #1b1b1f;
+  --sp-muted: #86868f;
+  --sp-faint: #adadb5;
+  --sp-accent: #e85769;
+  --sp-accent-ink: #d92c49;
+  --sp-line: rgba(24, 24, 27, 0.075);
+  --sp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
   min-height: 100vh;
-  color: #27272a;
+  color: var(--sp-ink);
   background:
-    radial-gradient(circle at 50% -5%, rgba(255, 221, 226, 0.88), transparent 28%),
-    radial-gradient(circle at 95% 34%, rgba(255, 241, 211, 0.52), transparent 22%),
-    #f7f7f8;
+    radial-gradient(920px 500px at 50% -12%, rgba(255, 216, 226, 0.64), transparent 64%),
+    radial-gradient(620px 420px at 96% 24%, rgba(255, 238, 208, 0.28), transparent 64%),
+    #f6f6f7;
 }
 
 button,
 input { font: inherit; }
 button { cursor: pointer; }
-.search-main { width: min(100%, 1260px); min-height: calc(100vh - 76px); margin: 0 auto; padding: 72px 28px 150px; }
-.search-hero { text-align: center; }
-.search-hero > p:first-child { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 0; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.22em; }
-.search-hero > p:first-child span { width: 26px; height: 1px; background: currentColor; }
-.search-hero h1 { max-width: 940px; margin: 20px auto 0; overflow: hidden; color: #242428; font-size: clamp(42px, 6vw, 76px); font-weight: 920; letter-spacing: -0.06em; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; }
-.search-hero-copy { margin: 16px 0 0; color: #909097; font-size: 12px; font-weight: 620; }
-.search-box { display: grid; width: min(100%, 760px); height: 70px; align-items: center; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 12px; margin: 34px auto 0; padding: 8px 9px 8px 22px; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 24px; background: rgba(255, 255, 255, 0.88); box-shadow: 0 24px 68px rgba(55, 42, 41, 0.1); backdrop-filter: blur(18px); }
-.search-box > svg { width: 22px; color: #7e7e85; }
-.search-box input { min-width: 0; height: 100%; color: #27272a; border: 0; outline: 0; background: transparent; font-size: 15px; font-weight: 680; }
-.search-box input::placeholder { color: #aaaab0; }
-.search-clear { display: grid; width: 34px; aspect-ratio: 1; place-items: center; color: #93939a; border: 0; border-radius: 50%; background: transparent; font-size: 20px; }
-.search-clear:hover { color: #27272a; background: #f0f0f1; }
-.search-submit { height: 52px; padding: 0 24px; color: #fff; border: 0; border-radius: 18px; background: #27272a; font-size: 11px; font-weight: 800; transition: transform 180ms ease, background 180ms ease; }
-.search-submit:hover { background: #e85769; transform: translateY(-1px); }
-.search-suggestions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; margin-top: 22px; }
-.search-suggestions span { margin-right: 3px; color: #aaaab0; font-size: 9px; font-weight: 720; }
-.search-suggestions button { height: 30px; padding: 0 12px; color: #717178; border: 1px solid rgba(24, 24, 27, 0.065); border-radius: 999px; background: rgba(255, 255, 255, 0.58); font-size: 9px; font-weight: 720; }
-.search-suggestions button:hover { color: #e85769; border-color: rgba(232, 87, 105, 0.2); background: #fff; }
 
-.search-tabs { position: sticky; top: 76px; z-index: 40; display: flex; width: fit-content; max-width: 100%; margin: 56px auto 0; overflow-x: auto; padding: 6px; border: 1px solid rgba(24, 24, 27, 0.065); border-radius: 18px; background: rgba(250, 250, 250, 0.88); box-shadow: 0 12px 34px rgba(41, 36, 34, 0.06); backdrop-filter: blur(18px); scrollbar-width: none; }
-.search-tabs::-webkit-scrollbar { display: none; }
-.search-tabs button { display: flex; min-width: 94px; height: 42px; align-items: center; justify-content: center; gap: 7px; color: #85858c; border: 0; border-radius: 13px; background: transparent; font-size: 10px; font-weight: 790; }
-.search-tabs button small { color: #b1b1b7; font-size: 8px; font-weight: 700; }
-.search-tabs button.is-active { color: #fff; background: #27272a; box-shadow: 0 7px 18px rgba(24, 24, 27, 0.15); }
-.search-tabs button.is-active small { color: #f29aa4; }
+/* 顶部细进度条 */
+.search-progress { position: fixed; top: 76px; right: 0; left: 0; z-index: 70; height: 2px; overflow: hidden; opacity: 0; transition: opacity 200ms ease; pointer-events: none; }
+.search-progress.is-on { opacity: 1; }
+.search-progress span { display: block; width: 40%; height: 100%; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--sp-accent), transparent); animation: sp-progress 1.1s ease-in-out infinite; }
+@keyframes sp-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
 
-.search-overview,
-.search-result-page { padding-top: 72px; }
-.search-result-section + .search-result-section { margin-top: 86px; }
-.search-section-heading,
-.search-page-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 27px; }
-.search-section-heading p,
-.search-page-heading p { margin: 0 0 7px; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.2em; }
-.search-section-heading h2,
-.search-page-heading h2 { margin: 0; font-size: clamp(31px, 3.5vw, 45px); font-weight: 900; letter-spacing: -0.05em; }
-.search-section-heading button { padding: 9px 13px; color: #6f6f76; border: 1px solid rgba(24, 24, 27, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.67); font-size: 9px; font-weight: 760; }
-.search-section-heading button span { margin-left: 6px; color: #e85769; }
-.search-page-heading > span { color: #9999a0; font-size: 10px; font-weight: 680; }
+.search-main { box-sizing: border-box; width: min(100%, 1200px); min-height: calc(100vh - 76px); margin: 0 auto; padding: 40px 28px calc(var(--global-player-space, 104px) + 40px); }
 
-.search-song-section { padding: clamp(20px, 3vw, 34px); border: 1px solid rgba(255, 255, 255, 0.78); border-radius: 34px; background: rgba(255, 255, 255, 0.62); box-shadow: 0 20px 56px rgba(46, 39, 37, 0.06); }
-.search-song-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 12px; }
-.search-artist-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; }
-.search-artist-grid button { min-width: 0; padding: 0; text-align: center; border: 0; background: transparent; }
-.search-artist-grid button > span { display: block; aspect-ratio: 1; overflow: hidden; border-radius: 50%; background: #e4e4e7; box-shadow: 0 14px 34px rgba(40, 35, 33, 0.09); transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
-.search-artist-grid button:hover > span { transform: translateY(-6px); }
-.search-artist-grid :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.search-artist-grid strong,
-.search-artist-grid small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-artist-grid strong { margin-top: 14px; font-size: 13px; font-weight: 830; }
-.search-artist-grid small { margin-top: 5px; color: #aaaab0; font-size: 8px; font-weight: 720; letter-spacing: 0.07em; }
-.search-media-grid,
-.search-playlist-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 32px 18px; }
-.search-media-grid > button { min-width: 0; padding: 0; text-align: left; border: 0; background: transparent; }
-.search-media-cover { display: block; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(24, 24, 27, 0.055); border-radius: 24px; background: #e5e5e6; box-shadow: 0 14px 36px rgba(43, 37, 35, 0.08); transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1); }
-.search-media-grid button:hover .search-media-cover,
-.search-media-page-grid button:hover .search-media-cover { transform: translateY(-6px); }
-.search-media-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.search-media-grid strong,
-.search-media-grid small,
-.search-media-page-grid strong,
-.search-media-page-grid small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-media-grid strong,
-.search-media-page-grid strong { margin: 13px 2px 0; font-size: 13px; font-weight: 820; }
-.search-media-grid small,
-.search-media-page-grid small { margin: 5px 2px 0; color: #a1a1aa; font-size: 10px; }
+/* ── Hero（空闲态） ── */
+.hero-block { max-height: 360px; margin-bottom: 8px; overflow: hidden; text-align: center; transition: opacity 300ms ease, transform 420ms var(--sp-ease), max-height 440ms var(--sp-ease), margin 440ms var(--sp-ease); animation: sp-fade-up 420ms var(--sp-ease) both; }
+.is-result .hero-block { max-height: 0; margin-bottom: 0; opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 6px 14px; color: var(--sp-accent-ink); border: 1px solid rgba(232, 87, 105, 0.16); border-radius: 999px; background: rgba(255, 255, 255, 0.6); font-size: 10px; font-weight: 800; letter-spacing: 0.2em; }
+.hero-eyebrow span { width: 20px; height: 1px; background: currentColor; opacity: 0.6; }
+.hero-title { margin: 22px auto 0; color: var(--sp-ink); font-size: clamp(38px, 5.4vw, 56px); font-weight: 900; letter-spacing: -0.05em; line-height: 1.08; }
+.hero-copy { max-width: 520px; margin: 16px auto 0; color: var(--sp-muted); font-size: 13px; line-height: 1.6; }
 
-.search-song-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 18px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 30px; background: rgba(255, 255, 255, 0.64); box-shadow: 0 20px 56px rgba(46, 39, 37, 0.06); }
-.search-artist-page-grid,
-.search-media-page-grid,
-.search-playlist-page-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 36px 18px; }
-.search-artist-page-grid button,
-.search-media-page-grid button { min-width: 0; padding: 0; text-align: left; border: 0; background: transparent; }
-.search-artist-page-cover { position: relative; display: block; aspect-ratio: 0.9; overflow: hidden; border-radius: 25px; background: #e4e4e7; box-shadow: 0 15px 38px rgba(42, 36, 34, 0.09); transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1); }
-.search-artist-page-grid button:hover .search-artist-page-cover { transform: translateY(-6px); }
-.search-artist-page-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
-.search-artist-page-cover i { position: absolute; top: 13px; right: 13px; display: grid; width: 31px; aspect-ratio: 1; place-items: center; color: #fff; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 50%; background: rgba(20, 20, 22, 0.18); font-size: 8px; font-style: normal; font-weight: 800; backdrop-filter: blur(10px); }
-.search-artist-page-grid strong,
-.search-artist-page-grid small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-artist-page-grid strong { margin: 13px 2px 0; font-size: 13px; font-weight: 830; }
-.search-artist-page-grid small { margin: 5px 2px 0; color: #aaaab0; font-size: 8px; }
-
-.search-pagination { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 50px; }
-.search-pagination button { padding: 11px 16px; color: #5f5f66; border: 1px solid rgba(24, 24, 27, 0.08); border-radius: 999px; background: #fff; font-size: 9px; font-weight: 780; }
-.search-pagination button:disabled { cursor: not-allowed; opacity: 0.4; }
-.search-pagination span { color: #9b9ba1; font-size: 8px; font-weight: 820; letter-spacing: 0.11em; }
-
-.search-state { display: grid; min-height: 390px; place-items: center; align-content: center; text-align: center; }
-.search-state > span { display: grid; width: 58px; aspect-ratio: 1; place-items: center; color: #e85769; border: 1px solid rgba(232, 87, 105, 0.14); border-radius: 50%; background: rgba(255, 255, 255, 0.62); font-size: 24px; }
-.search-state h2 { margin: 20px 0 0; font-size: 25px; font-weight: 880; letter-spacing: -0.04em; }
-.search-state p { margin: 9px 0 0; color: #96969d; font-size: 11px; }
-.search-state button { margin-top: 18px; padding: 10px 15px; color: #fff; border: 0; border-radius: 999px; background: #27272a; font-size: 10px; font-weight: 780; }
-.search-loading { padding-top: 76px; }
-.search-loading-line { display: block; width: 190px; height: 38px; margin-bottom: 26px; border-radius: 12px; background: #e7e7e8; animation: search-pulse 1.35s ease-in-out infinite; }
-.search-loading-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
-.search-loading-grid i { aspect-ratio: 1; border-radius: 25px; background: #e7e7e8; animation: search-pulse 1.35s ease-in-out infinite; }
-@keyframes search-pulse { 50% { opacity: 0.45; } }
-
-@media (max-width: 1080px) {
-  .search-tabs { top: 68px; }
-  .search-media-grid,
-  .search-playlist-grid,
-  .search-artist-page-grid,
-  .search-media-page-grid,
-  .search-playlist-page-grid { grid-template-columns: repeat(4, 1fr); }
+/* ── 搜索工具栏（常驻搜索框） ── */
+.search-toolbar { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 26px 0 0; transition: padding 420ms var(--sp-ease), background 220ms ease, box-shadow 220ms ease; }
+.search-toolbar-primary { display: flex; width: 100%; flex-direction: column; align-items: center; }
+.is-result .search-toolbar {
+  position: sticky;
+  top: 76px;
+  z-index: 45;
+  align-items: stretch;
+  margin: 0 -14px;
+  padding: 10px 14px 7px;
+  border-bottom: 1px solid rgba(24, 24, 27, 0.065);
+  border-radius: 0 0 22px 22px;
+  background: rgba(246, 246, 247, 0.86);
+  box-shadow: 0 14px 34px rgba(38, 34, 34, 0.045);
+  backdrop-filter: blur(22px) saturate(1.15);
 }
+.is-result .search-toolbar-primary { flex-direction: row; align-items: center; justify-content: center; }
 
+.search-box { box-sizing: border-box; display: grid; width: 100%; max-width: 660px; height: 64px; align-items: center; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 12px; padding: 8px 9px 8px 20px; border: 1px solid var(--sp-line); border-radius: 18px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 16px 44px rgba(46, 39, 37, 0.09); transition: max-width 440ms var(--sp-ease), height 320ms var(--sp-ease), border-color 200ms ease, box-shadow 240ms ease; }
+.is-result .search-box { max-width: 720px; height: 54px; flex: 1 1 620px; border-radius: 16px; box-shadow: 0 8px 24px rgba(46, 39, 37, 0.06); }
+.search-box:focus-within { border-color: rgba(232, 87, 105, 0.42); box-shadow: 0 0 0 4px rgba(232, 87, 105, 0.1), 0 12px 30px rgba(46, 39, 37, 0.08); }
+.search-box > svg { width: 21px; color: var(--sp-faint); transition: color 200ms ease; }
+.search-box:focus-within > svg { color: var(--sp-accent); }
+.search-box input { min-width: 0; height: 100%; color: var(--sp-ink); border: 0; outline: 0; background: transparent; font-size: 15px; font-weight: 600; }
+.search-box input::placeholder { color: var(--sp-faint); font-weight: 500; }
+.search-box input::-webkit-search-cancel-button { display: none; }
+.search-clear { display: grid; width: 32px; aspect-ratio: 1; place-items: center; color: var(--sp-muted); border: 0; border-radius: 50%; background: transparent; font-size: 20px; line-height: 1; transition: color 160ms ease, background 160ms ease; }
+.search-clear:hover { color: var(--sp-ink); background: #eeeef0; }
+.search-submit { display: grid; width: 46px; height: 46px; place-items: center; color: #fff; border: 0; border-radius: 14px; background: var(--sp-ink); transition: transform 200ms var(--sp-ease), background 200ms ease; }
+.is-result .search-submit { width: 40px; height: 40px; border-radius: 12px; }
+.search-submit svg { width: 18px; height: 18px; }
+.search-submit:hover { background: var(--sp-accent); transform: translateY(-1px); }
+.search-submit:active { transform: scale(0.94); }
+.search-submit:focus-visible,
+.search-clear:focus-visible { outline: 2px solid rgba(232, 87, 105, 0.5); outline-offset: 2px; }
+
+.toolbar-tabs { width: 100%; max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; transition: opacity 260ms ease, max-height 340ms var(--sp-ease), margin 340ms var(--sp-ease); }
+.is-result .toolbar-tabs { max-height: 52px; margin-top: 8px; opacity: 1; }
+
+/* ── 空闲态附加区 ── */
+.idle-extras { display: grid; gap: 40px; width: min(100%, 720px); max-height: 800px; margin: 46px auto 0; overflow: hidden; transition: opacity 300ms ease, max-height 420ms var(--sp-ease), margin 420ms var(--sp-ease); animation: sp-fade-up 460ms var(--sp-ease) 60ms both; }
+.is-result .idle-extras { max-height: 0; margin-top: 0; opacity: 0; pointer-events: none; }
+.idle-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.idle-head h2 { margin: 0; font-size: 13px; font-weight: 780; letter-spacing: 0.02em; }
+.idle-head small { display: block; margin-bottom: 5px; color: var(--sp-accent); font-size: 9px; font-weight: 820; letter-spacing: 0.16em; }
+.idle-head > span { color: var(--sp-faint); font-size: 11px; font-weight: 620; }
+.idle-clear { padding: 4px 10px; color: var(--sp-muted); border: 1px solid var(--sp-line); border-radius: 999px; background: transparent; font-size: 11px; font-weight: 640; transition: color 160ms ease, border-color 160ms ease; }
+.idle-clear:hover { color: var(--sp-accent-ink); border-color: rgba(232, 87, 105, 0.28); }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid var(--sp-line); border-radius: 999px; background: rgba(255, 255, 255, 0.7); transition: border-color 160ms ease, background 160ms ease; }
+.chip:hover { border-color: rgba(232, 87, 105, 0.28); background: #fff; }
+.chip-main { max-width: 220px; padding: 9px 6px 9px 15px; overflow: hidden; color: #55555c; font-size: 12px; font-weight: 640; text-overflow: ellipsis; white-space: nowrap; border: 0; background: transparent; }
+.chip-del { display: grid; width: 30px; height: 34px; place-items: center; color: var(--sp-faint); border: 0; background: transparent; font-size: 16px; line-height: 1; transition: color 160ms ease; }
+.chip-del:hover { color: var(--sp-accent); }
+
+.discovery-grid { display: grid; overflow: hidden; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--sp-line); border-radius: 20px; background: rgba(255, 255, 255, 0.58); }
+.discovery-grid button { display: grid; min-width: 0; min-height: 62px; align-items: center; grid-template-columns: 28px minmax(0, 1fr) 20px; gap: 11px; padding: 12px 16px; text-align: left; color: var(--sp-ink); border: 0; border-right: 1px solid var(--sp-line); border-bottom: 1px solid var(--sp-line); background: transparent; transition: background 180ms ease, padding 220ms var(--sp-ease); }
+.discovery-grid button:nth-child(2n) { border-right: 0; }
+.discovery-grid button:nth-last-child(-n + 2) { border-bottom: 0; }
+.discovery-grid button:hover { padding-left: 20px; background: rgba(255, 255, 255, 0.86); }
+.discovery-grid button:focus-visible { position: relative; z-index: 1; outline: 2px solid rgba(232, 87, 105, 0.4); outline-offset: -2px; }
+.discovery-grid button > span { color: var(--sp-faint); font-size: 10px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.discovery-grid button strong { overflow: hidden; font-size: 13px; font-weight: 720; text-overflow: ellipsis; white-space: nowrap; }
+.discovery-grid button i { color: var(--sp-accent); font-size: 12px; font-style: normal; opacity: 0; transform: translateX(-4px); transition: opacity 180ms ease, transform 220ms var(--sp-ease); }
+.discovery-grid button:hover i { opacity: 1; transform: none; }
+
+/* ── 结果区 ── */
+.results { padding-top: 34px; transition: opacity 200ms ease; }
+.results-skeleton { padding-top: 8px; }
+.results-body { position: relative; display: grid; min-height: 320px; align-items: start; }
+.tab-panel { min-width: 0; grid-area: 1 / 1; }
+.tab-fade-enter-active,
+.tab-fade-leave-active { transition: opacity 220ms ease; }
+.tab-fade-enter-active { z-index: 2; }
+.tab-fade-leave-active { z-index: 1; pointer-events: none; }
+.tab-fade-enter-from,
+.tab-fade-leave-to { opacity: 0; }
+
+.overview-lead { display: grid; grid-template-columns: minmax(0, 1fr); gap: 38px; }
+.overview-song-panel { min-width: 0; padding: 20px 18px 16px; border: 1px solid rgba(255, 255, 255, 0.82); border-radius: 24px; background: rgba(255, 255, 255, 0.6); box-shadow: 0 16px 42px rgba(42, 36, 34, 0.055); }
+.overview-sections { display: grid; gap: 48px; margin-top: 48px; }
+.result-page { display: grid; gap: 8px; }
+
+/* 分页 */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 44px; }
+.pagination button { padding: 11px 18px; color: #55555c; border: 1px solid var(--sp-line); border-radius: 999px; background: #fff; font-size: 13px; font-weight: 680; transition: color 160ms ease, border-color 160ms ease, transform 160ms var(--sp-ease); }
+.pagination button:hover:not(:disabled) { color: var(--sp-accent-ink); border-color: rgba(232, 87, 105, 0.28); transform: translateY(-1px); }
+.pagination button:disabled { cursor: not-allowed; opacity: 0.42; }
+.pagination button:focus-visible { outline: 2px solid rgba(232, 87, 105, 0.4); outline-offset: 2px; }
+.pagination span { color: var(--sp-muted); font-size: 12px; font-weight: 680; }
+
+/* 空/错误态 */
+.state { display: grid; min-height: 320px; place-items: center; align-content: center; text-align: center; animation: sp-fade-up 320ms var(--sp-ease) both; }
+.state-icon { display: grid; width: 58px; aspect-ratio: 1; place-items: center; color: var(--sp-accent); border: 1px solid rgba(232, 87, 105, 0.16); border-radius: 50%; background: rgba(255, 255, 255, 0.7); font-size: 24px; }
+.state h2 { margin: 20px 0 0; font-size: 21px; font-weight: 820; letter-spacing: -0.03em; }
+.state p { max-width: 400px; margin: 10px 0 0; color: var(--sp-muted); font-size: 13px; line-height: 1.6; }
+.state-btn { margin-top: 20px; padding: 11px 20px; color: #fff; border: 0; border-radius: 999px; background: var(--sp-ink); font-size: 13px; font-weight: 700; transition: transform 180ms var(--sp-ease), background 180ms ease; }
+.state-btn:hover { background: var(--sp-accent); transform: translateY(-1px); }
+
+@keyframes sp-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ── 响应式 ── */
 @media (max-width: 820px) {
-  .search-main { padding: 58px 18px 130px; }
-  .search-song-list,
-  .search-song-page { grid-template-columns: 1fr; }
-  .search-artist-grid { grid-template-columns: repeat(4, 1fr); }
-  .search-media-grid,
-  .search-playlist-grid,
-  .search-artist-page-grid,
-  .search-media-page-grid,
-  .search-playlist-page-grid { grid-template-columns: repeat(3, 1fr); }
+  .search-main { padding: 28px 18px calc(var(--global-player-space, 104px) + 32px); }
+  .is-result .search-toolbar { top: 68px; }
+  .is-result .search-toolbar-primary { align-items: stretch; flex-direction: column; }
+  .is-result .search-box { max-width: none; flex-basis: auto; }
 }
 
 @media (max-width: 560px) {
-  .search-main { padding: 46px 13px 120px; }
-  .search-hero h1 { font-size: 42px; }
-  .search-box { height: 60px; grid-template-columns: 20px minmax(0, 1fr) auto; padding-left: 16px; border-radius: 20px; }
-  .search-submit { width: 46px; height: 44px; overflow: hidden; padding: 0; color: transparent; border-radius: 15px; }
-  .search-submit::after { color: #fff; content: '→'; font-size: 16px; }
-  .search-tabs { width: calc(100% + 26px); margin-right: -13px; margin-left: -13px; border-right: 0; border-left: 0; border-radius: 0; }
-  .search-tabs button { min-width: 86px; }
-  .search-overview,
-  .search-result-page { padding-top: 54px; }
-  .search-section-heading,
-  .search-page-heading { align-items: start; flex-direction: column; }
-  .search-song-section { padding: 14px 7px; border-radius: 25px; }
-  .search-artist-grid { display: flex; margin-right: -13px; overflow-x: auto; gap: 14px; padding-right: 13px; scrollbar-width: none; }
-  .search-artist-grid button { width: 42vw; flex: none; }
-  .search-media-grid,
-  .search-playlist-grid { display: flex; margin-right: -13px; overflow-x: auto; gap: 14px; padding-right: 13px; padding-bottom: 12px; scrollbar-width: none; }
-  .search-media-grid > button,
-  .search-playlist-grid :deep(.playlist-card) { width: 66vw; flex: none; }
-  .search-artist-page-grid,
-  .search-media-page-grid,
-  .search-playlist-page-grid { grid-template-columns: repeat(2, 1fr); gap: 28px 12px; }
-  .search-song-page { padding: 8px 2px; border-radius: 24px; }
-  .search-loading-grid { grid-template-columns: repeat(2, 1fr); }
+  .search-main { padding: 22px 14px calc(var(--global-player-space, 104px) + 28px); }
+  .hero-title { font-size: 34px; }
+  .search-box { height: 56px; gap: 8px; padding-right: 7px; padding-left: 14px; border-radius: 16px; }
+  .is-result .search-box { height: 52px; }
+  .search-submit { width: 42px; height: 42px; border-radius: 12px; }
+  .is-result .search-submit { width: 38px; height: 38px; }
+  .overview-sections { gap: 40px; margin-top: 40px; }
+  .chip-main { max-width: 150px; }
+  .idle-extras { margin-top: 34px; }
+  .idle-head { align-items: flex-start; }
+  .discovery-grid { grid-template-columns: 1fr; }
+  .discovery-grid button,
+  .discovery-grid button:nth-child(2n),
+  .discovery-grid button:nth-last-child(-n + 2) { border-right: 0; border-bottom: 1px solid var(--sp-line); }
+  .discovery-grid button:last-child { border-bottom: 0; }
+  .overview-song-panel { padding: 14px 8px 10px; border-radius: 20px; }
 }
 
+/* 仅约束搜索页自身动画，不使用全局 * 覆盖 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  .hero-block,
+  .idle-extras,
+  .search-toolbar,
+  .search-box,
+  .toolbar-tabs,
+  .results,
+  .results-body,
+  .tab-panel,
+  .state { animation: none !important; transition: opacity 100ms ease !important; transform: none !important; }
+  .tab-fade-enter-active,
+  .tab-fade-leave-active { transition: none !important; }
+  .is-result .hero-block,
+  .is-result .idle-extras { transform: none !important; }
+  .search-progress span { animation: none !important; opacity: 0.5; }
 }
 </style>

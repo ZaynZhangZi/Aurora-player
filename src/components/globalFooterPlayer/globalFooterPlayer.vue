@@ -16,11 +16,11 @@
       <div class="player-desktop-layout hidden lg:grid">
         <div class="player-desktop-track">
           <Transition :name="trackSwapTransitionName" mode="out-in">
-            <div :key="songTransitionKey" class="flex min-w-0 flex-1 items-center gap-3">
+            <div :key="songTransitionKey" class="player-track-content flex min-w-0 flex-1 items-center">
               <button
                 ref="desktopCoverRef"
                 data-player-transition-cover
-                class="player-cover-button h-[52px] w-[52px] overflow-hidden rounded-xl bg-white/20"
+                class="player-cover-button h-14 w-14 overflow-hidden rounded-[16px] bg-white/20"
                 type="button"
                 :disabled="!hasSong"
                 aria-label="打开歌词页"
@@ -136,65 +136,67 @@
 
         <div class="player-desktop-transport">
           <button
-            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
+            class="player-soft-btn player-transport-btn grid h-9 w-9 place-items-center rounded-full disabled:opacity-40"
             type="button"
             :disabled="!canPlayPrev"
             aria-label="播放上一首"
             @click="playPrevSong"
           >
-            <BackwardIcon class="h-3.5 w-3.5"/>
+            <BackwardIcon class="h-4 w-4"/>
           </button>
           <button
-            class="player-main-btn grid h-11 w-11 place-items-center rounded-full transition disabled:opacity-40"
+            class="player-main-btn grid h-12 w-12 place-items-center rounded-full disabled:opacity-40"
             type="button"
             :disabled="!hasSong"
             :aria-label="isPlaying ? '暂停播放' : '开始播放'"
             @click="togglePlay"
           >
-            <PauseIcon v-if="isPlaying" class="h-5 w-5"/>
-            <PlayIcon v-else class="h-5 w-5"/>
+            <PauseIcon v-if="isPlaying" class="h-[19px] w-[19px]"/>
+            <PlayIcon v-else class="player-play-icon h-[19px] w-[19px]"/>
           </button>
           <button
-            class="player-soft-btn grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-50"
+            class="player-soft-btn player-transport-btn grid h-9 w-9 place-items-center rounded-full disabled:opacity-40"
             type="button"
             :disabled="!canPlayNext"
             aria-label="播放下一首"
             @click="playNextSong"
           >
-            <ForwardIcon class="h-3.5 w-3.5"/>
+            <ForwardIcon class="h-4 w-4"/>
           </button>
         </div>
 
-        <div class="player-desktop-timeline player-text-muted">
-          <span class="player-time text-right">{{ formatMs(currentTimeMs) }}</span>
-          <input
-            class="player-range flex-1 cursor-pointer appearance-none rounded-full"
-            type="range"
-            min="0"
-            :max="Math.max(durationMs, 1)"
-            :value="Math.min(currentTimeMs, durationMs || 0)"
-            :style="timelineRangeStyle"
-            aria-label="播放进度"
-            @input="seekByInput"
-          >
-          <span class="player-time">{{ formatMs(durationMs) }}</span>
-        </div>
+        <PlayerProgress
+          class="player-desktop-timeline"
+          :current-time-ms="currentTimeMs"
+          :duration-ms="durationMs"
+          :playing="isPlaying"
+          :clock="getSmoothPlaybackTimeMs"
+          @seek="seekToMs"
+        />
 
         <div class="player-desktop-volume">
           <div class="player-side-menu">
             <button
               ref="moreMenuButtonRef"
-              class="player-chip-btn grid h-8 w-8 place-items-center rounded-full text-[11px] transition"
+              class="player-chip-btn player-menu-btn grid h-9 w-9 place-items-center rounded-full text-[11px]"
               type="button"
               aria-label="显示更多播放设置"
               @click="toggleMorePanel"
             >
-              <EllipsisHorizontalIcon class="h-4 w-4"/>
+              <EllipsisHorizontalIcon class="h-[18px] w-[18px]"/>
             </button>
           </div>
-          <SpeakerWaveIcon class="player-volume-icon player-text-muted h-4 w-4"/>
+          <button
+            class="player-volume-toggle grid h-8 w-8 place-items-center rounded-full"
+            type="button"
+            :aria-label="volume > 0 ? '静音' : '恢复音量'"
+            @click="toggleVolumeMute"
+          >
+            <SpeakerWaveIcon v-if="volume > 0" class="h-4 w-4"/>
+            <SpeakerXMarkIcon v-else class="h-4 w-4"/>
+          </button>
           <input
-            class="player-range w-24 cursor-pointer appearance-none rounded-full"
+            class="player-range player-volume-range w-24 cursor-pointer appearance-none rounded-full"
             type="range"
             min="0"
             max="1"
@@ -215,7 +217,7 @@
             <button
               ref="mobileCoverRef"
               data-player-transition-cover
-              class="h-10 w-10 overflow-hidden rounded-lg bg-white/20"
+              class="player-cover-button h-11 w-11 overflow-hidden rounded-xl bg-white/20"
               type="button"
               :disabled="!hasSong"
               aria-label="打开歌词页"
@@ -328,7 +330,7 @@
 
             <div class="ml-1 flex shrink-0 items-center gap-1">
               <button
-                class="player-soft-btn hidden h-7 w-7 place-items-center rounded-full disabled:opacity-50 sm:grid"
+                class="player-soft-btn hidden h-8 w-8 place-items-center rounded-full disabled:opacity-40 sm:grid"
                 type="button"
                 :disabled="!canPlayPrev"
                 aria-label="播放上一首"
@@ -337,7 +339,7 @@
                 <BackwardIcon class="h-3.5 w-3.5"/>
               </button>
               <button
-                class="player-main-btn grid h-8 w-8 place-items-center rounded-full"
+                class="player-main-btn grid h-9 w-9 place-items-center rounded-full"
                 type="button"
                 :disabled="!hasSong"
                 :aria-label="isPlaying ? '暂停播放' : '开始播放'"
@@ -347,7 +349,7 @@
                 <PlayIcon v-else class="h-4 w-4"/>
               </button>
               <button
-                class="player-soft-btn hidden h-7 w-7 place-items-center rounded-full disabled:opacity-50 sm:grid"
+                class="player-soft-btn hidden h-8 w-8 place-items-center rounded-full disabled:opacity-40 sm:grid"
                 type="button"
                 :disabled="!canPlayNext"
                 aria-label="播放下一首"
@@ -396,20 +398,15 @@
           >
         </div>
 
-        <div class="player-text-muted col-span-2 flex items-center gap-2 px-0.5 text-[11px]">
-          <span class="w-9 text-right">{{ formatMs(currentTimeMs) }}</span>
-          <input
-            class="player-range h-1.5 flex-1 cursor-pointer appearance-none rounded-full"
-            type="range"
-            min="0"
-            :max="Math.max(durationMs, 1)"
-            :value="Math.min(currentTimeMs, durationMs || 0)"
-            :style="timelineRangeStyle"
-            aria-label="播放进度"
-            @input="seekByInput"
-          >
-          <span class="w-9">{{ formatMs(durationMs) }}</span>
-        </div>
+        <PlayerProgress
+          class="col-span-2 px-0.5"
+          compact
+          :current-time-ms="currentTimeMs"
+          :duration-ms="durationMs"
+          :playing="isPlaying"
+          :clock="getSmoothPlaybackTimeMs"
+          @seek="seekToMs"
+        />
       </div>
     </div>
 
@@ -670,6 +667,7 @@ import {
   PauseIcon,
   PlayIcon,
   SpeakerWaveIcon,
+  SpeakerXMarkIcon,
 } from "@heroicons/vue/24/solid";
 import {
   computed,
@@ -685,6 +683,7 @@ import {useDetailNavigation} from "@/composables/useDetailNavigation.js";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
+import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
 import {autoMixEngine} from "@/audio/AutoMixEngine.js";
 import {usePlayerLyric} from "@/composables/usePlayerLyric.js";
@@ -704,11 +703,10 @@ import {usePlayerAssets} from "@/composables/usePlayerAssets.js";
 import {PLAY_MODE, usePlayerStore} from "@/stores/playerStore.js";
 import {
   blendTheme,
-  buildThemeByBase,
   createFallbackTheme,
   getRgbBrightness,
 } from "@/utils/player/playerTheme.js";
-import {formatMs, isVideoUrl} from "@/utils/player/playerMedia.js";
+import {isVideoUrl} from "@/utils/player/playerMedia.js";
 import {
   clearSongPlayableUrlCache,
   playQueueByDirection,
@@ -725,10 +723,8 @@ import {
 import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
 import {dissolveElement} from "@/utils/particleDissolve.js";
 // 🔧 性能优化：导入性能工具
-import {rafThrottle, getOptimizedConfig, MemoryManager} from "@/utils/performanceOptimizer.js";
+import {rafThrottle, MemoryManager} from "@/utils/performanceOptimizer.js";
 
-// 🔧 获取设备性能配置
-const perfConfig = getOptimizedConfig();
 const memoryManager = new MemoryManager();
 
 const AMLLWrapper = defineAsyncComponent({
@@ -940,14 +936,6 @@ const isPlaying = computed(() => playerStore.isPlaying);
 const currentTimeMs = computed(() => playerStore.currentTimeMs);
 const durationMs = computed(() => playerStore.durationMs);
 const volume = computed(() => playerStore.volume);
-const playbackProgressPercent = computed(() => {
-  const duration = Number(durationMs.value || 0);
-  if (duration <= 0) return 0;
-  return clamp((Number(currentTimeMs.value || 0) / duration) * 100, 0, 100);
-});
-const timelineRangeStyle = computed(() => ({
-  "--range-progress": `${playbackProgressPercent.value}%`,
-}));
 const volumeRangeStyle = computed(() => ({
   "--range-progress": `${clamp(Number(volume.value || 0), 0, 1) * 100}%`,
 }));
@@ -1412,10 +1400,6 @@ function applyTheme(theme) {
       : getRgbBrightness(base) < 146;
 }
 
-function applyThemeByBase(baseRgb) {
-  applyTheme(buildThemeByBase(baseRgb));
-}
-
 function applyFallbackTheme(seedText = "") {
   applyTheme(createFallbackTheme(seedText));
 }
@@ -1668,11 +1652,17 @@ function ensureAmllClock() {
 }
 
 
-function seekByInput(event) {
+function getSmoothPlaybackTimeMs() {
+  const active = getActiveAudio();
+  const liveTime = Number(active?.currentTime || 0) * 1000;
+  return Number.isFinite(liveTime) ? liveTime : currentTimeMs.value;
+}
+
+function seekToMs(nextTime) {
   const active = getActiveAudio();
   if (!active) return;
   interruptAutomixForUserAction("timeline-seek");
-  const nextMs = Number(event?.target?.value || 0);
+  const nextMs = Math.max(0, Number(nextTime || 0));
   active.currentTime = nextMs / 1000;
   playerStore.setCurrentTimeMs(nextMs);
 }
@@ -1685,8 +1675,23 @@ function interruptAutomixForUserAction(reason) {
   autoMixEngine.cancelTransition(reason);
 }
 
+let volumeBeforeMute = 0.85;
+
 function changeVolume(event) {
-  playerStore.setVolume(event?.target?.value);
+  const nextVolume = clamp(Number(event?.target?.value || 0), 0, 1);
+  if (nextVolume > 0.01) volumeBeforeMute = nextVolume;
+  playerStore.setVolume(nextVolume);
+  syncAudioVolume();
+}
+
+function toggleVolumeMute() {
+  const currentVolume = clamp(Number(volume.value || 0), 0, 1);
+  if (currentVolume > 0.01) {
+    volumeBeforeMute = currentVolume;
+    playerStore.setVolume(0);
+  } else {
+    playerStore.setVolume(Math.max(0.08, volumeBeforeMute));
+  }
   syncAudioVolume();
 }
 
@@ -2604,7 +2609,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .player-root {
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
 }
 
@@ -2612,33 +2617,32 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  width: min(calc(100vw - 20px), 1380px);
+  width: min(calc(100vw - 24px), 1400px);
   margin-inline: auto;
-  border-radius: 22px;
+  border-radius: 24px;
   pointer-events: auto;
-  border: 1px solid rgba(var(--player-border), var(--player-border-alpha));
+  border: 0;
   background: radial-gradient(
     120% 140% at 12% 12%,
-    rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.9)) 0%,
+    rgba(var(--player-glow), calc(var(--player-glow-alpha) * 0.78)) 0%,
     rgba(var(--player-glow), 0) 56%
   ),
   linear-gradient(
     128deg,
-    rgba(var(--player-base), 0.88) 0%,
-    rgba(var(--player-accent), 0.94) 100%
+    rgba(var(--player-base), 0.86) 0%,
+    rgba(var(--player-accent), 0.9) 100%
   );
   background-size: 170% 180%,
   100% 100%;
   background-position: 2% 8%,
   50% 50%;
   box-shadow:
-    0 18px 54px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.08)),
-    0 3px 12px rgba(15, 23, 42, 0.18),
-    inset 0 1px 0 rgba(var(--player-fg), 0.12);
-  backdrop-filter: blur(22px);
+    0 20px 56px rgba(15, 23, 42, calc(var(--player-shadow-alpha) + 0.06)),
+    0 4px 14px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(var(--player-fg), 0.16);
+  backdrop-filter: blur(28px) saturate(1.08);
   filter: saturate(var(--player-sat)) brightness(var(--player-brightness));
   transition: background 320ms ease,
-  border-color 240ms ease,
   filter 180ms ease,
   box-shadow 200ms ease;
   animation: player-shell-drift 18s ease-in-out infinite alternate;
@@ -2646,21 +2650,22 @@ onBeforeUnmount(() => {
 
 @media (min-width: 640px) {
   .player-root {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   }
 
   .player-shell {
-    width: min(calc(100vw - 40px), 1380px);
-    border-radius: 24px;
+    width: min(calc(100vw - 44px), 1400px);
+    border-radius: 26px;
   }
 }
 
 .player-desktop-layout {
+  box-sizing: border-box;
   min-height: 78px;
-  grid-template-columns: minmax(250px, 0.95fr) auto minmax(280px, 1.45fr) auto;
+  grid-template-columns: minmax(270px, 1.05fr) auto minmax(320px, 1.65fr) minmax(178px, auto);
   align-items: center;
-  gap: clamp(14px, 1.6vw, 28px);
-  padding-inline: 20px;
+  gap: clamp(16px, 1.7vw, 30px);
+  padding: 10px 18px;
 }
 
 .player-desktop-track,
@@ -2674,17 +2679,28 @@ onBeforeUnmount(() => {
 
 .player-desktop-transport {
   flex: none;
-  gap: 9px;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .player-desktop-timeline {
-  gap: 10px;
-  font-size: 11px;
+  width: 100%;
 }
 
 .player-desktop-volume {
   justify-content: flex-end;
-  gap: 9px;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.player-track-content {
+  gap: 14px;
 }
 
 .player-track-copy {
@@ -2696,29 +2712,26 @@ onBeforeUnmount(() => {
   letter-spacing: -0.01em;
 }
 
-.player-time {
-  width: 38px;
-  flex: none;
-  color: rgba(var(--player-fg-muted), 0.9);
-  font-variant-numeric: tabular-nums;
-}
-
 .player-cover-button {
   flex: none;
-  border: 1px solid rgba(var(--player-fg), 0.14);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(var(--player-fg), 0.3);
+  box-shadow:
+    0 9px 24px rgba(15, 23, 42, 0.2),
+    inset 0 0 0 2px rgba(var(--player-fg), 0.08);
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .player-cover-button:hover {
   transform: translateY(-1px) scale(1.025);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.3);
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.27),
+    inset 0 0 0 2px rgba(var(--player-fg), 0.12);
 }
 
 @media (min-width: 1024px) and (max-width: 1199px) {
   .player-desktop-layout {
-    grid-template-columns: minmax(210px, 0.9fr) auto minmax(220px, 1.2fr) auto;
-    gap: 12px;
+    grid-template-columns: minmax(220px, 0.9fr) auto minmax(220px, 1.2fr) auto;
+    gap: 10px;
     padding-inline: 14px;
   }
 
@@ -2818,39 +2831,69 @@ onBeforeUnmount(() => {
 }
 
 .player-soft-btn {
-  border: 1px solid rgba(var(--player-border), 0.34);
+  border: 1px solid rgba(var(--player-border), 0.24);
   color: rgba(var(--player-fg), 0.9);
-  background: rgba(var(--player-fg), var(--player-soft-bg-alpha));
-  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
+  background: rgba(var(--player-fg), 0.075);
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
 .player-soft-btn:hover {
-  background: rgba(var(--player-fg), calc(var(--player-soft-bg-alpha) + 0.08));
-  transform: translateY(-1px);
+  color: rgb(var(--player-fg));
+  border-color: rgba(var(--player-border), 0.34);
+  background: rgba(var(--player-fg), 0.14);
+  transform: scale(1.045);
+}
+
+.player-desktop-transport .player-soft-btn {
+  border-color: transparent;
+  background: transparent;
 }
 
 .player-main-btn {
-  border: 1px solid rgba(var(--player-main-bg), 0.65);
+  border: 0;
   color: rgb(var(--player-main-fg));
-  background: rgba(var(--player-main-bg), 0.96);
-  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.2);
-  transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  background: rgba(var(--player-main-bg), 0.94);
+  box-shadow: 0 7px 20px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(var(--player-main-fg), 0.14);
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
 .player-main-btn:hover {
   background: rgba(var(--player-main-bg), 0.88);
-  transform: translateY(-1px) scale(1.025);
-  box-shadow: 0 9px 22px rgba(15, 23, 42, 0.26);
+  transform: scale(1.04);
+  box-shadow: 0 9px 24px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(var(--player-main-fg), 0.18);
 }
 
+.player-play-icon { transform: translateX(1px); }
+
 .player-chip-btn {
-  border: 1px solid rgba(var(--player-border), 0.34);
+  border: 1px solid rgba(var(--player-border), 0.24);
   color: rgba(var(--player-fg), 0.9);
-  background: rgba(var(--player-fg), 0.1);
+  background: rgba(var(--player-fg), 0.075);
+  transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
 }
 
 .player-chip-btn:hover {
-  background: rgba(var(--player-fg), 0.18);
+  color: rgb(var(--player-fg));
+  background: rgba(var(--player-fg), 0.15);
+  transform: scale(1.04);
+}
+
+.player-menu-btn {
+  border-color: transparent;
+  background: transparent;
+}
+
+.player-volume-toggle {
+  flex: none;
+  color: rgba(var(--player-fg-muted), 0.92);
+  border: 0;
+  background: transparent;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.player-volume-toggle:hover {
+  color: rgb(var(--player-fg));
+  background: rgba(var(--player-fg), 0.1);
 }
 
 .player-side-menu {
@@ -2911,7 +2954,7 @@ onBeforeUnmount(() => {
 
 .player-range {
   --range-progress: 0%;
-  height: 4px;
+  height: 3px;
   border-radius: 999px;
   background: linear-gradient(
     90deg,
@@ -2921,7 +2964,7 @@ onBeforeUnmount(() => {
     rgba(var(--player-fg), 0.22) 100%
   );
   accent-color: rgba(var(--player-main-bg), 0.95);
-  transition: filter 160ms ease;
+  transition: filter 160ms ease, opacity 160ms ease;
 }
 
 .player-range:hover {
@@ -2929,36 +2972,36 @@ onBeforeUnmount(() => {
 }
 
 .player-range::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 3px;
   border-radius: 999px;
   background: transparent;
 }
 
 .player-range::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
   appearance: none;
-  border: 3px solid rgba(var(--player-main-bg), 0.98);
+  border: 0;
   border-radius: 999px;
-  background: rgb(var(--player-main-fg));
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+  background: rgb(var(--player-main-bg));
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.24);
 }
 
 .player-range::-moz-range-track {
-  height: 4px;
+  height: 3px;
   border: 0;
   border-radius: 999px;
   background: transparent;
 }
 
 .player-range::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
-  border: 3px solid rgba(var(--player-main-bg), 0.98);
+  width: 8px;
+  height: 8px;
+  border: 0;
   border-radius: 999px;
-  background: rgb(var(--player-main-fg));
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+  background: rgb(var(--player-main-bg));
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.24);
 }
 
 .player-range:focus-visible,

@@ -10,20 +10,8 @@
         <button type="button" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
         <button type="button" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
         <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">音乐库</button>
+        <button type="button" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
       </nav>
-
-      <div class="aurora-header-search">
-        <slot name="search">
-          <button class="aurora-search-trigger" type="button" @click="openSearch">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <span>搜索歌曲、歌手或歌单</span>
-            <kbd>⌘ K</kbd>
-          </button>
-        </slot>
-      </div>
 
       <div ref="profileMenuRef" class="aurora-profile-wrap">
         <button
@@ -92,6 +80,7 @@ const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCe
 const isProfile = computed(() => String(route.name || '') === 'profile')
 const isHome = computed(() => String(route.name || '') === 'home')
 const isDiscover = computed(() => String(route.name || '') === 'discover')
+const isSearch = computed(() => String(route.name || '') === 'search')
 const isMessages = computed(() => route.name === 'messages')
 const isMoments = computed(() => route.name === 'moments')
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
@@ -234,16 +223,19 @@ watch(() => route.fullPath, () => {
   width: min(100%, 1376px);
   min-height: 76px;
   align-items: center;
-  grid-template-columns: auto auto minmax(260px, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 28px;
   margin: 0 auto;
   padding: 10px 28px;
 }
 
+.aurora-brand { grid-column: 1; }
+.aurora-nav { grid-column: 2; }
+.aurora-profile-wrap { grid-column: 3; }
+
 .aurora-brand,
 .aurora-nav button,
-.aurora-profile,
-.aurora-search-trigger {
+.aurora-profile {
   cursor: pointer;
   border: 0;
   background: transparent;
@@ -281,14 +273,6 @@ watch(() => route.fullPath, () => {
 .aurora-nav button.is-active { color: #27272a; }
 .aurora-nav button.is-active::after { opacity: 1; transform: scaleX(1); }
 
-.aurora-header-search { min-width: 0; width: min(100%, 520px); justify-self: center; }
-.aurora-header-search :slotted(.home-search) { width: 100%; }
-.aurora-search-trigger { box-sizing: border-box; display: grid; width: 100%; height: 44px; align-items: center; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; padding: 0 15px; color: #85858d; text-align: left; border: 1px solid rgba(24, 24, 27, 0.05); border-radius: 16px; background: rgba(228, 228, 231, 0.76); transition: 180ms ease; }
-.aurora-search-trigger:hover { border-color: rgba(232, 87, 105, 0.13); background: rgba(255, 255, 255, 0.94); box-shadow: 0 12px 30px rgba(24, 24, 27, 0.08); transform: translateY(-1px); }
-.aurora-search-trigger svg { width: 18px; height: 18px; }
-.aurora-search-trigger span { overflow: hidden; font-size: 12px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
-.aurora-search-trigger kbd { padding: 3px 6px; color: #a1a1aa; border: 1px solid rgba(24, 24, 27, 0.06); border-radius: 6px; background: rgba(255, 255, 255, 0.7); font-size: 9px; }
-
 .aurora-profile-wrap { position: relative; }
 .aurora-profile { position: relative; display: grid; width: 40px; aspect-ratio: 1; overflow: visible; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
 .aurora-profile.has-unread::after { position: absolute; top: -2px; right: -1px; width: 8px; height: 8px; border: 2px solid #f7f7f8; border-radius: 50%; background: #ef5267; content: ''; }
@@ -321,16 +305,11 @@ watch(() => route.fullPath, () => {
 .profile-menu-enter-from, .profile-menu-leave-to { opacity: 0; transform: translateY(-5px) scale(.97); }
 
 @media (max-width: 1080px) {
-  .aurora-header-inner { grid-template-columns: auto minmax(230px, 1fr) auto; }
   .aurora-nav { display: none; }
 }
 
 @media (max-width: 820px) {
-  .aurora-header-inner { min-height: 68px; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding: 8px 18px; }
-  .aurora-header-search { justify-self: end; }
-  .aurora-search-trigger { width: 42px; height: 42px; grid-template-columns: 1fr; place-items: center; justify-self: end; padding: 0; border-radius: 50%; }
-  .aurora-search-trigger span,
-  .aurora-search-trigger kbd { display: none; }
+  .aurora-header-inner { min-height: 68px; gap: 12px; padding: 8px 18px; }
 }
 
 @media (max-width: 560px) {
