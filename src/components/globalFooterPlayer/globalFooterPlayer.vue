@@ -371,14 +371,6 @@
             {{ automixMobileLabel }}
           </button>
           <button
-            class="player-chip-btn rounded-full px-2 py-1 text-[10px]"
-            type="button"
-            :title="lyricTranslateLabel"
-            @click="toggleLyricTranslate"
-          >
-            {{ lyricTranslateMobileLabel }}
-          </button>
-          <button
             class="player-chip-btn hidden rounded-full px-2 py-1 text-[10px] sm:inline-flex"
             type="button"
             @click="cyclePlayMode"
@@ -587,34 +579,55 @@
             :style="[morePanelStyle, morePanelThemeStyle]"
             @click.stop
           >
-            <button
-              class="more-dialog-btn rounded-full px-2.5 py-1.5 text-[12px] transition"
-              type="button"
-              @click="onClickMoreAutomix"
-            >
-              {{ automixLabel }}
-            </button>
-            <button
-              class="more-dialog-btn rounded-full px-2.5 py-1.5 text-[12px] transition"
-              type="button"
-              @click="onClickMoreLyricTranslate"
-            >
-              {{ lyricTranslateLabel }}
-            </button>
-            <button
-              class="more-dialog-btn rounded-full px-2.5 py-1.5 text-[12px] transition"
-              type="button"
-              @click="onClickMorePlayMode"
-            >
-              {{ playModeLabel }}
-            </button>
-            <button
-              class="more-dialog-btn rounded-full px-2.5 py-1.5 text-[12px] transition"
-              type="button"
-              @click="onClickMorePlaylist"
-            >
-              播放列表
-            </button>
+            <div class="more-menu-heading">
+              <span class="more-menu-heading-icon" aria-hidden="true">
+                <AdjustmentsHorizontalIcon class="h-[17px] w-[17px]"/>
+              </span>
+              <span>播放选项</span>
+            </div>
+
+            <div class="more-menu-switches">
+              <button
+                class="more-menu-switch-row"
+                :class="{'is-active': automixEnabled}"
+                type="button"
+                :aria-pressed="automixEnabled"
+                @click="onClickMoreAutomix"
+              >
+                <span class="more-menu-row-icon" aria-hidden="true">
+                  <SparklesIcon class="h-[17px] w-[17px]"/>
+                </span>
+                <span class="more-menu-row-copy">
+                  <span class="more-menu-row-label">智能混音</span>
+                  <span class="more-menu-row-note">自动优化歌曲衔接</span>
+                </span>
+                <span class="more-menu-toggle" aria-hidden="true">
+                  <span class="more-menu-toggle-thumb"/>
+                </span>
+              </button>
+
+            </div>
+
+            <div class="more-menu-actions">
+              <button
+                class="more-menu-action"
+                type="button"
+                @click="onClickMorePlayMode"
+              >
+                <ArrowPathRoundedSquareIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
+                <span class="more-menu-action-label">播放模式</span>
+                <span class="more-menu-action-value">{{ playModeLabel }}</span>
+              </button>
+              <button
+                class="more-menu-action"
+                type="button"
+                @click="onClickMorePlaylist"
+              >
+                <QueueListIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
+                <span class="more-menu-action-label">播放列表</span>
+                <span class="more-menu-action-value">{{ playQueue.length }} 首</span>
+              </button>
+            </div>
           </div>
         </div>
       </Transition>
@@ -659,7 +672,14 @@
 </template>
 
 <script setup>
-import {TrashIcon, XMarkIcon} from "@heroicons/vue/24/outline";
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowPathRoundedSquareIcon,
+  QueueListIcon,
+  SparklesIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/vue/24/outline";
 import {
   BackwardIcon,
   EllipsisHorizontalIcon,
@@ -1019,20 +1039,13 @@ const amllLowFreqVolume = computed(() =>
   clamp(0.08 + rhythmLevel.value * 0.48 + beatLevel.value * 0.64, 0.08, 1),
 );
 const automixEnabled = computed(() => Boolean(playerStore.automixEnabled));
-const lyricTranslateEnabled = computed(() =>
-  Boolean(playerStore.lyricTranslateEnabled),
-);
+// 翻译入口暂时下线；保留 store 字段和歌词管线，后续可以无迁移恢复。
+const lyricTranslateEnabled = computed(() => false);
 const automixLabel = computed(() =>
   automixEnabled.value ? "智能混音: 开" : "智能混音: 关",
 );
-const lyricTranslateLabel = computed(() =>
-  lyricTranslateEnabled.value ? "歌词翻译: 开" : "歌词翻译: 关",
-);
 const automixMobileLabel = computed(() =>
   automixEnabled.value ? "混音 · 开" : "混音 · 关",
-);
-const lyricTranslateMobileLabel = computed(() =>
-  lyricTranslateEnabled.value ? "译词 · 开" : "译词 · 关",
 );
 const crossfadeVisualActive = ref(false);
 const queueMutationLocked = computed(
@@ -1055,6 +1068,9 @@ const {
   toggleMorePanel,
 } = usePlayerMorePanel();
 const morePanelThemeStyle = computed(() => ({
+  "--more-base": themeBaseRgb.value.join(", "),
+  "--more-accent": themeAccentRgb.value.join(", "),
+  "--more-glow": themeGlowRgb.value.join(", "),
   "--more-bg": themeIsDark.value ? "34, 44, 68" : "244, 247, 255",
   "--more-border": themeIsDark.value ? "255, 255, 255" : "24, 31, 45",
   "--more-fg": themeIsDark.value ? "238, 244, 255" : "24, 31, 45",
@@ -1758,10 +1774,6 @@ function toggleAutomix() {
   }
 }
 
-function toggleLyricTranslate() {
-  playerStore.toggleLyricTranslateEnabled();
-}
-
 function togglePlaylistPanel() {
   if (playlistPanelOpen.value) {
     closePlaylistPanel();
@@ -2093,10 +2105,6 @@ async function clearQueuedSongs() {
 
 function onClickMoreAutomix() {
   toggleAutomix();
-}
-
-function onClickMoreLyricTranslate() {
-  toggleLyricTranslate();
 }
 
 function onClickMorePlayMode() {
@@ -2906,28 +2914,209 @@ onBeforeUnmount(() => {
 }
 
 .more-dialog-panel {
+  box-sizing: border-box;
   position: fixed;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.55rem;
-  border-radius: 14px;
-  border: 1px solid rgba(var(--more-border), 0.24);
-  background: rgba(var(--more-bg), 0.94);
+  display: grid;
+  width: min(286px, calc(100vw - 24px));
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(var(--more-border), 0.16);
+  border-radius: 19px;
+  background:
+    linear-gradient(145deg, rgba(var(--more-glow), 0.13), rgba(var(--more-accent), 0.04) 46%, transparent 72%),
+    rgba(var(--more-base), 0.68);
   color: rgba(var(--more-fg), 0.95);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.28);
-  backdrop-filter: blur(16px);
+  box-shadow:
+    0 18px 46px rgba(15, 23, 42, 0.2),
+    0 3px 10px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(24px) saturate(1.24);
+  -webkit-backdrop-filter: blur(24px) saturate(1.24);
   z-index: 1002;
 }
 
-.more-dialog-btn {
-  border: 1px solid rgba(var(--more-border), 0.26);
-  color: rgba(var(--more-fg), 0.94);
-  background: rgba(var(--more-fg), 0.08);
+.more-menu-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 3px 3px;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
 }
 
-.more-dialog-btn:hover {
-  background: rgba(var(--more-fg), 0.14);
+.more-menu-heading-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 9px;
+  color: rgba(var(--more-fg), 0.9);
+  background: rgba(var(--more-fg), 0.09);
+}
+
+.more-menu-switches {
+  overflow: hidden;
+  border: 1px solid rgba(var(--more-border), 0.1);
+  border-radius: 14px;
+  background: rgba(var(--more-bg), 0.12);
+}
+
+.more-menu-switch-row {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 0;
+  color: rgba(var(--more-fg), 0.94);
+  text-align: left;
+  background: transparent;
+  transition: background-color 160ms ease;
+}
+
+.more-menu-switch-row + .more-menu-switch-row {
+  border-top: 1px solid rgba(var(--more-border), 0.09);
+}
+
+.more-menu-switch-row:hover {
+  background: rgba(var(--more-fg), 0.075);
+}
+
+.more-menu-switch-row.is-active {
+  background: rgba(var(--more-fg), 0.055);
+}
+
+.more-menu-row-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  color: rgba(var(--more-fg-muted), 0.9);
+  background: rgba(var(--more-fg), 0.075);
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.more-menu-switch-row.is-active .more-menu-row-icon {
+  color: rgb(var(--more-bg));
+  background: rgba(var(--more-fg), 0.9);
+}
+
+.more-menu-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.more-menu-row-label {
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.more-menu-row-note {
+  overflow: hidden;
+  color: rgba(var(--more-fg-muted), 0.78);
+  font-size: 10px;
+  font-weight: 520;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-menu-toggle {
+  position: relative;
+  width: 28px;
+  height: 17px;
+  border-radius: 999px;
+  background: rgba(var(--more-fg-muted), 0.3);
+  transition: background-color 180ms ease;
+}
+
+.more-menu-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(var(--more-bg), 0.98);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.more-menu-switch-row.is-active .more-menu-toggle {
+  background: rgba(var(--more-fg), 0.88);
+}
+
+.more-menu-switch-row.is-active .more-menu-toggle-thumb {
+  transform: translateX(11px);
+}
+
+.more-menu-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.more-menu-action {
+  box-sizing: border-box;
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  gap: 1px 7px;
+  padding: 8px 9px;
+  border: 1px solid rgba(var(--more-border), 0.09);
+  border-radius: 13px;
+  color: rgba(var(--more-fg), 0.94);
+  text-align: left;
+  background: rgba(var(--more-bg), 0.13);
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.more-menu-action:hover {
+  background: rgba(var(--more-fg), 0.09);
+  transform: translateY(-1px);
+}
+
+.more-menu-action-icon {
+  grid-row: 1 / span 2;
+  color: rgba(var(--more-fg-muted), 0.9);
+}
+
+.more-menu-action-label {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 710;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-menu-action-value {
+  overflow: hidden;
+  color: rgba(var(--more-fg-muted), 0.76);
+  font-size: 10px;
+  font-weight: 560;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-menu-switch-row:focus-visible,
+.more-menu-action:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid rgba(var(--more-fg), 0.75);
+  outline-offset: -2px;
 }
 
 .more-dialog-enter-active,
@@ -2943,13 +3132,14 @@ onBeforeUnmount(() => {
 .more-dialog-enter-active .more-dialog-panel,
 .more-dialog-leave-active .more-dialog-panel {
   transition: opacity 0.2s ease,
-  transform 0.2s ease;
+  transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: right bottom;
 }
 
 .more-dialog-enter-from .more-dialog-panel,
 .more-dialog-leave-to .more-dialog-panel {
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
+  transform: translateY(7px) scale(0.965);
 }
 
 .player-range {
