@@ -72,14 +72,12 @@
         </aside>
       </section>
 
-      <section v-if="resumeSong" class="lofi-resume" aria-label="继续播放">
-        <SmartMedia
-          v-if="resumeCover"
-          :src="resumeCover"
-          :alt="`${resumeSong.name}氛围背景`"
-          :image-width="240"
-          class="lofi-resume-backdrop"
-        />
+      <section v-if="resumeSong" class="lofi-resume" :style="resumeThemeStyle" aria-label="继续播放">
+        <div class="lofi-resume-fluid" aria-hidden="true">
+          <i class="is-primary" />
+          <i class="is-accent" />
+          <i class="is-glow" />
+        </div>
         <div class="lofi-resume-haze" />
 
         <div class="lofi-resume-primary">
@@ -210,7 +208,7 @@
 <script setup>
 defineOptions({name: 'HomePage'})
 
-import {computed, nextTick, onActivated, onMounted, onUnmounted, watch} from 'vue'
+import {computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
@@ -218,11 +216,13 @@ import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import {useHomeData} from '@/composables/useHomeData.js'
 import {usePersonalHomeData} from '@/composables/usePersonalHomeData.js'
+import {usePlayerThemeFromCover} from '@/composables/usePlayerThemeFromCover.js'
 import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {createFallbackTheme} from '@/utils/player/playerTheme.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
   playPlaylistHeroEnter,
@@ -234,6 +234,7 @@ const route = useRoute()
 const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 const playerStore = usePlayerStore()
+const {resolveThemeFromCover} = usePlayerThemeFromCover()
 const {hero: bannerHero, loadHomeBanner} = useHomeData(userStore)
 const {
   dailySongs,
@@ -287,6 +288,12 @@ const resumeQueue = computed(() => {
 })
 const resumeSong = computed(() => resumeQueue.value[0] || null)
 const resumeCover = computed(() => resumeSong.value?.cover || resumeSong.value?.al?.picUrl || resumeSong.value?.album?.picUrl || '')
+const resumeTheme = ref(createFallbackTheme('continue-listening'))
+const resumeThemeStyle = computed(() => ({
+  '--resume-base': resumeTheme.value.base.join(', '),
+  '--resume-accent': resumeTheme.value.accent.join(', '),
+  '--resume-glow': resumeTheme.value.glow.join(', '),
+}))
 const resumeIsCurrent = computed(() => Boolean(resumeSong.value?.id && String(resumeSong.value.id) === String(playerStore.currentSong?.id)))
 const resumeProgress = computed(() => {
   if (!resumeIsCurrent.value) return 0
@@ -384,6 +391,7 @@ onMounted(() => {
   window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 onUnmounted(() => {
+  resumeThemeRequest += 1
   window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 onActivated(() => {
@@ -391,6 +399,13 @@ onActivated(() => {
   requestAnimationFrame(() => window.scrollTo({left: 0, top: 0, behavior: 'auto'}))
 })
 watch(() => userStore.isLoggedIn, value => loadPersonalHome(value))
+let resumeThemeRequest = 0
+watch([resumeCover, () => resumeSong.value?.name || ''], async ([cover, name]) => {
+  const request = ++resumeThemeRequest
+  resumeTheme.value = createFallbackTheme(name || 'continue-listening')
+  const theme = await resolveThemeFromCover(cover, name)
+  if (request === resumeThemeRequest) resumeTheme.value = theme
+}, {immediate: true})
 </script>
 
 <style scoped>
@@ -467,12 +482,14 @@ button { cursor: pointer; font: inherit; }
 .personal-up-next button > i { color: #aaa4aa; font-size: 10px; font-style: normal; }
 .personal-station-empty { display: grid; min-height: 112px; place-items: center; color: #918b91; font-size: 10px; }
 
-.lofi-resume { position: relative; display: grid; min-height: 228px; overflow: hidden; align-items: center; grid-template-columns: minmax(0, 1.28fr) minmax(350px, 0.72fr); gap: 34px; margin-top: 18px; padding: 28px 32px; color: #fff; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 30px; background: #3e3b3f; box-shadow: 0 20px 58px rgba(45, 36, 35, 0.15); isolation: isolate; }
-.lofi-resume::after { position: absolute; inset: 0; z-index: 1; opacity: 0.2; background-image: linear-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.11) 1px, transparent 1px); background-size: 9px 9px; content: ''; mix-blend-mode: soft-light; pointer-events: none; }
-.lofi-resume-backdrop { position: absolute !important; inset: 0; z-index: 0; width: 100% !important; height: 100% !important; filter: saturate(0.78) contrast(1.08) brightness(0.72); image-rendering: pixelated; }
-.lofi-resume-backdrop :deep(> div),
-.lofi-resume-backdrop :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; image-rendering: pixelated; }
-.lofi-resume-haze { position: absolute; inset: 0; z-index: 1; background: linear-gradient(105deg, rgba(27, 25, 29, 0.42), rgba(47, 42, 45, 0.13)), linear-gradient(0deg, rgba(20, 18, 22, 0.34), transparent 72%); pointer-events: none; }
+.lofi-resume { --resume-base: 49, 57, 82; --resume-accent: 92, 105, 148; --resume-glow: 152, 169, 213; position: relative; display: grid; min-height: 228px; overflow: hidden; align-items: center; grid-template-columns: minmax(0, 1.28fr) minmax(350px, 0.72fr); gap: 34px; margin-top: 18px; padding: 28px 32px; color: #fff; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 30px; background: rgb(var(--resume-base)); box-shadow: 0 20px 58px rgba(45, 36, 35, 0.15); isolation: isolate; }
+.lofi-resume::after { position: absolute; inset: 0; z-index: 1; opacity: 0.09; background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px); background-size: 12px 12px; content: ''; mix-blend-mode: soft-light; pointer-events: none; }
+.lofi-resume-fluid { position: absolute; inset: -42%; z-index: 0; overflow: hidden; background: radial-gradient(circle at 48% 42%, rgba(var(--resume-accent), 0.5), transparent 45%), linear-gradient(132deg, rgb(var(--resume-base)) 8%, rgba(var(--resume-accent), 0.94) 54%, rgb(var(--resume-base)) 100%); filter: saturate(1.16); pointer-events: none; transform: translate3d(0, 0, 0) scale(1.02); }
+.lofi-resume-fluid > i { position: absolute; display: block; border-radius: 50%; filter: blur(42px); opacity: 0.74; will-change: transform; }
+.lofi-resume-fluid .is-primary { top: 4%; left: 3%; width: 48%; height: 58%; background: rgba(var(--resume-glow), 0.78); animation: resume-fluid-primary 18s ease-in-out infinite alternate; }
+.lofi-resume-fluid .is-accent { right: 0; bottom: 3%; width: 54%; height: 56%; background: rgba(var(--resume-accent), 0.9); animation: resume-fluid-accent 22s ease-in-out infinite alternate-reverse; }
+.lofi-resume-fluid .is-glow { top: 22%; right: 22%; width: 34%; height: 45%; background: rgba(var(--resume-glow), 0.62); mix-blend-mode: screen; animation: resume-fluid-glow 15s ease-in-out infinite alternate; }
+.lofi-resume-haze { position: absolute; inset: 0; z-index: 1; background: linear-gradient(102deg, rgba(10, 12, 18, 0.58) 0%, rgba(14, 16, 23, 0.3) 52%, rgba(11, 13, 20, 0.38) 100%), linear-gradient(0deg, rgba(8, 10, 15, 0.3), transparent 70%); pointer-events: none; }
 .lofi-resume-primary { position: relative; z-index: 2; display: grid; min-width: 0; align-items: center; grid-template-columns: 138px minmax(0, 1fr) 58px; gap: 22px; }
 .lofi-resume-cover { position: relative; display: block; width: 138px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 25px; background: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 42px rgba(10, 9, 12, 0.32); }
 .lofi-resume-cover :deep(> div),
@@ -483,7 +500,7 @@ button { cursor: pointer; font: inherit; }
 .lofi-resume-copy strong,
 .lofi-resume-copy em,
 .lofi-resume-copy b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lofi-resume-copy small { color: #ffb3bd; font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
+.lofi-resume-copy small { color: rgb(var(--resume-glow)); font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
 .lofi-resume-copy h2 { margin: 8px 0 0; font-size: 30px; font-weight: 920; letter-spacing: -0.05em; }
 .lofi-resume-copy strong { margin-top: 10px; font-size: 13px; font-weight: 820; }
 .lofi-resume-copy em { margin-top: 5px; color: rgba(255, 255, 255, 0.58); font-size: 9px; font-style: normal; }
@@ -495,7 +512,7 @@ button { cursor: pointer; font: inherit; }
 .lofi-resume-next { position: relative; z-index: 2; align-self: stretch; padding-left: 32px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
 .lofi-resume-next > p { margin: 2px 0 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 850; letter-spacing: 0.16em; }
 .lofi-resume-next button { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 24px minmax(0, 1fr) minmax(60px, auto) 18px; gap: 8px; padding: 10px 2px; text-align: left; color: #fff; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); background: transparent; }
-.lofi-resume-next button > span { color: #ffb3bd; font-size: 7px; font-weight: 850; }
+.lofi-resume-next button > span { color: rgb(var(--resume-glow)); font-size: 7px; font-weight: 850; }
 .lofi-resume-next strong,
 .lofi-resume-next small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lofi-resume-next strong { font-size: 9px; font-weight: 760; }
@@ -570,6 +587,25 @@ button { cursor: pointer; font: inherit; }
 
 @keyframes personal-spin { to { transform: rotate(360deg); } }
 @keyframes personal-pulse { 50% { opacity: 0.48; } }
+@keyframes resume-fluid-primary {
+  0% { transform: translate3d(-7%, -4%, 0) scale(0.94) rotate(-7deg); }
+  52% { transform: translate3d(28%, 14%, 0) scale(1.14) rotate(8deg); }
+  100% { transform: translate3d(12%, 32%, 0) scale(1.02) rotate(18deg); }
+}
+@keyframes resume-fluid-accent {
+  0% { transform: translate3d(9%, 11%, 0) scale(1.08) rotate(6deg); }
+  48% { transform: translate3d(-31%, -9%, 0) scale(0.94) rotate(-13deg); }
+  100% { transform: translate3d(-12%, -28%, 0) scale(1.16) rotate(-4deg); }
+}
+@keyframes resume-fluid-glow {
+  0% { transform: translate3d(18%, -18%, 0) scale(0.86); opacity: 0.46; }
+  55% { transform: translate3d(-27%, 22%, 0) scale(1.25); opacity: 0.78; }
+  100% { transform: translate3d(8%, 34%, 0) scale(1.02); opacity: 0.56; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lofi-resume-fluid > i { animation: none !important; }
+}
 
 @media (max-width: 1080px) {
   .personal-station-content { grid-template-columns: 1fr; gap: 18px; }
