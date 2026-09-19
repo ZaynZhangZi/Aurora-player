@@ -1,12 +1,11 @@
 <template>
-  <div class="min-h-full overflow-y-auto text-stone-900 transition-colors duration-700" :style="pageStyle">
-    <section class="relative flex min-h-[45vh] flex-col justify-end overflow-hidden px-6 pb-12 pt-24 sm:min-h-[55vh] sm:px-12 sm:pb-16">
-      <div class="artist-hero-base absolute inset-0" />
-      <canvas ref="heroCanvasRef" class="artist-hero-canvas absolute inset-0 mix-blend-screen" />
+  <div class="artist-page" :style="pageStyle">
+    <section class="artist-hero" :class="{'artist-hero--video': hasHeroVideo}">
+      <div class="artist-hero-base" />
 
       <template v-if="hasHeroVideo">
         <video
-          class="artist-hero-video absolute inset-0 object-cover"
+          class="artist-hero-video"
           :class="heroVideoReady ? 'artist-hero-video-ready' : 'artist-hero-video-pending'"
           :src="heroBannerVideo"
           :poster="heroBannerPoster || artistAvatar"
@@ -14,214 +13,162 @@
           @loadeddata="onHeroVideoLoaded"
           @error="onHeroVideoError"
         />
-        <div
-          class="artist-hero-video-mask absolute inset-0 transition-opacity duration-700"
-          :class="heroVideoReady ? 'opacity-100' : 'opacity-0'"
-        />
+        <div class="artist-hero-video-mask" :class="{'is-ready': heroVideoReady}" />
       </template>
 
-      <div v-if="!hasHeroVideo || !heroVideoReady" class="absolute inset-0 z-10 flex items-center justify-center opacity-30 blur-[60px]">
-        <img :src="artistAvatar" alt="" class="h-96 w-96 rounded-full object-cover" @error="onAvatarError" />
+      <div v-else-if="!loading" class="artist-hero-ambient" aria-hidden="true">
+        <img :src="artistAvatar" alt="" @error="onAvatarError" />
       </div>
 
-      <div class="relative z-20 mx-auto w-full max-w-6xl">
+      <div class="artist-hero-content">
         <div
-          v-if="!hasHeroVideo || !heroVideoReady"
+          v-if="!loading && !hasHeroVideo"
           ref="artistHeroCoverRef"
           data-artist-detail-hero-cover
-          class="mb-6 h-32 w-32 overflow-hidden rounded-full border-4 border-white/20 shadow-2xl sm:h-48 sm:w-48"
+          class="artist-portrait"
         >
-          <img :src="artistAvatar" alt="artist-avatar" class="h-full w-full object-cover" @error="onAvatarError" />
+          <img :src="artistAvatar" :alt="artistName" @error="onAvatarError" />
         </div>
-        <h1 class="text-5xl font-black tracking-widest  text-white drop-shadow-2xl sm:text-7xl lg:text-8xl">
-          {{ artistName || '歌手详情' }}
-        </h1>
-      </div>
 
-      <div class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/20 to-transparent mix-blend-overlay" />
+        <h1 :class="{'is-loading': loading}">{{ loading ? '' : (artistName || '歌手详情') }}</h1>
+
+        <div v-if="!loading" class="artist-hero-actions">
+          <button class="artist-round-action artist-round-action--quiet" type="button" aria-label="查看艺人简介" @click="scrollToAbout">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10.8v6.1m0-10.1h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/></svg>
+          </button>
+          <button class="artist-round-action artist-round-action--play" type="button" aria-label="播放艺人热门歌曲" :disabled="!topSongs.length" @click="playArtist">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg>
+          </button>
+          <button class="artist-round-action artist-round-action--quiet" type="button" aria-label="收藏艺人" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.8 2.45 4.96 5.48.8-3.97 3.86.94 5.46L12 16.3l-4.9 2.58.94-5.46L4.07 9.56l5.48-.8Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.45"/></svg>
+          </button>
+        </div>
+      </div>
     </section>
 
-    <main class="relative z-30 mx-auto max-w-6xl px-6 py-12 sm:px-12">
-      <p v-if="loading" class="animate-pulse text-sm font-medium text-stone-500">正在加载歌手信息...</p>
-      <p v-else-if="error" class="text-sm font-medium text-red-500">{{ error }}</p>
+    <main class="artist-content">
+      <div v-if="loading" class="artist-loading" aria-live="polite">
+        <div class="artist-loading-line artist-loading-line--short" />
+        <div class="artist-loading-line" />
+        <div class="artist-loading-line" />
+      </div>
+      <p v-else-if="error" class="artist-error">{{ error }}</p>
 
       <template v-else>
-        <section class="mb-16">
-          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
-            <div class="flex items-center gap-4">
-              <h2 class="text-3xl font-bold tracking-tight text-stone-900">歌曲</h2>
-              <div class="flex items-center rounded-full bg-stone-900/5 p-1">
-                <button
-                  class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
-                  :class="songViewMode === 'top50' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
-                  @click="switchSongViewMode('top50')"
-                >前50首</button>
-                <button
-                  class="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
-                  :class="songViewMode === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-900'"
-                  @click="switchSongViewMode('all')"
-                >全部</button>
+        <section class="artist-overview">
+          <article v-if="latestAlbum" class="latest-release">
+            <h2>最新发行</h2>
+            <button class="latest-release-card" type="button" @click="openAlbum(latestAlbum, $event)">
+              <div class="latest-release-cover" data-album-hero-cover :data-album-id="latestAlbum.id">
+                <img :src="latestAlbum.picUrl" :alt="latestAlbum.name" @error="onBlockImageError" />
               </div>
-            </div>
-          </div>
-
-          <Transition name="song-page" mode="out-in">
-            <div :key="`${songViewMode}-${currentSongPage}`" class="space-y-1" :style="songListStyle">
-              <div
-                v-for="(song, index) in visibleSongs"
-                :key="song.id"
-                class="group flex cursor-pointer items-center gap-4 rounded-xl px-3 py-2.5 transition-all hover:bg-white/60 hover:shadow-sm"
-                @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
-              >
-                <div class="flex w-8 justify-center">
-                  <span class="text-sm font-medium tabular-nums text-stone-400 group-hover:hidden">{{ getSongDisplayIndex(index) }}</span>
-                  <svg class="hidden text-stone-900 group-hover:block" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-
-                <div class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate text-base font-semibold text-stone-800">{{ song.name }}</span>
-                  <ArtistLinks :artists="getSongArtistsPreview(song)" class="mt-0.5 truncate text-xs text-stone-500" />
-                </div>
-
-                <span class="text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(song.dt) }}</span>
+              <div class="latest-release-copy">
+                <span>{{ formatDate(latestAlbum.publishTime) }}</span>
+                <strong>{{ latestAlbum.name }}</strong>
+                <span>{{ getAlbumTrackLabel(latestAlbum) }}</span>
               </div>
-            </div>
-          </Transition>
-
-          <div class="mt-6 flex items-center justify-end gap-3 text-sm">
-            <span class="text-xs font-medium text-stone-400">第 {{ currentSongPage }} / {{ currentSongLoadedPages }} 页</span>
-            <div class="flex items-center gap-1">
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/50 text-stone-700 shadow-sm backdrop-blur-md ring-1 ring-stone-900/5 transition hover:bg-white disabled:opacity-40"
-                :disabled="currentSongPage <= 1" @click="prevSongPage"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/50 text-stone-700 shadow-sm backdrop-blur-md ring-1 ring-stone-900/5 transition hover:bg-white disabled:opacity-40"
-                :disabled="!canNextSongPage" @click="nextSongPage"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section class="mb-16">
-          <div class="mb-6 border-b border-stone-900/10 pb-4">
-            <h2 class="text-2xl font-bold tracking-tight text-stone-900">代表专辑</h2>
-          </div>
-          <div class="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-6">
-            <button
-              v-for="(album, index) in featuredAlbums"
-              :key="album.id"
-              class="group text-left"
-              @click="openAlbum(album, $event)"
-            >
-              <div
-                class="relative overflow-hidden rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
-                data-album-hero-cover
-                :data-album-id="album.id"
-              >
-                <div v-if="index === 0" class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-stone-900 backdrop-blur-md">Latest</div>
-                <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
-                <div class="absolute inset-0 rounded-[20px] ring-1 ring-inset ring-black/5" />
-              </div>
-              <p class="mt-3 truncate text-sm font-bold text-stone-800">{{ album.name }}</p>
-              <p class="text-xs font-medium text-stone-500">{{ formatDate(album.publishTime) }}</p>
             </button>
-          </div>
-        </section>
+          </article>
 
-        <section class="mb-16">
-          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
-            <h2 class="text-2xl font-bold tracking-tight text-stone-900">全部专辑</h2>
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-stone-500">Discography</span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
-            <button
-              v-for="album in pagedAlbums"
-              :key="`all-${album.id}`"
-              class="group text-left"
-              type="button"
-              @click="openAlbum(album, $event)"
-            >
-              <div
-                class="relative overflow-hidden rounded-2xl transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg"
-                data-album-hero-cover
-                :data-album-id="album.id"
-              >
-                <img :src="album.picUrl" :alt="album.name" class="aspect-square w-full object-cover" @error="onBlockImageError" />
-                <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
-              </div>
-              <p class="mt-2.5 truncate text-sm font-semibold text-stone-800">{{ album.name }}</p>
-            </button>
-          </div>
-
-          <div class="mt-8 flex items-center justify-end gap-4">
-            <p v-if="albumLoadingMore" class="animate-pulse text-xs font-medium text-stone-500">正在加载更多...</p>
-            <span class="text-xs font-medium text-stone-400">第 {{ albumPage }} 页</span>
-
-            <div class="flex items-center gap-2">
-              <div class="flex items-center overflow-hidden rounded-full bg-white/40 ring-1 ring-stone-900/5 backdrop-blur-md transition-all focus-within:bg-white/70 focus-within:ring-stone-900/20">
-                <input
-                  v-model.trim="albumJumpInput"
-                  type="number"
-                  min="1"
-                  placeholder="页码"
-                  class="w-14 bg-transparent px-3 py-1.5 text-center text-xs font-medium text-stone-800 outline-none placeholder:text-stone-400"
-                  @keyup.enter="jumpToAlbumPage"
-                />
-                <button
-                  class="border-l border-stone-900/10 px-3 py-1.5 text-xs font-bold text-stone-600 transition hover:bg-white/50 hover:text-stone-900 disabled:opacity-40"
-                  type="button"
-                  :disabled="albumJumping"
-                  @click="jumpToAlbumPage"
-                >
-                  跳转
+          <section class="song-ranking">
+            <div class="artist-section-heading artist-section-heading--ranking">
+              <button class="artist-heading-link" type="button" @click="switchSongViewMode(songViewMode === 'top50' ? 'all' : 'top50')">
+                <h2>歌曲排行</h2>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              </button>
+              <div class="section-paging">
+                <button type="button" aria-label="上一页歌曲" :disabled="currentSongPage <= 1" @click="prevSongPage">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                </button>
+                <button type="button" aria-label="下一页歌曲" :disabled="!canNextSongPage" @click="nextSongPage">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
                 </button>
               </div>
+            </div>
 
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/40 text-stone-700 ring-1 ring-stone-900/5 backdrop-blur-md transition hover:bg-white hover:shadow-sm disabled:opacity-40"
-                type="button"
-                :disabled="albumPage <= 1"
-                @click="prevAlbumPage"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            <Transition name="song-page" mode="out-in">
+              <div :key="`${songViewMode}-${currentSongPage}`" class="ranking-grid">
+                <button
+                  v-for="(song, index) in visibleSongs"
+                  :key="song.id"
+                  class="ranking-song"
+                  type="button"
+                  @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
+                >
+                  <span class="ranking-song-cover">
+                    <img :src="getSongCover(song)" :alt="song.name" @error="onBlockImageError" />
+                    <span class="ranking-song-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+                  </span>
+                  <span class="ranking-song-copy">
+                    <strong>{{ song.name }}</strong>
+                    <span>{{ getSongAlbumLabel(song) }}</span>
+                  </span>
+                  <span class="ranking-song-more" aria-hidden="true">•••</span>
+                </button>
+              </div>
+            </Transition>
+          </section>
+        </section>
+
+        <section v-if="pagedAlbums.length" class="artist-library-section">
+          <div class="artist-section-heading">
+            <div class="artist-heading-link">
+              <h2>专辑</h2>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            </div>
+            <div class="section-paging">
+              <button type="button" aria-label="上一页专辑" :disabled="albumPage <= 1" @click="prevAlbumPage">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
               </button>
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-white/40 text-stone-700 ring-1 ring-stone-900/5 backdrop-blur-md transition hover:bg-white hover:shadow-sm disabled:opacity-40"
-                type="button"
-                :disabled="!canNextAlbumPage"
-                @click="nextAlbumPage"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <button type="button" aria-label="下一页专辑" :disabled="!canNextAlbumPage" @click="nextAlbumPage">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
               </button>
             </div>
           </div>
+
+          <div class="album-grid">
+            <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" @click="openAlbum(album, $event)">
+              <span class="album-card-cover" data-album-hero-cover :data-album-id="album.id">
+                <img :src="album.picUrl" :alt="album.name" @error="onBlockImageError" />
+                <span class="album-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+              </span>
+              <strong>{{ album.name }}</strong>
+              <span>{{ formatYear(album.publishTime) }}</span>
+            </button>
+          </div>
+          <p v-if="albumLoadingMore" class="artist-inline-loading">正在加载更多发行...</p>
         </section>
 
-        <section v-if="pagedMvs.length" class="mb-16">
-          <div class="mb-6 flex items-end justify-between border-b border-stone-900/10 pb-4">
-            <h2 class="text-2xl font-bold tracking-tight text-stone-900">音乐视频</h2>
+        <section v-if="pagedMvs.length" class="artist-library-section">
+          <div class="artist-section-heading">
+            <div class="artist-heading-link">
+              <h2>音乐视频</h2>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            </div>
+            <div class="section-paging">
+              <button type="button" aria-label="上一页视频" :disabled="mvPage <= 1" @click="prevMvPage">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              </button>
+              <button type="button" aria-label="下一页视频" :disabled="!mvHasMore && mvPage >= mvLoadedPages" @click="nextMvPage">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <article v-for="mv in pagedMvs" :key="mv.id" class="group cursor-pointer" @click="openMv(mv)">
-              <div class="relative overflow-hidden rounded-2xl shadow-md transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-xl">
-                <img :src="getMvCover(mv)" :alt="mv.name" class="aspect-video w-full object-cover transition-transform duration-700 group-hover:scale-105" @error="onBlockImageError" />
-                <div class="absolute inset-0 bg-black/10 transition-colors group-hover:bg-black/0" />
-                <div class="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-md">MV</div>
-              </div>
-              <p class="mt-3 line-clamp-2 text-sm font-bold text-stone-800">{{ mv.name }}</p>
-            </article>
+          <div class="mv-grid">
+            <button v-for="mv in pagedMvs" :key="mv.id" class="mv-card" type="button" @click="openMv(mv)">
+              <span class="mv-card-cover">
+                <img :src="getMvCover(mv)" :alt="mv.name" @error="onBlockImageError" />
+                <span class="mv-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+              </span>
+              <strong>{{ mv.name }}</strong>
+              <span>音乐视频</span>
+            </button>
           </div>
         </section>
 
-        <section class="rounded-[32px] bg-white/40 p-8 shadow-sm ring-1 ring-white/60 backdrop-blur-xl sm:p-10">
-          <h2 class="mb-6 text-xl font-bold tracking-tight text-stone-900">关于 {{ artistName }}</h2>
-          <p class="whitespace-pre-line text-sm leading-relaxed text-stone-700 opacity-90">{{ artistDescription }}</p>
+        <section ref="aboutRef" class="artist-about">
+          <h2>{{ artistName }} 简介</h2>
+          <p>{{ artistDescription }}</p>
         </section>
       </template>
     </main>
@@ -276,18 +223,17 @@
 <script setup>
 import {computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
-import {useRoute, useRouter} from 'vue-router'
+import {useRoute} from 'vue-router'
 import { markNavigatingBack } from '@/router/index.js'
 import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
 import {artistApi} from '@/api/artistApi/artistApi.js'
-import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
+import chroma from 'chroma-js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
-const router = useRouter()
 const { closeDetail, openDetail } = useDetailNavigation()
 // 悬浮模式（DetailOverlayHost 注入）；整页模式为 false。
 const isOverlay = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
@@ -310,7 +256,7 @@ const songHasMore = ref(false)
 const songLoadingMore = ref(false)
 const topSongPage = ref(1)
 const allSongPage = ref(1)
-const songPageSize = 10
+const songPageSize = 8
 const songRequestLimit = songPageSize
 const songViewMode = ref('top50')
 const songRequestOffset = ref(0)
@@ -319,7 +265,7 @@ const allSongJumpInput = ref('')
 const allSongJumping = ref(false)
 const albums = ref([])
 const mvs = ref([])
-const albumPageSize = 12
+const albumPageSize = 6
 const albumRequestLimit = albumPageSize
 const albumPage = ref(1)
 const albumOffset = ref(0)
@@ -336,7 +282,7 @@ const mvResolutions = ref([])
 const selectedMvResolution = ref(1080)
 const shouldResumeMusicOnClose = ref(false)
 const mvPage = ref(1)
-const mvPageSize = 10
+const mvPageSize = 4
 const mvOffset = ref(0)
 const mvHasMore = ref(false)
 const mvLoadingMore = ref(false)
@@ -344,6 +290,7 @@ const themeRgb = ref('56, 64, 82')
 const animatedThemeRgb = ref(themeRgb.value)
 const heroCanvasRef = ref(null)
 const artistHeroCoverRef = ref(null)
+const aboutRef = ref(null)
 let themeRaf = 0
 let heroCanvasRaf = 0
 let heroCanvasStart = 0
@@ -389,15 +336,7 @@ const visibleSongs = computed(() => {
   }
   return topSongs.value.slice(start, start + songPageSize)
 })
-const songListStyle = computed(() => {
-  const itemHeight = 42
-  const gap = 6
-  const minHeight = (songPageSize * itemHeight) + ((songPageSize - 1) * gap)
-  return {minHeight: `${minHeight}px`}
-})
-const songSectionLabel = computed(() => (songViewMode.value === 'all' ? `全部歌曲 ${allSongs.value.length}` : `前50首 ${topSongs.value.length}`))
 const latestAlbum = computed(() => albums.value[0] || null)
-const featuredAlbums = computed(() => albums.value.slice(0, 6))
 const albumLoadedPages = computed(() => Math.max(1, Math.ceil(albums.value.length / albumPageSize)))
 const pagedAlbums = computed(() => {
   const start = (albumPage.value - 1) * albumPageSize
@@ -424,20 +363,15 @@ const hasHeroVideo = computed(() => Boolean(heroBannerVideo.value))
 
 const pageStyle = computed(() => {
   const [r, g, b] = parseRgb(animatedThemeRgb.value)
-  const softR = Math.min(245, Math.round((r + 242) / 2))
-  const softG = Math.min(245, Math.round((g + 242) / 2))
-  const softB = Math.min(245, Math.round((b + 242) / 2))
-
-  // 悬浮层里 620px 的近白终点会提前出现，弹窗下半截变成平白；
-  // 悬浮模式改用百分比停止点并保留同色系柔色到底部。
-  if (isOverlay) {
-    return {
-      background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 40%, rgba(${softR},${softG},${softB},0.88) 100%)`,
-    }
-  }
-
+  const base = [r, g, b]
+  const glow = base.map(value => Math.min(255, Math.round(value + (255 - value) * 0.14)))
+  const deep = base.map(value => Math.max(0, Math.round(value * (isOverlay ? 0.76 : 0.72))))
   return {
-    background: `linear-gradient(180deg, rgba(${r},${g},${b},0.18) 0%, rgba(${softR},${softG},${softB},0.95) 280px, rgba(250,250,250,1) 620px)`,
+    '--artist-rgb': `${r}, ${g}, ${b}`,
+    '--artist-hero-rgb': glow.join(', '),
+    '--artist-deep-rgb': deep.join(', '),
+    '--artist-body-rgb': base.join(', '),
+    backgroundColor: `rgb(${base.join(', ')})`,
   }
 })
 
@@ -739,23 +673,46 @@ async function pickThemeFromImage(imageUrl, seed) {
     context.drawImage(image, 0, 0, size, size)
 
     const {data} = context.getImageData(0, 0, size, size)
-    let r = 0
-    let g = 0
-    let b = 0
-    let count = 0
+    const buckets = new Map()
 
-    for (let i = 0; i < data.length; i += 16) {
-      r += data[i]
-      g += data[i + 1]
-      b += data[i + 2]
-      count += 1
+    // Apple Music 的页面底色接近封面中占比最高的深色，而不是所有像素的平均色。
+    // 量化后按饱和度加权，可以避开肤色、高光和大面积灰白带来的“脏灰”结果。
+    for (let i = 0; i < data.length; i += 12) {
+      if (data[i + 3] < 180) continue
+      const red = data[i]
+      const green = data[i + 1]
+      const blue = data[i + 2]
+      const high = Math.max(red, green, blue)
+      const low = Math.min(red, green, blue)
+      const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722
+      if (luminance < 8 || luminance > 242) continue
+
+      const saturation = high ? (high - low) / high : 0
+      const key = `${red >> 4}-${green >> 4}-${blue >> 4}`
+      const weight = (0.7 + saturation * 1.8) * (luminance > 215 ? 0.45 : 1)
+      const bucket = buckets.get(key) || {score: 0, red: 0, green: 0, blue: 0, weight: 0}
+      bucket.score += weight
+      bucket.red += red * weight
+      bucket.green += green * weight
+      bucket.blue += blue * weight
+      bucket.weight += weight
+      buckets.set(key, bucket)
     }
 
-    if (!count) throw new Error('no pixels')
-    const rr = Math.min(185, Math.max(28, Math.round(r / count)))
-    const gg = Math.min(185, Math.max(34, Math.round(g / count)))
-    const bb = Math.min(205, Math.max(48, Math.round(b / count)))
-    themeRgb.value = `${rr}, ${gg}, ${bb}`
+    const dominant = [...buckets.values()].sort((a, b) => b.score - a.score)[0]
+    if (!dominant?.weight) throw new Error('no pixels')
+
+    const sampled = chroma([
+      dominant.red / dominant.weight,
+      dominant.green / dominant.weight,
+      dominant.blue / dominant.weight,
+    ])
+    let [hue, saturation, lightness] = sampled.hsl()
+    if (!Number.isFinite(hue)) hue = chroma(parseRgb(colorFromSeed(seed))).get('hsl.h') || 220
+    saturation = Math.min(0.84, Math.max(0.34, saturation * 1.12))
+    lightness = Math.min(0.27, Math.max(0.12, lightness * 0.62))
+    const [rr, gg, bb] = chroma.hsl(hue, saturation, lightness).rgb()
+    themeRgb.value = `${Math.round(rr)}, ${Math.round(gg)}, ${Math.round(bb)}`
   } catch {
     themeRgb.value = colorFromSeed(seed)
   }
@@ -828,44 +785,44 @@ function onHeroVideoLoaded() {
   heroVideoReady.value = true
 }
 
-function formatDuration(durationMs) {
-  const total = Math.floor((durationMs || 0) / 1000)
-  const minute = Math.floor(total / 60)
-  const second = String(total % 60).padStart(2, '0')
-  return `${minute}:${second}`
-}
-
 function formatDate(timestamp) {
   if (!timestamp) return '未知时间'
   const d = new Date(timestamp)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
 }
 
-function normalizeSongArtists(song) {
-  return (song?.ar || song?.artists || [])
-    .map(item => ({
-      id: item?.id || item?.artistId || '',
-      name: String(item?.name || item?.artistName || '').trim(),
-    }))
-    .filter(item => item.name)
+function formatYear(timestamp) {
+  if (!timestamp) return '未知年份'
+  return String(new Date(timestamp).getFullYear())
 }
 
-function getSongArtistsPreview(song, maxVisible = 4) {
-  return normalizeSongArtists(song).slice(0, maxVisible)
+function getAlbumTrackLabel(album) {
+  const size = Number(album?.size || album?.trackCount || album?.songs?.length || 0)
+  if (size > 0) return `${size} 首歌曲`
+  return album?.type || '最新发行'
 }
 
-function getSongArtistsOmittedCount(song, maxVisible = 4) {
-  return Math.max(0, normalizeSongArtists(song).length - maxVisible)
+function getSongCover(song) {
+  return song?.al?.picUrl
+    || song?.album?.picUrl
+    || song?.picUrl
+    || artistAvatar.value
 }
 
-function shouldShowArtistsTooltip(song) {
-  return normalizeSongArtists(song).length > 5
+function getSongAlbumLabel(song) {
+  const album = String(song?.al?.name || song?.album?.name || '').trim()
+  const yearSource = song?.publishTime || song?.album?.publishTime || song?.al?.publishTime
+  const year = yearSource ? new Date(yearSource).getFullYear() : ''
+  return [album || artistName.value, year].filter(Boolean).join(' · ')
 }
 
-function getSongArtistsFullText(song) {
-  const names = normalizeSongArtists(song).map(item => item.name)
-  if (!names.length) return '未知歌手'
-  return names.join(' / ')
+function scrollToAbout() {
+  aboutRef.value?.scrollIntoView({behavior: 'smooth', block: 'start'})
+}
+
+async function playArtist() {
+  if (!topSongs.value.length) return
+  await openSong(topSongs.value[0], 0, topSongs.value)
 }
 
 async function openSong(song, index = 0, queue = topSongs.value) {
@@ -1518,15 +1475,66 @@ watch(
 </script>
 
 <style scoped>
+.artist-page {
+  min-height: 100%;
+  height: 100%;
+  overflow-y: auto;
+  color: rgba(255, 255, 255, 0.96);
+  isolation: isolate;
+  scrollbar-gutter: stable;
+  background-color: rgb(var(--artist-body-rgb));
+  transition: background 520ms ease;
+}
+
+.artist-hero {
+  position: relative;
+  min-height: 540px;
+  overflow: clip visible;
+}
+
+.artist-hero--video {
+  min-height: 620px;
+}
+
 .artist-hero-base {
-  background: #17202c;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: rgb(var(--artist-body-rgb));
+}
+
+.artist-hero-ambient {
+  position: absolute;
+  top: -130px;
+  right: -18%;
+  left: -18%;
+  z-index: 1;
+  display: grid;
+  height: 1160px;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0.28;
+  filter: blur(60px) saturate(1.12);
+  transform: scale(1.16);
+  mask-image: radial-gradient(ellipse 72% 63% at 50% 22%, #000 0%, #000 48%, rgba(0, 0, 0, 0.58) 64%, transparent 82%);
+  -webkit-mask-image: radial-gradient(ellipse 72% 63% at 50% 22%, #000 0%, #000 48%, rgba(0, 0, 0, 0.58) 64%, transparent 82%);
+}
+
+.artist-hero-ambient img {
+  width: min(63vw, 720px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .artist-hero-video {
-  z-index: 2;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 28%;
   transition: opacity 520ms ease, filter 520ms ease;
 }
 
@@ -1541,29 +1549,642 @@ watch(
 }
 
 .artist-hero-video-mask {
-  z-index: 3;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
   background:
-    radial-gradient(130% 90% at 50% 0%, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.22) 70%),
-    linear-gradient(180deg, rgba(8, 12, 18, 0.2) 0%, rgba(8, 12, 18, 0.5) 100%);
+    linear-gradient(90deg, rgba(10, 8, 9, 0.1), transparent 30%, transparent 70%, rgba(10, 8, 9, 0.1)),
+    linear-gradient(180deg, rgba(7, 6, 7, 0.08) 16%, rgba(var(--artist-body-rgb), 0.2) 56%, rgb(var(--artist-body-rgb)) 100%);
+  transition: opacity 520ms ease;
 }
 
-.artist-hero-canvas {
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.98;
-  display: block;
+.artist-hero-video-mask.is-ready {
+  opacity: 1;
+}
+
+.artist-hero-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  min-height: 540px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 72px 32px 54px;
+  text-align: center;
+}
+
+.artist-hero--video .artist-hero-content {
+  min-height: 620px;
+  justify-content: flex-end;
+  padding-bottom: 62px;
+}
+
+.artist-portrait {
+  width: clamp(150px, 16vw, 202px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  margin-bottom: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 70px rgba(8, 7, 8, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.artist-portrait img {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+}
+
+.artist-hero-content h1 {
+  max-width: min(900px, 90vw);
+  margin: 0;
+  min-width: 0;
+  font-size: clamp(2.4rem, 4vw, 3.25rem);
+  font-weight: 760;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);
+}
+
+.artist-hero-content h1.is-loading {
+  width: 180px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.artist-hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.artist-round-action {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 180ms ease, background-color 180ms ease, opacity 180ms ease;
+}
+
+.artist-round-action:hover:not(:disabled) {
+  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.19);
+}
+
+.artist-round-action:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.artist-round-action:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.artist-round-action svg {
+  width: 21px;
+  height: 21px;
+}
+
+.artist-round-action--play {
+  width: 58px;
+  height: 58px;
+  border: 0;
+  color: rgb(var(--artist-deep-rgb));
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+}
+
+.artist-round-action--play:hover:not(:disabled) {
+  background: #fff;
+}
+
+.artist-round-action--play svg {
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+}
+
+.artist-content {
+  position: relative;
+  z-index: 4;
+  width: min(100%, 1240px);
+  box-sizing: border-box;
+  margin: -1px auto 0;
+  padding: 24px 42px 96px;
+}
+
+.artist-loading {
+  display: grid;
+  gap: 14px;
+  padding: 32px 0;
+}
+
+.artist-loading-line {
+  width: 100%;
+  height: 58px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07));
+  background-size: 220% 100%;
+  animation: artist-shimmer 1.4s linear infinite;
+}
+
+.artist-loading-line--short {
+  width: 34%;
+}
+
+.artist-error {
+  padding: 36px 0;
+  color: rgba(255, 214, 214, 0.96);
+  font-size: 0.9rem;
+}
+
+.artist-overview {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.82fr) minmax(0, 1.9fr);
+  gap: clamp(34px, 5vw, 72px);
+  align-items: start;
+}
+
+.latest-release h2,
+.artist-section-heading h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.22rem;
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.latest-release h2 {
+  margin-bottom: 18px;
+}
+
+.latest-release-card {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(124px, 168px) minmax(0, 1fr);
+  align-items: end;
+  gap: 18px;
+  color: inherit;
+  text-align: left;
+}
+
+.latest-release-cover {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 15px 32px rgba(0, 0, 0, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.latest-release-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.latest-release-card:hover .latest-release-cover img {
+  transform: scale(1.025);
+}
+
+.latest-release-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding-bottom: 5px;
+}
+
+.latest-release-copy strong {
+  overflow: hidden;
+  margin: 5px 0 2px;
+  font-size: 1rem;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.latest-release-copy span {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.77rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artist-section-heading {
+  display: flex;
+  min-height: 40px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.artist-section-heading p {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.76rem;
+}
+
+.artist-section-heading--ranking {
+  align-items: center;
+}
+
+.artist-heading-link {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: inherit;
+  text-align: left;
+}
+
+.artist-heading-link svg {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.56);
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+button.artist-heading-link:hover svg {
+  color: rgba(255, 255, 255, 0.9);
+  transform: translateX(2px);
+}
+
+.section-paging {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.section-paging > span {
+  margin-right: 3px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.69rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-paging button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.09);
+  transition: background-color 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.section-paging button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.04);
+}
+
+.section-paging button:disabled {
+  opacity: 0.28;
+}
+
+.section-paging svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ranking-grid {
+  display: grid;
+  min-height: 232px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 22px;
+}
+
+.ranking-song {
+  display: flex;
+  min-width: 0;
+  height: 58px;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.095);
+  color: inherit;
+  text-align: left;
+  transition: background-color 180ms ease;
+}
+
+.ranking-song:hover {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.07), transparent 92%);
+}
+
+.ranking-song-cover {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ranking-song-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ranking-song-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.36);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ranking-song:hover .ranking-song-play {
+  opacity: 1;
+}
+
+.ranking-song-play svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ranking-song-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.ranking-song-copy strong,
+.album-card strong,
+.mv-card strong {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 640;
+  line-height: 1.38;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-song-copy > span,
+.album-card > span:last-child,
+.mv-card > span:last-child {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-song-more {
+  margin-left: 4px;
+  padding: 0 8px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.artist-library-section {
+  margin-top: 58px;
+}
+
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 30px 18px;
+}
+
+.album-card,
+.mv-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  color: inherit;
+  text-align: left;
+}
+
+.album-card-cover,
+.mv-card-cover {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.075);
+}
+
+.album-card-cover {
+  aspect-ratio: 1;
+  border-radius: 10px;
+}
+
+.album-card-cover img,
+.mv-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease;
+}
+
+.album-card:hover img,
+.mv-card:hover img {
+  transform: scale(1.035);
+  filter: brightness(0.84);
+}
+
+.album-card-play,
+.mv-card-play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  color: rgb(var(--artist-deep-rgb));
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  opacity: 0;
+  transform: translateY(5px) scale(0.92);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.album-card:hover .album-card-play,
+.mv-card:hover .mv-card-play {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.album-card-play svg,
+.mv-card-play svg {
+  width: 20px;
+  height: 20px;
+  margin-left: 1px;
+}
+
+.album-card > span:last-child,
+.mv-card > span:last-child {
+  margin-top: 2px;
+}
+
+.artist-inline-loading {
+  margin: 18px 0 0;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 0.72rem;
+}
+
+.mv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.mv-card-cover {
+  aspect-ratio: 16 / 9;
+  border-radius: 11px;
+}
+
+.artist-about {
+  scroll-margin-top: 30px;
+  margin-top: 64px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.artist-about h2 {
+  margin: 0 0 16px;
+  font-size: 1.35rem;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+}
+
+.artist-about p {
+  max-width: 920px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.88rem;
+  line-height: 1.85;
+  white-space: pre-line;
+}
+
+@keyframes artist-shimmer {
+  to { background-position: -220% 0; }
 }
 
 .song-page-enter-active,
 .song-page-leave-active {
-  transition: opacity 240ms ease, filter 240ms ease;
+  transition: opacity 220ms ease, transform 220ms ease;
 }
 
 .song-page-enter-from,
 .song-page-leave-to {
   opacity: 0;
-  filter: blur(2px);
+  transform: translateY(4px);
+}
+
+@media (max-width: 1120px) {
+  .artist-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .latest-release-card {
+    max-width: 430px;
+  }
+
+  .album-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .artist-hero,
+  .artist-hero--video,
+  .artist-hero-content,
+  .artist-hero--video .artist-hero-content {
+    min-height: 440px;
+  }
+
+  .artist-hero-content,
+  .artist-hero--video .artist-hero-content {
+    padding: 64px 20px 46px;
+  }
+
+  .artist-portrait {
+    width: 144px;
+    margin-bottom: 24px;
+  }
+
+  .artist-hero-content h1 {
+    font-size: clamp(2.25rem, 11vw, 3.2rem);
+  }
+
+  .artist-content {
+    padding: 20px 20px 80px;
+  }
+
+  .latest-release-card {
+    grid-template-columns: 126px minmax(0, 1fr);
+  }
+
+  .artist-section-heading--ranking {
+    align-items: flex-start;
+  }
+
+  .ranking-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .album-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 14px;
+  }
+
+  .mv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .artist-library-section {
+    margin-top: 46px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artist-page,
+  .artist-hero-video,
+  .artist-hero-video-mask,
+  .latest-release-cover img,
+  .album-card-cover img,
+  .mv-card-cover img,
+  .album-card-play,
+  .mv-card-play,
+  .song-page-enter-active,
+  .song-page-leave-active {
+    transition: none;
+  }
+
+  .artist-loading-line {
+    animation: none;
+  }
 }
 </style>
