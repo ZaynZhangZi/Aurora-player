@@ -23,9 +23,12 @@
             <span class="banner-disc" />
           </div>
           <div class="home-banner-shade" />
-          <div v-if="bannerHero.title || bannerHero.subtitle" class="home-banner-content">
-            <h1 v-if="bannerHero.title">{{ bannerHero.title }}</h1>
-            <p v-if="bannerHero.subtitle" class="home-banner-description">{{ bannerHero.subtitle }}</p>
+          <div class="home-banner-content">
+            <small class="home-banner-kicker">AURORA · FOR YOU</small>
+            <h1>{{ bannerHero.title || '让今天，从一首歌开始。' }}</h1>
+            <p class="home-banner-description">
+              {{ bannerHero.subtitle || '从熟悉的旋律继续，也去遇见下一首喜欢。' }}
+            </p>
           </div>
         </article>
 
@@ -420,27 +423,29 @@ watch([resumeCover, () => resumeSong.value?.name || ''], async ([cover, name]) =
 }
 
 button { cursor: pointer; font: inherit; }
-.personal-main { box-sizing: border-box; width: min(100%, 1376px); margin: 0 auto; padding: 34px 28px 150px; }
+.personal-main { box-sizing: border-box; width: min(100%, 1680px); margin: 0 auto; padding: 0 28px 150px; }
 .home-lobby { display: block; scroll-margin-top: 90px; }
-.home-banner-card { position: relative; width: 100%; min-height: clamp(470px, 46vw, 620px); overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 36px; background: #d4d4d8; box-shadow: 0 32px 90px rgba(43, 32, 32, 0.17); isolation: isolate; }
+.home-banner-card { position: relative; left: 50%; width: 100vw; height: 780px; min-height: 780px; overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
 .home-banner-media,
 .home-banner-fallback,
 .home-banner-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
-.home-banner-media { z-index: 0; filter: saturate(0.92); }
+.home-banner-media { z-index: 0; filter: saturate(0.94) contrast(1.02); transform: scale(1.015); }
 .home-banner-media :deep(> div),
 .home-banner-media :deep(img),
 .home-banner-media :deep(video) { width: 100% !important; height: 100% !important; object-fit: cover; }
-.home-banner-fallback { z-index: 0; overflow: hidden; background: linear-gradient(145deg, #596273, #252934 58%, #1b1d24); }
+.home-banner-fallback { z-index: 0; overflow: hidden; background: radial-gradient(circle at 72% 24%, rgba(232, 87, 105, 0.58), transparent 23%), radial-gradient(circle at 58% 74%, rgba(102, 121, 190, 0.52), transparent 29%), radial-gradient(circle at 92% 72%, rgba(239, 174, 104, 0.28), transparent 22%), linear-gradient(138deg, #3c4354 0%, #242936 48%, #181b24 100%); }
+.home-banner-fallback::after { position: absolute; top: 12%; right: 19%; width: 30vw; min-width: 360px; aspect-ratio: 1; border-radius: 46% 54% 62% 38% / 42% 38% 62% 58%; background: rgba(255, 157, 173, 0.16); filter: blur(55px); content: ''; transform: rotate(-18deg); }
 .banner-orbit { position: absolute; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
 .banner-orbit-one { top: -210px; right: -80px; width: 560px; height: 560px; }
 .banner-orbit-two { right: 20px; bottom: -200px; width: 370px; height: 370px; }
 .banner-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
-.home-banner-shade { z-index: 1; background: linear-gradient(90deg, rgba(14, 15, 19, 0.78) 0%, rgba(14, 15, 19, 0.48) 38%, rgba(14, 15, 19, 0.08) 72%), linear-gradient(0deg, rgba(14, 15, 19, 0.54), transparent 58%); }
-.home-banner-content { position: absolute; inset: 0; z-index: 2; display: flex; box-sizing: border-box; width: min(100%, 760px); flex-direction: column; justify-content: flex-end; padding: clamp(34px, 5vw, 70px); color: #fff; }
+.home-banner-shade { z-index: 1; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.46) 35%, rgba(14, 15, 19, 0.06) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.44) 18%, transparent 62%); }
+.home-banner-content { position: absolute; inset: 0 auto 0 50%; z-index: 2; display: flex; box-sizing: border-box; width: min(100%, 1680px); flex-direction: column; justify-content: flex-end; padding: clamp(40px, 5vw, 72px) clamp(28px, 5vw, 72px) clamp(72px, 9vh, 104px); color: #fff; transform: translateX(-50%); }
+.home-banner-kicker { margin-bottom: 12px; color: rgba(255, 188, 199, 0.92); font-size: 9px; font-weight: 900; letter-spacing: 0.2em; }
 .home-banner-card h1 { max-width: 680px; margin: 22px 0 0; font-size: clamp(42px, 5.4vw, 76px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
 .home-banner-description { max-width: 560px; margin: 24px 0 0; color: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 580; line-height: 1.75; }
 
-.personal-now-card { position: relative; min-height: 242px; overflow: hidden; margin-top: 22px; padding: 29px 34px 28px; color: #29272d; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 34px; background: #f7f4f5; box-shadow: 0 22px 58px rgba(66, 50, 54, 0.1); isolation: isolate; }
+.personal-now-card { position: relative; z-index: 3; min-height: 242px; overflow: hidden; margin-top: 24px; padding: 29px 34px 28px; color: #29272d; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 34px; background: rgba(247, 244, 245, 0.96); box-shadow: 0 24px 64px rgba(66, 50, 54, 0.13); backdrop-filter: blur(18px); isolation: isolate; }
 .personal-station-ambient { position: absolute !important; inset: -25% -3% -35% 43%; z-index: -3; width: 62% !important; height: 160% !important; opacity: 0.7; filter: saturate(0.8) brightness(1.08); transform: rotate(-7deg) scale(1.05); }
 .personal-station-ambient :deep(> div),
 .personal-station-ambient :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
@@ -615,7 +620,10 @@ button { cursor: pointer; font: inherit; }
 
 @media (max-width: 820px) {
   .personal-main { padding: 24px 18px 130px; }
-  .home-banner-card { min-height: 480px; }
+  .home-banner-card { left: auto; width: 100%; height: auto; min-height: 480px; margin-left: 0; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 30px; box-shadow: 0 26px 70px rgba(43, 32, 32, 0.15); }
+  .home-banner-shade { background: linear-gradient(90deg, rgba(14, 15, 19, 0.78) 0%, rgba(14, 15, 19, 0.45) 52%, rgba(14, 15, 19, 0.12) 100%), linear-gradient(0deg, rgba(14, 15, 19, 0.58), transparent 64%); }
+  .home-banner-content { inset: 0; width: min(100%, 760px); padding: clamp(30px, 6vw, 50px); transform: none; }
+  .personal-now-card { margin-top: 22px; }
   .personal-station-ambient { inset: -5% -25% -20% 34%; width: 92% !important; height: 130% !important; }
   .personal-station-scrim { background: linear-gradient(90deg, #f8f5f6 0%, rgba(248, 245, 246, 0.94) 52%, rgba(248, 245, 246, 0.5) 100%), linear-gradient(0deg, rgba(255, 255, 255, 0.76), transparent 75%); }
   .lofi-resume { grid-template-columns: 1fr; gap: 24px; }
