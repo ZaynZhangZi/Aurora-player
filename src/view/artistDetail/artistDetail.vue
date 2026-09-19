@@ -1483,7 +1483,6 @@ watch(
   isolation: isolate;
   scrollbar-gutter: stable;
   background-color: rgb(var(--artist-body-rgb));
-  transition: background 520ms ease;
 }
 
 .artist-hero {
