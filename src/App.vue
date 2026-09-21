@@ -119,7 +119,8 @@ import AppSplashScreen from "@/components/AppSplashScreen/AppSplashScreen.vue";
 import QrLoginDialog from "@/components/login/QrLoginDialog.vue";
 import BackgroundRouteProvider from "@/components/detailOverlay/BackgroundRouteProvider.vue";
 import DetailOverlayHost from "@/components/detailOverlay/DetailOverlayHost.vue";
-import { DETAIL_CLOSE_EVENT, isDetailRoute } from "@/composables/useDetailNavigation.js";
+import { DETAIL_CLOSE_EVENT, isDetailRoute, supportsDetailOverlay } from "@/composables/useDetailNavigation.js";
+import { peekPendingTransition } from "@/utils/heroTransition.js";
 import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
@@ -134,8 +135,11 @@ const canGoBack = computed(() => route.path !== "/home");
    背景 / 悬浮层状态机
    - 主页面：作为「背景」渲染在主内容区，并被 keep-alive 缓存。
    - 实体详情（/playlist/:id 等）：
-       · 已有背景（应用内点击进入） -> 悬浮层模式，背景保持挂载不动；
-       · 无背景（直接访问 / 刷新详情 URL） -> 整页模式，详情作为背景渲染。
+       · 歌单 / 专辑（可悬浮类型）+ 已有背景（应用内点击进入）
+         -> 悬浮层模式，背景保持挂载不动；
+       · 歌手详情（/artist/:id）不属于可悬浮类型
+         -> 始终按普通路由跳转整页展示；
+       · 无背景（直接访问 / 刷新详情 URL）-> 整页模式，详情作为背景渲染。
    背景页通过 BackgroundRouteProvider 读到「自己被冻结时的路由快照」，
    因此悬浮层开/关不会误触发背景页的 watch(route.name / route.query)。
    ============================================================ */
@@ -185,7 +189,9 @@ function setBackground(target, record, comp, key) {
 	bgRecord.value = record;
 	bgComponent.value = comp;
 	bgKey.value = key;
-	bgIsDetail = isDetailRoute(target);
+	// 只有「可悬浮的整页详情」（直接访问歌单/专辑）才算整页详情；
+	// 歌手详情视作普通页面，从它出发打开歌单/专辑仍走悬浮层。
+	bgIsDetail = isDetailRoute(target) && supportsDetailOverlay(target);
 }
 
 /** 关闭详情：有应用内历史则 back（只消耗一条历史），否则回退到首页兜底。 */
@@ -204,35 +210,35 @@ watch(
 		const record = route.matched[route.matched.length - 1] || null;
 		const comp = record?.components?.default || null;
 		const detail = isDetailRoute(route);
+		// 只有歌单/专辑可以进悬浮层；歌手详情固定整页路由跳转。
+		const overlayCapable = supportsDetailOverlay(route);
+		const openingOverlay = overlayCapable && Boolean(bgComponent.value) && !bgIsDetail;
 		const closedOverlay = overlay.value;
+		const detailId = String(route.params?.id || route.query?.id || "");
 
-		if (detail) {
-			if (bgComponent.value && !bgIsDetail) {
-				// 悬浮层模式：背景是主页面，冻结不动，详情进覆盖层
-				overlay.value = {
-					comp,
-					record,
-					route,
-					type: route.meta?.type || null,
-					id: String(route.params?.id || route.query?.id || ""),
-				};
-			} else {
-				// 整页模式：直接访问 / 刷新（无背景），或背景本身是整页详情
-				const id = String(route.params?.id || route.query?.id || "");
-				setBackground(route, record, comp, `${String(route.name)}:${id}`);
-				overlay.value = null;
-			}
+		if (openingOverlay) {
+			// 悬浮层模式：背景是主页面，冻结不动，详情进覆盖层
+			overlay.value = {
+				comp,
+				record,
+				route,
+				type: route.meta?.type || null,
+				id: detailId,
+			};
 		} else {
-			setBackground(route, record, comp, String(route.name || route.path));
+			// 整页模式：普通页面路由，或直接访问 / 刷新详情（无可悬浮背景）
+			setBackground(route, record, comp, detail ? `${String(route.name)}:${detailId}` : String(route.name || route.path));
 			overlay.value = null;
 		}
 
-		// 底层页面入场动画：仅在「主页面 -> 主页面」时播放；
-		// 打开/关闭详情悬浮层、或从整页详情返回时都不重播背景动画。
+		// 底层页面入场动画：仅在真正发生「整页切换」时播放；
+		// 打开/关闭详情悬浮层时背景没有换过（或必须保持不动），不重播动画。
+		// 同上：有封面 Hero 飞入时也不叠加，避免页面位移/缩放让飞行落点错位。
 		// 同一页面内仅修改 query/hash（例如搜索分类切换）不是页面导航，
 		// 不应重新播放整页入场动画，否则内容会先透明再出现。
 		const backgroundChanged = bgKey.value !== previousBackgroundKey;
-		const shouldAnimateEnter = !detail && !prevRouteWasDetail && backgroundChanged;
+		const pendingHero = detail && Boolean(peekPendingTransition(route.meta?.type, detailId));
+		const shouldAnimateEnter = !openingOverlay && !closedOverlay && !prevRouteWasDetail && backgroundChanged && !pendingHero;
 		prevRouteWasDetail = detail;
 
 		if (shouldAnimateEnter) {
@@ -823,6 +829,9 @@ watch(
 	display: grid;
 	place-items: center;
 	padding: 24px;
+	/* 矮视口时整个弹层可滚动，内容永远可达 */
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
 
 .restriction-dialog-backdrop {
@@ -846,6 +855,11 @@ watch(
 	box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
 	color: rgb(28, 25, 23);
 	text-align: center;
+	/* 弹窗内容超出可用高度时自身滚动，而不是被裁掉 */
+	max-height: calc(100dvh - 48px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
 
 .restriction-dialog-icon {

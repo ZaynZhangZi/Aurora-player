@@ -128,7 +128,7 @@
       <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-12">
         <div class="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" @click="showModal = false" />
 
-        <div class="modal-content relative flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div class="modal-content relative flex max-h-[70dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5">
           <div class="flex items-center justify-between border-b border-stone-100 px-6 py-4 md:px-8 md:py-5">
             <h3 class="text-lg font-bold text-stone-900">关于这张专辑</h3>
             <button @click="showModal = false" class="rounded-full p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-800">
@@ -136,7 +136,7 @@
             </button>
           </div>
 
-          <div class="custom-scrollbar overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+          <div class="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6 md:px-8 md:py-8">
             <p class="whitespace-pre-line text-base leading-relaxed text-stone-700">
               {{ albumDescriptionText }}
             </p>

@@ -442,7 +442,7 @@
           @click.self="closePlaylistPanel"
         >
           <div
-            class="playlist-dialog-panel mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl"
+            class="playlist-dialog-panel mx-auto mt-[12vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl"
           >
             <div
               class="flex items-center justify-between border-b border-stone-200 px-4 py-3"
@@ -477,7 +477,7 @@
 
             <div
               ref="queueListRef"
-              class="queue-list relative max-h-[56vh] overflow-y-auto p-2"
+              class="queue-list relative min-h-0 max-h-[56vh] flex-1 overflow-y-auto overscroll-contain p-2"
               @scroll.passive="onQueueListScroll"
             >
               <TransitionGroup
@@ -2918,6 +2918,11 @@ onBeforeUnmount(() => {
   position: fixed;
   display: grid;
   width: min(286px, calc(100vw - 24px));
+  /* 矮视口时面板自身滚动，保证底部选项始终可达 */
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 9px;
   padding: 11px;
   border: 1px solid rgba(var(--more-border), 0.16);
@@ -3247,6 +3252,12 @@ onBeforeUnmount(() => {
 .track-swap-none-leave-to {
   opacity: 1;
   transform: none;
+}
+
+.playlist-dialog-panel {
+  /* 面板总高不超过可视区：超出的部分交给内部队列区滚动 */
+  max-height: calc(100vh - 12vh - 2rem);
+  max-height: calc(100dvh - 12vh - 2rem);
 }
 
 .playlist-dialog-enter-active,

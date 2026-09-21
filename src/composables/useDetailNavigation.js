@@ -6,7 +6,8 @@
  *
  * 规则（由 App.vue 的背景状态机 + DetailOverlayHost 落地）：
  *  - 歌单/专辑/歌手详情统一 URL：/playlist/:id、/album/:id、/artist/:id
- *  - 应用内从任意页面点击 -> push 详情 URL -> 以悬浮层打开（保留底层页面）
+ *  - 应用内点击歌单/专辑 -> push 详情 URL -> 以悬浮层打开（保留底层页面）
+ *  - 应用内点击歌手 -> push /artist/:id -> 普通整页路由跳转（不做悬浮层）
  *  - 直接访问 / 刷新详情 URL -> 无底层背景 -> 以完整页面展示
  *  - 关闭悬浮层用 router.back()（消耗一条历史），不用 router.push(parent) 污染历史
  */
@@ -24,6 +25,18 @@ export const DETAIL_TYPES = {
 export const DETAIL_ROUTE_NAMES = new Set(
   Object.values(DETAIL_TYPES).map((type) => type.routeName),
 )
+
+/**
+ * 允许以「悬浮层（模态框）」方式打开的详情类型。
+ * 歌手详情不在其中：/artist/:id 固定按普通路由跳转整页展示。
+ */
+export const OVERLAY_DETAIL_TYPES = new Set(['playlist', 'album'])
+
+/** 该详情路由是否允许以悬浮层方式打开（否则走整页路由跳转）。 */
+export function supportsDetailOverlay(route) {
+  const type = normalizeDetailType(route?.meta?.type || route?.name)
+  return Boolean(type) && OVERLAY_DETAIL_TYPES.has(type)
+}
 
 /** DetailOverlayHost 向详情组件注入「当前处于悬浮模式」的 key。 */
 export const DETAIL_OVERLAY_MODE_KEY = Symbol('detailOverlayMode')

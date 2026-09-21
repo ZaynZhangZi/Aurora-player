@@ -2055,9 +2055,9 @@ watch(
 .profile-logout-trigger:hover { color: #a74e59; background: rgba(255, 255, 255, 0.48); transform: translateY(-1px); }
 .profile-logout-trigger svg { width: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
-.profile-logout-layer { position: fixed; inset: 0; z-index: 1640; display: grid; place-items: center; padding: 20px; }
+.profile-logout-layer { position: fixed; inset: 0; z-index: 1640; display: grid; place-items: center; padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
 .profile-logout-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; border: 0; background: rgba(28, 27, 30, 0.32); backdrop-filter: blur(14px) saturate(0.9); }
-.profile-logout-panel { position: relative; box-sizing: border-box; width: min(410px, 100%); padding: 36px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.86); border-radius: 29px; background: #f8f6f3; box-shadow: 0 32px 90px rgba(29, 27, 30, 0.2); }
+.profile-logout-panel { position: relative; box-sizing: border-box; width: min(410px, 100%); padding: 36px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.86); border-radius: 29px; background: #f8f6f3; box-shadow: 0 32px 90px rgba(29, 27, 30, 0.2); max-height: calc(100dvh - 40px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .profile-logout-mark { display: grid; width: 58px; aspect-ratio: 1; place-items: center; margin: 0 auto 23px; color: #d96775; border-radius: 19px; background: #f3e4e3; }
 .profile-logout-mark svg { width: 28px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 .profile-logout-panel > p { margin: 0; color: #d96775; font-size: 8px; font-weight: 850; letter-spacing: 0.2em; }

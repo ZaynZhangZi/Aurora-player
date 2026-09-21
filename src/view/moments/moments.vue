@@ -1091,9 +1091,9 @@ button:disabled { cursor: default; opacity: .45; }
 .comments-layer-enter-active .comments-drawer, .comments-layer-leave-active .comments-drawer { transition: transform 520ms cubic-bezier(.22, 1, .36, 1), opacity 260ms ease; }
 .comments-layer-enter-from, .comments-layer-leave-to { opacity: 0; }
 .comments-layer-enter-from .comments-drawer, .comments-layer-leave-to .comments-drawer { opacity: .6; transform: translateX(100%); }
-.topic-dialog { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 22px; }
+.topic-dialog { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 22px; overflow-y: auto; overscroll-behavior: contain; }
 .topic-backdrop { position: absolute; inset: 0; border: 0; background: rgba(24, 24, 27, .28); backdrop-filter: blur(12px); }
-.topic-sheet { position: relative; box-sizing: border-box; width: min(680px, 100%); max-height: min(720px, calc(100vh - 44px)); overflow-y: auto; padding: 38px; border-radius: 32px; background: #fbfbfb; box-shadow: 0 32px 100px rgba(24, 24, 27, .22); }
+.topic-sheet { position: relative; box-sizing: border-box; width: min(680px, 100%); max-height: min(720px, calc(100dvh - 44px)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 38px; border-radius: 32px; background: #fbfbfb; box-shadow: 0 32px 100px rgba(24, 24, 27, .22); }
 .topic-close { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; color: #74747b; border: 0; border-radius: 50%; background: #ededee; font-size: 20px; }
 .topic-sheet > p { margin: 0 0 7px; color: #e35466; font-size: 9px; font-weight: 850; letter-spacing: .15em; }
 .topic-sheet > h2 { margin: 0; padding-right: 38px; font-size: 30px; letter-spacing: -.045em; }

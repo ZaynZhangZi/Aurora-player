@@ -330,7 +330,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   /* 三种实体共用同一套容器尺寸 */
   width: 80vw;
+  /* 先用 vh 兜底，支持 dvh 的浏览器用动态视口高度：
+     移动端地址栏/工具栏不应把弹窗底部顶出可视区，否则内容看起来「滚不到」 */
   height: min(86vh, calc(100vh - var(--global-player-space, 92px) - 72px));
+  height: min(86dvh, calc(100dvh - var(--global-player-space, 92px) - 72px));
   overflow: hidden;
   border-radius: 26px;
   /* 与详情页基底色一致，避免内容未铺满时露出刺眼纯白 */
@@ -346,12 +349,16 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .detail-overlay-page {
-  display: block;
   width: 100%;
   height: 100%;
+  /* 注意：这里不要声明 display，
+     它会被作用到详情组件根节点上，并覆盖组件自己的 display:flex
+     （未分层的 scoped 样式优先级高于 Tailwind 的 @layer utilities），
+     曾导致歌单详情页 flex 布局失效、内部滚动区塌陷而无法滚动。 */
 }
 
 .detail-overlay-close {
@@ -396,6 +403,7 @@ onBeforeUnmount(() => {
 .detail-overlay-layer.is-mobile .detail-overlay-dialog {
   width: 100vw;
   height: calc(100vh - var(--global-player-space, 82px));
+  height: calc(100dvh - var(--global-player-space, 82px));
   border-radius: 20px 20px 0 0;
 }
 
@@ -407,6 +415,7 @@ onBeforeUnmount(() => {
   .detail-overlay-dialog {
     width: 100vw;
     height: calc(100vh - var(--global-player-space, 82px));
+    height: calc(100dvh - var(--global-player-space, 82px));
     border-radius: 20px 20px 0 0;
   }
 }

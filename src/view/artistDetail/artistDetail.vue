@@ -3,6 +3,17 @@
     <section class="artist-hero" :class="{'artist-hero--video': hasHeroVideo}">
       <div class="artist-hero-base" />
 
+      <!-- 整页路由模式下的返回入口（悬浮层模式由关闭按钮负责） -->
+      <button
+        v-if="!isOverlay"
+        class="artist-round-action artist-hero-back"
+        type="button"
+        aria-label="返回上一页"
+        @click="goBack"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9"/></svg>
+      </button>
+
       <template v-if="hasHeroVideo">
         <video
           class="artist-hero-video"
@@ -176,7 +187,7 @@
     <Teleport to="body">
       <div
         v-if="mvPlayerOpen"
-        class="fixed inset-0 z-[1002] bg-black/60 p-4 backdrop-blur-xl"
+        class="fixed inset-0 z-[1002] overflow-y-auto overscroll-contain bg-black/60 p-4 backdrop-blur-xl"
         @click.self="closeMvPlayer"
       >
         <div class="mx-auto mt-[8vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
@@ -1677,6 +1688,19 @@ watch(
   margin-left: 2px;
 }
 
+/* 整页详情返回按钮：浮在 Hero 左上角，随视频/环境背景一起可读 */
+.artist-hero-back {
+  position: absolute;
+  top: 22px;
+  left: 24px;
+  z-index: 6;
+}
+
+.artist-hero-back svg {
+  width: 22px;
+  height: 22px;
+}
+
 .artist-content {
   position: relative;
   z-index: 4;
@@ -2117,6 +2141,11 @@ button.artist-heading-link:hover svg {
 }
 
 @media (max-width: 760px) {
+  .artist-hero-back {
+    top: 14px;
+    left: 14px;
+  }
+
   .artist-hero,
   .artist-hero--video,
   .artist-hero-content,

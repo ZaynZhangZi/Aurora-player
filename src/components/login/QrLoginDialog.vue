@@ -486,6 +486,9 @@ watch(successAvatarUrl, async (avatarUrl, previousAvatarUrl) => {
   visibility: hidden;
   pointer-events: none;
   transition: visibility 0s linear 220ms;
+  /* 矮视口时整个弹层可滚动 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .login-dialog-layer.is-open {
@@ -511,8 +514,12 @@ watch(successAvatarUrl, async (avatarUrl, previousAvatarUrl) => {
   display: grid;
   box-sizing: border-box;
   width: min(820px, 100%);
-  min-height: 500px;
-  overflow: hidden;
+  min-height: min(500px, calc(100dvh - 48px));
+  /* 内容高于可用空间时在面板内部滚动（左右两栏 + 二维码永远可达） */
+  max-height: calc(100dvh - 48px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   grid-template-columns: minmax(0, 1fr) 330px;
   outline: none;
   border: 1px solid rgba(255, 255, 255, 0.94);
@@ -773,7 +780,7 @@ watch(successAvatarUrl, async (avatarUrl, previousAvatarUrl) => {
 
 @media (max-width: 680px) {
   .login-dialog-layer { align-items: end; padding: 10px; }
-  .login-dialog-panel { min-height: 0; grid-template-columns: 1fr; border-radius: 28px; }
+  .login-dialog-panel { min-height: 0; max-height: calc(100dvh - 20px); grid-template-columns: 1fr; border-radius: 28px; }
   .login-dialog-copy { display: block; padding: 28px 28px 22px; }
   .login-dialog-copy h2 { margin: 15px 0 10px; font-size: 36px; }
   .login-dialog-copy > p { font-size: 11px; line-height: 1.65; }

@@ -258,7 +258,7 @@
 <script setup>
 defineOptions({name: 'DiscoverPage'})
 
-import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomeMvModal from '@/components/home/HomeMvModal.vue'
@@ -479,6 +479,10 @@ function onDetailClosed(event) {
 
 onMounted(() => {
   window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
+})
+// 歌手详情已改为整页路由：返回发现页时（keep-alive 重新激活）补播封面飞回动画
+onActivated(() => {
+  runDiscoverHeroReturn()
 })
 onUnmounted(() => {
   window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)

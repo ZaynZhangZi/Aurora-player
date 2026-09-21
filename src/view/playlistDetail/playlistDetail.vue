@@ -1,14 +1,19 @@
 ﻿<template>
   <div
-    class="relative flex w-full flex-col overflow-hidden text-stone-900 transition-colors duration-700"
-    :class="isModalPlaylistDetail ? 'h-full min-h-0' : 'h-screen'"
+    class="relative w-full text-stone-900 transition-colors duration-700"
+    :class="isModalPlaylistDetail
+      ? 'h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain'
+      : 'flex h-screen flex-col overflow-hidden'"
     :style="pageStyle"
   >
     <nav class="shrink-0 flex items-center px-6 py-4">
 
     </nav>
 
-    <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-6 pb-6 pt-4 sm:px-10">
+    <main
+      class="mx-auto flex w-full max-w-6xl flex-col px-6 pb-6 pt-4 sm:px-10"
+      :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1'"
+    >
 
       <header ref="playlistHeroCardRef" class="shrink-0 flex flex-col items-center gap-8 md:flex-row md:items-start md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
         <div class="group relative shrink-0">
@@ -76,7 +81,11 @@
       <p v-if="loading" class="shrink-0 animate-pulse text-sm font-medium text-stone-500">正在加载歌单...</p>
       <p v-else-if="error" class="shrink-0 text-sm font-medium text-red-500">{{ error }}</p>
 
-      <section v-else class="relative z-10 flex min-h-0 flex-1 flex-col">
+      <section
+        v-else
+        class="relative z-10 flex flex-col"
+        :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1'"
+      >
         <div class="mb-4 flex shrink-0 items-center justify-between px-4">
           <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
         </div>
@@ -85,7 +94,8 @@
           name="track-item"
           :css="tracks.length <= 80"
           tag="div"
-          class="playlist-track-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pb-24 pr-1"
+          class="playlist-track-scroll space-y-1 pb-24 pr-1"
+          :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1 overflow-y-auto'"
           appear
         >
           <div

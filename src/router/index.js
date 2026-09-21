@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { visitApi } from '@/api/visitApi/visitApi.js'
+import { supportsDetailOverlay } from '@/composables/useDetailNavigation.js'
 import SystemStatus from '@/view/systemStatus.vue'
 
 let navigatingBackMarkedAt = 0
@@ -39,9 +40,10 @@ function legacyDetailRedirect(type, fallbackName = 'home') {
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior(to, from, savedPosition) {
-    // 详情悬浮层的开/关不应改变底层页面的窗口滚动位置；
+    // 只有悬浮层（模态框）详情的开/关才冻结底层页面滚动位置：
     // 背景页保持挂载，滚动位置天然保留。
-    if (to.meta?.detail || from.meta?.detail) return false
+    // 歌手详情等整页详情是普通路由跳转，需要正常滚动（返回时恢复原位置）。
+    if (supportsDetailOverlay(to) || supportsDetailOverlay(from)) return false
     if (savedPosition) return savedPosition
     if (to.path === from.path) return false
     return { left: 0, top: 0, behavior: 'auto' }

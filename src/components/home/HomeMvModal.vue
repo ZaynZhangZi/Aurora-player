@@ -83,11 +83,18 @@ function updateResolution(event) {
   place-items: center;
   background: rgba(24, 24, 27, 0.42);
   backdrop-filter: blur(24px);
+  /* 矮视口时整个弹层可滚动 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mv-dialog {
   width: min(100%, 1040px);
-  overflow: hidden;
+  /* 内容高于可用高度时在弹窗内部滚动 */
+  max-height: calc(100dvh - 40px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.76);
   border-radius: 30px;
   background: #fff;
@@ -124,7 +131,7 @@ function updateResolution(event) {
 
 @media (max-width: 600px) {
   .mv-layer { padding: 10px; }
-  .mv-dialog { border-radius: 22px; }
+  .mv-dialog { max-height: calc(100dvh - 20px); border-radius: 22px; }
   .mv-header { align-items: start; padding: 16px; }
   .mv-actions select { display: none; }
 }

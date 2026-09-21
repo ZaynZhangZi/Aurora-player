@@ -88,6 +88,8 @@ function asList(value) {
   padding: 16px;
   background: rgba(24, 24, 27, 0.15);
   backdrop-filter: blur(18px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .notes-panel {
@@ -109,7 +111,7 @@ function asList(value) {
 .notes-header-actions { display: flex; align-items: center; gap: 10px; }
 .notes-header-actions span { padding: 7px 11px; color: #fff; border-radius: 999px; background: #27272a; font-size: 10px; font-weight: 800; }
 .notes-header-actions button { display: grid; width: 34px; aspect-ratio: 1; place-items: center; cursor: pointer; color: #52525b; border: 0; border-radius: 50%; background: #e4e4e7; font-size: 22px; line-height: 1; }
-.notes-content { overflow-y: auto; padding: 28px; }
+.notes-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 28px; }
 .notes-list { display: grid; gap: 18px; }
 .note-card { padding: 22px; border: 1px solid rgba(24, 24, 27, 0.04); border-radius: 22px; background: #fff; }
 .note-card-title { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #f4f4f5; }

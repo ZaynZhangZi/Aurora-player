@@ -40,6 +40,8 @@ function number(value, digits) {
   bottom: calc(var(--global-player-height, 76px) + 12px);
   z-index: 1200;
   width: 260px;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
   padding: 10px 12px;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 14px;
