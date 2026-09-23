@@ -1487,8 +1487,11 @@ watch(
 
 <style scoped>
 .artist-page {
-  min-height: 100%;
-  height: 100%;
+  /* 整页路由的父级没有固定高度，100% 会退化成内容高度，
+     请求期间骨架较短时就会露出 body 的白色背景。 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   overflow-y: auto;
   color: rgba(255, 255, 255, 0.96);
   isolation: isolate;
@@ -1498,12 +1501,12 @@ watch(
 
 .artist-hero {
   position: relative;
-  min-height: 540px;
+  min-height: 620px;
   overflow: clip visible;
 }
 
 .artist-hero--video {
-  min-height: 620px;
+  min-height: 700px;
 }
 
 .artist-hero-base {
@@ -1577,7 +1580,7 @@ watch(
   position: relative;
   z-index: 3;
   display: flex;
-  min-height: 540px;
+  min-height: 620px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1587,7 +1590,7 @@ watch(
 }
 
 .artist-hero--video .artist-hero-content {
-  min-height: 620px;
+  min-height: 700px;
   justify-content: flex-end;
   padding-bottom: 62px;
 }
