@@ -107,7 +107,7 @@
                   @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
                 >
                   <span class="ranking-song-cover">
-                    <img :src="getSongCover(song)" :alt="song.name" @error="onBlockImageError" />
+                    <img :src="getSongCover(song)" :alt="song.name" loading="lazy" @error="onBlockImageError" />
                     <span class="ranking-song-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
                   </span>
                   <span class="ranking-song-copy">
@@ -140,7 +140,7 @@
           <div class="album-grid">
             <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" @click="openAlbum(album, $event)">
               <span class="album-card-cover" data-album-hero-cover :data-album-id="album.id">
-                <img :src="album.picUrl" :alt="album.name" @error="onBlockImageError" />
+                <img :src="album.picUrl" :alt="album.name" loading="lazy" @error="onBlockImageError" />
                 <span class="album-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
               </span>
               <strong>{{ album.name }}</strong>
@@ -168,7 +168,7 @@
           <div class="mv-grid">
             <button v-for="mv in pagedMvs" :key="mv.id" class="mv-card" type="button" @click="openMv(mv)">
               <span class="mv-card-cover">
-                <img :src="getMvCover(mv)" :alt="mv.name" @error="onBlockImageError" />
+                <img :src="getMvCover(mv)" :alt="mv.name" loading="lazy" @error="onBlockImageError" />
                 <span class="mv-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
               </span>
               <strong>{{ mv.name }}</strong>
@@ -260,6 +260,7 @@ const artistProfile = ref(null)
 const heroBannerVideo = ref('')
 const heroBannerPoster = ref('')
 const heroVideoReady = ref(false)
+let artistLoadSequence = 0
 
 const hotSongs = ref([])
 const allSongs = ref([])
@@ -657,9 +658,9 @@ function animateThemeTo(nextRgb, {duration = 460} = {}) {
   themeRaf = requestAnimationFrame(tick)
 }
 
-async function pickThemeFromImage(imageUrl, seed) {
+async function pickThemeFromImage(imageUrl, seed, isCurrent = () => true) {
   if (!imageUrl) {
-    themeRgb.value = colorFromSeed(seed)
+    if (isCurrent()) themeRgb.value = colorFromSeed(seed)
     return
   }
 
@@ -673,6 +674,7 @@ async function pickThemeFromImage(imageUrl, seed) {
       image.onerror = reject
       image.src = imageUrl
     })
+    if (!isCurrent()) return
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d', {willReadFrequently: true})
@@ -723,9 +725,9 @@ async function pickThemeFromImage(imageUrl, seed) {
     saturation = Math.min(0.84, Math.max(0.34, saturation * 1.12))
     lightness = Math.min(0.27, Math.max(0.12, lightness * 0.62))
     const [rr, gg, bb] = chroma.hsl(hue, saturation, lightness).rgb()
-    themeRgb.value = `${Math.round(rr)}, ${Math.round(gg)}, ${Math.round(bb)}`
+    if (isCurrent()) themeRgb.value = `${Math.round(rr)}, ${Math.round(gg)}, ${Math.round(bb)}`
   } catch {
-    themeRgb.value = colorFromSeed(seed)
+    if (isCurrent()) themeRgb.value = colorFromSeed(seed)
   }
 }
 
@@ -1210,6 +1212,8 @@ async function ensureArtistId() {
 }
 
 async function loadArtistPage() {
+  const loadSequence = ++artistLoadSequence
+  const isCurrentLoad = () => loadSequence === artistLoadSequence
   loading.value = true
   error.value = ''
   hotSongs.value = []
@@ -1242,91 +1246,111 @@ async function loadArtistPage() {
 
   await ensureArtistId()
 
+  if (!isCurrentLoad()) return
+
   if (!artistId.value) {
     error.value = '未找到该歌手信息'
     loading.value = false
     return
   }
 
-  try {
-    const [infoRes, hotRes, allSongsRes, albumRes, mvRes] = await Promise.allSettled([
-      artistApi.getArtistInfo(artistId.value),
-      artistApi.getArtistHotSongs(artistId.value),
-      artistApi.getArtistAllSongs(artistId.value, {limit: songRequestLimit, offset: 0}),
-      artistApi.getArtistAlbum(artistId.value, {limit: albumRequestLimit, offset: 0}),
-      artistApi.getArtistMv(artistId.value, {limit: mvPageSize * 2, offset: 0}),
-    ])
+  const currentArtistId = artistId.value
+  const infoRequest = artistApi.getArtistInfo(currentArtistId)
+  const hotSongsRequest = artistApi.getArtistHotSongs(currentArtistId)
 
-    if (infoRes.status === 'fulfilled') {
-      artistProfile.value = infoRes.value?.data?.data?.artist || null
-      artistName.value = artistProfile.value?.name || artistName.value || String(route.query.name || '')
-    }
-
-    if (hotRes.status === 'fulfilled') {
-      hotSongs.value = hotRes.value?.data?.songs || []
-    }
-
-    if (allSongsRes.status === 'fulfilled') {
-      const initialSongs = allSongsRes.value?.data?.songs || []
+  // 非首屏数据独立请求和落位，避免专辑、MV 或横幅接口拖住整个页面。
+  void artistApi.getArtistAllSongs(currentArtistId, {limit: songRequestLimit, offset: 0})
+    .then((res) => {
+      if (!isCurrentLoad()) return
+      const initialSongs = res?.data?.songs || []
       allSongs.value = mergeSongs([], initialSongs)
       songRequestOffset.value = initialSongs.length
-      songHasMore.value = Boolean(allSongsRes.value?.data?.more)
-    } else {
+      songHasMore.value = Boolean(res?.data?.more)
+      if (!initialSongs.length && !hotSongs.value.length) {
+        allSongs.value = mergeSongs([], hotSongs.value)
+      }
+    })
+    .catch(() => {
+      if (!isCurrentLoad()) return
       songAllRequestFailed.value = true
       songHasMore.value = true
-    }
-
-    if (!allSongs.value.length) {
       allSongs.value = mergeSongs([], hotSongs.value)
-      if (!songAllRequestFailed.value) {
-        songHasMore.value = false
-      }
-    }
+    })
 
-    if (albumRes.status === 'fulfilled') {
-      const initialAlbums = albumRes.value?.data?.hotAlbums || []
+  void artistApi.getArtistAlbum(currentArtistId, {limit: albumRequestLimit, offset: 0})
+    .then((res) => {
+      if (!isCurrentLoad()) return
+      const initialAlbums = res?.data?.hotAlbums || []
       albums.value = initialAlbums
       albumOffset.value = initialAlbums.length
-      albumHasMore.value = Boolean(albumRes.value?.data?.more)
-    }
+      albumHasMore.value = Boolean(res?.data?.more)
+    })
+    .catch(() => {})
 
-    if (mvRes.status === 'fulfilled') {
-      const initialMvs = mvRes.value?.data?.mvs || []
+  void artistApi.getArtistMv(currentArtistId, {limit: mvPageSize * 2, offset: 0})
+    .then((res) => {
+      if (!isCurrentLoad()) return
+      const initialMvs = res?.data?.mvs || []
       mvs.value = initialMvs
       mvOffset.value = initialMvs.length
-      mvHasMore.value = Boolean(mvRes.value?.data?.hasMore)
+      mvHasMore.value = Boolean(res?.data?.hasMore)
+    })
+    .catch(() => {})
+
+  let coreSettled = 0
+  let coreSucceeded = false
+  const settleCoreRequest = (succeeded) => {
+    if (!isCurrentLoad()) return
+    coreSettled += 1
+    coreSucceeded ||= succeeded
+    if (succeeded) loading.value = false
+    if (coreSettled === 2) {
+      if (!coreSucceeded) error.value = '歌手数据加载失败，请稍后重试'
+      loading.value = false
     }
-
-    const lookupName = String(
-      artistProfile.value?.name
-      || artistName.value
-      || route.query.name
-      || '',
-    ).trim()
-
-    if (lookupName) {
-      try {
-        const heroRes = await artistApi.getArtistVideo(lookupName)
-        const {bannerVideo, bannerPoster} = resolveArtistBanner(heroRes)
-        heroBannerVideo.value = bannerVideo
-        heroBannerPoster.value = bannerPoster
-        heroVideoReady.value = false
-      } catch {
-        heroBannerVideo.value = ''
-        heroBannerPoster.value = ''
-        heroVideoReady.value = false
-      }
-    }
-
-    await pickThemeFromImage(
-      heroBannerPoster.value || artistProfile.value?.cover || artistProfile.value?.picUrl,
-      artistName.value,
-    )
-  } catch (err) {
-    error.value = err?.message || '歌手数据加载失败，请稍后重试'
-  } finally {
-    loading.value = false
   }
+
+  void infoRequest
+    .then((res) => {
+      if (!isCurrentLoad()) return
+      artistProfile.value = res?.data?.data?.artist || null
+      artistName.value = artistProfile.value?.name || artistName.value || String(route.query.name || '')
+
+      const lookupName = String(artistProfile.value?.name || artistName.value || route.query.name || '').trim()
+      const fallbackArtwork = artistProfile.value?.cover || artistProfile.value?.picUrl
+      if (fallbackArtwork) void pickThemeFromImage(fallbackArtwork, artistName.value, isCurrentLoad)
+
+      if (lookupName) {
+        void artistApi.getArtistVideo(lookupName)
+          .then(async (heroRes) => {
+            if (!isCurrentLoad()) return
+            const {bannerVideo, bannerPoster} = resolveArtistBanner(heroRes)
+            heroBannerVideo.value = bannerVideo
+            heroBannerPoster.value = bannerPoster
+            heroVideoReady.value = false
+            await pickThemeFromImage(bannerPoster || fallbackArtwork, artistName.value, isCurrentLoad)
+          })
+          .catch(() => {
+            if (!isCurrentLoad()) return
+            heroBannerVideo.value = ''
+            heroBannerPoster.value = ''
+            heroVideoReady.value = false
+          })
+      }
+      settleCoreRequest(true)
+    })
+    .catch(() => settleCoreRequest(false))
+
+  void hotSongsRequest
+    .then((res) => {
+      if (!isCurrentLoad()) return
+      hotSongs.value = res?.data?.songs || []
+      if (!allSongs.value.length) {
+        allSongs.value = mergeSongs([], hotSongs.value)
+      }
+      settleCoreRequest(true)
+    })
+    .catch(() => settleCoreRequest(false))
 }
 
 async function loadMoreAlbums() {

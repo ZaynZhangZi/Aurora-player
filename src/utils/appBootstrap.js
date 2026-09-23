@@ -8,14 +8,14 @@
  * <script>/<link>）逐个下载完成 —— 用 PerformanceObserver 监听
  * 'resource' 条目，每完成一个真实请求就推进一点，而不是估算时间。
  *
- * 阶段二（70-100%）：当前路由的异步组件 chunk 下载解析完成
- * （router.isReady()）+ 字体加载完成（document.fonts.ready）+
- * 浏览器完成首帧绘制（rAF）。这三者本身耗时可能很短，但都是
- * "这个具体页面能显示了"之前必须发生的真实前置条件。
+ * 阶段二（70-100%）：当前路由 ready 后，后台预热所有页面 chunk，
+ * 再等待字体加载（document.fonts.ready）和浏览器完成首帧绘制（rAF）。
+ * 开屏收起后，页面间切换无需再等路由组件代码下载。
  */
 
 const SHELL_WEIGHT = 70
 const ROUTE_WEIGHT = 30
+const routePreloadPromises = new WeakMap()
 
 function getCriticalShellResourceUrls() {
   const selector = 'script[src], link[rel="stylesheet"], link[rel="modulepreload"]'
@@ -79,6 +79,37 @@ function waitRouterReady(router) {
   return router.isReady().catch(() => {})
 }
 
+export function preloadRouteComponents(router) {
+  if (!router || typeof router.getRoutes !== 'function') return Promise.resolve()
+  const previousPreload = routePreloadPromises.get(router)
+  if (previousPreload) return previousPreload
+
+  const loaders = new Set()
+  router.getRoutes().forEach((record) => {
+    Object.values(record.components || {}).forEach((component) => {
+      // Vue Router stores lazy route components as import functions. Eagerly
+      // resolve those modules during the splash screen so later navigation
+      // does not pause while the browser downloads a page chunk.
+      if (typeof component === 'function') loaders.add(component)
+    })
+  })
+
+  const tasks = [...loaders].map((load) => {
+    try {
+      const result = load()
+      return result && typeof result.then === 'function' ? result : Promise.resolve()
+    } catch {
+      return Promise.resolve()
+    }
+  })
+  tasks.push(import('@/components/globalFooterPlayer/globalFooterPlayer.vue').catch(() => {}))
+  tasks.push(import('@applemusic-like-lyrics/vue').catch(() => {}))
+
+  const preloadPromise = Promise.allSettled(tasks)
+  routePreloadPromises.set(router, preloadPromise)
+  return preloadPromise
+}
+
 function waitFontsReady() {
   if (typeof document === 'undefined' || !document.fonts?.ready) {
     return Promise.resolve()
@@ -111,6 +142,10 @@ export async function runAppBootstrap({ router, onProgress } = {}) {
     report('正在加载资源')
   })
 
+  // 在下载外壳资源的同时预热所有页面模块；首屏仍只依赖当前路由，
+  // 开屏收起前再等待其余页面模块完成，后续切页就不用临时下载代码。
+  const routePreload = preloadRouteComponents(router)
+
   // 关键资源全部下载完成后再进入下一阶段；shell 资源通常很快，
   // 但在弱网下会真实地把这一段拉长，这正是我们想要的效果。
   await new Promise((resolve) => {
@@ -127,7 +162,10 @@ export async function runAppBootstrap({ router, onProgress } = {}) {
 
   report('准备页面内容')
   await waitRouterReady(router)
-  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.6, '准备页面内容')
+  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.35, '正在预加载页面')
+
+  await routePreload
+  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.65, '正在准备页面')
 
   await waitFontsReady()
   onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.85, '准备页面内容')
