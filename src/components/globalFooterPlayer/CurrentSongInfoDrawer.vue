@@ -33,7 +33,7 @@
             <div class="song-info-heading">
               <p class="song-info-kicker">NOW PLAYING · SONG FILE</p>
               <h2 id="song-info-title">{{ displayName }}</h2>
-              <p class="song-info-artists">{{ displayArtists }}</p>
+              <p class="song-info-artists"><ArtistLinks :artists="displayArtistList" /></p>
               <div class="song-info-meta">
                 <span v-if="albumName">{{ albumName }}</span>
                 <span v-if="releaseYear">{{ releaseYear }}</span>
@@ -178,7 +178,7 @@
                   <span v-else class="song-info-similar-fallback">{{ item.name.slice(0, 1) }}</span>
                   <span class="song-info-similar-copy">
                     <strong>{{ item.name }}</strong>
-                    <small>{{ item.artistText }}</small>
+                    <small><ArtistLinks :artists="item.artists || item.artistText" /></small>
                   </span>
                   <span class="song-info-play-mark" aria-hidden="true"><PlayIcon /></span>
                 </button>
@@ -209,6 +209,7 @@ import {PlayIcon} from '@heroicons/vue/24/solid'
 import {computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch} from 'vue'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 
 const props = defineProps({
   open: Boolean,
@@ -266,14 +267,11 @@ const displayCover = computed(() => (
   ''
 ))
 const displayArtistList = computed(() => (
-  detail.value?.ar || detail.value?.artists || props.song?.artists || props.song?.ar || []
+  [detail.value?.ar, detail.value?.artists, props.song?.artists, props.song?.ar]
+    .find(items => Array.isArray(items) && items.length)
+  || props.song?.artistName
+  || ''
 ))
-const displayArtists = computed(() => {
-  const names = displayArtistList.value
-    .map(item => String(item?.name || item?.artistName || item || '').trim())
-    .filter(Boolean)
-  return names.join(' / ') || '未知艺人'
-})
 const albumName = computed(() => detail.value?.al?.name || detail.value?.album?.name || '')
 const aliasText = computed(() => {
   const aliases = detail.value?.alia || detail.value?.alias || []

@@ -40,7 +40,8 @@
       <span ref="copyRef" class="best-match-copy">
         <small>{{ typeLabel }}</small>
         <strong>{{ name }}</strong>
-        <em>{{ subtitle }}</em>
+        <em v-if="type === 'song' || type === 'album'"><ArtistLinks :artists="artistItems" :fallback-text="subtitle" /></em>
+        <em v-else>{{ subtitle }}</em>
       </span>
       <span ref="openRef" class="best-match-open" aria-hidden="true">
         <svg v-if="type === 'song'" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
@@ -54,6 +55,7 @@
 import {computed, onBeforeUnmount, ref, watch} from 'vue'
 import {gsap} from 'gsap'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerThemeFromCover} from '@/composables/usePlayerThemeFromCover.js'
 import {createFallbackTheme} from '@/utils/player/playerTheme.js'
 
@@ -72,6 +74,13 @@ const openRef = ref(null)
 const item = computed(() => props.match?.item || {})
 const type = computed(() => props.match?.type || 'song')
 const name = computed(() => item.value?.name || '未命名')
+const artistItems = computed(() => {
+  const artists = [item.value?.artists, item.value?.ar].find(items => Array.isArray(items) && items.length)
+  return (Array.isArray(artists) && artists.length ? artists : null)
+    || item.value?.artist
+    || item.value?.artistName
+    || []
+})
 const cover = computed(() => (
   item.value?.picUrl
   || item.value?.coverImgUrl
@@ -92,8 +101,8 @@ const subtitle = computed(() => {
     const total = Number(item.value?.trackCount || 0)
     return total ? `${total.toLocaleString()} 首歌曲` : item.value?.copywriter || '精选歌单'
   }
-  const artists = item.value?.artists || item.value?.ar || []
-  const artistText = item.value?.artist?.name || artists.map(artist => artist?.name || artist).filter(Boolean).join(' / ')
+  const artists = [item.value?.artists, item.value?.ar].find(items => Array.isArray(items) && items.length) || []
+  const artistText = item.value?.artist?.name || item.value?.artistName || artists.map(artist => artist?.name || artist).filter(Boolean).join(' / ')
   if (type.value === 'album') return artistText || '查看专辑'
   return artistText || item.value?.al?.name || '立即播放'
 })

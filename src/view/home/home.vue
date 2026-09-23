@@ -52,7 +52,7 @@
             <button v-if="stationSong" class="personal-station-feature" type="button" @click="playStationSong">
               <span class="personal-station-cover"><SmartMedia :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl" :alt="`${stationSong.name}封面`" :image-width="320" sizes="112px" /></span>
               <span class="personal-station-copy">
-                <small>为你选出的这一首</small><strong>{{ stationSong.name }}</strong><span>{{ formatArtists(stationSong) }}</span>
+                <small>为你选出的这一首</small><strong>{{ stationSong.name }}</strong><ArtistLinks class="station-artists" :artists="getSongArtists(stationSong)" />
               </span>
               <span class="personal-station-action">
                 <i class="personal-station-play" aria-hidden="true">▶</i>
@@ -66,7 +66,7 @@
               <div class="personal-up-next-list">
                 <button v-for="(song, index) in stationQueue.slice(1, 4)" :key="song.id" type="button" @click="playStationSong(song, index + 1)">
                   <span>{{ String(index + 2).padStart(2, '0') }}</span>
-                  <span><strong>{{ song.name }}</strong><small>{{ formatArtists(song) }}</small></span>
+                  <span><strong>{{ song.name }}</strong><small><ArtistLinks :artists="getSongArtists(song)" /></small></span>
                   <i aria-hidden="true">↗</i>
                 </button>
               </div>
@@ -92,7 +92,7 @@
             <small>CONTINUE LISTENING</small>
             <h2>继续播放</h2>
             <strong>{{ resumeSong.name }}</strong>
-            <em>{{ formatArtists(resumeSong) }}</em>
+            <em><ArtistLinks :artists="getSongArtists(resumeSong)" /></em>
             <span class="lofi-progress"><i :style="{width: `${resumeProgress}%`}" /></span>
             <b>{{ resumeProgress ? `已播放 ${Math.round(resumeProgress)}%` : '从这里继续你的声音' }}</b>
           </div>
@@ -106,7 +106,7 @@
           <button v-for="(song, index) in resumeQueue.slice(1, 4)" :key="`${song.id}-${index}`" type="button" @click="playResumeSong(song)">
             <span>{{ String(index + 2).padStart(2, '0') }}</span>
             <strong>{{ song.name }}</strong>
-            <small>{{ formatArtists(song) }}</small>
+            <small><ArtistLinks :artists="getSongArtists(song)" /></small>
             <i aria-hidden="true">▶</i>
           </button>
         </div>
@@ -214,6 +214,7 @@ defineOptions({name: 'HomePage'})
 import {computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
@@ -304,9 +305,9 @@ const resumeProgress = computed(() => {
   if (!duration) return 0
   return Math.min(100, Math.max(0, Number(playerStore.currentTimeMs || 0) / duration * 100))
 })
-function formatArtists(song) {
-  const list = song?.ar || song?.artists || []
-  return list.map(item => item?.name || item).filter(Boolean).join(' / ') || '未知艺人'
+
+function getSongArtists(song) {
+  return [song?.ar, song?.artists].find(items => Array.isArray(items) && items.length) || song?.artistName || ''
 }
 
 async function playStationSong(song = stationSong.value, index = 0) {
@@ -464,10 +465,10 @@ button { cursor: pointer; font: inherit; }
 .personal-station-copy { min-width: 0; }
 .personal-station-copy small,
 .personal-station-copy strong,
-.personal-station-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-station-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .personal-station-copy small { color: #e85769; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; }
 .personal-station-copy strong { margin-top: 8px; font-size: clamp(18px, 2vw, 25px); font-weight: 880; letter-spacing: -0.035em; }
-.personal-station-copy span { margin-top: 8px; color: #8b868c; font-size: 10px; }
+.personal-station-copy > span { margin-top: 8px; color: #8b868c; font-size: 10px; }
 .personal-station-action { display: flex; align-items: center; flex-direction: column; gap: 7px; }
 .personal-station-action b { color: #8d878d; font-size: 7px; font-weight: 760; white-space: nowrap; }
 .personal-station-play { display: grid; width: 48px; aspect-ratio: 1; place-items: center; padding-left: 3px; color: #fff; border-radius: 50%; background: #29272d; box-shadow: 0 10px 25px rgba(56, 42, 46, 0.19); font-size: 12px; font-style: normal; transition: transform 220ms ease, background 220ms ease; }

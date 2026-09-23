@@ -23,7 +23,7 @@
           >
             <SmartMedia :src="album.picUrl" :alt="`${album.name}专辑封面`" :image-width="960" img-loading="eager" sizes="(min-width: 900px) 50vw, 88vw" data-album-hero-cover :data-album-id="album.id" />
             <span class="spotlight-shade" />
-            <span class="spotlight-copy"><small>{{ index === 0 ? '本周主打' : '编辑推荐' }}</small><strong>{{ album.name }}</strong><i>{{ album.artistName }}</i></span>
+            <span class="spotlight-copy"><small>{{ index === 0 ? '本周主打' : '编辑推荐' }}</small><strong>{{ album.name }}</strong><i><ArtistLinks :artists="album.artists?.length ? album.artists : (album.artist || album.artistName || '')" /></i></span>
           </button>
         </div>
         <div v-else class="release-spotlight spotlight-loading"><span v-for="index in 3" :key="index" /></div>
@@ -70,7 +70,7 @@
                 <i>{{ formatReleaseDate(album.publishTime) }}</i>
               </span>
               <strong>{{ album.name }}</strong>
-              <small>{{ album.artistName }}</small>
+              <small><ArtistLinks :artists="album.artists?.length ? album.artists : (album.artist || album.artistName || '')" /></small>
             </button>
           </div>
           <div v-else-if="loading.albums" class="featured-skeleton-grid is-albums"><span v-for="index in 6" :key="index" /></div>
@@ -120,7 +120,7 @@
           <div v-if="featuredMvs.length" class="featured-video-grid">
             <button v-for="item in featuredMvs" :key="`featured-mv-${item.id}`" type="button" @click="openMv(item)">
               <span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="720" sizes="(min-width: 900px) 25vw, 72vw" /><i aria-hidden="true">▶</i></span>
-              <strong>{{ item.name }}</strong><small>{{ item.artistName || '未知艺人' }}</small>
+              <strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small>
             </button>
           </div>
           <div v-else-if="loading.mv" class="featured-skeleton-grid is-videos"><span v-for="index in 4" :key="index" /></div>
@@ -175,7 +175,7 @@
           <div v-else class="media-card-grid release-grid">
             <button v-for="album in newAlbums.slice(0, 20)" :key="album.id" type="button" class="media-card" @click="openAlbum(album, $event)">
               <span data-album-hero-cover :data-album-id="album.id"><SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="640" sizes="230px" /><i>{{ formatReleaseDate(album.publishTime) }}</i></span>
-              <strong>{{ album.name }}</strong><small>{{ album.artistName }}</small><em>{{ album.company || '新发行' }}</em>
+              <strong>{{ album.name }}</strong><small><ArtistLinks :artists="album.artists?.length ? album.artists : (album.artist || album.artistName || '')" /></small><em>{{ album.company || '新发行' }}</em>
             </button>
           </div>
       </section>
@@ -187,7 +187,7 @@
           <div v-else class="chart-grid">
             <button v-for="chart in charts.slice(0, 12)" :key="chart.id" type="button" class="chart-card" @click="openPlaylist(chart, $event)">
               <span class="chart-art" data-playlist-hero-cover :data-playlist-id="chart.id"><SmartMedia :src="chart.coverImgUrl" :alt="`${chart.name}封面`" :image-width="500" sizes="170px" /></span>
-              <span class="chart-info"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><ol><li v-for="(track, index) in chart.tracks?.slice(0, 3)" :key="`${chart.id}-${index}`"><b>{{ index + 1 }}</b><span>{{ track.first }}</span><i>{{ track.second }}</i></li></ol></span>
+              <span class="chart-info"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><ol><li v-for="(track, index) in chart.tracks?.slice(0, 3)" :key="`${chart.id}-${index}`"><b>{{ index + 1 }}</b><span>{{ track.first }}</span><i><ArtistLinks :artists="track.artists?.length ? track.artists : (track.ar?.length ? track.ar : (track.second || ''))" /></i></li></ol></span>
             </button>
           </div>
       </section>
@@ -221,7 +221,7 @@
             <div v-if="loading.mv" class="video-grid skeleton-grid"><span v-for="index in 9" :key="index" /></div>
             <div v-else-if="errors.mv" class="browse-state"><p>{{ errors.mv }}</p><button type="button" @click="refreshMv">重新加载</button></div>
             <div v-else class="video-grid">
-              <button v-for="item in mvList" :key="item.id" type="button" @click="openMv(item)"><span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="760" sizes="(min-width: 900px) 31vw, 92vw" /><i>▶</i></span><strong>{{ item.name }}</strong><small>{{ item.artistName || '未知艺人' }}</small></button>
+              <button v-for="item in mvList" :key="item.id" type="button" @click="openMv(item)"><span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="760" sizes="(min-width: 900px) 31vw, 92vw" /><i>▶</i></span><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small></button>
             </div>
             <div v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'" class="browse-pagination"><button type="button" :disabled="mvOffset <= 0 || loading.mv" @click="prevMvPage">上一页</button><span>第 {{ Math.floor(mvOffset / mvLimit) + 1 }} 页</span><button type="button" :disabled="!mvHasMore || loading.mv" @click="nextMvPage">下一页</button></div>
           </template>
@@ -263,6 +263,7 @@ import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomeMvModal from '@/components/home/HomeMvModal.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {useDiscoverData} from '@/composables/useDiscoverData.js'
 import {useHomeMv} from '@/composables/useHomeMv.js'
 import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'

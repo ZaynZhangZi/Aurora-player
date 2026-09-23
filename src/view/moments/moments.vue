@@ -31,7 +31,7 @@
             <Transition name="attachment">
               <div v-if="selectedSong" class="selected-song">
                 <img :src="songCover(selectedSong)" alt="" />
-                <div><small>准备分享的歌曲</small><strong>{{ selectedSong.name }}</strong><span>{{ artistNames(selectedSong) }}</span></div>
+                <div><small>准备分享的歌曲</small><strong>{{ selectedSong.name }}</strong><ArtistLinks :artists="songArtistItems(selectedSong)" /></div>
                 <button type="button" aria-label="移除歌曲" @click="selectedSong = null">×</button>
               </div>
             </Transition>
@@ -45,7 +45,7 @@
               <div v-if="songResults.length" class="song-results">
                 <button v-for="song in songResults" :key="song.id" type="button" @click="chooseSong(song)">
                   <img :src="songCover(song)" alt="" loading="lazy" />
-                  <span><strong>{{ song.name }}</strong><small>{{ artistNames(song) }}</small></span>
+                  <span><strong>{{ song.name }}</strong><small><ArtistLinks :artists="songArtistItems(song)" /></small></span>
                   <i>选择</i>
                 </button>
               </div>
@@ -98,7 +98,7 @@
                 <button v-if="event.resource" type="button" class="event-resource" @click="openResource(event.resource)">
                   <img v-if="event.resource.cover" :src="event.resource.cover" alt="" loading="lazy" />
                   <span v-else class="resource-note">♪</span>
-                  <span><small>{{ event.resource.label }}</small><strong>{{ event.resource.name }}</strong><i>{{ event.resource.subtitle }}</i></span>
+                  <span><small>{{ event.resource.label }}</small><strong>{{ event.resource.name }}</strong><i v-if="event.resource.artistItems?.length"><ArtistLinks :artists="event.resource.artistItems" /></i><i v-else>{{ event.resource.subtitle }}</i></span>
                   <b v-if="event.resource.kind === 'song'" aria-label="播放歌曲">
                     <svg viewBox="0 0 24 24"><path d="m9 7 8 5-8 5V7Z"/></svg>
                   </b>
@@ -254,6 +254,7 @@ defineOptions({name: 'MomentsPage'})
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {userApi} from '@/api/userApi/userApi.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'
 import {useCounterStore} from '@/stores/userStores.js'
@@ -346,6 +347,10 @@ function artistNames(song) {
   return (song?.ar || song?.artists || []).map(item => item?.name || item).filter(Boolean).join(' / ') || song?.artistName || '未知艺人'
 }
 
+function songArtistItems(song) {
+  return [song?.ar, song?.artists].find(items => Array.isArray(items) && items.length) || song?.artistName || ''
+}
+
 function songCover(song) {
   return song?.al?.picUrl || song?.album?.picUrl || song?.cover || song?.picUrl || ''
 }
@@ -363,12 +368,14 @@ function normalizeResource(payload) {
   const matched = candidates.find(([, value]) => value && typeof value === 'object')
   if (!matched) return null
   const [kind, value, label] = matched
+  const artistItems = [value?.ar, value?.artists].find(items => Array.isArray(items) && items.length) || value?.artist || value?.artistName || ''
   const creator = value?.creator?.nickname || value?.artist?.name || artistNames(value)
   return {
     kind,
     id: Number(value?.id || value?.vid || 0),
     name: value?.name || value?.title || value?.al?.name || '音乐内容',
     subtitle: creator,
+    artistItems: ['song', 'album', 'mv'].includes(kind) ? artistItems : null,
     cover: songCover(value) || value?.coverImgUrl || value?.coverUrl || value?.picUrl || value?.blurPicUrl || value?.creator?.avatarUrl || '',
     label,
     raw: value,

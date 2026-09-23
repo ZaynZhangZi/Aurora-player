@@ -47,7 +47,15 @@
           />
         </span>
         <span class="media-name">{{ nameOf(item) }}</span>
-        <span class="media-sub">{{ subOf(item) }}</span>
+        <span class="media-sub">
+          <ArtistLinks
+            v-if="variant === 'album'"
+            :artists="artistItemsOf(item)"
+            fallback-text="未知艺人"
+            link-class="hover:underline"
+          />
+          <template v-else>{{ subOf(item) }}</template>
+        </span>
       </button>
     </TransitionGroup>
   </section>
@@ -56,6 +64,7 @@
 <script setup>
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 
 defineProps({
   eyebrow: { type: String, default: '' },
@@ -76,10 +85,15 @@ function coverOf(item) {
 }
 
 function subOf(item) {
-  if (item?.artist?.name) return item.artist.name
-  if (Array.isArray(item?.artists)) return item.artists.map((a) => a?.name || a).filter(Boolean).join(' / ')
   if (Array.isArray(item?.alias) && item.alias[0]) return item.alias[0]
   return ''
+}
+
+function artistItemsOf(item) {
+  return (Array.isArray(item?.artists) && item.artists.length ? item.artists : null)
+    || item?.artist
+    || item?.artistName
+    || ''
 }
 </script>
 

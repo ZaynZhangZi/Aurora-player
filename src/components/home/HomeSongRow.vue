@@ -27,7 +27,12 @@
     </span>
     <span class="song-copy">
       <span class="song-title">{{ title }}</span>
-      <span class="song-artist">{{ artist }}</span>
+      <ArtistLinks
+        class="song-artist"
+        :artists="artistItems"
+        container-class="min-w-0 truncate"
+        link-class="hover:text-zinc-800 hover:underline"
+      />
     </span>
     <span v-if="showAlbum" class="song-album">{{ album }}</span>
     <span v-if="duration" class="song-duration">{{ duration }}</span>
@@ -41,6 +46,7 @@
 <script setup>
 import {computed} from 'vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
 
 const props = defineProps({
@@ -79,10 +85,10 @@ const cover = computed(() => (
   || props.song?.song?.album?.picUrl
   || ''
 ))
-const artist = computed(() => {
-  const list = props.song?.artists || props.song?.ar || props.song?.song?.artists || props.song?.song?.ar || []
-  const names = list.map((item) => item?.name || item).filter(Boolean)
-  return names.join(' / ') || '未知艺人'
+const artistItems = computed(() => {
+  const song = props.song?.song || props.song || {}
+  const candidates = [props.song?.artists, props.song?.ar, song?.artists, song?.ar]
+  return candidates.find(items => Array.isArray(items) && items.length) || song?.artistName || props.song?.artistName || []
 })
 const album = computed(() => (
   props.song?.album?.name

@@ -225,7 +225,7 @@
                     </div>
                     <div class="profile-cloud-song-copy">
                       <strong>{{ item.songName }}</strong>
-                      <span>{{ item.artistName }} · {{ item.albumName }}</span>
+                      <span class="profile-cloud-song-artist"><ArtistLinks :artists="item.artistName || ''" /><span> · {{ item.albumName }}</span></span>
                     </div>
                   </div>
 
@@ -355,7 +355,7 @@
                       <img v-if="item.cover" :src="item.cover" :alt="`${item.name}封面`" loading="lazy" decoding="async" />
                       <i v-else>{{ item.name.slice(0, 1) }}</i>
                     </span>
-                    <span class="listening-track-copy"><strong>{{ item.name }}</strong><small>{{ item.artists }}</small></span>
+                    <span class="listening-track-copy"><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artistItems" /></small></span>
                     <span class="listening-track-count">{{ item.count }} 次</span>
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                   </button>
@@ -369,7 +369,7 @@
                 <ol>
                   <li v-for="(artist, index) in listeningTopArtists" :key="artist.key">
                     <span>{{ artist.name.slice(0, 1).toUpperCase() }}</span>
-                    <div><strong>{{ artist.name }}</strong><small>{{ artist.count }} 播放权重</small></div>
+                    <div><ArtistLinks :artists="[artist]" link-class="hover:underline" /><small>{{ artist.count }} 播放权重</small></div>
                     <i>{{ String(index + 1).padStart(2, '0') }}</i>
                   </li>
                 </ol>
@@ -465,6 +465,7 @@ import {reportApi} from '@/api/reportApi/reportApi.js'
 import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -642,7 +643,7 @@ const listeningTopTracks = computed(() => {
       id,
       name: song?.name || '未知歌曲',
       artists: (song?.ar || []).map(artist => artist?.name).filter(Boolean).join(' / ') || '未知歌手',
-      artistItems: (song?.ar || []).map(artist => ({name: artist?.name})).filter(artist => artist.name),
+      artistItems: (song?.ar || []).map(artist => ({id: artist?.id, name: artist?.name})).filter(artist => artist.name),
       cover: song?.al?.picUrl || '',
       count,
     })
@@ -656,7 +657,7 @@ const listeningTopArtists = computed(() => {
     ;(record?.song?.ar || []).forEach((artist) => {
       const name = artist?.name || '未知艺人'
       const key = String(artist?.id || name)
-      const previous = artists.get(key) || {key, name, count: 0}
+      const previous = artists.get(key) || {key, id: artist?.id || '', name, count: 0}
       previous.count += weight
       artists.set(key, previous)
     })
@@ -2514,9 +2515,10 @@ watch(
 .profile-cloud-row.is-playing .profile-cloud-cover > span { opacity: 1; }
 .profile-cloud-song-copy { min-width: 0; }
 .profile-cloud-song-copy strong,
-.profile-cloud-song-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-cloud-song-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-cloud-song-copy strong { color: #343a36; font-size: 12px; }
-.profile-cloud-song-copy span { margin-top: 5px; color: #979c99; font-size: 10px; }
+.profile-cloud-song-copy > span { margin-top: 5px; color: #979c99; font-size: 10px; }
+.profile-cloud-song-artist > span { margin-left: 4px; }
 .profile-cloud-size,
 .profile-cloud-date { color: #858b88; font-size: 10px; }
 .profile-cloud-actions { display: flex; justify-content: flex-end; gap: 6px; }

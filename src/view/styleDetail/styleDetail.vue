@@ -60,7 +60,7 @@
           <div v-else-if="activeContent === 'albums'" class="media-grid">
             <button v-for="album in styleAlbums" :key="album.id" type="button" class="media-card" @click="openAlbum(album)">
               <span><SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="560" sizes="230px" /></span>
-              <strong>{{ album.name }}</strong><small>{{ album.artistName }}</small>
+              <strong>{{ album.name }}</strong><small><ArtistLinks :artists="album.artists?.length ? album.artists : (album.artist || album.artistName || '')" /></small>
             </button>
           </div>
           <div v-else-if="activeContent === 'playlists'" class="playlist-grid">
@@ -89,6 +89,7 @@ import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {useDiscoverData} from '@/composables/useDiscoverData.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useDetailNavigation} from '@/composables/useDetailNavigation.js'

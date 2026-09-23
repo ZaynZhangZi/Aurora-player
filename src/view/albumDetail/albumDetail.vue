@@ -43,7 +43,7 @@
           </h1>
 
           <div class="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-stone-700 md:justify-start lg:text-base">
-            <span class="font-bold text-stone-900">{{ album.artistName || '未知艺人' }}</span>
+            <ArtistLinks class="font-bold text-stone-900" :artists="album.artists.length ? album.artists : album.artistName" />
             <span class="opacity-40">•</span>
             <span>{{ album.publishDate || '-' }}</span>
             <span class="opacity-40">•</span>
@@ -157,6 +157,7 @@ import { lockScroll, unlockScroll } from '@/utils/scrollLock.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
+import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
@@ -174,6 +175,7 @@ const album = ref({
   name: '',
   cover: '',
   artistName: '',
+  artists: [],
   publishDate: '',
   company: '',
   description: '',
@@ -505,6 +507,7 @@ async function loadAlbum() {
       name: albumData.name || '',
       cover: albumData.picUrl || '',
       artistName: albumData.artist?.name || albumData.artists?.[0]?.name || '',
+      artists: albumData.artists?.length ? albumData.artists : (albumData.artist ? [albumData.artist] : []),
       publishDate: formatDate(albumData.publishTime),
       company: albumData.company || '',
       description: albumData.description || '',
