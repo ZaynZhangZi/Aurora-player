@@ -1352,39 +1352,8 @@ const {tryStartAutomixCrossfade} = usePlayerCrossfadeFlow({
 });
 const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
   playerStore,
-  automixEnabled: () => automixEnabled.value,
   canPlayPrev: () => canPlayPrev.value,
   canPlayNext: () => canPlayNext.value,
-  hasSong: () => hasSong.value,
-  getActiveAudio: () => getActiveAudio(),
-  getIdleAudio: () => getIdleAudio(),
-  getCrossfadeActive: () => crossfadeActive,
-  getCrossfadePreparing: () => crossfadePreparing,
-  setCrossfadeActive: setCrossfadeActiveState,
-  setCrossfadePreparing: setCrossfadePreparingState,
-  setCrossfadeVisualActive: (next) => {
-    crossfadeVisualActive.value = next;
-  },
-  setCrossfadeTriggeredSongId: (next) => {
-    crossfadeTriggeredForSongId = next;
-  },
-  getVolume: () => volume.value,
-  resolvePlayableUrlById,
-  recommendNextQueueIndex,
-  getLastAutomixAnalysis,
-  waitAudioMetadata,
-  sanitizePlaybackStartSec,
-  resolveTempoRateForTransition,
-  resolveSongCover,
-  pickThemeFromCover,
-  getSongName: () => songName.value,
-  applyTheme,
-  setSkipNextCoverThemePick: (next) => {
-    skipNextCoverThemePick = next;
-  },
-  promoteCrossfadedTrack,
-  completeCrossfadeByDeckSwap,
-  requestAutomixWarmup,
   reportBehavior,
   playQueueByDirection,
   playQueueByIndex,
@@ -1393,7 +1362,6 @@ const {playPrevSong, playNextSong, playSongAtIndex} = usePlayerManualSwitch({
     interruptAutomixForUserAction(`manual-${reason}`);
     void autoMixEngine.skip();
   },
-  audioGraph: automixAudioGraph,
 });
 
 function clamp(value, min, max) {

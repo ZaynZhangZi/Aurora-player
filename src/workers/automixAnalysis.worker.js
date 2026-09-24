@@ -1,4 +1,5 @@
 import initAutomix, {analyze_pcm_js, init_wasm} from '@/wasm/automix/automix.js'
+import {enhanceAutomixProfile} from './essentiaAutomixEnhancement.js'
 
 let readyPromise = null
 
@@ -18,6 +19,13 @@ self.onmessage = async (event) => {
     await ensureReady()
     const pcm = samples instanceof Float32Array ? samples : new Float32Array(samples)
     const profile = analyze_pcm_js(pcm, Number(sampleRate), 1)
+    try {
+      await enhanceAutomixProfile(pcm, profile)
+    } catch {
+      // Essentia is an optional quality layer: keep Rust analysis available on
+      // browsers where its WASM backend cannot initialize.
+      profile.analysis_engine = 'rust-wasm-fallback'
+    }
     self.postMessage({id, ok: true, profile})
   } catch (error) {
     self.postMessage({
@@ -27,4 +35,3 @@ self.onmessage = async (event) => {
     })
   }
 }
-

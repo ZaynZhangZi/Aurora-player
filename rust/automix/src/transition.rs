@@ -126,9 +126,13 @@ pub fn plan_transition(
         1.0
     };
     let tempo_adjust_required = (incoming_rate - 1.0).abs() >= 0.002;
-    let loudness_gain_db = match (current.valid_loudness(), next.valid_loudness()) {
-        (Some(from), Some(to)) => (from - to).clamp(-6.0, 6.0),
-        _ => 0.0,
+    let loudness_gain_db = if current.loudness_confidence().min(next.loudness_confidence()) >= 0.65 {
+        match (current.valid_loudness(), next.valid_loudness()) {
+            (Some(from), Some(to)) => (from - to).clamp(-6.0, 6.0),
+            _ => 0.0,
+        }
+    } else {
+        0.0
     };
 
     let strategy_factor = match kind {
@@ -397,6 +401,7 @@ fn preferred_out_end(track: &Track) -> f64 {
         .iter()
         .filter(|region| {
             region.direction.eq_ignore_ascii_case("out")
+                && region.confidence.unwrap_or(0.0) >= 0.65
                 && region.start.is_finite()
                 && region.end.is_finite()
                 && region.end > region.start
@@ -417,6 +422,7 @@ fn preferred_in_start(track: &Track) -> f64 {
         .iter()
         .filter(|region| {
             region.direction.eq_ignore_ascii_case("in")
+                && region.confidence.unwrap_or(0.0) >= 0.65
                 && region.start.is_finite()
                 && region.end.is_finite()
                 && region.end > region.start
@@ -538,7 +544,8 @@ fn energy_at(track: &Track, time: f64) -> Option<f64> {
 
 fn advanced_vocal_clear(current: &Track, next: &Track) -> bool {
     if current.vocal_confidence() <= 0.0 || next.vocal_confidence() <= 0.0 {
-        return true;
+        // Missing vocal data is unknown, not proof that the overlap is safe.
+        return false;
     }
     let current_duration = current.valid_duration().unwrap_or(180.0);
     let next_duration = next.valid_duration().unwrap_or(180.0);

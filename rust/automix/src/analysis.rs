@@ -2,7 +2,7 @@ use crate::model::{
     clamp01, AudioAnalysis, FeatureConfidence, MixRegion, MusicalKey, SectionSegment, TimedValue,
 };
 
-const ANALYSIS_VERSION: u32 = 5;
+const ANALYSIS_VERSION: u32 = 8;
 
 pub fn analyze_pcm(
     samples: &[f32],
@@ -41,25 +41,17 @@ pub fn analyze_pcm(
     let first_active_time = first_active as f64 * frame_duration;
     let last_active_time = ((last_active + 1) as f64 * frame_duration).min(duration);
 
-    let mean_square = mono
-        .iter()
-        .map(|value| (*value as f64) * (*value as f64))
-        .sum::<f64>()
-        / mono.len().max(1) as f64;
-    let loudness_lufs = (-0.691 + 10.0 * mean_square.max(1e-12).log10()).clamp(-80.0, 3.0);
     let peak = mono
         .iter()
         .map(|value| value.abs() as f64)
         .fold(0.0, f64::max);
     let peak_dbfs = amplitude_db(peak);
 
-    let mut sorted_rms = frames.clone();
-    sorted_rms.sort_by(f64::total_cmp);
-    let low_rms = percentile(&sorted_rms, 0.1);
-    let high_rms = percentile(&sorted_rms, 0.95).max(low_rms + 1e-6);
     let normalized_energy: Vec<f64> = frames
         .iter()
-        .map(|value| clamp01((*value - low_rms) / (high_rms - low_rms)))
+        // Keep the scale consistent between tracks. Per-track min/max
+        // normalization made quiet and loud songs look equally energetic.
+        .map(|value| clamp01((amplitude_db(*value) + 45.0) / 33.0))
         .collect();
     let active_energy: Vec<f64> = normalized_energy
         .iter()
@@ -76,7 +68,7 @@ pub fn analyze_pcm(
     };
     let energy_curve = compress_energy_curve(&normalized_energy, frame_duration, duration);
 
-    let onset = onset_envelope(&frames);
+    let onset = spectral_flux_envelope(&mono, frame_size, hop_size);
     let tempo = estimate_tempo(&onset, frame_duration, duration);
     let (bpm, beat_positions, downbeat_positions, tempo_confidence, bar_confidence) = match tempo {
         Some(tempo) => (
@@ -98,35 +90,45 @@ pub fn analyze_pcm(
         .map(|estimate| estimate.confidence)
         .unwrap_or(0.0);
 
-    let structural_span = bpm
-        .map(|value| (32.0 * 60.0 / value).clamp(10.0, 32.0))
-        .unwrap_or(18.0);
-    let intro_end = (first_active_time + structural_span)
-        .min(duration * 0.35)
-        .min(duration);
-    let outro_start = (last_active_time - structural_span)
-        .max(intro_end)
-        .min(duration);
-    let section_segments = build_sections(duration, intro_end, outro_start);
-    let mix_regions = build_mix_regions(duration, first_active_time, intro_end, outro_start);
+    let structural = detect_structure(
+        &energy_curve,
+        duration,
+        bpm,
+        &downbeat_positions,
+        first_active_time,
+        last_active_time,
+    );
+    let intro_end = structural.intro.map(|boundary| boundary.time);
+    let outro_start = structural.outro.map(|boundary| boundary.time);
+    let section_segments = build_sections(
+        duration,
+        &structural.boundaries,
+        structural.intro,
+        structural.outro,
+    );
+    let mix_regions = build_mix_regions(
+        first_active_time,
+        last_active_time,
+        structural.intro,
+        structural.outro,
+        duration,
+    );
 
-    let structure_confidence = if duration >= 45.0 {
-        0.34 + bar_confidence * 0.18
-    } else {
-        0.24 + bar_confidence * 0.1
-    };
+    // Structure is only promoted when the audio contains a measurable change
+    // near a likely bar boundary. Vocal activity is still unknown without a
+    // licensed vocal detector, so the planner must continue to treat it as such.
+    let structure_confidence = structural.confidence;
     let beat_confidence = tempo_confidence * (0.76 + bar_confidence * 0.18);
     let overall = [
         tempo_confidence,
         beat_confidence,
         key_confidence,
-        0.78,
-        0.84,
+        0.48,
         structure_confidence,
     ]
     .iter()
     .sum::<f64>()
-        / 6.0;
+        / 5.0;
 
     Ok(AudioAnalysis {
         duration,
@@ -136,10 +138,12 @@ pub fn analyze_pcm(
         downbeat_positions,
         energy,
         energy_curve,
-        loudness_lufs: Some(loudness_lufs),
+        // We do not yet implement K-weighting and gating, so do not publish a
+        // plain RMS value under the LUFS field.
+        loudness_lufs: None,
         peak_dbfs: Some(peak_dbfs),
-        intro_end: Some(intro_end),
-        outro_start: Some(outro_start),
+        intro_end,
+        outro_start,
         section_segments,
         mix_regions,
         vocal_regions: Vec::new(),
@@ -147,8 +151,8 @@ pub fn analyze_pcm(
             tempo: Some(tempo_confidence),
             beat_grid: Some(beat_confidence),
             key: Some(key_confidence),
-            energy: Some(0.78),
-            loudness: Some(0.84),
+            energy: Some(0.48),
+            loudness: Some(0.0),
             structure: Some(structure_confidence),
             vocal: Some(0.0),
             overall: Some(overall),
@@ -553,16 +557,92 @@ fn key_profile_similarity(chroma: &[f64; 12], profile: &[f64; 12], tonic: usize)
     dot / (profile_norm * chroma_norm).max(1e-9)
 }
 
-fn onset_envelope(frames: &[f64]) -> Vec<f64> {
-    let mut previous = frames.first().copied().unwrap_or(0.0);
-    frames
-        .iter()
-        .map(|value| {
-            let onset = (*value - previous).max(0.0);
-            previous = *value;
-            onset
-        })
-        .collect()
+fn spectral_flux_envelope(samples: &[f32], frame_size: usize, hop_size: usize) -> Vec<f64> {
+    if frame_size < 2 || !frame_size.is_power_of_two() || hop_size == 0 {
+        return Vec::new();
+    }
+
+    let mut real = vec![0.0; frame_size];
+    let mut imaginary = vec![0.0; frame_size];
+    let mut previous_magnitudes = vec![0.0; frame_size / 2 + 1];
+    let mut flux = Vec::new();
+    let starts: Box<dyn Iterator<Item = usize>> = if samples.len() < frame_size {
+        Box::new(std::iter::once(0))
+    } else {
+        Box::new((0..=samples.len() - frame_size).step_by(hop_size))
+    };
+
+    for start in starts {
+        real.fill(0.0);
+        imaginary.fill(0.0);
+        let available = samples.len().saturating_sub(start).min(frame_size);
+        for index in 0..available {
+            let window = 0.5 - 0.5 * (2.0 * std::f64::consts::PI * index as f64
+                / (frame_size - 1) as f64)
+                .cos();
+            real[index] = samples[start + index] as f64 * window;
+        }
+
+        fft_in_place(&mut real, &mut imaginary);
+        let mut positive_flux = 0.0;
+        let mut magnitude_total = 0.0;
+        for index in 1..=frame_size / 2 {
+            let magnitude = real[index].hypot(imaginary[index]);
+            positive_flux += (magnitude - previous_magnitudes[index]).max(0.0);
+            magnitude_total += magnitude;
+            previous_magnitudes[index] = magnitude;
+        }
+        // Normalize by the local spectrum so quieter songs retain a useful
+        // onset shape without pretending their absolute loudness is higher.
+        flux.push(positive_flux / magnitude_total.max(1e-9));
+    }
+
+    flux
+}
+
+fn fft_in_place(real: &mut [f64], imaginary: &mut [f64]) {
+    let length = real.len();
+    let mut reversed = 0;
+    for index in 1..length {
+        let mut bit = length >> 1;
+        while reversed & bit != 0 {
+            reversed ^= bit;
+            bit >>= 1;
+        }
+        reversed ^= bit;
+        if index < reversed {
+            real.swap(index, reversed);
+            imaginary.swap(index, reversed);
+        }
+    }
+
+    let mut block_size = 2;
+    while block_size <= length {
+        let angle = -2.0 * std::f64::consts::PI / block_size as f64;
+        let step_real = angle.cos();
+        let step_imaginary = angle.sin();
+        for block_start in (0..length).step_by(block_size) {
+            let mut twiddle_real = 1.0;
+            let mut twiddle_imaginary = 0.0;
+            for offset in 0..block_size / 2 {
+                let even = block_start + offset;
+                let odd = even + block_size / 2;
+                let odd_real = real[odd] * twiddle_real - imaginary[odd] * twiddle_imaginary;
+                let odd_imaginary = real[odd] * twiddle_imaginary + imaginary[odd] * twiddle_real;
+                real[odd] = real[even] - odd_real;
+                imaginary[odd] = imaginary[even] - odd_imaginary;
+                real[even] += odd_real;
+                imaginary[even] += odd_imaginary;
+
+                let next_twiddle_real = twiddle_real * step_real
+                    - twiddle_imaginary * step_imaginary;
+                twiddle_imaginary = twiddle_real * step_imaginary
+                    + twiddle_imaginary * step_real;
+                twiddle_real = next_twiddle_real;
+            }
+        }
+        block_size <<= 1;
+    }
 }
 
 fn downmix(samples: &[f32], channels: usize) -> Vec<f32> {
@@ -607,56 +687,236 @@ fn compress_energy_curve(values: &[f64], frame_duration: f64, duration: f64) -> 
         .collect()
 }
 
-fn build_sections(duration: f64, intro_end: f64, outro_start: f64) -> Vec<SectionSegment> {
-    let mut sections = Vec::new();
-    if intro_end > 0.1 {
-        sections.push(SectionSegment {
-            start: 0.0,
-            end: intro_end,
-            label: "intro".to_string(),
-            confidence: Some(0.42),
-        });
+#[derive(Clone, Copy)]
+struct StructuralBoundary {
+    time: f64,
+    delta: f64,
+    confidence: f64,
+}
+
+struct StructuralProfile {
+    boundaries: Vec<StructuralBoundary>,
+    intro: Option<StructuralBoundary>,
+    outro: Option<StructuralBoundary>,
+    confidence: f64,
+}
+
+fn detect_structure(
+    energy_curve: &[TimedValue],
+    duration: f64,
+    bpm: Option<f64>,
+    downbeats: &[f64],
+    first_active: f64,
+    last_active: f64,
+) -> StructuralProfile {
+    let energies: Vec<f64> = energy_curve.iter().map(|point| point.value).collect();
+    let comparison_window = bpm
+        .map(|value| (8.0 * 60.0 / value).clamp(3.0, 8.0))
+        .unwrap_or(5.0);
+    let window_frames = comparison_window.ceil() as usize;
+    let mut candidates = Vec::new();
+
+    if energies.len() >= window_frames.saturating_mul(2).saturating_add(3) {
+        for index in window_frames..energies.len().saturating_sub(window_frames) {
+            let before = &energies[index - window_frames..index];
+            let after = &energies[index..index + window_frames];
+            let before_mean = before.iter().sum::<f64>() / before.len() as f64;
+            let after_mean = after.iter().sum::<f64>() / after.len() as f64;
+            let delta = after_mean - before_mean;
+            let magnitude = delta.abs();
+            if magnitude < 0.075 {
+                continue;
+            }
+
+            let time = energy_curve[index].time;
+            let beat_alignment = if downbeats.is_empty() {
+                0.55
+            } else {
+                let distance = downbeats
+                    .iter()
+                    .map(|beat| (beat - time).abs())
+                    .fold(f64::INFINITY, f64::min);
+                (-distance / 0.65).exp()
+            };
+            let contrast = clamp01((magnitude - 0.04) / 0.24);
+            let confidence = clamp01(contrast * (0.84 + beat_alignment * 0.16));
+            candidates.push(StructuralBoundary {
+                time,
+                delta,
+                confidence,
+            });
+        }
     }
-    if outro_start - intro_end > 0.1 {
-        sections.push(SectionSegment {
-            start: intro_end,
-            end: outro_start,
-            label: "body".to_string(),
-            confidence: Some(0.3),
-        });
+
+    // Keep local novelty peaks and suppress nearby candidates so one long
+    // crescendo is not misreported as a dozen separate sections.
+    candidates.sort_by(|left, right| right.confidence.total_cmp(&left.confidence));
+    let min_spacing = (comparison_window * 1.5).clamp(8.0, 20.0);
+    let mut boundaries: Vec<StructuralBoundary> = Vec::new();
+    for candidate in candidates {
+        let is_local_peak = energy_curve
+            .iter()
+            .position(|point| (point.time - candidate.time).abs() < 0.001)
+            .map(|index| {
+                let start = index.saturating_sub(1);
+                let end = (index + 1).min(energy_curve.len().saturating_sub(1));
+                (start..=end).all(|neighbor| {
+                    candidate.delta.abs() + 0.015
+                        >= energy_change_magnitude(&energies, neighbor, window_frames)
+                })
+            })
+            .unwrap_or(true);
+        if is_local_peak
+            && boundaries
+                .iter()
+                .all(|boundary| (boundary.time - candidate.time).abs() >= min_spacing)
+        {
+            boundaries.push(candidate);
+            if boundaries.len() >= 16 {
+                break;
+            }
+        }
     }
-    if duration - outro_start > 0.1 {
-        sections.push(SectionSegment {
-            start: outro_start,
-            end: duration,
-            label: "outro".to_string(),
-            confidence: Some(0.42),
+    boundaries.sort_by(|left, right| left.time.total_cmp(&right.time));
+
+    let intro = boundaries
+        .iter()
+        .copied()
+        .find(|boundary| {
+            boundary.delta > 0.0
+                && boundary.time >= first_active + 2.0
+                && boundary.time <= duration * 0.4
+                && boundary.confidence >= 0.36
         });
+    let outro = boundaries
+        .iter()
+        .rev()
+        .copied()
+        .find(|boundary| {
+            boundary.delta < 0.0
+                && boundary.time >= duration * 0.6
+                && boundary.time <= last_active - 2.0
+                && boundary.confidence >= 0.36
+        });
+
+    let measured_structure = boundaries
+        .iter()
+        .map(|boundary| boundary.confidence)
+        .fold(0.0, f64::max);
+    // Actual leading/trailing silence is reliable boundary evidence, unlike a
+    // guessed fixed-length intro/outro.
+    let silence_evidence = if first_active >= 1.0 || duration - last_active >= 1.0 {
+        0.66
+    } else {
+        0.0
+    };
+
+    StructuralProfile {
+        boundaries,
+        intro,
+        outro,
+        confidence: measured_structure.max(silence_evidence),
     }
-    sections
+}
+
+fn build_sections(
+    duration: f64,
+    boundaries: &[StructuralBoundary],
+    intro: Option<StructuralBoundary>,
+    outro: Option<StructuralBoundary>,
+) -> Vec<SectionSegment> {
+    if boundaries.is_empty() {
+        return Vec::new();
+    }
+    let mut points = Vec::with_capacity(boundaries.len() + 2);
+    points.push((0.0, 0.3));
+    points.extend(
+        boundaries
+            .iter()
+            .filter(|boundary| boundary.confidence >= 0.36)
+            .map(|boundary| (boundary.time, boundary.confidence)),
+    );
+    points.push((duration, 0.3));
+    points.sort_by(|left, right| left.0.total_cmp(&right.0));
+    points.dedup_by(|left, right| (left.0 - right.0).abs() < 0.5);
+
+    points
+        .windows(2)
+        .filter_map(|pair| {
+            let (start, start_confidence) = pair[0];
+            let (end, end_confidence) = pair[1];
+            if end - start < 1.0 {
+                return None;
+            }
+            let label = if intro.is_some_and(|boundary| end <= boundary.time + 0.5) {
+                "intro"
+            } else if outro.is_some_and(|boundary| start >= boundary.time - 0.5) {
+                "outro"
+            } else {
+                "section"
+            };
+            Some(SectionSegment {
+                start,
+                end,
+                label: label.to_string(),
+                confidence: Some(start_confidence.min(end_confidence)),
+            })
+        })
+        .collect()
+}
+
+fn energy_change_magnitude(energies: &[f64], index: usize, window_frames: usize) -> f64 {
+    if index < window_frames || index + window_frames > energies.len() {
+        return 0.0;
+    }
+    let before = &energies[index - window_frames..index];
+    let after = &energies[index..index + window_frames];
+    let before_mean = before.iter().sum::<f64>() / before.len() as f64;
+    let after_mean = after.iter().sum::<f64>() / after.len() as f64;
+    (after_mean - before_mean).abs()
 }
 
 fn build_mix_regions(
-    duration: f64,
     first_active: f64,
-    intro_end: f64,
-    outro_start: f64,
+    last_active: f64,
+    intro: Option<StructuralBoundary>,
+    outro: Option<StructuralBoundary>,
+    duration: f64,
 ) -> Vec<MixRegion> {
     let mut regions = Vec::new();
-    if intro_end - first_active >= 2.0 {
+    if let Some(boundary) = intro {
+        if boundary.time - first_active >= 2.0 && boundary.confidence >= 0.55 {
+            regions.push(MixRegion {
+                start: first_active,
+                end: boundary.time,
+                direction: "in".to_string(),
+                confidence: Some(boundary.confidence),
+            });
+        }
+    } else if first_active >= 1.0 {
         regions.push(MixRegion {
             start: first_active,
-            end: intro_end,
+            end: (first_active + 8.0).min(duration),
             direction: "in".to_string(),
-            confidence: Some(0.42),
+            confidence: Some(0.66),
         });
     }
-    if duration - outro_start >= 2.0 {
+
+    if let Some(boundary) = outro {
+        if last_active - boundary.time >= 2.0 && boundary.confidence >= 0.55 {
+            regions.push(MixRegion {
+                start: boundary.time,
+                end: last_active,
+                direction: "out".to_string(),
+                confidence: Some(boundary.confidence),
+            });
+        }
+    } else if duration - last_active >= 1.0 && last_active >= 8.0 {
         regions.push(MixRegion {
-            start: outro_start,
-            end: duration,
+            start: (last_active - 8.0).max(0.0),
+            end: last_active,
             direction: "out".to_string(),
-            confidence: Some(0.42),
+            confidence: Some(0.66),
         });
     }
     regions
@@ -716,7 +976,7 @@ mod tests {
         let analysis = analyze_pcm(&samples, sample_rate, 1).expect("analysis");
         assert!(analysis.bpm.is_some_and(|bpm| (bpm - 120.0).abs() <= 8.0));
         assert!(!analysis.beat_positions.is_empty());
-        assert!(analysis.loudness_lufs.is_some());
+        assert!(analysis.loudness_lufs.is_none());
         assert_eq!(analysis.confidence.key, Some(0.0));
     }
 

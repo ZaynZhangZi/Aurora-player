@@ -5,7 +5,7 @@ import {
 } from '@/utils/automixProfileCache.js'
 import {ANALYZER_STATUS} from '@/audio/constants.js'
 
-export const AUTOMIX_ANALYSIS_VERSION = 5
+export const AUTOMIX_ANALYSIS_VERSION = 8
 
 const TARGET_SAMPLE_RATE = 11025
 const MAX_AUDIO_BYTES = 48 * 1024 * 1024
@@ -16,6 +16,12 @@ let workerRequestId = 0
 let analysisTail = Promise.resolve()
 const pendingWorkerRequests = new Map()
 const inFlightByKey = new Map()
+
+function optionalNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
 
 function ensureWorker() {
   if (worker) return worker
@@ -181,10 +187,10 @@ async function decodeToAnalysisPcm(bytes, signal) {
 }
 
 function normalizeProfile(profile, song, quality) {
-  const loudnessLufs = Number(profile?.loudness_lufs)
-  const peakDbfs = Number(profile?.peak_dbfs)
-  const introEnd = Number(profile?.intro_end)
-  const outroStart = Number(profile?.outro_start)
+  const loudnessLufs = optionalNumber(profile?.loudness_lufs)
+  const peakDbfs = optionalNumber(profile?.peak_dbfs)
+  const introEnd = optionalNumber(profile?.intro_end)
+  const outroStart = optionalNumber(profile?.outro_start)
   const firstMixIn = Array.isArray(profile?.mix_regions)
     ? profile.mix_regions.find(region => region?.direction === 'in')
     : null
@@ -195,12 +201,12 @@ function normalizeProfile(profile, song, quality) {
     sampleRate: TARGET_SAMPLE_RATE,
     sample_rate: TARGET_SAMPLE_RATE,
     bpmConfidence: Number(profile?.confidence?.tempo || 0),
-    peak: Number.isFinite(peakDbfs) ? 10 ** (peakDbfs / 20) : null,
-    rms: Number.isFinite(loudnessLufs) ? 10 ** ((loudnessLufs + 0.691) / 20) : null,
+    peak: peakDbfs === null ? null : 10 ** (peakDbfs / 20),
+    rms: loudnessLufs === null ? null : 10 ** ((loudnessLufs + 0.691) / 20),
     beats: Array.isArray(profile?.beat_positions) ? profile.beat_positions : [],
     downbeats: Array.isArray(profile?.downbeat_positions) ? profile.downbeat_positions : [],
-    intro: Number.isFinite(introEnd) ? {start: 0, end: introEnd} : null,
-    outro: Number.isFinite(outroStart)
+    intro: introEnd !== null ? {start: 0, end: introEnd} : null,
+    outro: outroStart !== null
       ? {start: outroStart, end: Number(profile?.duration || outroStart)}
       : null,
     silence: {
@@ -210,7 +216,7 @@ function normalizeProfile(profile, song, quality) {
     sections: Array.isArray(profile?.section_segments) ? profile.section_segments : [],
     album_id: song?.album?.id ?? song?.al?.id ?? song?.mixProfile?.album_id ?? null,
     tags: Array.isArray(song?.mixProfile?.tags) ? [...song.mixProfile.tags] : [],
-    analysis_source: 'browser-rust-wasm',
+    analysis_source: profile?.analysis_engine || 'browser-rust-wasm',
     audio_quality: quality,
     analyzed_at: Date.now(),
   }
