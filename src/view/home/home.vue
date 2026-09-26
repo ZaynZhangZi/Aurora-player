@@ -32,48 +32,31 @@
           </div>
         </article>
 
-        <aside class="personal-now-card" aria-label="你的私人电台">
-          <SmartMedia
-            v-if="stationSong"
-            :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl"
-            alt=""
-            :image-width="720"
-            class="personal-station-ambient"
-            aria-hidden="true"
-          />
-          <span class="personal-station-scrim" aria-hidden="true" />
+      </section>
+
+      <div class="home-listening-grid" :class="{'has-resume': resumeSong}">
+        <aside class="personal-now-card" :style="stationThemeStyle" aria-label="你的私人电台">
 
           <div class="personal-now-heading">
             <div><p>AURORA RADIO</p><h2>{{ userStore.isLoggedIn ? '私人频率' : '先听这些' }}</h2></div>
-            <span><i /> {{ userStore.isLoggedIn ? '已为你调频' : '游客试听' }}</span>
+            <span><i /> {{ personalFmSongs.length ? '为你调频' : '精选推荐' }}</span>
           </div>
+          <p class="personal-station-description">不用挑选，从这一首开始遇见喜欢的声音。</p>
 
           <div class="personal-station-content">
-            <button v-if="stationSong" class="personal-station-feature" type="button" @click="playStationSong()">
-              <span class="personal-station-cover"><SmartMedia :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl" :alt="`${stationSong.name}封面`" :image-width="320" sizes="112px" /></span>
+            <div v-if="stationSong" class="personal-station-feature">
+              <button class="personal-station-cover" type="button" :aria-label="playLabel(stationSong)" :disabled="isSongPending(stationSong)" @click="playStationSong()"><SmartMedia :src="stationCover" :alt="`${stationSong.name}封面`" :image-width="320" sizes="96px" /></button>
               <span class="personal-station-copy">
-                <small>为你选出的这一首</small><strong>{{ stationSong.name }}</strong><ArtistLinks class="station-artists" :artists="getSongArtists(stationSong)" />
+                <small>正在推荐</small><strong>{{ stationSong.name }}</strong><ArtistLinks class="station-artists" :artists="getSongArtists(stationSong)" />
               </span>
-              <span class="personal-station-action">
-                <i class="personal-station-play" aria-hidden="true">▶</i>
-                <b>播放电台</b>
-              </span>
-            </button>
-            <div v-else class="personal-station-empty">正在准备你的第一首歌…</div>
-
-            <div v-if="stationQueue.length > 1" class="personal-up-next">
-              <p>接下来</p>
-              <div class="personal-up-next-list">
-                <button v-for="(song, index) in stationQueue.slice(1, 4)" :key="song.id" type="button" @click="playStationSong(song, index + 1)">
-                  <span>{{ String(index + 2).padStart(2, '0') }}</span>
-                  <span><strong>{{ song.name }}</strong><small><ArtistLinks :artists="getSongArtists(song)" /></small></span>
-                  <i aria-hidden="true">↗</i>
-                </button>
-              </div>
+              <button class="personal-station-action" type="button" :aria-label="playLabel(stationSong)" :aria-busy="isSongPending(stationSong)" :disabled="isSongPending(stationSong)" @click="playStationSong()">
+                <span class="personal-station-play"><HomePlaybackIcon :loading="isSongPending(stationSong)" :playing="isSongPlaying(stationSong)" /></span>
+                <b>{{ isSongPending(stationSong) ? '加载中' : isSongPlaying(stationSong) ? '暂停' : '播放' }}</b>
+              </button>
             </div>
+            <div v-else class="personal-station-empty" role="status">{{ loading.personalFmSongs || loading.dailySongs ? '正在准备你的第一首歌…' : '暂时没有推荐，稍后再来听听' }}</div>
           </div>
         </aside>
-      </section>
 
       <section v-if="resumeSong" class="lofi-resume" :style="resumeThemeStyle" aria-label="继续播放">
         <div class="lofi-resume-fluid" aria-hidden="true">
@@ -94,28 +77,23 @@
             <strong>{{ resumeSong.name }}</strong>
             <em><ArtistLinks :artists="getSongArtists(resumeSong)" /></em>
             <span class="lofi-progress"><i :style="{width: `${resumeProgress}%`}" /></span>
-            <b>{{ resumeProgress ? `已播放 ${Math.round(resumeProgress)}%` : '从这里继续你的声音' }}</b>
+            <b>{{ resumeProgress ? `听到 ${formatPlaybackTime(playerStore.currentTimeMs)} · 共 ${formatPlaybackTime(playerStore.durationMs)}` : '继续上次的聆听' }}</b>
           </div>
-          <button type="button" class="lofi-resume-play" :aria-label="playerStore.isPlaying && resumeIsCurrent ? '暂停' : '继续播放'" @click="playResumeSong()">
-            <PauseIcon v-if="playerStore.isPlaying && resumeIsCurrent" aria-hidden="true" />
-            <PlayIcon v-else class="lofi-resume-play-icon" aria-hidden="true" />
+          <button type="button" class="lofi-resume-play" :aria-label="playLabel(resumeSong)" :aria-busy="isSongPending(resumeSong)" :disabled="isSongPending(resumeSong)" @click="playResumeSong()">
+            <HomePlaybackIcon :loading="isSongPending(resumeSong)" :playing="isSongPlaying(resumeSong)" />
           </button>
         </div>
 
-        <div v-if="resumeQueue.length > 1" class="lofi-resume-next">
-          <p>接下来</p>
-          <button v-for="(song, index) in resumeQueue.slice(1, 4)" :key="`${song.id}-${index}`" type="button" @click="playResumeSong(song)">
-            <span>{{ String(index + 2).padStart(2, '0') }}</span>
-            <strong>{{ song.name }}</strong>
-            <small><ArtistLinks :artists="getSongArtists(song)" /></small>
-            <i aria-hidden="true">▶</i>
-          </button>
+        <div v-if="resumeNext.length" class="lofi-resume-next">
+          <p>播放队列 · 接下来</p>
+          <div v-for="entry in resumeNext" :key="entry.song.queueEntryId" class="resume-queue-row">
+            <span>{{ String(entry.index + 1).padStart(2, '0') }}</span>
+            <div><strong>{{ entry.song.name }}</strong><small><ArtistLinks :artists="getSongArtists(entry.song)" /></small></div>
+            <button type="button" :aria-label="playLabel(entry.song)" :disabled="isSongPending(entry.song)" @click="playQueueByIndex(entry.index)"><HomePlaybackIcon :loading="isSongPending(entry.song)" /></button>
+          </div>
         </div>
       </section>
-      <section v-else class="lofi-resume lofi-resume-empty" aria-label="继续播放准备中">
-        <div class="lofi-resume-haze" />
-        <div><small>CONTINUE LISTENING</small><h2>正在准备你的播放记录…</h2></div>
-      </section>
+      </div>
 
       <section class="personal-section personal-scenes">
         <div class="personal-section-heading">
@@ -143,18 +121,19 @@
       <section class="personal-section personal-daily">
         <div class="personal-section-heading">
           <div><p>DAILY ROTATION</p><h2>{{ userStore.isLoggedIn ? '只属于今天的推荐' : '今天先从这些开始' }}</h2></div>
-          <button v-if="dailySongs.length" type="button" @click="playDailySongs">全部播放 →</button>
+          <button v-if="dailySongs.length" type="button" :disabled="isSongPending(dailySongs[0])" @click="playDailySongs"><HomePlaybackIcon :loading="isSongPending(dailySongs[0])" :playing="isSongPlaying(dailySongs[0])" />{{ isSongPlaying(dailySongs[0]) ? '暂停播放' : '全部播放' }}</button>
         </div>
 
         <div class="personal-daily-layout">
           <article class="personal-song-panel">
-            <div v-if="loading.page && !dailySongs.length" class="personal-song-skeleton"><span v-for="index in 6" :key="index" /></div>
+            <div v-if="loading.dailySongs && !dailySongs.length" class="personal-song-skeleton" aria-label="正在加载推荐歌曲"><span v-for="index in 6" :key="index" /></div>
             <div v-else-if="dailySongs.length" class="personal-song-grid">
               <HomeSongRow
                 v-for="(song, index) in dailySongs.slice(0, 8)"
                 :key="song.id"
                 :song="song"
                 :index="index"
+                toggle-playback
                 @play="playDailySong"
               />
             </div>
@@ -180,15 +159,16 @@
           <div><p>MADE FOR YOUR DAY</p><h2>{{ userStore.isLoggedIn ? '为你留下的歌单' : '值得收藏的歌单' }}</h2></div>
           <button type="button" @click="openDiscover">去发现页浏览全部 →</button>
         </div>
-        <div v-if="loading.page && !dailyPlaylists.length" class="personal-playlist-skeleton"><span v-for="index in 4" :key="index" /></div>
-        <div v-else class="personal-playlist-grid">
-          <HomePlaylistCard v-for="item in dailyPlaylists.slice(0, 4)" :key="item.id" :item="item" @open="openPlaylist" />
+        <div v-if="loading.dailyPlaylists && !dailyPlaylists.length" class="personal-playlist-skeleton" aria-label="正在加载推荐歌单"><span v-for="index in 4" :key="index" /></div>
+        <div v-else-if="dailyPlaylists.length" class="personal-playlist-grid">
+          <HomePlaylistCard v-for="item in dailyPlaylists.slice(0, 4)" :key="item.id" :item="item" playable :loading="String(playlistLoadingId) === String(item.id)" :playing="isPlaylistPlaying(item)" @open="openPlaylist" @play="playHomePlaylist" />
         </div>
+        <div v-else class="personal-empty">暂时没有推荐歌单，稍后再来看看。</div>
       </section>
 
       <section v-if="recentCollections.length" class="personal-section personal-recent-collections">
         <div class="personal-section-heading">
-          <div><p>RECENTLY OPENED</p><h2>最近打开过</h2></div>
+          <div><p>RECENTLY PLAYED</p><h2>最近听过</h2></div>
         </div>
         <div class="personal-collection-list">
           <button v-for="item in recentCollections" :key="`${item.type}-${item.id}`" type="button" @click="openRecentCollection(item)">
@@ -199,7 +179,7 @@
         </div>
       </section>
 
-      <p v-if="error" class="personal-load-note">{{ error }}</p>
+      <p v-if="error" class="personal-load-note" role="status">{{ error }} <button type="button" @click="reloadHome">重试</button></p>
 
       <footer class="personal-footer">
         <div><strong>AURORA</strong><span>首页属于你，发现页属于整个音乐世界。</span></div>
@@ -212,9 +192,9 @@
 <script setup>
 defineOptions({name: 'HomePage'})
 
-import {computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch} from 'vue'
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {PauseIcon, PlayIcon} from '@heroicons/vue/24/solid'
+import HomePlaybackIcon from '@/components/home/HomePlaybackIcon.vue'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
@@ -227,7 +207,9 @@ import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNa
 import {useCounterStore} from '@/stores/userStores.js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
-import {playSongWithQueue} from '@/utils/globalPlayer.js'
+import {playQueueByIndex, playSongWithQueue} from '@/utils/globalPlayer.js'
+import {playListsApi} from '@/api/playListsApi/playListsApi.js'
+import {showPlaybackNotice} from '@/utils/playbackNotice.js'
 import {createFallbackTheme} from '@/utils/player/playerTheme.js'
 import {
   consumeLatestPendingPlaylistHeroTransition,
@@ -277,22 +259,16 @@ const stationQueue = computed(() => {
   return playerStore.playQueue || []
 })
 const stationSong = computed(() => stationQueue.value[0] || null)
-const continueSongs = computed(() => recentSongs.value.length ? recentSongs.value : playerStore.playQueue)
-const resumeQueue = computed(() => {
-  const candidates = [
-    ...(playerStore.currentSong?.id ? [playerStore.currentSong] : []),
-    ...continueSongs.value,
-    ...stationQueue.value,
-  ]
-  const seen = new Set()
-  return candidates.filter(song => {
-    const id = String(song?.id || '')
-    if (!id || seen.has(id)) return false
-    seen.add(id)
-    return true
-  })
+const stationCover = computed(() => stationSong.value?.cover || stationSong.value?.al?.picUrl || stationSong.value?.album?.picUrl || '')
+const stationTheme = ref(createFallbackTheme('aurora-radio'))
+const stationThemeStyle = computed(() => ({'--station-accent': stationTheme.value.accent.join(', ')}))
+const resumeSong = computed(() => playerStore.currentSong?.id ? playerStore.currentSong : recentSongs.value[0] || null)
+const resumeNext = computed(() => {
+  if (!playerStore.currentSong?.id) return []
+  const index = playerStore.currentQueueIndex
+  if (String(playerStore.playQueue[index]?.id) !== String(playerStore.currentSong?.id)) return []
+  return playerStore.playQueue.slice(index + 1, index + 3).map((song, offset) => ({song, index: index + 1 + offset}))
 })
-const resumeSong = computed(() => resumeQueue.value[0] || null)
 const resumeCover = computed(() => resumeSong.value?.cover || resumeSong.value?.al?.picUrl || resumeSong.value?.album?.picUrl || '')
 const resumeTheme = ref(createFallbackTheme('continue-listening'))
 const resumeThemeStyle = computed(() => ({
@@ -312,8 +288,32 @@ function getSongArtists(song) {
   return [song?.ar, song?.artists].find(items => Array.isArray(items) && items.length) || song?.artistName || ''
 }
 
+function isSongPlaying(song) {
+  return Boolean(song?.id && String(song.id) === String(playerStore.currentSong?.id) && playerStore.isPlaying)
+}
+
+function isSongPending(song) {
+  return Boolean(song?.id && String(song.id) === String(playerStore.playbackPendingId))
+}
+
+function playLabel(song) {
+  return `${isSongPending(song) ? '正在加载' : isSongPlaying(song) ? '暂停' : '播放'}：${song?.name || '歌曲'}`
+}
+
+function formatPlaybackTime(ms) {
+  const seconds = Math.floor(Number(ms || 0) / 1000)
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+function toggleCurrentSong(song) {
+  if (!song?.id || String(song.id) !== String(playerStore.currentSong?.id) || !playerStore.hasSong) return false
+  playerStore.autoPlayOnLoad = false
+  playerStore.setPlaying(!playerStore.isPlaying)
+  return true
+}
+
 async function playStationSong(song = stationSong.value, index = 0) {
-  if (!song) return
+  if (!song || isSongPending(song) || toggleCurrentSong(song)) return
   await playSongWithQueue(song, stationQueue.value, index)
 }
 
@@ -327,28 +327,69 @@ async function startScene(scene) {
 }
 
 async function playDailySong(song, index = 0) {
+  if (isSongPending(song) || toggleCurrentSong(song)) return
   await playSongWithQueue(song, dailySongs.value, index)
 }
 
 async function playDailySongs() {
-  if (dailySongs.value.length) await playSongWithQueue(dailySongs.value[0], dailySongs.value, 0)
+  if (dailySongs.value.length) await playDailySong(dailySongs.value[0], 0)
 }
 
 async function playResumeSong(song = resumeSong.value) {
-  if (!song) return
-  const isCurrent = String(song.id) === String(playerStore.currentSong?.id)
-  if (isCurrent && playerStore.currentSong?.url) {
-    playerStore.setPlaying(!playerStore.isPlaying)
-    return
+  if (!song || isSongPending(song) || toggleCurrentSong(song)) return
+  const index = playerStore.playQueue.findIndex(item => String(item.id) === String(song.id))
+  if (index >= 0) await playQueueByIndex(index)
+  else await playSongWithQueue(song, [song], 0)
+}
+
+const playlistLoadingId = ref(null)
+const activePlaylistId = ref(null)
+let activePlaylistEntries = []
+let playlistRequest = 0
+
+function isPlaylistActive(item) {
+  return String(activePlaylistId.value) === String(item.id)
+    && activePlaylistEntries.length === playerStore.playQueue.length
+    && activePlaylistEntries.every((id, index) => id === playerStore.playQueue[index]?.queueEntryId)
+}
+
+function isPlaylistPlaying(item) {
+  return isPlaylistActive(item) && playerStore.isPlaying
+}
+
+async function playHomePlaylist(item) {
+  if (String(playlistLoadingId.value) === String(item.id)) return
+  if (isPlaylistActive(item) && toggleCurrentSong(playerStore.currentSong)) return
+  const token = ++playlistRequest
+  playlistLoadingId.value = item.id
+  const previousQueue = playerStore.playQueue
+  const previousSongId = playerStore.currentSong?.id
+  try {
+    const detail = await playListsApi.getPlayListDetail(item.id)
+    const count = Number(detail?.data?.playlist?.trackCount || item.trackCount || 200)
+    const response = await playListsApi.getPlayListSongs(item.id, Math.max(1, count))
+    if (token !== playlistRequest || previousQueue !== playerStore.playQueue || previousSongId !== playerStore.currentSong?.id) return
+    const songs = response?.data?.songs || []
+    if (!songs.length) {
+      showPlaybackNotice({title: '歌单暂时没有可播放歌曲', message: '可以打开歌单查看详情，或选择其他歌单。'})
+      return
+    }
+    const played = await playSongWithQueue(songs[0], songs, 0)
+    if (played && token === playlistRequest) {
+      activePlaylistId.value = item.id
+      activePlaylistEntries = playerStore.playQueue.map(song => song.queueEntryId)
+    }
+  } catch {
+    if (token === playlistRequest) showPlaybackNotice({kind: 'network', title: '歌单加载失败', message: '请稍后重新点击播放。'})
+  } finally {
+    if (token === playlistRequest) playlistLoadingId.value = null
   }
-  const index = Math.max(0, resumeQueue.value.findIndex(item => String(item.id) === String(song.id)))
-  await playSongWithQueue(song, resumeQueue.value, index)
 }
 
 async function openPlaylist(item, event) {
   const id = Number(item?.id || 0)
   if (!id) return
-  const card = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const card = event?.currentTarget instanceof HTMLElement ? event.currentTarget.closest('.playlist-card') : null
   const cover = card?.querySelector('[data-playlist-hero-cover]')
   if (cover instanceof HTMLElement) {
     setPendingPlaylistHeroTransition(id, {
@@ -393,19 +434,26 @@ function onDetailClosed(event) {
 onMounted(() => {
   void runPlaylistHeroReturn()
   void loadHomeBanner()
-  void loadPersonalHome(userStore.isLoggedIn)
   window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 onUnmounted(() => {
+  playlistRequest += 1
   resumeThemeRequest += 1
+  stationThemeRequest += 1
   window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
-onActivated(() => {
-  if (route.name !== 'home') return
-  requestAnimationFrame(() => window.scrollTo({left: 0, top: 0, behavior: 'auto'}))
-})
-watch(() => userStore.isLoggedIn, value => loadPersonalHome(value))
+function reloadHome() {
+  return loadPersonalHome(userStore.isLoggedIn, userStore.userId)
+}
+watch([() => userStore.isLoggedIn, () => userStore.userId], reloadHome, {immediate: true})
 let resumeThemeRequest = 0
+let stationThemeRequest = 0
+watch([stationCover, () => stationSong.value?.name || ''], async ([cover, name]) => {
+  const request = ++stationThemeRequest
+  stationTheme.value = createFallbackTheme(name || 'aurora-radio')
+  const theme = await resolveThemeFromCover(cover, name)
+  if (request === stationThemeRequest) stationTheme.value = theme
+}, {immediate: true})
 watch([resumeCover, () => resumeSong.value?.name || ''], async ([cover, name]) => {
   const request = ++resumeThemeRequest
   resumeTheme.value = createFallbackTheme(name || 'continue-listening')
@@ -428,7 +476,7 @@ watch([resumeCover, () => resumeSong.value?.name || ''], async ([cover, name]) =
 button { cursor: pointer; font: inherit; }
 .personal-main { box-sizing: border-box; width: min(100%, 1680px); margin: 0 auto; padding: 0 28px 150px; }
 .home-lobby { display: block; scroll-margin-top: 90px; }
-.home-banner-card { position: relative; left: 50%; width: 100vw; height: 780px; min-height: 780px; overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
+.home-banner-card { position: relative; left: 50%; width: 100vw; height: clamp(440px, 76svh, 780px); overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
 .home-banner-media,
 .home-banner-fallback,
 .home-banner-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -444,53 +492,37 @@ button { cursor: pointer; font: inherit; }
 .banner-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
 .home-banner-shade { z-index: 1; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.46) 35%, rgba(14, 15, 19, 0.06) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.44) 18%, transparent 62%); }
 .home-banner-content { position: absolute; inset: 0 auto 0 50%; z-index: 2; display: flex; box-sizing: border-box; width: min(100%, 1680px); flex-direction: column; justify-content: flex-end; padding: clamp(40px, 5vw, 72px) clamp(28px, 5vw, 72px) clamp(72px, 9vh, 104px); color: #fff; transform: translateX(-50%); }
-.home-banner-kicker { margin-bottom: 12px; color: rgba(255, 188, 199, 0.92); font-size: 9px; font-weight: 900; letter-spacing: 0.2em; }
+.home-banner-kicker { margin-bottom: 12px; color: rgba(255, 188, 199, 0.92); font-size: 11px; font-weight: 900; letter-spacing: 0.2em; }
 .home-banner-card h1 { max-width: 680px; margin: 22px 0 0; font-size: clamp(42px, 5.4vw, 76px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
 .home-banner-description { max-width: 560px; margin: 24px 0 0; color: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 580; line-height: 1.75; }
 
-.personal-now-card { position: relative; z-index: 3; min-height: 242px; overflow: hidden; margin-top: 24px; padding: 29px 34px 28px; color: #29272d; border: 1px solid rgba(255, 255, 255, 0.92); border-radius: 34px; background: rgba(247, 244, 245, 0.96); box-shadow: 0 24px 64px rgba(66, 50, 54, 0.13); backdrop-filter: blur(18px); isolation: isolate; }
-.personal-station-ambient { position: absolute !important; inset: -25% -3% -35% 43%; z-index: -3; width: 62% !important; height: 160% !important; opacity: 0.7; filter: saturate(0.8) brightness(1.08); transform: rotate(-7deg) scale(1.05); }
-.personal-station-ambient :deep(> div),
-.personal-station-ambient :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
-.personal-station-scrim { position: absolute; inset: 0; z-index: -2; background: linear-gradient(90deg, #f8f5f6 0%, rgba(248, 245, 246, 0.98) 31%, rgba(248, 245, 246, 0.78) 63%, rgba(248, 245, 246, 0.3) 100%), linear-gradient(0deg, rgba(255, 255, 255, 0.7), transparent 75%); }
-.personal-now-card::after { position: absolute; top: -110px; right: 24%; z-index: -1; width: 260px; aspect-ratio: 1; border: 1px solid rgba(80, 61, 66, 0.07); border-radius: 50%; box-shadow: 0 0 0 45px rgba(255, 255, 255, 0.13), 0 0 0 90px rgba(255, 255, 255, 0.08); content: ''; }
+.personal-now-card { --station-accent: 201, 98, 116; position: relative; z-index: 3; display: flex; min-width: 0; min-height: 280px; overflow: hidden; flex-direction: column; padding: 28px 30px 26px; color: #29272d; border: 1px solid rgba(255, 255, 255, 0.94); border-radius: 28px; background: radial-gradient(circle at 92% 9%, rgba(var(--station-accent), 0.19), transparent 42%), radial-gradient(circle at 86% 110%, rgba(var(--station-accent), 0.1), transparent 45%), #fbf9f9; box-shadow: 0 16px 44px rgba(66, 50, 54, 0.09); isolation: isolate; }
+.personal-now-card::after { position: absolute; top: -176px; right: -105px; z-index: -1; width: 390px; aspect-ratio: 1; border: 1px solid rgba(var(--station-accent), 0.1); border-radius: 50%; box-shadow: 0 0 0 52px rgba(var(--station-accent), 0.035), 0 0 0 105px rgba(var(--station-accent), 0.025); content: ''; pointer-events: none; }
 .personal-now-heading { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.personal-now-heading p { margin: 0 0 5px; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.18em; }
-.personal-now-heading h2 { margin: 0; font-size: 27px; font-weight: 900; letter-spacing: -0.045em; }
-.personal-now-heading > span { display: flex; align-items: center; gap: 7px; margin-top: 3px; padding: 8px 11px; color: #79747a; border: 1px solid rgba(68, 53, 57, 0.08); border-radius: 999px; background: rgba(255, 255, 255, 0.62); box-shadow: 0 7px 18px rgba(70, 53, 57, 0.04); font-size: 8px; font-weight: 720; backdrop-filter: blur(12px); }
-.personal-now-heading > span i { width: 6px; aspect-ratio: 1; border-radius: 50%; background: #73d69b; box-shadow: 0 0 0 4px rgba(115, 214, 155, 0.13); }
-.personal-station-content { position: relative; z-index: 1; display: grid; min-width: 0; align-items: end; grid-template-columns: minmax(420px, 0.9fr) minmax(440px, 1.1fr); gap: clamp(30px, 6vw, 90px); margin-top: 20px; }
-.personal-station-content:not(:has(.personal-up-next)) { grid-template-columns: minmax(0, 720px); }
-.personal-station-feature { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 19px; margin: 0; padding: 0; text-align: left; color: #29272d; border: 0; background: transparent; }
-.personal-station-cover { display: block; width: 112px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 24px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 18px 38px rgba(72, 52, 57, 0.16); transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.personal-now-heading p { margin: 0 0 5px; color: #c54254; font-size: 10px; font-weight: 800; letter-spacing: 0.19em; }
+.personal-now-heading h2 { margin: 0; font-size: 26px; font-weight: 850; letter-spacing: -0.04em; }
+.personal-now-heading > span { display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 8px 11px; color: #69616a; border: 1px solid rgba(68, 53, 57, 0.07); border-radius: 999px; background: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 700; flex: none; }
+.personal-now-heading > span i { width: 6px; aspect-ratio: 1; border-radius: 50%; background: #d46676; box-shadow: 0 0 0 4px rgba(212, 102, 118, 0.12); }
+.personal-station-content { position: relative; z-index: 1; min-width: 0; margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(67, 49, 55, 0.1); }
+.personal-station-feature { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 17px; text-align: left; }
+.personal-station-cover { display: block; width: 96px; aspect-ratio: 1; overflow: hidden; padding: 0; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 20px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 12px 30px rgba(72, 52, 57, 0.15); transition: transform 260ms ease, box-shadow 260ms ease; }
 .personal-station-cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
 .personal-station-copy { min-width: 0; }
 .personal-station-copy small,
 .personal-station-copy strong,
 .personal-station-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.personal-station-copy small { color: #e85769; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; }
-.personal-station-copy strong { margin-top: 8px; font-size: clamp(18px, 2vw, 25px); font-weight: 880; letter-spacing: -0.035em; }
-.personal-station-copy > span { margin-top: 8px; color: #8b868c; font-size: 10px; }
-.personal-station-action { display: flex; align-items: center; flex-direction: column; gap: 7px; }
-.personal-station-action b { color: #8d878d; font-size: 7px; font-weight: 760; white-space: nowrap; }
-.personal-station-play { display: grid; width: 48px; aspect-ratio: 1; place-items: center; padding-left: 3px; color: #fff; border-radius: 50%; background: #29272d; box-shadow: 0 10px 25px rgba(56, 42, 46, 0.19); font-size: 12px; font-style: normal; transition: transform 220ms ease, background 220ms ease; }
-.personal-station-feature:hover .personal-station-cover { transform: translateY(-3px) rotate(-1deg); }
-.personal-station-feature:hover .personal-station-play { background: #e85769; transform: scale(1.06); }
-.personal-up-next { min-width: 0; padding: 13px 15px 11px; border: 1px solid rgba(75, 58, 63, 0.08); border-radius: 20px; background: rgba(255, 255, 255, 0.58); box-shadow: 0 13px 30px rgba(67, 50, 55, 0.06); backdrop-filter: blur(16px); }
-.personal-up-next > p { margin: 0 0 4px 5px; color: #918b91; font-size: 8px; font-weight: 800; letter-spacing: 0.12em; }
-.personal-up-next-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.personal-up-next button { display: grid; min-width: 0; align-items: center; grid-template-columns: 22px minmax(0, 1fr) 13px; gap: 7px; padding: 10px 9px; text-align: left; color: #29272d; border: 0; border-left: 1px solid rgba(69, 54, 58, 0.08); background: transparent; }
-.personal-up-next button:first-child { border-left: 0; }
-.personal-up-next button > span:first-child { color: #e85769; font-size: 8px; font-weight: 850; }
-.personal-up-next button > span:nth-child(2),
-.personal-up-next strong,
-.personal-up-next small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.personal-up-next strong { font-size: 9px; font-weight: 790; }
-.personal-up-next small { margin-top: 4px; color: #999399; font-size: 7px; }
-.personal-up-next button > i { color: #aaa4aa; font-size: 10px; font-style: normal; }
-.personal-station-empty { display: grid; min-height: 112px; place-items: center; color: #918b91; font-size: 10px; }
+.personal-station-copy small { color: #ba4c5e; font-size: 11px; font-weight: 750; }
+.personal-station-copy strong { margin-top: 6px; font-size: clamp(18px, 1.5vw, 22px); font-weight: 800; letter-spacing: -0.035em; }
+.personal-station-copy > span { margin-top: 6px; color: #716972; font-size: 13px; line-height: 1.5; }
+.personal-station-action { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 17px; color: #fff; border: 0; border-radius: 999px; background: #29272d; box-shadow: 0 8px 22px rgba(56, 42, 46, 0.16); transition: transform 220ms ease, background 220ms ease; }
+.personal-station-action b { font-size: 12px; font-weight: 720; white-space: nowrap; }
+.personal-station-play { display: grid; width: 18px; height: 18px; place-items: center; font-style: normal; }
+.personal-station-play :deep(svg) { width: 18px; height: 18px; }
+.personal-station-cover:hover { transform: translateY(-2px); box-shadow: 0 16px 32px rgba(72, 52, 57, 0.18); }
+.personal-station-action:hover { background: #bc4d61; transform: translateY(-2px); }
+.personal-station-empty { display: grid; min-height: 112px; place-items: center; color: #716972; font-size: 13px; }
 
-.lofi-resume { --resume-base: 49, 57, 82; --resume-accent: 92, 105, 148; --resume-glow: 152, 169, 213; position: relative; display: grid; min-height: 228px; overflow: hidden; align-items: center; grid-template-columns: minmax(0, 1.28fr) minmax(350px, 0.72fr); gap: 34px; margin-top: 18px; padding: 28px 32px; color: #fff; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 30px; background: rgb(var(--resume-base)); box-shadow: 0 20px 58px rgba(45, 36, 35, 0.15); isolation: isolate; }
+.lofi-resume { --resume-base: 49, 57, 82; --resume-accent: 92, 105, 148; --resume-glow: 152, 169, 213; position: relative; display: grid; min-height: 280px; overflow: hidden; align-items: center; grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 0; padding: 28px; color: #fff; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 28px; background: rgb(var(--resume-base)); box-shadow: 0 16px 44px rgba(45, 36, 35, 0.12); isolation: isolate; min-width: 0; align-content: center; }
 .lofi-resume::after { position: absolute; inset: 0; z-index: 1; opacity: 0.09; background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px); background-size: 12px 12px; content: ''; mix-blend-mode: soft-light; pointer-events: none; }
 .lofi-resume-fluid { position: absolute; inset: -42%; z-index: 0; overflow: hidden; background: radial-gradient(circle at 48% 42%, rgba(var(--resume-accent), 0.5), transparent 45%), linear-gradient(132deg, rgb(var(--resume-base)) 8%, rgba(var(--resume-accent), 0.94) 54%, rgb(var(--resume-base)) 100%); filter: saturate(1.16); pointer-events: none; transform: translate3d(0, 0, 0) scale(1.02); }
 .lofi-resume-fluid > i { position: absolute; display: block; border-radius: 50%; filter: blur(42px); opacity: 0.74; will-change: transform; }
@@ -498,8 +530,8 @@ button { cursor: pointer; font: inherit; }
 .lofi-resume-fluid .is-accent { right: 0; bottom: 3%; width: 54%; height: 56%; background: rgba(var(--resume-accent), 0.9); animation: resume-fluid-accent 22s ease-in-out infinite alternate-reverse; }
 .lofi-resume-fluid .is-glow { top: 22%; right: 22%; width: 34%; height: 45%; background: rgba(var(--resume-glow), 0.62); mix-blend-mode: screen; animation: resume-fluid-glow 15s ease-in-out infinite alternate; }
 .lofi-resume-haze { position: absolute; inset: 0; z-index: 1; background: linear-gradient(102deg, rgba(10, 12, 18, 0.58) 0%, rgba(14, 16, 23, 0.3) 52%, rgba(11, 13, 20, 0.38) 100%), linear-gradient(0deg, rgba(8, 10, 15, 0.3), transparent 70%); pointer-events: none; }
-.lofi-resume-primary { position: relative; z-index: 2; display: grid; min-width: 0; align-items: center; grid-template-columns: 138px minmax(0, 1fr) 58px; gap: 22px; }
-.lofi-resume-cover { position: relative; display: block; width: 138px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 25px; background: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 42px rgba(10, 9, 12, 0.32); }
+.lofi-resume-primary { position: relative; z-index: 2; display: grid; min-width: 0; align-items: center; grid-template-columns: 112px minmax(0, 1fr) 48px; gap: 18px; }
+.lofi-resume-cover { position: relative; display: block; width: 112px; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 22px; background: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 42px rgba(10, 9, 12, 0.32); }
 .lofi-resume-cover :deep(> div),
 .lofi-resume-cover :deep(img) { width: 100% !important; height: 100% !important; object-fit: cover; }
 .lofi-resume-cover > i { position: absolute; top: 50%; left: 50%; width: 18px; aspect-ratio: 1; border: 5px solid rgba(255, 255, 255, 0.22); border-radius: 50%; box-shadow: 0 0 0 1px rgba(20, 18, 22, 0.14); transform: translate(-50%, -50%); }
@@ -508,51 +540,39 @@ button { cursor: pointer; font: inherit; }
 .lofi-resume-copy strong,
 .lofi-resume-copy em,
 .lofi-resume-copy b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lofi-resume-copy small { color: rgb(var(--resume-glow)); font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
-.lofi-resume-copy h2 { margin: 8px 0 0; font-size: 30px; font-weight: 920; letter-spacing: -0.05em; }
-.lofi-resume-copy strong { margin-top: 10px; font-size: 13px; font-weight: 820; }
-.lofi-resume-copy em { margin-top: 5px; color: rgba(255, 255, 255, 0.58); font-size: 9px; font-style: normal; }
-.lofi-resume-copy b { margin-top: 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 650; }
+.lofi-resume-copy small { color: rgba(255, 255, 255, 0.75); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.lofi-resume-copy h2 { margin: 8px 0 0; font-size: 27px; font-weight: 800; letter-spacing: -0.03em; }
+.lofi-resume-copy strong { margin-top: 10px; font-size: 15px; font-weight: 700; }
+.lofi-resume-copy em { margin-top: 5px; color: rgba(255, 255, 255, 0.8); font-size: 13px; font-style: normal; line-height: 1.5; }
+.lofi-resume-copy b { margin-top: 7px; color: rgba(255, 255, 255, 0.72); font-size: 12px; font-weight: 500; }
 .lofi-progress { display: block; height: 3px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.18); }
 .lofi-progress i { display: block; height: 100%; border-radius: inherit; background: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, 0.55); }
-.lofi-resume-play { display: grid; width: 58px; aspect-ratio: 1; place-items: center; padding: 0; color: #302d31; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 12px 30px rgba(10, 9, 12, 0.2); font-size: 14px; font-weight: 850; backdrop-filter: blur(12px); transition: transform 220ms ease, background 220ms ease; }
+.lofi-resume-play { display: grid; width: 48px; aspect-ratio: 1; place-items: center; padding: 0; color: #302d31; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 12px 30px rgba(10, 9, 12, 0.2); font-size: 14px; font-weight: 850; backdrop-filter: blur(12px); transition: transform 220ms ease, background 220ms ease; }
 .lofi-resume-play svg { width: 20px; height: 20px; }
-.lofi-resume-play-icon { margin-left: 2px; }
 .lofi-resume-play:hover { background: #fff; transform: scale(1.06); }
-.lofi-resume-next { position: relative; z-index: 2; align-self: stretch; padding-left: 32px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
-.lofi-resume-next > p { margin: 2px 0 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 850; letter-spacing: 0.16em; }
-.lofi-resume-next button { display: grid; width: 100%; min-width: 0; align-items: center; grid-template-columns: 24px minmax(0, 1fr) minmax(60px, auto) 18px; gap: 8px; padding: 10px 2px; text-align: left; color: #fff; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); background: transparent; }
-.lofi-resume-next button > span { color: rgb(var(--resume-glow)); font-size: 7px; font-weight: 850; }
-.lofi-resume-next strong,
-.lofi-resume-next small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lofi-resume-next strong { font-size: 9px; font-weight: 760; }
-.lofi-resume-next small { color: rgba(255, 255, 255, 0.45); font-size: 7px; }
-.lofi-resume-next button > i { color: rgba(255, 255, 255, 0.68); font-size: 7px; font-style: normal; }
-.lofi-resume-empty { grid-template-columns: 1fr; place-items: center; text-align: center; background: linear-gradient(135deg, #4e4a50, #29272c); }
-.lofi-resume-empty > div:last-child { position: relative; z-index: 2; }
-.lofi-resume-empty small { color: #ffb3bd; font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
-.lofi-resume-empty h2 { margin: 10px 0 0; font-size: 24px; }
+.lofi-resume-next { position: relative; z-index: 2; align-self: stretch; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.16); }
+.lofi-resume-next > p { margin: 2px 0 7px; color: rgba(255, 255, 255, 0.72); font-size: 12px; font-weight: 500; letter-spacing: normal; }
 
-.personal-section { margin-top: 94px; }
+.personal-section { margin-top: 64px; }
 .personal-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
-.personal-section-heading p { margin: 0 0 8px; color: #e85769; font-size: 8px; font-weight: 900; letter-spacing: 0.2em; }
-.personal-section-heading h2 { margin: 0; font-size: clamp(36px, 4vw, 52px); font-weight: 920; letter-spacing: -0.055em; line-height: 1; }
-.personal-section-heading > span { max-width: 390px; color: #929298; font-size: 11px; line-height: 1.6; }
-.personal-section-heading > button { padding: 10px 15px; color: #65656b; border: 1px solid rgba(41, 40, 44, 0.08); border-radius: 999px; background: #fff; font-size: 9px; font-weight: 780; }
+.personal-section-heading p { margin: 0 0 8px; color: #c54254; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; }
+.personal-section-heading h2 { margin: 0; font-size: clamp(26px, 2.4vw, 32px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.25; }
+.personal-section-heading > span { max-width: 390px; color: #72727a; font-size: 13px; line-height: 1.6; }
+.personal-section-heading > button { padding: 10px 15px; color: #65656b; border: 1px solid rgba(41, 40, 44, 0.08); border-radius: 999px; background: #fff; font-size: 13px; font-weight: 650; display: inline-flex; align-items: center; gap: 8px; }
 .personal-scene-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.personal-scene-grid > button { position: relative; display: grid; min-height: 230px; overflow: hidden; align-content: space-between; padding: 19px; text-align: left; color: #fff; border: 0; border-radius: 27px; isolation: isolate; transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 320ms ease; }
-.personal-scene-grid > button:hover { box-shadow: 0 24px 50px rgba(43, 35, 34, 0.16); transform: translateY(-7px); }
+.personal-scene-grid > button { position: relative; display: grid; min-height: 180px; overflow: hidden; align-content: space-between; padding: 19px; text-align: left; color: #fff; border: 0; border-radius: 22px; isolation: isolate; transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 320ms ease; }
+.personal-scene-grid > button:hover { box-shadow: 0 24px 50px rgba(43, 35, 34, 0.16); transform: translateY(-3px); }
 .scene-familiar { background: linear-gradient(145deg, #655058, #352f35); }
 .scene-explore { background: linear-gradient(145deg, #e16d7b, #b34f62); }
 .scene-focus { background: linear-gradient(145deg, #66839b, #344a5c); }
 .scene-exercise { background: linear-gradient(145deg, #d69a58, #9a6537); }
 .scene-night { background: linear-gradient(145deg, #514f79, #292941); }
-.personal-scene-index { color: rgba(255, 255, 255, 0.56); font-size: 8px; font-weight: 850; }
+.personal-scene-index { color: rgba(255, 255, 255, 0.56); font-size: 11px; font-weight: 850; }
 .personal-scene-icon { position: absolute; top: 40px; right: -14px; z-index: -1; color: rgba(255, 255, 255, 0.11); font-size: 130px; font-weight: 300; line-height: 1; }
 .personal-scene-copy strong,
 .personal-scene-copy small { display: block; }
 .personal-scene-copy strong { font-size: 20px; font-weight: 880; letter-spacing: -0.03em; }
-.personal-scene-copy small { margin-top: 7px; color: rgba(255, 255, 255, 0.63); font-size: 9px; line-height: 1.5; }
+.personal-scene-copy small { margin-top: 7px; color: rgba(255, 255, 255, 0.8); font-size: 13px; line-height: 1.5; }
 .personal-scene-grid > button > i { position: absolute; top: 18px; right: 18px; color: rgba(255, 255, 255, 0.75); font-size: 14px; font-style: normal; }
 .personal-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: personal-spin 700ms linear infinite; }
 
@@ -560,23 +580,23 @@ button { cursor: pointer; font: inherit; }
 .personal-song-panel { padding: 18px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 32px; background: rgba(255, 255, 255, 0.68); box-shadow: 0 22px 58px rgba(49, 41, 38, 0.06); }
 .personal-song-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; }
 .personal-taste-card { padding: 30px 26px; color: #fff; border-radius: 32px; background: #29282c; box-shadow: 0 22px 58px rgba(38, 32, 31, 0.17); }
-.personal-taste-card > p { margin: 0; color: #ff8d9b; font-size: 8px; font-weight: 900; letter-spacing: 0.2em; }
+.personal-taste-card > p { margin: 0; color: #ff8d9b; font-size: 11px; font-weight: 900; letter-spacing: 0.2em; }
 .personal-taste-card h3 { margin: 17px 0 0; font-size: 26px; font-weight: 900; letter-spacing: -0.045em; }
-.personal-taste-card > span { display: block; margin-top: 10px; color: rgba(255, 255, 255, 0.55); font-size: 9px; line-height: 1.65; }
+.personal-taste-card > span { display: block; margin-top: 10px; color: rgba(255, 255, 255, 0.75); font-size: 13px; line-height: 1.65; }
 .personal-taste-list { margin-top: 24px; }
 .personal-taste-list button { display: grid; width: 100%; align-items: center; grid-template-columns: 24px minmax(0, 1fr) auto 16px; gap: 8px; padding: 12px 0; text-align: left; color: #fff; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.09); background: transparent; }
-.personal-taste-list button > span { color: #ff8d9b; font-size: 7px; font-weight: 850; }
-.personal-taste-list strong { overflow: hidden; font-size: 11px; font-weight: 790; text-overflow: ellipsis; white-space: nowrap; }
-.personal-taste-list small { color: rgba(255, 255, 255, 0.38); font-size: 7px; letter-spacing: 0.08em; }
+.personal-taste-list button > span { color: #ff8d9b; font-size: 11px; font-weight: 850; }
+.personal-taste-list strong { overflow: hidden; font-size: 15px; font-weight: 790; text-overflow: ellipsis; white-space: nowrap; }
+.personal-taste-list small { color: rgba(255, 255, 255, 0.65); font-size: 11px; letter-spacing: 0.08em; }
 .personal-taste-list i { color: rgba(255, 255, 255, 0.55); font-size: 11px; font-style: normal; }
-.personal-login-link { margin-top: 17px; padding: 10px 13px; color: #29282c; border: 0; border-radius: 999px; background: #fff; font-size: 8px; font-weight: 780; }
+.personal-login-link { margin-top: 17px; padding: 10px 13px; color: #29282c; border: 0; border-radius: 999px; background: #fff; font-size: 13px; font-weight: 780; }
 
 .personal-playlist-grid,
 .personal-playlist-skeleton { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
 .personal-playlist-skeleton span { aspect-ratio: 1 / 1.18; border-radius: 24px; background: #e8e8e9; animation: personal-pulse 1.3s ease-in-out infinite; }
 .personal-song-skeleton { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .personal-song-skeleton span { height: 74px; border-radius: 18px; background: #ededee; animation: personal-pulse 1.3s ease-in-out infinite; }
-.personal-empty { display: grid; min-height: 280px; place-items: center; color: #99999f; font-size: 10px; }
+.personal-empty { display: grid; min-height: 160px; place-items: center; color: #72727a; font-size: 13px; }
 .personal-collection-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .personal-collection-list > button { display: grid; min-width: 0; align-items: center; grid-template-columns: 82px minmax(0, 1fr) 20px; gap: 14px; padding: 10px; text-align: left; border: 1px solid rgba(41, 40, 44, 0.06); border-radius: 22px; background: rgba(255, 255, 255, 0.7); }
 .personal-collection-list :deep(img) { width: 82px; aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
@@ -584,16 +604,16 @@ button { cursor: pointer; font: inherit; }
 .personal-collection-list small,
 .personal-collection-list strong,
 .personal-collection-list i { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.personal-collection-list small { color: #e85769; font-size: 7px; font-weight: 850; letter-spacing: 0.1em; }
-.personal-collection-list strong { margin-top: 6px; font-size: 11px; font-weight: 820; }
-.personal-collection-list i { margin-top: 5px; color: #a1a1a7; font-size: 8px; font-style: normal; }
+.personal-collection-list small { color: #e85769; font-size: 10px; font-weight: 850; letter-spacing: 0.1em; }
+.personal-collection-list strong { margin-top: 6px; font-size: 15px; font-weight: 820; }
+.personal-collection-list i { margin-top: 5px; color: #72727a; font-size: 12px; font-style: normal; }
 .personal-collection-list b { color: #aaaab0; font-size: 12px; }
-.personal-load-note { margin: 36px 0 0; color: #b46973; text-align: center; font-size: 9px; }
-.personal-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 110px; padding: 26px 0 90px; border-top: 1px solid rgba(41, 40, 44, 0.08); }
+.personal-load-note { margin: 36px 0 0; color: #b46973; text-align: center; font-size: 13px; }
+.personal-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 72px; padding: 26px 0 90px; border-top: 1px solid rgba(41, 40, 44, 0.08); }
 .personal-footer div { display: flex; align-items: center; gap: 14px; }
 .personal-footer strong { font-size: 13px; font-weight: 900; letter-spacing: 0.18em; }
-.personal-footer span { color: #a1a1a7; font-size: 9px; }
-.personal-footer button { padding: 0; color: #797980; border: 0; background: transparent; font-size: 9px; font-weight: 760; }
+.personal-footer span { color: #a1a1a7; font-size: 12px; }
+.personal-footer button { padding: 0; color: #797980; border: 0; background: transparent; font-size: 12px; font-weight: 760; }
 
 @keyframes personal-spin { to { transform: rotate(360deg); } }
 @keyframes personal-pulse { 50% { opacity: 0.48; } }
@@ -618,19 +638,14 @@ button { cursor: pointer; font: inherit; }
 }
 
 @media (max-width: 1080px) {
-  .personal-station-content { grid-template-columns: 1fr; gap: 18px; }
-  .personal-up-next { width: min(100%, 680px); box-sizing: border-box; }
   .personal-scene-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 820px) {
   .personal-main { padding: 24px 18px 130px; }
-  .home-banner-card { left: auto; width: 100%; height: auto; min-height: 480px; margin-left: 0; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 30px; box-shadow: 0 26px 70px rgba(43, 32, 32, 0.15); }
+  .home-banner-card { left: auto; width: 100%; height: clamp(380px, 70svh, 600px); min-height: 380px; margin-left: 0; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 30px; box-shadow: 0 26px 70px rgba(43, 32, 32, 0.15); }
   .home-banner-shade { background: linear-gradient(90deg, rgba(14, 15, 19, 0.78) 0%, rgba(14, 15, 19, 0.45) 52%, rgba(14, 15, 19, 0.12) 100%), linear-gradient(0deg, rgba(14, 15, 19, 0.58), transparent 64%); }
   .home-banner-content { inset: 0; width: min(100%, 760px); padding: clamp(30px, 6vw, 50px); transform: none; }
-  .personal-now-card { margin-top: 22px; }
-  .personal-station-ambient { inset: -5% -25% -20% 34%; width: 92% !important; height: 130% !important; }
-  .personal-station-scrim { background: linear-gradient(90deg, #f8f5f6 0%, rgba(248, 245, 246, 0.94) 52%, rgba(248, 245, 246, 0.5) 100%), linear-gradient(0deg, rgba(255, 255, 255, 0.76), transparent 75%); }
   .lofi-resume { grid-template-columns: 1fr; gap: 24px; }
   .lofi-resume-next { padding: 20px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.16); border-left: 0; }
   .personal-scene-grid { grid-template-columns: repeat(2, 1fr); }
@@ -640,38 +655,33 @@ button { cursor: pointer; font: inherit; }
 
 @media (max-width: 560px) {
   .personal-main { padding: 13px 13px 115px; }
-  .home-banner-card { min-height: 510px; border-radius: 26px; }
+  .home-banner-card { height: clamp(360px, 65svh, 510px); min-height: 360px; border-radius: 26px; }
   .home-banner-content { padding: 25px; }
   .home-banner-card h1 { font-size: 42px; }
   .personal-now-card { min-height: 0; padding: 23px 18px 20px; border-radius: 26px; }
   .personal-now-heading h2 { font-size: 24px; }
-  .personal-now-heading > span { padding: 7px 9px; font-size: 7px; }
-  .personal-station-content { margin-top: 24px; }
-  .personal-station-feature { grid-template-columns: 84px minmax(0, 1fr) 42px; gap: 13px; }
-  .personal-station-cover { width: 84px; border-radius: 18px; }
+  .personal-now-heading > span { padding: 7px 9px; font-size: 11px; }
+  .personal-station-content { margin-top: 22px; padding-top: 18px; }
+  .personal-station-feature { grid-template-columns: 72px minmax(0, 1fr) 42px; gap: 12px; }
+  .personal-station-cover { width: 72px; border-radius: 16px; }
   .personal-station-copy strong { font-size: 17px; }
   .personal-station-action b { display: none; }
-  .personal-station-play { width: 42px; }
-  .personal-up-next { overflow-x: auto; padding: 11px 9px; scrollbar-width: none; }
-  .personal-up-next-list { display: flex; }
-  .personal-up-next button { width: 175px; flex: none; }
+  .personal-station-action { width: 42px; min-height: 42px; padding: 0; }
+  .personal-station-play { width: 18px; }
   .lofi-resume { min-height: 0; gap: 20px; padding: 20px 17px; border-radius: 24px; }
   .lofi-resume-primary { grid-template-columns: 88px minmax(0, 1fr) 44px; gap: 13px; }
   .lofi-resume-cover { width: 88px; border-radius: 19px; }
   .lofi-resume-cover > i { width: 12px; border-width: 3px; }
   .lofi-resume-copy h2 { font-size: 25px; }
-  .lofi-resume-copy strong { margin-top: 7px; font-size: 11px; }
+  .lofi-resume-copy strong { margin-top: 7px; font-size: 14px; }
   .lofi-progress { margin-top: 11px; }
   .lofi-resume-play { width: 44px; font-size: 11px; }
   .lofi-resume-next { padding-top: 16px; }
-  .lofi-resume-next button { grid-template-columns: 22px minmax(0, 1fr) 16px; }
-  .lofi-resume-next button > small { display: none; }
-  .lofi-resume-next button:nth-of-type(n + 3) { display: none; }
   .personal-section { margin-top: 70px; }
   .personal-section-heading { align-items: start; flex-direction: column; }
-  .personal-section-heading h2 { font-size: 39px; }
+  .personal-section-heading h2 { font-size: 26px; }
   .personal-scene-grid { display: flex; margin-right: -13px; overflow-x: auto; gap: 9px; padding-right: 13px; padding-bottom: 12px; scrollbar-width: none; }
-  .personal-scene-grid > button { width: 66vw; min-height: 218px; flex: none; }
+  .personal-scene-grid > button { width: 66vw; min-height: 176px; flex: none; }
   .personal-song-panel { padding: 9px 3px; border-radius: 25px; }
   .personal-song-grid,
   .personal-song-skeleton { grid-template-columns: 1fr; }
@@ -690,4 +700,23 @@ button { cursor: pointer; font: inherit; }
   *::before,
   *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+.home-listening-grid { display: grid; gap: 22px; margin-top: 28px; align-items: stretch; }
+.personal-station-description { position: relative; z-index: 1; margin: 12px 0 0; color: #726b73; font-size: 13px; line-height: 1.6; }
+.resume-queue-row { display: grid; align-items: center; grid-template-columns: 24px minmax(0, 1fr) 36px; gap: 10px; padding: 6px 0; }
+.resume-queue-row > span { color: rgba(255, 255, 255, 0.65); font-size: 11px; }
+.resume-queue-row > div { min-width: 0; }
+.resume-queue-row strong, .resume-queue-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-queue-row strong { font-size: 14px; font-weight: 600; }
+.resume-queue-row small { color: rgba(255, 255, 255, 0.72); font-size: 12px; }
+.resume-queue-row button { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.1); }
+.personal-song-grid :deep(.song-title) { font-size: 15px; line-height: 1.4; }
+.personal-song-grid :deep(.song-artist) { font-size: 13px; color: #72727a; line-height: 1.5; }
+.personal-playlist-grid :deep(.playlist-title) { font-size: 15px; }
+.personal-playlist-grid :deep(.playlist-meta) { font-size: 13px; color: #72727a; }
+.personal-home button:focus-visible { outline: 2px solid #c54254; outline-offset: 4px; }
+.personal-home button:disabled { cursor: wait; }
+.personal-load-note button { border: 0; background: transparent; color: #c54254; text-decoration: underline; }
+@media (min-width: 1100px) { .home-listening-grid.has-resume { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (min-width: 821px) and (max-width: 1200px) { .personal-song-grid { grid-template-columns: 1fr; } }
 </style>

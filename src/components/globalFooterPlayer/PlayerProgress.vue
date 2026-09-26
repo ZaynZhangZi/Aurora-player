@@ -60,6 +60,8 @@ const rangeStyle = computed(() => {
 })
 
 function readClock() {
+  // The media element is still at zero while a saved, paused track is loading.
+  if (!props.playing) return Number(props.currentTimeMs || 0)
   const liveTime = Number(props.clock?.())
   return Number.isFinite(liveTime) ? liveTime : Number(props.currentTimeMs || 0)
 }

@@ -1,4 +1,4 @@
-import {reactive, ref} from 'vue'
+import {computed, onScopeDispose, reactive, ref} from 'vue'
 import {personalHomeApi} from '@/api/personalHomeApi.js'
 
 function responseBody(response) {
@@ -87,7 +87,7 @@ function normalizeRecentCollection(item, type) {
     type,
     name: source?.name || source?.radio?.name || item?.name || '最近浏览',
     cover,
-    meta: source?.artist?.name || source?.creator?.nickname || source?.dj?.nickname || (type === 'album' ? '最近听过的专辑' : '最近打开'),
+    meta: source?.artist?.name || source?.creator?.nickname || source?.dj?.nickname || (type === 'album' ? '最近听过的专辑' : '最近听过的歌单'),
     raw: source,
   }
 }
@@ -99,85 +99,134 @@ export function usePersonalHomeData() {
   const recentSongs = ref([])
   const recentCollections = ref([])
   const stylePreferences = ref([])
-  const loading = reactive({page: true, scene: ''})
-  const error = ref('')
+  const sections = {dailySongs, dailyPlaylists, personalFmSongs, recentSongs, stylePreferences}
+  const collectionParts = reactive({playlist: [], album: []})
+  const loading = reactive({dailySongs: true, dailyPlaylists: true, personalFmSongs: true, recentSongs: true, scene: ''})
+  const errors = reactive({})
+  const error = computed(() => Object.values(errors).filter(Boolean).join('；'))
   let loadToken = 0
+  let activeCacheKey = ''
+  let sceneToken = 0
 
-  async function loadGuestFallback() {
-    const [songsResult, playlistResult] = await Promise.allSettled([
-      personalHomeApi.getGuestSongs(12),
-      personalHomeApi.getGuestPlaylists(6),
-    ])
-    if (!dailySongs.value.length && songsResult.status === 'fulfilled') dailySongs.value = extractSongs(songsResult.value)
-    if (!dailyPlaylists.value.length && playlistResult.status === 'fulfilled') dailyPlaylists.value = extractPlaylists(playlistResult.value)
+  function updateCollections() {
+    recentCollections.value = [...collectionParts.playlist, ...collectionParts.album].slice(0, 6)
   }
 
-  async function loadPersonalHome(isLoggedIn) {
-    const token = ++loadToken
-    loading.page = true
-    error.value = ''
-    dailySongs.value = []
-    dailyPlaylists.value = []
-    personalFmSongs.value = []
-    recentSongs.value = []
-    recentCollections.value = []
-    stylePreferences.value = []
-
+  function saveCache() {
+    if (!activeCacheKey) return
     try {
-      if (!isLoggedIn) {
-        await loadGuestFallback()
-        return
-      }
+      sessionStorage.setItem(activeCacheKey, JSON.stringify({
+        savedAt: Date.now(),
+        sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.value])),
+        collections: collectionParts,
+      }))
+    } catch { /* Recommendations remain usable when session storage is unavailable. */ }
+  }
 
-      const [dailyResult, playlistResult, fmResult, recentSongResult, recentPlaylistResult, recentAlbumResult, preferenceResult] = await Promise.allSettled([
-        personalHomeApi.getDailySongs(),
-        personalHomeApi.getDailyPlaylists(),
-        personalHomeApi.getPersonalFm(),
-        personalHomeApi.getRecent('song', 12),
-        personalHomeApi.getRecent('playlist', 4),
-        personalHomeApi.getRecent('album', 4),
-        personalHomeApi.getStylePreference(),
-      ])
-      if (token !== loadToken) return
-
-      if (dailyResult.status === 'fulfilled') dailySongs.value = extractSongs(dailyResult.value)
-      if (playlistResult.status === 'fulfilled') dailyPlaylists.value = extractPlaylists(playlistResult.value)
-      if (fmResult.status === 'fulfilled') personalFmSongs.value = extractSongs(fmResult.value)
-      if (recentSongResult.status === 'fulfilled') recentSongs.value = extractSongs(recentSongResult.value)
-      if (preferenceResult.status === 'fulfilled') stylePreferences.value = extractStylePreferences(preferenceResult.value)
-
-      const collections = []
-      if (recentPlaylistResult.status === 'fulfilled') {
-        const body = responseBody(recentPlaylistResult.value)
-        firstArray(body?.data?.list, body?.data, body?.list).forEach(item => collections.push(normalizeRecentCollection(item, 'playlist')))
-      }
-      if (recentAlbumResult.status === 'fulfilled') {
-        const body = responseBody(recentAlbumResult.value)
-        firstArray(body?.data?.list, body?.data, body?.list).forEach(item => collections.push(normalizeRecentCollection(item, 'album')))
-      }
-      recentCollections.value = collections.filter(item => item.id && item.cover).slice(0, 6)
-
-      if (!dailySongs.value.length || !dailyPlaylists.value.length) await loadGuestFallback()
-    } catch (loadError) {
-      if (token !== loadToken) return
-      error.value = loadError?.message || '个人推荐加载失败'
-      await loadGuestFallback()
-    } finally {
-      if (token === loadToken) loading.page = false
+  async function loadPersonalHome(isLoggedIn, userId = '') {
+    const token = ++loadToken
+    sceneToken += 1
+    loading.scene = ''
+    const cacheKey = isLoggedIn
+      ? (userId ? `aurora-home-v1:user:${userId}` : '')
+      : 'aurora-home-v1:guest'
+    if (cacheKey !== activeCacheKey || !cacheKey) {
+      Object.values(sections).forEach(section => { section.value = [] })
+      collectionParts.playlist = []
+      collectionParts.album = []
+      activeCacheKey = cacheKey
+      try {
+        const cached = cacheKey ? JSON.parse(sessionStorage.getItem(cacheKey) || 'null') : null
+        if (cached && Date.now() - cached.savedAt < 6 * 60 * 60 * 1000) {
+          Object.entries(sections).forEach(([key, section]) => {
+            if (Array.isArray(cached.sections?.[key])) section.value = cached.sections[key]
+          })
+          for (const kind of ['playlist', 'album']) {
+            if (Array.isArray(cached.collections?.[kind])) collectionParts[kind] = cached.collections[kind]
+          }
+        }
+      } catch { /* Ignore stale or malformed cache entries. */ }
+      updateCollections()
     }
+    Object.keys(errors).forEach(key => { delete errors[key] })
+
+    async function loadSection(key, request, normalize, label, fallback) {
+      loading[key] = true
+      try {
+        let list
+        let usedFallback = false
+        try {
+          list = normalize(await request())
+        } catch (requestError) {
+          if (token !== loadToken) return
+          if (!fallback || sections[key]?.value.length) throw requestError
+          usedFallback = true
+          list = normalize(await fallback())
+        }
+        if (token !== loadToken) return
+        if (!list.length && fallback && !usedFallback && !sections[key]?.value.length) {
+          list = normalize(await fallback())
+        }
+        if (token !== loadToken) return
+        if (sections[key]) {
+          // An empty recommendation response must not erase an already usable cache.
+          if (list.length || !fallback) sections[key].value = list
+        } else {
+          collectionParts[key] = list
+          updateCollections()
+        }
+        saveCache()
+      } catch {
+        if (token === loadToken) errors[key] = `${label}暂时无法更新`
+      } finally {
+        if (token === loadToken) loading[key] = false
+      }
+    }
+
+    const guestSongs = () => personalHomeApi.getGuestSongs(12)
+    const guestPlaylists = () => personalHomeApi.getGuestPlaylists(6)
+    const tasks = [
+      loadSection('dailySongs', isLoggedIn ? () => personalHomeApi.getDailySongs() : guestSongs, extractSongs, '每日歌曲', isLoggedIn ? guestSongs : undefined),
+      loadSection('dailyPlaylists', isLoggedIn ? () => personalHomeApi.getDailyPlaylists() : guestPlaylists, extractPlaylists, '推荐歌单', isLoggedIn ? guestPlaylists : undefined),
+    ]
+    if (isLoggedIn) {
+      tasks.push(
+        loadSection('personalFmSongs', () => personalHomeApi.getPersonalFm(), extractSongs, '私人频率'),
+        loadSection('recentSongs', () => personalHomeApi.getRecent('song', 12), extractSongs, '播放记录'),
+        loadSection('stylePreferences', () => personalHomeApi.getStylePreference(), extractStylePreferences, '曲风偏好'),
+        ...['playlist', 'album'].map(kind => loadSection(kind, () => personalHomeApi.getRecent(kind, 4), response => {
+          const body = responseBody(response)
+          return firstArray(body?.data?.list, body?.data, body?.list)
+            .map(item => normalizeRecentCollection(item, kind)).filter(item => item.id && item.cover)
+        }, kind === 'playlist' ? '最近歌单' : '最近专辑')),
+      )
+    } else {
+      loading.personalFmSongs = false
+      loading.recentSongs = false
+    }
+    // Each task commits as soon as it finishes; no shared render gate.
+    await Promise.allSettled(tasks)
   }
 
   async function loadSceneSongs(scene) {
     if (!scene?.mode) return []
+    const token = ++sceneToken
+    delete errors.scene
     loading.scene = scene.id
     try {
       const response = await personalHomeApi.getPersonalFmMode(scene.mode, scene.submode || '')
+      if (token !== sceneToken) return []
       const list = extractSongs(response)
       return list.length ? list : personalFmSongs.value
+    } catch {
+      if (token === sceneToken) errors.scene = '场景推荐暂时无法加载，请稍后重试'
+      return []
     } finally {
-      loading.scene = ''
+      if (token === sceneToken) loading.scene = ''
     }
   }
+
+  onScopeDispose(() => { loadToken += 1; sceneToken += 1 })
 
   return {
     dailySongs,
@@ -187,6 +236,7 @@ export function usePersonalHomeData() {
     recentCollections,
     stylePreferences,
     loading,
+    errors,
     error,
     loadPersonalHome,
     loadSceneSongs,

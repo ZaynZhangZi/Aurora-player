@@ -3,7 +3,7 @@
     class="song-row"
     :class="{ 'song-row-compact': compact, 'song-row-album': showAlbum, 'is-current': isCurrent }"
     type="button"
-    :aria-label="`播放歌曲：${title}`"
+    :aria-label="`${togglePlayback && isCurrent && playerStore.isPlaying ? '暂停' : '播放'}歌曲：${title}`"
     :aria-current="isCurrent ? 'true' : undefined"
     :aria-busy="isStarting"
     :disabled="isStarting"
@@ -12,8 +12,7 @@
     <span v-if="showIndex" class="song-index">
       <span class="song-index-num">{{ String(index + 1).padStart(2, '0') }}</span>
       <span class="song-index-play" aria-hidden="true">
-        <span v-if="isStarting" class="song-play-spinner" />
-        <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+        <HomePlaybackIcon :loading="isStarting" :playing="togglePlayback && isCurrent && playerStore.isPlaying" />
       </span>
     </span>
     <span class="song-cover">
@@ -37,8 +36,7 @@
     <span v-if="showAlbum" class="song-album">{{ album }}</span>
     <span v-if="duration" class="song-duration">{{ duration }}</span>
     <span class="song-play" :class="{ 'is-loading': isStarting }" aria-hidden="true">
-      <span v-if="isStarting" class="song-play-spinner" />
-      <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+      <HomePlaybackIcon :loading="isStarting" :playing="togglePlayback && isCurrent && playerStore.isPlaying" />
     </span>
   </button>
 </template>
@@ -48,8 +46,10 @@ import {computed} from 'vue'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {usePlayerStore} from '@/stores/playerStore.js'
+import HomePlaybackIcon from '@/components/home/HomePlaybackIcon.vue'
 
 const props = defineProps({
+  togglePlayback: Boolean,
   song: {
     type: Object,
     required: true,

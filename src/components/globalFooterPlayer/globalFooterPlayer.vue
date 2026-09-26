@@ -652,6 +652,7 @@
       webkit-playsinline="true"
       preload="auto"
       @loadedmetadata="onLoadedMetadata"
+      @canplay="onLoadedMetadata"
       @durationchange="onDurationChange"
       @timeupdate="throttledOnTimeUpdate"
       @play="onPlay"
@@ -666,6 +667,7 @@
       webkit-playsinline="true"
       preload="auto"
       @loadedmetadata="onLoadedMetadata"
+      @canplay="onLoadedMetadata"
       @durationchange="onDurationChange"
       @timeupdate="throttledOnTimeUpdate"
       @play="onPlay"
@@ -2096,7 +2098,20 @@ function onClickMorePlaylist() {
 }
 
 
-function onLoadedMetadata() {
+function onLoadedMetadata(event) {
+  if (!isEventFromActiveDeck(event)) return;
+  const active = getActiveAudio();
+  const resumeMs = playerStore.pendingResumeMs;
+  if (active && resumeMs !== null) {
+    const duration = Number(active.duration || 0) * 1000;
+    const targetMs = duration > 0 && resumeMs >= duration - 1000 ? 0 : resumeMs;
+    try {
+      active.currentTime = targetMs / 1000;
+      playerStore.pendingResumeMs = null;
+      playerStore.setCurrentTimeMs(targetMs);
+      amllCurrentTimeMsRef.value = targetMs + AMLL_LYRIC_LEAD_MS;
+    } catch { /* Retain the resume position until media becomes seekable. */ }
+  }
   syncDurationFromAudio();
   syncAudioVolume();
   scheduleMediaSessionPositionStateUpdate();
@@ -2300,9 +2315,11 @@ watch(
       resetRhythmEnergy();
     }
     if (!promotedByCrossfade) {
-      playerStore.setDurationMs(0);
-      playerStore.setCurrentTimeMs(0);
-      amllCurrentTimeMsRef.value = AMLL_LYRIC_LEAD_MS;
+      if (playerStore.pendingResumeMs === null) {
+        playerStore.setDurationMs(0);
+        playerStore.setCurrentTimeMs(0);
+      }
+      amllCurrentTimeMsRef.value = playerStore.currentTimeMs + AMLL_LYRIC_LEAD_MS;
     }
     await nextTick();
     const active = getActiveAudio();
@@ -2463,6 +2480,7 @@ watch([currentTimeMs, durationMs], () => {
 });
 
 onMounted(() => {
+  window.addEventListener("pagehide", playerStore.persistPlaybackPosition);
   if (playerStore.automixEnabled) {
     autoMixEngine.enable();
     autoMixEngine.setQueue(playerStore.playQueue);
@@ -2492,6 +2510,7 @@ onMounted(() => {
   visibilityChangeHandler = () => {
     if (typeof document === "undefined") return;
     if (document.hidden) {
+      playerStore.persistPlaybackPosition();
       if (backgroundCheckTimer) clearInterval(backgroundCheckTimer);
       const active = getActiveAudio();
       if (!active) return;
@@ -2544,6 +2563,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  playerStore.persistPlaybackPosition();
+  window.removeEventListener("pagehide", playerStore.persistPlaybackPosition);
   autoMixEngine.cancelAnalysis();
   stopAutomixRuntimeSubscription?.();
   stopAutomixRuntimeSubscription = null;

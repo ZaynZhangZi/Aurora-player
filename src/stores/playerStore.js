@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import {readPlaybackPosition, writePlaybackPosition} from '@/utils/player/playbackPosition.js'
 
 export const PLAY_MODE = {
   SEQUENCE: 'sequence',
@@ -51,6 +52,7 @@ function ensureQueueEntryIds(queue = []) {
 
 const PLAYER_STORAGE_KEY = 'global-player-store'
 let volumePersistTimer = 0
+const positionPersistTimes = new WeakMap()
 
 function createDefaultPlayerState() {
   return {
@@ -64,6 +66,7 @@ function createDefaultPlayerState() {
     isPlaying: false,
     currentTimeMs: 0,
     durationMs: 0,
+    pendingResumeMs: null,
     volume: 0.85,
     autoPlayOnLoad: false,
     playbackPendingId: null,
@@ -108,9 +111,12 @@ function createInitialPlayerState() {
       ? storedIndex
       : (playQueue.length ? 0 : -1)
     const volume = Number(saved?.volume)
+    const position = readPlaybackPosition(saved?.currentSong?.id)
 
     return {
       ...defaults,
+      ...(position || {}),
+      pendingResumeMs: position?.currentTimeMs > 0 ? position.currentTimeMs : null,
       currentSong: saved?.currentSong && typeof saved.currentSong === 'object'
         ? {...defaults.currentSong, ...saved.currentSong}
         : defaults.currentSong,
@@ -136,6 +142,7 @@ function persistPlayerState(store) {
   }
 
   try {
+    store.persistPlaybackPosition()
     localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({
       currentSong: store.currentSong,
       volume: store.volume,
@@ -241,6 +248,8 @@ export const usePlayerStore = defineStore('global-player', {
 
       if (resetTime && !sameTrack) {
         this.currentTimeMs = 0
+        this.durationMs = 0
+        this.pendingResumeMs = null
       }
 
       this.autoPlayOnLoad = autoplay
@@ -252,6 +261,7 @@ export const usePlayerStore = defineStore('global-player', {
 
     setPlaying(value) {
       this.isPlaying = Boolean(value)
+      if (!this.isPlaying) this.persistPlaybackPosition()
     },
 
     setPlaybackPendingId(songId) {
@@ -260,12 +270,20 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setCurrentTimeMs(value) {
+      if (this.pendingResumeMs !== null) return
       const ms = Number(value)
       this.currentTimeMs = Number.isFinite(ms) ? Math.max(0, ms) : 0
+      if (Date.now() - (positionPersistTimes.get(this) || 0) >= 3000) this.persistPlaybackPosition()
+    },
+
+    persistPlaybackPosition() {
+      writePlaybackPosition(this.currentSong?.id, this.pendingResumeMs ?? this.currentTimeMs, this.durationMs)
+      positionPersistTimes.set(this, Date.now())
     },
 
     setDurationMs(value) {
       const ms = Number(value)
+      if (this.pendingResumeMs !== null && !(ms > 0)) return
       this.durationMs = Number.isFinite(ms) ? Math.max(0, ms) : 0
     },
 
