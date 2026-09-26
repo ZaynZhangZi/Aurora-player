@@ -18,8 +18,9 @@
     "lint": "run-s lint:*"
   },
   "dependencies": {
-    "@applemusic-like-lyrics/core": "file:applemusic-like-lyrics-core-0.2.1.tgz",
-    "@applemusic-like-lyrics/vue": "file:applemusic-like-lyrics-vue-0.2.2.tgz",
+    "@applemusic-like-lyrics/core": "file:vendor/amll/applemusic-like-lyrics-core-0.6.0.tgz",
+    "@applemusic-like-lyrics/react": "file:vendor/amll/applemusic-like-lyrics-react-0.6.0.tgz",
+    "@applemusic-like-lyrics/react-full": "file:vendor/amll/applemusic-like-lyrics-react-full-0.5.0.tgz",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
     "@pixi/app": "7.4.3",
@@ -43,6 +44,9 @@
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.5.0",
     "pixi.js": "^8.13.2",
+    "jotai": "^2.20.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tailwindcss": "^4.1.13",
     "three": "^0.182.0",
     "vue": "^3.5.18",

@@ -77,49 +77,59 @@ async function waitForWrapper(getOverlayHost, timeout = DEFAULT_WRAPPER_TIMEOUT)
   return null;
 }
 
-function getExpectedLayoutClass(wrapper) {
-  const rect = wrapper?.getBoundingClientRect();
-  const width = isUsableRect(rect) ? rect.width : window.innerWidth;
-  const height = isUsableRect(rect) ? rect.height : window.innerHeight;
-
-  if (width <= 900 || height <= 560) return "is-layout-mobile";
-  if (
-    height > width ||
-    width < 1180 ||
-    height < 640 ||
-    width / height < 1.35
-  ) {
-    return "is-layout-vertical";
-  }
-  return "is-layout-horizontal";
-}
-
 function findFullscreenCover(wrapper) {
   if (!wrapper) return null;
   const player = wrapper.querySelector(".amll-prebuilt");
   if (!player) return null;
 
-  const selectors = player.classList.contains("is-layout-horizontal")
-    ? [".amll-prebuilt__cover-slot .amll-prebuilt__cover"]
-    : player.classList.contains("hideLyric")
-      ? [
-          ".amll-prebuilt__big-cover .amll-prebuilt__cover",
-          ".amll-prebuilt__small-cover .amll-prebuilt__cover",
-        ]
-      : [
-          ".amll-prebuilt__small-cover .amll-prebuilt__cover",
-          ".amll-prebuilt__big-cover .amll-prebuilt__cover",
-        ];
+  // AMLL React uses CSS-module class names, so the old Vue class selectors
+  // are not stable. Find the actual artwork media and walk up to its square
+  // layout frame (the frame carries the cover shadow/corner treatment).
+  const mediaNodes = player.querySelectorAll(
+    "video, [style*='background-image']",
+  );
+  let bestCover = null;
+  let bestArea = 0;
 
-  for (const selector of selectors) {
-    const cover = player.querySelector(selector);
-    if (cover && isUsableRect(cover.getBoundingClientRect())) return cover;
+  for (const media of mediaNodes) {
+    let candidate = media;
+    let mediaArea = 0;
+    let mediaCover = null;
+    let mediaCoverArea = 0;
+    while (candidate && candidate !== player) {
+      const rect = candidate.getBoundingClientRect();
+      if (isUsableRect(rect)) {
+        const ratio = rect.width / rect.height;
+        const area = rect.width * rect.height;
+        const style = window.getComputedStyle(candidate);
+        const visible = style.display !== "none" && style.visibility !== "hidden";
+        const isCoverSizedSquare = ratio >= 0.82 && ratio <= 1.22 && area >= 1600;
+        if (visible && isCoverSizedSquare) {
+          if (!mediaArea) mediaArea = area;
+          // Include the artwork frame around the image/video (which supplies
+          // AMLL's clipping and shadow), but stop before reaching the layout.
+          if (area <= mediaArea * 1.3) {
+            mediaCover = candidate;
+            mediaCoverArea = area;
+          } else {
+            break;
+          }
+        } else if (mediaCover) {
+          break;
+        }
+      }
+      candidate = candidate.parentElement;
+    }
+    if (mediaCover && mediaCoverArea > bestArea) {
+      bestCover = mediaCover;
+      bestArea = mediaCoverArea;
+    }
   }
-  return null;
+
+  return bestCover;
 }
 
 async function waitForFullscreenCover(wrapper, timeout = 900) {
-  const expectedLayout = getExpectedLayoutClass(wrapper);
   const startedAt = performance.now();
   let previousRect = null;
   let stableFrames = 0;
@@ -129,19 +139,29 @@ async function waitForFullscreenCover(wrapper, timeout = 900) {
     const player = wrapper?.querySelector(".amll-prebuilt");
     const cover = findFullscreenCover(wrapper);
     const rect = cover?.getBoundingClientRect();
-    const layoutReady = player?.classList.contains(expectedLayout);
 
-    if (cover && isUsableRect(rect)) {
-      if (layoutReady) latestCover = cover;
+    if (player && cover && isUsableRect(rect) && rect.width >= 40 && rect.height >= 40) {
+      latestCover = cover;
       const stable =
         previousRect &&
         Math.abs(previousRect.left - rect.left) < 0.5 &&
         Math.abs(previousRect.top - rect.top) < 0.5 &&
         Math.abs(previousRect.width - rect.width) < 0.5 &&
         Math.abs(previousRect.height - rect.height) < 0.5;
-      stableFrames = layoutReady && stable ? stableFrames + 1 : 0;
-      previousRect = rect;
-      if (stableFrames >= 1) return cover;
+      stableFrames = stable ? stableFrames + 1 : 0;
+      previousRect = {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+      // The React layout selects vertical/horizontal mode after mount and its
+      // cover frame settles on the following layout frames. Wait for that
+      // frame instead of animating toward a transient first position.
+      if (stableFrames >= 2) return cover;
+    } else {
+      previousRect = null;
+      stableFrames = 0;
     }
 
     await waitFrames();
@@ -615,7 +635,7 @@ export function usePlayerFullscreenTransition({
       );
       watchViewportDuringRun(run, () => {
         cleanupRun(run);
-        focusElement(wrapper.querySelector(".amll-prebuilt__thumbButton"));
+        focusElement(wrapper.querySelector(".amll-prebuilt button"));
       });
 
       await waitForAnimations(run.animations);
@@ -626,7 +646,7 @@ export function usePlayerFullscreenTransition({
       if (run.cleaned) return true;
 
       cleanupRun(run);
-      focusElement(wrapper.querySelector(".amll-prebuilt__thumbButton"));
+      focusElement(wrapper.querySelector(".amll-prebuilt button"));
       return true;
     } catch {
       cleanupRun(run);
@@ -645,7 +665,9 @@ export function usePlayerFullscreenTransition({
     const fullscreenCover = findFullscreenCover(wrapper);
 
     if (!canAnimate(miniShell, miniCover) || !wrapper || !fullscreenCover) {
+      blurFocusWithin(wrapper);
       commitOverlayOpened(false);
+      void nextTick(() => focusElement(miniCover));
       return true;
     }
 
@@ -657,7 +679,9 @@ export function usePlayerFullscreenTransition({
       !isUsableRect(targetCoverRect) ||
       !isUsableRect(sourceCoverRect)
     ) {
+      blurFocusWithin(wrapper);
       commitOverlayOpened(false);
+      void nextTick(() => focusElement(miniCover));
       return true;
     }
 
@@ -769,6 +793,7 @@ export function usePlayerFullscreenTransition({
           pointerEvents: "none",
           borderRadius: "0",
         });
+        blurFocusWithin(wrapper);
         commitOverlayOpened(false);
         cleanupRun(run, {restoreWrapper: false});
         holdWrapperHiddenUntilUnmounted(wrapper, restoreWrapper);
@@ -783,6 +808,7 @@ export function usePlayerFullscreenTransition({
       if (run.cleaned) return true;
 
       wrapper.style.opacity = "0";
+      blurFocusWithin(wrapper);
       commitOverlayOpened(false);
       const restoreWrapper = run.restoreWrapper;
       Object.assign(wrapper.style, {
@@ -799,7 +825,11 @@ export function usePlayerFullscreenTransition({
     } catch {
       cleanupRun(run);
       transitioning.value = false;
-      if (!disposed) commitOverlayOpened(false);
+      if (!disposed) {
+        blurFocusWithin(wrapper);
+        commitOverlayOpened(false);
+        void nextTick(() => focusElement(miniCover));
+      }
       return !disposed;
     }
   }

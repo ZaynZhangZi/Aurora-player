@@ -103,7 +103,7 @@ export function preloadRouteComponents(router) {
     }
   })
   tasks.push(import('@/components/globalFooterPlayer/globalFooterPlayer.vue').catch(() => {}))
-  tasks.push(import('@applemusic-like-lyrics/vue').catch(() => {}))
+  tasks.push(import('@applemusic-like-lyrics/react-full').catch(() => {}))
 
   const preloadPromise = Promise.allSettled(tasks)
   routePreloadPromises.set(router, preloadPromise)

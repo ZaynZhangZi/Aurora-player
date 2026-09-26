@@ -49,7 +49,7 @@
           </div>
 
           <div class="personal-station-content">
-            <button v-if="stationSong" class="personal-station-feature" type="button" @click="playStationSong">
+            <button v-if="stationSong" class="personal-station-feature" type="button" @click="playStationSong()">
               <span class="personal-station-cover"><SmartMedia :src="stationSong.cover || stationSong.al?.picUrl || stationSong.album?.picUrl" :alt="`${stationSong.name}封面`" :image-width="320" sizes="112px" /></span>
               <span class="personal-station-copy">
                 <small>为你选出的这一首</small><strong>{{ stationSong.name }}</strong><ArtistLinks class="station-artists" :artists="getSongArtists(stationSong)" />
@@ -97,7 +97,8 @@
             <b>{{ resumeProgress ? `已播放 ${Math.round(resumeProgress)}%` : '从这里继续你的声音' }}</b>
           </div>
           <button type="button" class="lofi-resume-play" :aria-label="playerStore.isPlaying && resumeIsCurrent ? '暂停' : '继续播放'" @click="playResumeSong()">
-            {{ playerStore.isPlaying && resumeIsCurrent ? 'Ⅱ' : '▶' }}
+            <PauseIcon v-if="playerStore.isPlaying && resumeIsCurrent" aria-hidden="true" />
+            <PlayIcon v-else class="lofi-resume-play-icon" aria-hidden="true" />
           </button>
         </div>
 
@@ -213,6 +214,7 @@ defineOptions({name: 'HomePage'})
 
 import {computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
+import {PauseIcon, PlayIcon} from '@heroicons/vue/24/solid'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import HomePlaylistCard from '@/components/home/HomePlaylistCard.vue'
@@ -514,6 +516,8 @@ button { cursor: pointer; font: inherit; }
 .lofi-progress { display: block; height: 3px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.18); }
 .lofi-progress i { display: block; height: 100%; border-radius: inherit; background: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, 0.55); }
 .lofi-resume-play { display: grid; width: 58px; aspect-ratio: 1; place-items: center; padding: 0; color: #302d31; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 12px 30px rgba(10, 9, 12, 0.2); font-size: 14px; font-weight: 850; backdrop-filter: blur(12px); transition: transform 220ms ease, background 220ms ease; }
+.lofi-resume-play svg { width: 20px; height: 20px; }
+.lofi-resume-play-icon { margin-left: 2px; }
 .lofi-resume-play:hover { background: #fff; transform: scale(1.06); }
 .lofi-resume-next { position: relative; z-index: 2; align-self: stretch; padding-left: 32px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
 .lofi-resume-next > p { margin: 2px 0 7px; color: rgba(255, 255, 255, 0.48); font-size: 7px; font-weight: 850; letter-spacing: 0.16em; }

@@ -9,7 +9,7 @@ import { preloadRouteComponents } from "./utils/appBootstrap.js";
 
 import "./index.css";
 import "@applemusic-like-lyrics/core/style.css";
-import "./styles/amll-vue.css";
+import "@applemusic-like-lyrics/react-full/style.css";
 
 // 🔧 开发环境性能监控
 if (import.meta.env.DEV) {

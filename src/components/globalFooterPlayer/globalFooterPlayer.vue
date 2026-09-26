@@ -408,7 +408,7 @@
         ref="amllHostRef"
         data-player-amll-host
       >
-        <AMLLWrapper
+        <AMLLReactPlayer
           :opened="amllOpened"
           @update:opened="onAmllOpenedChange"
           v-model:current-time="amllCurrentTimeMs"
@@ -423,10 +423,14 @@
           :duration="durationMs"
           :playing="isPlaying"
           :low-freq-volume="amllLowFreqVolume"
+          :play-mode="playerStore.playMode"
           @play-or-pause="togglePlay"
           @prev="playPrevSong"
           @next="playNextSong"
           @line-click="onAmllLineClick"
+          @open-playlist="togglePlaylistPanel"
+          @toggle-shuffle="toggleShuffleMode"
+          @cycle-repeat="cyclePlayMode"
         />
       </div>
     </Teleport>
@@ -436,6 +440,7 @@
         <div
           v-if="playlistPanelOpen"
           class="playlist-dialog-backdrop fixed inset-0 z-[1001] bg-black/35 p-4 backdrop-blur-[2px]"
+          :class="{ 'playlist-dialog-over-fullscreen': amllOpened }"
           role="dialog"
           aria-modal="true"
           aria-label="播放列表"
@@ -691,7 +696,6 @@ import {
 } from "@heroicons/vue/24/solid";
 import {
   computed,
-  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -703,6 +707,7 @@ import {useDetailNavigation} from "@/composables/useDetailNavigation.js";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
+import AMLLReactPlayer from "@/components/globalFooterPlayer/AMLLReactPlayer.vue";
 import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
 import {autoMixEngine} from "@/audio/AutoMixEngine.js";
@@ -746,12 +751,6 @@ import {dissolveElement} from "@/utils/particleDissolve.js";
 import {rafThrottle, MemoryManager} from "@/utils/performanceOptimizer.js";
 
 const memoryManager = new MemoryManager();
-
-const AMLLWrapper = defineAsyncComponent({
-  loader: () =>
-    import("@applemusic-like-lyrics/vue").then((module) => module.AMLLWrapper),
-  suspensible: false,
-});
 
 const playerStore = usePlayerStore();
 const AUTOMIX_DEBUG_VISIBLE = Boolean(
@@ -876,6 +875,7 @@ const {
   amllOpened,
   amllMounted,
   prepareLyricPage,
+  openLyricPage: openLyricOverlay,
   onAmllOpenedChange: commitAmllOpenedChange,
   disposeLyricOverlay,
 } = usePlayerLyricOverlay({
@@ -901,7 +901,6 @@ function getVisibleMiniCover() {
 }
 
 const {
-  openFullscreen,
   closeFullscreen,
   disposeFullscreenTransition,
 } = usePlayerFullscreenTransition({
@@ -915,7 +914,29 @@ const {
 });
 
 function openLyricPage() {
-  void openFullscreen();
+  // Mount first, then reveal the React player with its wrapper transition.
+  // Opening no longer waits for the legacy Vue cover-transition selectors.
+  const focusedElement = document.activeElement;
+  if (
+    playerShellRef.value?.contains(focusedElement) &&
+    typeof focusedElement?.blur === "function"
+  ) {
+    focusedElement.blur();
+  }
+  openLyricOverlay();
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!amllOpened.value) return;
+      const fullscreenControl = amllHostRef.value?.querySelector(
+        ".amll-prebuilt button",
+      );
+      try {
+        fullscreenControl?.focus({preventScroll: true});
+      } catch {
+        fullscreenControl?.focus();
+      }
+    });
+  });
 }
 
 function onAmllOpenedChange(nextOpened) {
@@ -1137,7 +1158,6 @@ const {loadCurrentSongLyric} = usePlayerLyricLoader({
 const {
   rhythmLevel,
   beatLevel,
-  visualPulse,
   startRhythmLoop,
   stopRhythmLoop,
   resetRhythmVisual,
@@ -1172,22 +1192,6 @@ const playerStyle = computed(() => {
   const [b1, b2, b3] = themeBaseRgb.value;
   const [a1, a2, a3] = themeAccentRgb.value;
   const [g1, g2, g3] = themeGlowRgb.value;
-  const strongBeat = clamp((beatLevel.value - 0.1) / 0.84, 0, 1);
-  const baseFlow = isPlaying.value
-    ? clamp(rhythmLevel.value * 0.26 + 0.12, 0.12, 0.34)
-    : 0;
-  const pulse = prefersReducedMotion.value
-    ? 0
-    : Math.max(
-      baseFlow,
-      clamp(
-        strongBeat * 0.82 +
-        visualPulse.value * 0.66 +
-        rhythmLevel.value * 0.22,
-        0,
-        1,
-      ),
-    );
 
   return {
     "--player-fg": themeIsDark.value ? "245, 248, 255" : "24, 31, 45",
@@ -1198,11 +1202,11 @@ const playerStyle = computed(() => {
     "--player-base": `${b1}, ${b2}, ${b3}`,
     "--player-accent": `${a1}, ${a2}, ${a3}`,
     "--player-glow": `${g1}, ${g2}, ${g3}`,
-    "--player-glow-alpha": (0.14 + pulse * 0.5).toFixed(3),
-    "--player-sat": (1 + pulse * 0.34).toFixed(3),
-    "--player-brightness": (1 + pulse * 0.12).toFixed(3),
-    "--player-shadow-alpha": (0.24 + pulse * 0.22).toFixed(3),
-    "--player-aura-scale": (1 + pulse * 0.2).toFixed(4),
+    "--player-glow-alpha": "0.2",
+    "--player-sat": "1.04",
+    "--player-brightness": "1.01",
+    "--player-shadow-alpha": "0.27",
+    "--player-aura-scale": "1.02",
     "--player-soft-bg-alpha": themeIsDark.value ? "0.18" : "0.08",
     "--player-main-bg": themeIsDark.value ? "248, 251, 255" : "24, 31, 45",
     "--player-main-fg": themeIsDark.value ? "18, 24, 36" : "244, 248, 255",
@@ -1681,6 +1685,13 @@ function toggleVolumeMute() {
 
 function cyclePlayMode() {
   playerStore.cyclePlayMode();
+}
+
+function toggleShuffleMode() {
+  const nextMode = playerStore.playMode === PLAY_MODE.SHUFFLE
+    ? PLAY_MODE.SEQUENCE
+    : PLAY_MODE.SHUFFLE;
+  playerStore.setPlayMode(nextMode);
 }
 
 function prewarmLoopTransition(reason = "unknown") {
@@ -3307,7 +3318,6 @@ onBeforeUnmount(() => {
   flex-wrap: nowrap;
   overflow: hidden;
   white-space: nowrap;
-  mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
 }
 
 .artist-marquee-track {
@@ -3391,37 +3401,7 @@ onBeforeUnmount(() => {
   }
 }
 
-:deep(.amll-wrapper) {
-  background-color: #222;
-  z-index: 2000;
-}
-
-:deep(.amll-prebuilt) {
-  background-color: #222;
-}
-
-:deep(.amll-prebuilt__overlay) {
-  pointer-events: none !important;
-}
-
-:deep(.amll-prebuilt__vertical-mobile-controls),
-:deep(.amll-prebuilt__bar),
-:deep(.amll-prebuilt__volumeRow),
-:deep(.amll-prebuilt__controls) {
-  position: relative;
-  z-index: 3;
-  pointer-events: auto;
-}
-
-:deep(.amll-prebuilt__nowPlayingSliderInner),
-:deep(.amll-prebuilt__nowPlayingSliderThumb) {
-  pointer-events: none;
-}
-
-:deep(.amll-prebuilt__rangeHit) {
-  pointer-events: auto;
-  touch-action: none;
-  -webkit-appearance: none;
-  appearance: none;
+.playlist-dialog-backdrop.playlist-dialog-over-fullscreen {
+  z-index: 3201;
 }
 </style>
