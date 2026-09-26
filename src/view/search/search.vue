@@ -1,5 +1,5 @@
 <template>
-  <div class="search-page">
+  <div class="search-page" :inert="recognitionOpen">
     <AppHeader />
 
     <div class="search-progress" :class="{ 'is-on': busy }" aria-hidden="true"><span /></div>
@@ -34,7 +34,9 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           </form>
-
+          <button ref="recognitionButtonRef" class="recognition-launch" type="button" aria-label="听歌识曲" title="听歌识曲" @click="recognitionOpen = true">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="10.5" y="3.5" width="7" height="14" rx="3.5"/><path d="M7 13.5a7 7 0 0 0 14 0M14 20.5v4m-4 0h8" stroke-linecap="round"/></svg>
+          </button>
         </div>
 
         <div v-if="hasKeyword" class="toolbar-tabs">
@@ -193,6 +195,7 @@
         </div>
       </div>
     </main>
+    <SearchSongRecognition v-if="recognitionOpen" @close="closeRecognition" @search="searchRecognizedSong" />
   </div>
 </template>
 
@@ -207,6 +210,7 @@ import SearchBestMatch from './components/SearchBestMatch.vue'
 import SearchSongList from './components/SearchSongList.vue'
 import SearchMediaSection from './components/SearchMediaSection.vue'
 import SearchSkeleton from './components/SearchSkeleton.vue'
+import SearchSongRecognition from './components/SearchSongRecognition.vue'
 import {searchApi} from '@/api/searchApi/searchApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {useDetailNavigation} from '@/composables/useDetailNavigation.js'
@@ -218,6 +222,8 @@ const {openDetail} = useDetailNavigation()
 const {history, add: addHistory, remove: removeHistory, clear: clearHistory} = useSearchHistory()
 
 const searchInputRef = ref(null)
+const recognitionButtonRef = ref(null)
+const recognitionOpen = ref(false)
 const resultsTopRef = ref(null)
 const searchInput = ref('')
 const keyword = ref('')
@@ -459,6 +465,16 @@ function useSuggestion(value) {
   nextTick(() => searchInputRef.value?.focus())
 }
 
+function closeRecognition() {
+  recognitionOpen.value = false
+  nextTick(() => recognitionButtonRef.value?.focus())
+}
+
+function searchRecognizedSong(name) {
+  recognitionOpen.value = false
+  useSuggestion(name)
+}
+
 function switchTab(tab) {
   if (!tabValues.has(tab) || tab === activeTab.value) return
   page.value = 0
@@ -598,7 +614,7 @@ button { cursor: pointer; }
 
 /* ── 搜索工具栏（常驻搜索框） ── */
 .search-toolbar { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 26px 0 0; transition: padding 420ms var(--sp-ease), background 220ms ease, box-shadow 220ms ease; }
-.search-toolbar-primary { display: flex; width: 100%; flex-direction: column; align-items: center; }
+.search-toolbar-primary { display: flex; width: min(100%, 744px); align-items: center; justify-content: center; gap: 12px; }
 .is-result .search-toolbar {
   position: sticky;
   top: 76px;
@@ -614,7 +630,7 @@ button { cursor: pointer; }
 }
 .is-result .search-toolbar-primary { flex-direction: row; align-items: center; justify-content: center; }
 
-.search-box { box-sizing: border-box; display: grid; width: 100%; max-width: 660px; height: 64px; align-items: center; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 12px; padding: 8px 9px 8px 20px; border: 1px solid var(--sp-line); border-radius: 18px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 16px 44px rgba(46, 39, 37, 0.09); transition: max-width 440ms var(--sp-ease), height 320ms var(--sp-ease), border-color 200ms ease, box-shadow 240ms ease; }
+.search-box { box-sizing: border-box; display: grid; width: 100%; min-width: 0; max-width: 660px; height: 64px; flex: 1; align-items: center; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 12px; padding: 8px 9px 8px 20px; border: 1px solid var(--sp-line); border-radius: 18px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 16px 44px rgba(46, 39, 37, 0.09); transition: max-width 440ms var(--sp-ease), height 320ms var(--sp-ease), border-color 200ms ease, box-shadow 240ms ease; }
 .is-result .search-box { max-width: 720px; height: 54px; flex: 1 1 620px; border-radius: 16px; box-shadow: 0 8px 24px rgba(46, 39, 37, 0.06); }
 .search-box:focus-within { border-color: rgba(232, 87, 105, 0.42); box-shadow: 0 0 0 4px rgba(232, 87, 105, 0.1), 0 12px 30px rgba(46, 39, 37, 0.08); }
 .search-box > svg { width: 21px; color: var(--sp-faint); transition: color 200ms ease; }
@@ -631,6 +647,12 @@ button { cursor: pointer; }
 .search-submit:active { transform: scale(0.94); }
 .search-submit:focus-visible,
 .search-clear:focus-visible { outline: 2px solid rgba(232, 87, 105, 0.5); outline-offset: 2px; }
+.recognition-launch { display: grid; width: 64px; height: 64px; flex: none; place-items: center; color: #b94e64; border: 1px solid rgba(214, 90, 114, .17); border-radius: 18px; background: linear-gradient(145deg, #fff, #fae7ec); box-shadow: 0 14px 32px rgba(149, 66, 83, .09); transition: color 200ms ease, border-color 200ms ease, transform 260ms var(--sp-ease), box-shadow 260ms ease; }
+.recognition-launch svg { width: 26px; height: 26px; }
+.recognition-launch:hover { color: #fff; border-color: #d75d74; background: #d75d74; box-shadow: 0 18px 34px rgba(196, 79, 103, .2); transform: translateY(-2px); }
+.recognition-launch:focus-visible { outline: 2px solid #d75d74; outline-offset: 3px; }
+.is-result .recognition-launch { width: 54px; height: 54px; border-radius: 16px; }
+.is-result .recognition-launch svg { width: 23px; height: 23px; }
 
 .toolbar-tabs { width: 100%; max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; transition: opacity 260ms ease, max-height 340ms var(--sp-ease), margin 340ms var(--sp-ease); }
 .is-result .toolbar-tabs { max-height: 52px; margin-top: 8px; opacity: 1; }
@@ -702,7 +724,7 @@ button { cursor: pointer; }
 @media (max-width: 820px) {
   .search-main { padding: 28px 18px calc(var(--global-player-space, 104px) + 32px); }
   .is-result .search-toolbar { top: 68px; }
-  .is-result .search-toolbar-primary { align-items: stretch; flex-direction: column; }
+  .is-result .search-toolbar-primary { align-items: stretch; }
   .is-result .search-box { max-width: none; flex-basis: auto; }
 }
 
@@ -711,6 +733,9 @@ button { cursor: pointer; }
   .hero-title { font-size: 34px; }
   .search-box { height: 56px; gap: 8px; padding-right: 7px; padding-left: 14px; border-radius: 16px; }
   .is-result .search-box { height: 52px; }
+  .search-toolbar-primary { gap: 8px; }
+  .recognition-launch { width: 56px; height: 56px; border-radius: 16px; }
+  .is-result .recognition-launch { width: 52px; height: 52px; border-radius: 14px; }
   .search-submit { width: 42px; height: 42px; border-radius: 12px; }
   .is-result .search-submit { width: 38px; height: 38px; }
   .overview-sections { gap: 40px; margin-top: 40px; }

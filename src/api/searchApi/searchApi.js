@@ -1,6 +1,15 @@
 import apiClient from '@/axios/apiClient'
 
 export const searchApi = {
+  recognizeFingerprint(audioFP, duration, {signal} = {}) {
+    return apiClient.post('/audio/match', null, {
+      params: {audioFP, duration},
+      signal,
+      timeout: 20000,
+      skipAuthCookie: true,
+    })
+  },
+
   searchByType(keywords, { type = 1, limit = 30, offset = 0, endpoint = '/cloudsearch' } = {}) {
     return apiClient.get(endpoint, {
       params: {
