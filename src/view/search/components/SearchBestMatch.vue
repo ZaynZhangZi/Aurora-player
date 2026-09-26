@@ -43,8 +43,8 @@
         <em v-if="type === 'song' || type === 'album'"><ArtistLinks :artists="artistItems" :fallback-text="subtitle" /></em>
         <em v-else>{{ subtitle }}</em>
       </span>
-      <span ref="openRef" class="best-match-open" aria-hidden="true">
-        <svg v-if="type === 'song'" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+      <span ref="openRef" class="best-match-open" :class="{ 'is-play': type === 'song' }" aria-hidden="true">
+        <svg v-if="type === 'song'" viewBox="0 0 24 24" fill="none"><path d="M8.2 6.85c0-1.03 1.12-1.67 2.02-1.16l8.18 4.65a1.9 1.9 0 0 1 0 3.32l-8.18 4.65c-.9.51-2.02-.13-2.02-1.16V6.85Z" fill="currentColor" /></svg>
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </span>
     </button>
@@ -313,6 +313,7 @@ onBeforeUnmount(() => {
 .best-match-copy em { margin-top: 9px; color: rgba(255, 255, 255, 0.7); font-size: 13px; font-style: normal; font-weight: 620; }
 .best-match-open { display: grid; width: 46px; aspect-ratio: 1; place-items: center; justify-self: end; color: #1f1f23; border-radius: 50%; background: rgba(255, 255, 255, 0.94); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16); will-change: transform; }
 .best-match-open svg { width: 17px; height: 17px; will-change: transform; }
+.best-match-open.is-play svg { width: 20px; height: 20px; }
 
 @media (max-width: 560px) {
   .best-match-card { min-height: 132px; grid-template-columns: 92px minmax(0, 1fr) 38px; gap: 13px; padding: 14px; border-radius: 19px; }
