@@ -5,8 +5,31 @@ import {artistApi} from '@/api/artistApi/artistApi.js'
 import {homeIndexApi} from '@/api/home/homeIndexApi.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 
+const BANNER_CACHE_MS = 60_000
+let bannerResponse = null
+let bannerResponseAt = 0
+let bannerRequest = null
+
+export function prefetchHomeBanner() {
+  if (bannerResponse && Date.now() - bannerResponseAt < BANNER_CACHE_MS) {
+    return Promise.resolve(bannerResponse)
+  }
+  if (bannerRequest) return bannerRequest
+
+  bannerRequest = homeIndexApi.getBanner()
+    .then((response) => {
+      bannerResponse = response
+      bannerResponseAt = Date.now()
+      return response
+    })
+    .finally(() => {
+      bannerRequest = null
+    })
+  return bannerRequest
+}
+
 export function useHomeData(userStore) {
-  const hero = ref({media: '', title: '', subtitle: ''})
+  const hero = ref({media: '', poster: '', title: '', subtitle: ''})
   const releaseNotes = ref([])
   const recommendPlaylists = ref([])
   const topPlaylists = ref([])
@@ -64,10 +87,16 @@ export function useHomeData(userStore) {
     const srcList = Array.isArray(item?.src) ? item.src : []
     const contentList = Array.isArray(item?.content) ? item.content : []
     const media = toBackendMediaUrl(srcList[0] || item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || '')
+    const firstFramePoster = toBackendMediaUrl(item?.firstFrameUrl || '')
+    const isVideo = String(item?.mediaType || '').toLowerCase() === 'video'
+      || /\.(mp4|webm|ogg|ogv|mov|m4v|avi|mkv)(?:[?#]|$)/i.test(media)
+    const sourcePoster = srcList.slice(1).find((src) => /\.(jpe?g|png|webp|avif|gif)(?:[?#]|$)/i.test(String(src || '')))
+    const posterCandidate = toBackendMediaUrl(item?.pic || item?.imageUrl || item?.cover || item?.coverUrl || sourcePoster || '')
     const subtitleFromList = contentList.map((entry) => String(entry || '').trim()).filter(Boolean).join(' · ')
     return {
       id: item?.targetId || item?.bannerId || item?.id || `banner-${index}`,
       media,
+      poster: isVideo ? firstFramePoster : (posterCandidate !== media ? posterCandidate : ''),
       mediaType: item?.mediaType || '',
       title: item?.typeTitle || item?.title || '',
       subtitle: subtitleFromList || item?.copywriter || item?.description || '',
@@ -97,7 +126,7 @@ export function useHomeData(userStore) {
     loading.value.banner = true
     errors.value.banner = ''
     try {
-      const res = await homeIndexApi.getBanner()
+      const res = await prefetchHomeBanner()
       const raw = res?.banners || res?.data?.banners || res?.data?.data?.banners || res?.data?.data || res?.data || res || []
       const list = Array.isArray(raw) ? raw.map(normalizeBannerItem) : []
       const firstUsable = list.find((item) => String(item?.media || '').trim()) || list[0]

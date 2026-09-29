@@ -10,6 +10,7 @@ import {
   warmupAutomixRecommendation,
 } from '@/audio/TransitionPlanner.js'
 import {dismissPlaybackNotice, showPlaybackNotice} from '@/utils/playbackNotice.js'
+import {actualAudioQuality, normalizeAudioQuality, qualityFallbackLevels} from '@/utils/player/audioQuality.js'
 
 const preloadedSongUrlCache = new Map()
 let warmupToken = 0
@@ -74,7 +75,7 @@ function warmupNearbyAutomixProfiles(playerStore, currentIndex) {
   const nearby = queue.slice(currentIndex + 1, currentIndex + 1 + count)
   nearby.forEach((song, index) => {
     if (!song?.id || hasUsableBrowserMixProfile(song)) return
-    resolveSongPlayableSource(song.id)
+    resolveSongPlayableSource(song.id, {quality: playerStore.audioQuality})
       .then(source => scheduleBrowserAutomixAnalysis(playerStore, song, source, {role: `next-${index + 1}`}))
       .catch(() => {})
   })
@@ -313,8 +314,9 @@ function summarizeSongForReport(song) {
   }
 }
 
-async function resolveSongPlayableSource(id) {
-  const cacheKey = String(id)
+export async function resolveSongPlayableSource(id, {quality = 'exhigh'} = {}) {
+  const requestedLevel = normalizeAudioQuality(quality)
+  const cacheKey = `${String(id)}:${requestedLevel}`
   const cached = preloadedSongUrlCache.get(cacheKey)
   if (cached) return cached
 
@@ -340,27 +342,25 @@ async function resolveSongPlayableSource(id) {
     })
   }
 
-  // 先请求最常用的高音质；仅在不可用时并行尝试其余回退，避免连续等待三次网络往返。
-  const primary = await requestLevel('exhigh')
+  const levels = qualityFallbackLevels(requestedLevel)
+  const primary = await requestLevel(levels[0])
   recordResult(primary)
   if (primary.entry?.url) {
-    const source = {url: primary.entry.url, entry: primary.entry, level: primary.level, observations, requestErrors}
+    const source = {url: primary.entry.url, entry: primary.entry, level: actualAudioQuality(primary.entry, primary.level), requestedLevel, observations, requestErrors}
     preloadedSongUrlCache.set(cacheKey, source)
     return source
   }
 
-  const fallbackResults = await Promise.all([
-    requestLevel('higher'),
-    requestLevel('standard'),
-    songsApi.getSongUrlLegacy(id)
-      .then(response => ({level: 'legacy', response, entry: getUrlEntry(response), error: null}))
-      .catch(error => ({level: 'legacy', response: null, entry: null, error})),
-  ])
+  const fallbackResults = await Promise.all(levels.slice(1).map(level => level === 'legacy'
+    ? songsApi.getSongUrlLegacy(id)
+      .then(response => ({level, response, entry: getUrlEntry(response), error: null}))
+      .catch(error => ({level, response: null, entry: null, error}))
+    : requestLevel(level)))
 
   for (const result of fallbackResults) {
     recordResult(result)
     if (result.entry?.url) {
-      const source = {url: result.entry.url, entry: result.entry, level: result.level, observations, requestErrors}
+      const source = {url: result.entry.url, entry: result.entry, level: actualAudioQuality(result.entry, result.level), requestedLevel, observations, requestErrors}
       preloadedSongUrlCache.set(cacheKey, source)
       return source
     }
@@ -369,19 +369,31 @@ async function resolveSongPlayableSource(id) {
   return {
     url: '',
     entry: observations.map(item => item?.entry).filter(Boolean).at(-1) || null,
+    requestedLevel,
     observations,
     requestErrors,
   }
 }
 
 export async function resolveSongPlayableUrl(id) {
-  const source = await resolveSongPlayableSource(id)
+  const source = await resolveSongPlayableSource(id, {quality: usePlayerStore().audioQuality})
   return source?.url || ''
+}
+
+export function getAudioQualityForUrl(url) {
+  if (!url) return ''
+  for (const source of preloadedSongUrlCache.values()) {
+    if (source?.url === url) return source.level || ''
+  }
+  return ''
 }
 
 export function clearSongPlayableUrlCache(songId) {
   const cacheKey = String(songId || '').trim()
-  if (cacheKey) preloadedSongUrlCache.delete(cacheKey)
+  if (!cacheKey) return
+  for (const key of preloadedSongUrlCache.keys()) {
+    if (key.startsWith(`${cacheKey}:`)) preloadedSongUrlCache.delete(key)
+  }
 }
 
 export async function warmupNextTrack() {
@@ -422,7 +434,7 @@ export async function warmupNextTrack() {
   const targetId = Number(targetSong?.id)
   if (!Number.isFinite(targetId) || targetId <= 0) return
 
-  const cacheKey = String(targetId)
+  const cacheKey = `${String(targetId)}:${normalizeAudioQuality(playerStore.audioQuality)}`
   if (preloadedSongUrlCache.has(cacheKey)) {
     scheduleBrowserAutomixAnalysis(playerStore, targetSong, preloadedSongUrlCache.get(cacheKey), {role: 'next-1'})
     if (typeof console !== 'undefined') {
@@ -431,7 +443,7 @@ export async function warmupNextTrack() {
     return
   }
 
-  const source = await resolveSongPlayableSource(targetId)
+  const source = await resolveSongPlayableSource(targetId, {quality: playerStore.audioQuality})
   if (token !== warmupToken) return
   scheduleBrowserAutomixAnalysis(playerStore, targetSong, source, {role: 'next-1'})
   if (typeof console !== 'undefined') {
@@ -454,7 +466,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   playerStore.setPlaybackPendingId(id)
 
   try {
-    const source = await resolveSongPlayableSource(id)
+    const source = await resolveSongPlayableSource(id, {quality: playerStore.audioQuality})
     if (requestToken !== playbackRequestToken) return null
     const url = source?.url || ''
 
@@ -475,6 +487,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
       artists: resolveArtists(songInput, null),
       cover: resolveCover(songInput, null),
       url,
+      qualityLevel: source.level,
       mixProfile: songInput?.mixProfile || null,
     }
 
@@ -525,12 +538,13 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
             name: resolveName(songInput, detail),
             artists: resolveArtists(songInput, detail),
             cover: resolveCover(songInput, detail),
-            url,
+            url: playerStore.currentSong?.url || url,
+            qualityLevel: playerStore.currentSong?.qualityLevel || source.level,
             mixProfile: String(playerStore.currentSong?.id || '') === String(id)
               ? playerStore.currentSong?.mixProfile || songInput?.mixProfile || null
               : songInput?.mixProfile || null,
           },
-          {autoplay: playerStore.isPlaying, resetTime: false},
+          {autoplay: playerStore.isPlaying || playerStore.autoPlayOnLoad, resetTime: false},
         )
       })
       .catch(() => {

@@ -38,7 +38,8 @@
       :playsinline="playsinline"
       :preload="preload"
       :style="mediaStyle"
-      @canplay="onLoaded"
+      @loadeddata="onVideoFirstFrame"
+      @canplay="onVideoCanPlay"
       @error="onErrored"
       @play="enforceVideoMuteIfNeeded"
       @volumechange="handleVideoVolumeChange"
@@ -163,11 +164,12 @@ const props = defineProps({
   scaleOnScroll: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['loaded', 'error'])
+const emit = defineEmits(['loaded', 'first-frame', 'error'])
 
 const loading = ref(true)
 const error = ref(false)
 const videoRef = ref(null)
+let videoFirstFrameEmitted = false
 const wrapperRef = ref(null)
 const scrollScale = ref(1)
 let scrollListenerAttached = false
@@ -410,6 +412,15 @@ function onLoaded() {
   error.value = false
   emit('loaded')
 }
+function onVideoFirstFrame() {
+  if (videoFirstFrameEmitted) return
+  videoFirstFrameEmitted = true
+  emit('first-frame')
+}
+function onVideoCanPlay() {
+  onVideoFirstFrame()
+  onLoaded()
+}
 function onErrored(e) {
   loading.value = false
   error.value = true
@@ -449,8 +460,13 @@ function handleVideoVolumeChange() {
 watch(srcList, () => {
   loading.value = true
   error.value = false
+  videoFirstFrameEmitted = false
   revokeAll()
 }, { deep: true })
+
+defineExpose({
+  playVideo: () => videoRef.value?.play?.(),
+})
 
 onBeforeUnmount(() => {
   revokeAll()

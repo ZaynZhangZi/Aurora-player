@@ -1,5 +1,6 @@
-import {defineStore} from 'pinia'
+import {acceptHMRUpdate, defineStore} from 'pinia'
 import {readPlaybackPosition, writePlaybackPosition} from '@/utils/player/playbackPosition.js'
+import {normalizeAudioQuality} from '@/utils/player/audioQuality.js'
 
 export const PLAY_MODE = {
   SEQUENCE: 'sequence',
@@ -62,12 +63,14 @@ function createDefaultPlayerState() {
       artists: [],
       cover: '',
       url: '',
+      qualityLevel: '',
     },
     isPlaying: false,
     currentTimeMs: 0,
     durationMs: 0,
     pendingResumeMs: null,
     volume: 0.85,
+    audioQuality: 'exhigh',
     autoPlayOnLoad: false,
     playbackPendingId: null,
     playQueue: [],
@@ -121,6 +124,7 @@ function createInitialPlayerState() {
         ? {...defaults.currentSong, ...saved.currentSong}
         : defaults.currentSong,
       volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : defaults.volume,
+      audioQuality: normalizeAudioQuality(saved?.audioQuality),
       playQueue,
       currentQueueIndex,
       playMode: Object.values(PLAY_MODE).includes(saved?.playMode)
@@ -146,6 +150,7 @@ function persistPlayerState(store) {
     localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({
       currentSong: store.currentSong,
       volume: store.volume,
+      audioQuality: store.audioQuality,
       playQueue: store.playQueue,
       currentQueueIndex: store.currentQueueIndex,
       playMode: store.playMode,
@@ -220,6 +225,7 @@ function normalizeQueueItem(song, usedQueueEntryIds = new Set()) {
     artists: song?.artists || song?.ar || [],
     cover: normalizeCoverUrlProtocol(song?.cover || song?.coverImgUrl || song?.picUrl || song?.al?.picUrl || song?.album?.picUrl || ''),
     url: song?.url || '',
+    qualityLevel: song?.qualityLevel || '',
     mixProfile,
   }
 }
@@ -234,16 +240,17 @@ export const usePlayerStore = defineStore('global-player', {
 
   actions: {
     setTrack(song, {autoplay = true, resetTime = true} = {}) {
+      const sameTrack = this.currentSong.id && song?.id && String(this.currentSong.id) === String(song.id)
       const next = {
         id: song?.id ?? null,
         name: song?.name || '',
         artists: song?.artists || [],
         cover: normalizeCoverUrlProtocol(song?.cover || ''),
         url: song?.url || '',
+        qualityLevel: song?.qualityLevel || (sameTrack ? this.currentSong.qualityLevel : '') || '',
         mixProfile: song?.mixProfile || null,
       }
 
-      const sameTrack = this.currentSong.id && next.id && String(this.currentSong.id) === String(next.id)
       this.currentSong = next
 
       if (resetTime && !sameTrack) {
@@ -257,6 +264,29 @@ export const usePlayerStore = defineStore('global-player', {
         this.isPlaying = false
       }
       persistPlayerState(this)
+    },
+
+    setAudioQuality(level) {
+      const next = normalizeAudioQuality(level)
+      if (next === this.audioQuality) return
+      this.audioQuality = next
+      persistPlayerState(this)
+    },
+
+    setCurrentSongQualityLevel(level) {
+      if (!this.currentSong?.id) return
+      this.currentSong.qualityLevel = level || ''
+      persistPlayerState(this)
+    },
+
+    setCurrentSongSource(url, qualityLevel, {resumeMs = 0, autoplay = false} = {}) {
+      if (!this.currentSong?.id || !url) return false
+      this.pendingResumeMs = Math.max(0, Number(resumeMs) || 0)
+      this.autoPlayOnLoad = Boolean(autoplay)
+      this.currentSong = {...this.currentSong, url, qualityLevel: qualityLevel || ''}
+      if (!autoplay) this.isPlaying = false
+      persistPlayerState(this)
+      return true
     },
 
     setPlaying(value) {
@@ -480,3 +510,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(usePlayerStore, import.meta.hot))
+}

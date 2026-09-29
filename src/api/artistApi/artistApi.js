@@ -175,6 +175,7 @@ function normalizeSingerVideo(item) {
     videoUrl: toBackendMediaUrl(item.videoUrl),
     url: toBackendMediaUrl(item.videoUrl || item.url),
     bannerVideo: toBackendMediaUrl(item.videoUrl || item.bannerVideo || item.bannerUrl),
+    firstFrameUrl: toBackendMediaUrl(item.firstFrameUrl),
     coverUrl: toBackendMediaUrl(item.coverUrl),
   };
 }

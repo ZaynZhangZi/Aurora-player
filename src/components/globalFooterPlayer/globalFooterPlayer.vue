@@ -570,9 +570,9 @@
     </Teleport>
 
     <Teleport to="body">
-      <Transition name="more-dialog">
+      <Transition name="more-dialog" :duration="{enter: prefersReducedMotion ? 0 : 210, leave: prefersReducedMotion ? 0 : 190}">
         <div
-          v-if="morePanelOpen"
+          v-show="morePanelOpen"
           class="more-dialog-backdrop fixed inset-0 z-[1000]"
           role="dialog"
           aria-modal="true"
@@ -584,6 +584,7 @@
             :style="[morePanelStyle, morePanelThemeStyle]"
             @click.stop
           >
+            <div class="more-dialog-content">
             <div class="more-menu-heading">
               <span class="more-menu-heading-icon" aria-hidden="true">
                 <AdjustmentsHorizontalIcon class="h-[17px] w-[17px]"/>
@@ -613,6 +614,29 @@
 
             </div>
 
+            <div class="more-menu-quality">
+              <div class="more-menu-quality-heading">
+                <span>播放音质</span>
+                <small v-if="hasSong">当前 · {{ qualityLabel(currentQualityLevel) }}</small>
+              </div>
+              <div class="more-menu-quality-options">
+                <button
+                  v-for="option in AUDIO_QUALITY_OPTIONS"
+                  :key="option.level"
+                  type="button"
+                  class="more-menu-quality-option"
+                  :class="{ 'is-selected': selectedQuality === option.level }"
+                  :aria-pressed="selectedQuality === option.level"
+                  :disabled="qualitySwitching"
+                  @click="selectAudioQuality(option.level)"
+                >
+                  <strong>{{ option.label }}</strong>
+                  <small>{{ qualityLoadingLevel === option.level ? '获取音源中…' : option.detail }}</small>
+                </button>
+              </div>
+              <p v-if="hasSong && qualityRank(currentQualityLevel) < qualityRank(selectedQuality)" class="more-menu-quality-note">这首歌目前仅提供 {{ qualityLabel(currentQualityLevel) }} 音源</p>
+            </div>
+
             <div class="more-menu-actions">
               <button
                 class="more-menu-action"
@@ -633,10 +657,18 @@
                 <span class="more-menu-action-value">{{ playQueue.length }} 首</span>
               </button>
             </div>
+            </div>
           </div>
         </div>
       </Transition>
     </Teleport>
+
+    <AudioQualityUpgradeOverlay
+      :visible="qualityOverlayVisible"
+      :level="qualityOverlayLevel"
+      :phase="qualityOverlayPhase"
+      @skip="qualityOverlayVisible = false"
+    />
 
     <AutoMixDebugPanel
       v-if="AUTOMIX_DEBUG_VISIBLE"
@@ -709,6 +741,7 @@ import {useDetailNavigation} from "@/composables/useDetailNavigation.js";
 import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
+import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
 import AMLLReactPlayer from "@/components/globalFooterPlayer/AMLLReactPlayer.vue";
 import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
@@ -736,12 +769,15 @@ import {
 import {isVideoUrl} from "@/utils/player/playerMedia.js";
 import {
   clearSongPlayableUrlCache,
+  getAudioQualityForUrl,
   playQueueByDirection,
   playQueueByIndex,
+  resolveSongPlayableSource,
   resolveSongPlayableUrl,
   warmupNextTrack,
 } from "@/utils/globalPlayer.js";
 import {showPlaybackNotice} from "@/utils/playbackNotice.js";
+import {AUDIO_QUALITY_OPTIONS, normalizeAudioQuality, qualityLabel, qualityRank} from "@/utils/player/audioQuality.js";
 import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
@@ -975,6 +1011,18 @@ const artistLinksClass = computed(() => "hover:underline player-link");
 const artistSeparatorClass = computed(() => "player-separator");
 const coverUrl = computed(() => playerStore.currentSong?.cover || "");
 const currentSongUrl = computed(() => playerStore.currentSong?.url || "");
+const selectedQuality = computed(() => playerStore.audioQuality);
+const currentQualityLevel = computed(() => playerStore.currentSong?.qualityLevel || getAudioQualityForUrl(currentSongUrl.value) || selectedQuality.value);
+const qualityLoadingLevel = ref("");
+const qualitySwitching = ref(false);
+const qualityOverlayVisible = ref(false);
+const qualityOverlayLevel = ref("exhigh");
+const qualityOverlayPhase = ref("loading");
+let qualityRequestToken = 0;
+let qualitySourceSwap = null;
+let qualitySwapTimeout = 0;
+let qualityOverlayTimer = 0;
+let qualityLastSongId = null;
 const isPlaying = computed(() => playerStore.isPlaying);
 const currentTimeMs = computed(() => playerStore.currentTimeMs);
 const durationMs = computed(() => playerStore.durationMs);
@@ -1021,7 +1069,7 @@ const queueBottomSpacerPx = computed(
 );
 const songTransitionKey = computed(() => {
   const song = playerStore.currentSong || {};
-  return `${song.id || "none"}-${song.url || ""}-${song.name || ""}`;
+  return `${song.id || "none"}-${song.name || ""}`;
 });
 
 const amllArtists = computed(() =>
@@ -1519,6 +1567,7 @@ async function promoteCrossfadedTrack(targetSong, targetUrl, promotedStartSec, t
         targetSong.album?.picUrl ||
         "",
       url: targetUrl,
+      qualityLevel: getAudioQualityForUrl(targetUrl) || targetSong.qualityLevel || "",
       mixProfile: targetSong.mixProfile || null,
     },
     {autoplay: true, resetTime: false},
@@ -2097,6 +2146,176 @@ function onClickMorePlaylist() {
   closeMorePanel();
 }
 
+// A running dev tab may still hold a Pinia instance created before these actions
+// were added. Keep quality switching functional until the store module reloads.
+function persistQualityForStaleStore() {
+  try {
+    const key = "global-player-store";
+    const saved = JSON.parse(window.localStorage.getItem(key) || "{}");
+    window.localStorage.setItem(key, JSON.stringify({
+      ...saved,
+      audioQuality: playerStore.audioQuality,
+      currentSong: playerStore.currentSong,
+    }));
+  } catch { /* Private browsing can disallow storage. */ }
+}
+
+function setPreferredQuality(level) {
+  if (typeof playerStore.setAudioQuality === "function") {
+    playerStore.setAudioQuality(level);
+    return;
+  }
+  playerStore.$patch({audioQuality: normalizeAudioQuality(level)});
+  persistQualityForStaleStore();
+}
+
+function setSongQualityLevel(level) {
+  if (typeof playerStore.setCurrentSongQualityLevel === "function") {
+    playerStore.setCurrentSongQualityLevel(level);
+    return;
+  }
+  playerStore.$patch({currentSong: {...playerStore.currentSong, qualityLevel: level || ""}});
+  persistQualityForStaleStore();
+}
+
+function setSongQualitySource(url, level, {resumeMs, autoplay}) {
+  if (typeof playerStore.setCurrentSongSource === "function") {
+    return playerStore.setCurrentSongSource(url, level, {resumeMs, autoplay});
+  }
+  if (!playerStore.currentSong?.id || !url) return false;
+  playerStore.$patch({
+    pendingResumeMs: Math.max(0, Number(resumeMs) || 0),
+    autoPlayOnLoad: Boolean(autoplay),
+    currentSong: {...playerStore.currentSong, url, qualityLevel: level || ""},
+    ...(!autoplay ? {isPlaying: false} : {}),
+  });
+  persistQualityForStaleStore();
+  return true;
+}
+
+function clearQualityTimers() {
+  window.clearTimeout(qualitySwapTimeout);
+  window.clearTimeout(qualityOverlayTimer);
+  qualitySwapTimeout = 0;
+  qualityOverlayTimer = 0;
+}
+
+function cancelQualitySwitch() {
+  qualityRequestToken += 1;
+  clearQualityTimers();
+  qualitySourceSwap = null;
+  qualityLoadingLevel.value = "";
+  qualitySwitching.value = false;
+  qualityOverlayVisible.value = false;
+}
+
+function failQualitySwitch() {
+  const swap = qualitySourceSwap;
+  if (!swap) return;
+  clearQualityTimers();
+  qualityOverlayVisible.value = false;
+  qualitySwitching.value = false;
+  qualitySourceSwap = null;
+  clearSongPlayableUrlCache(swap.songId);
+
+  if (!swap.rollback && swap.previous.url && String(playerStore.currentSong?.id) === swap.songId) {
+    qualitySwitching.value = true;
+    qualitySourceSwap = {
+      songId: swap.songId,
+      url: swap.previous.url,
+      rollback: true,
+      startedAt: performance.now(),
+    };
+    setSongQualitySource(swap.previous.url, swap.previous.level, {
+      resumeMs: swap.previous.positionMs,
+      autoplay: swap.previous.wasPlaying,
+    });
+    qualitySwapTimeout = window.setTimeout(failQualitySwitch, 12000);
+  }
+  showPlaybackNotice({
+    kind: "unavailable",
+    eyebrow: "AUDIO QUALITY",
+    title: "音质切换失败",
+    message: swap.rollback ? "原音源也无法继续播放，请重新点击歌曲。" : "已尝试恢复原音源；稍后可以重试。",
+    dedupeKey: `quality-switch:${swap.songId}:${swap.rollback ? "rollback" : "source"}`,
+  });
+}
+
+async function selectAudioQuality(level) {
+  if (qualitySwitching.value) return;
+  const previousLevel = currentQualityLevel.value;
+  setPreferredQuality(level);
+  if (!playerStore.currentSong?.id) {
+    closeMorePanel();
+    return;
+  }
+
+  const songId = String(playerStore.currentSong.id);
+  const requestToken = ++qualityRequestToken;
+  qualityLoadingLevel.value = level;
+  qualitySwitching.value = true;
+  let source;
+  try {
+    source = await resolveSongPlayableSource(songId, {quality: level});
+  } catch {
+    source = null;
+  }
+  if (requestToken !== qualityRequestToken || String(playerStore.currentSong?.id) !== songId) return;
+  qualityLoadingLevel.value = "";
+  if (!source?.url) {
+    qualitySwitching.value = false;
+    showPlaybackNotice({
+      kind: "unavailable",
+      eyebrow: "AUDIO QUALITY",
+      title: "暂时无法切换音质",
+      message: "这首歌没有返回可用的音源，当前播放不会中断。",
+      dedupeKey: `quality-unavailable:${songId}:${level}`,
+    });
+    return;
+  }
+
+  closeMorePanel();
+  if (source.url === currentSongUrl.value) {
+    setSongQualityLevel(source.level || previousLevel);
+    qualitySwitching.value = false;
+    return;
+  }
+
+  interruptAutomixForUserAction("quality-switch");
+  const active = getActiveAudio();
+  const positionMs = Math.max(0, Math.round(Number(active?.currentTime || 0) * 1000)) || playerStore.currentTimeMs;
+  const wasPlaying = Boolean(playerStore.isPlaying || playerStore.autoPlayOnLoad);
+  clearQualityTimers();
+  qualitySourceSwap = {
+    songId,
+    url: source.url,
+    startedAt: performance.now(),
+    previous: {url: currentSongUrl.value, level: previousLevel, positionMs, wasPlaying},
+  };
+  qualityOverlayLevel.value = source.level || level;
+  qualityOverlayPhase.value = "loading";
+  // Every actual source swap gets its own tier-specific scene; lower tiers stay brief and restrained.
+  qualityOverlayVisible.value = !prefersReducedMotion.value;
+  setSongQualitySource(source.url, source.level, {resumeMs: positionMs, autoplay: wasPlaying});
+  qualitySwapTimeout = window.setTimeout(failQualitySwitch, 12000);
+}
+
+function finishQualitySwitch() {
+  const swap = qualitySourceSwap;
+  if (!swap || swap.url !== currentSongUrl.value) return;
+  window.clearTimeout(qualitySwapTimeout);
+  qualitySwapTimeout = 0;
+  qualitySourceSwap = null;
+  qualitySwitching.value = false;
+  if (!qualityOverlayVisible.value || swap.rollback) return;
+  qualityOverlayPhase.value = "ready";
+  const revealMs = AUDIO_QUALITY_OPTIONS.find(option => option.level === qualityOverlayLevel.value)?.revealMs || 800;
+  qualityOverlayTimer = window.setTimeout(() => {
+    qualityOverlayVisible.value = false;
+    qualityOverlayTimer = 0;
+  }, Math.max(300, revealMs - (performance.now() - swap.startedAt)));
+}
+
 
 function onLoadedMetadata(event) {
   if (!isEventFromActiveDeck(event)) return;
@@ -2117,6 +2336,9 @@ function onLoadedMetadata(event) {
   scheduleMediaSessionPositionStateUpdate();
   if (playerStore.autoPlayOnLoad) {
     ensurePlaybackState();
+  }
+  if (event?.type === "canplay" && qualitySourceSwap?.url === currentSongUrl.value && playerStore.pendingResumeMs === null) {
+    finishQualitySwitch();
   }
 }
 
@@ -2225,6 +2447,12 @@ async function onEnded(event) {
 
 function onAudioError(event) {
   if (!isEventFromActiveDeck(event) || !playerStore.currentSong?.id || !currentSongUrl.value) return;
+  if (event?.target?.getAttribute("src") !== currentSongUrl.value) return;
+
+  if (qualitySourceSwap?.url === currentSongUrl.value) {
+    failQualitySwitch();
+    return;
+  }
 
   const mediaErrorCode = Number(event?.target?.error?.code || 0);
   const songId = playerStore.currentSong.id;
@@ -2267,6 +2495,19 @@ watch(
   currentSongUrl,
   async () => {
     const nextSrc = String(currentSongUrl.value || "");
+    if (qualitySourceSwap?.url === nextSrc && qualitySourceSwap.songId === String(playerStore.currentSong?.id)) {
+      stopCrossfade({keepCoverOverlay: false});
+      await nextTick();
+      const active = getActiveAudio();
+      if (active && currentSongUrl.value === nextSrc) {
+        active.pause();
+        active.src = nextSrc;
+        active.load();
+      }
+      syncAudioVolume();
+      ensureAmllClock();
+      return;
+    }
     const promotedByCrossfade = skipAudioResetOnNextSrcChange;
     skipAudioResetOnNextSrcChange = false;
     debugCrossfade("audioSrcWatch", {
@@ -2349,6 +2590,8 @@ watch(
 watch(
   () => playerStore.currentSong?.id,
   async (songId) => {
+    if (qualityLastSongId !== null && String(qualityLastSongId) !== String(songId)) cancelQualitySwitch();
+    qualityLastSongId = songId;
     resetPlayRecordCache();
     closeMorePanel();
     setupMediaSessionHandlers({force: isIOSDevice.value});
@@ -2363,16 +2606,6 @@ watch(
     requestAutomixWarmup("song-changed");
   },
   {immediate: true},
-);
-
-watch(
-  morePanelOpen,
-  (opened) => {
-    if (!opened) return;
-    nextTick(() => {
-      updateMorePanelPosition();
-    });
-  },
 );
 
 watch([songName, normalizedArtistList, coverUrl, dynamicCoverUrl], () => {
@@ -2563,6 +2796,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  cancelQualitySwitch();
   playerStore.persistPlaybackPosition();
   window.removeEventListener("pagehide", playerStore.persistPlaybackPosition);
   autoMixEngine.cancelAnalysis();
@@ -2916,28 +3150,45 @@ onBeforeUnmount(() => {
 .more-dialog-panel {
   box-sizing: border-box;
   position: fixed;
-  display: grid;
+  isolation: isolate;
   width: min(286px, calc(100vw - 24px));
-  /* 矮视口时面板自身滚动，保证底部选项始终可达 */
+  border-radius: 19px;
+  color: rgba(var(--more-fg), 0.95);
+  z-index: 1002;
+}
+
+.more-dialog-panel::before {
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 1px solid rgba(var(--more-border), 0.16);
+  border-radius: inherit;
+  background:
+    linear-gradient(145deg, rgba(var(--more-glow), 0.1), rgba(var(--more-accent), 0.035) 46%, transparent 72%),
+    rgba(var(--more-base), 0.88);
+  box-shadow:
+    0 18px 46px rgba(15, 23, 42, 0.2),
+    0 3px 10px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  pointer-events: none;
+  content: "";
+}
+
+.more-dialog-content {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  display: grid;
   max-height: calc(100dvh - 24px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   gap: 9px;
   padding: 11px;
-  border: 1px solid rgba(var(--more-border), 0.16);
-  border-radius: 19px;
-  background:
-    linear-gradient(145deg, rgba(var(--more-glow), 0.13), rgba(var(--more-accent), 0.04) 46%, transparent 72%),
-    rgba(var(--more-base), 0.68);
-  color: rgba(var(--more-fg), 0.95);
-  box-shadow:
-    0 18px 46px rgba(15, 23, 42, 0.2),
-    0 3px 10px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(24px) saturate(1.24);
-  -webkit-backdrop-filter: blur(24px) saturate(1.24);
-  z-index: 1002;
+  border-radius: inherit;
 }
 
 .more-menu-heading {
@@ -3062,6 +3313,66 @@ onBeforeUnmount(() => {
   transform: translateX(11px);
 }
 
+.more-menu-quality {
+  display: grid;
+  gap: 8px;
+  padding: 2px 1px 4px;
+}
+
+.more-menu-quality-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+  color: rgba(var(--more-fg), 0.94);
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.more-menu-quality-heading small,
+.more-menu-quality-note {
+  color: rgba(var(--more-fg-muted), 0.78);
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.more-menu-quality-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.more-menu-quality-option {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(var(--more-border), 0.12);
+  border-radius: 12px;
+  color: rgba(var(--more-fg), 0.9);
+  text-align: left;
+  background: rgba(var(--more-bg), 0.12);
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.more-menu-quality-option:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(var(--more-fg), 0.09);
+}
+
+.more-menu-quality-option.is-selected {
+  border-color: rgba(var(--more-fg), 0.48);
+  background: rgba(var(--more-fg), 0.13);
+}
+
+.more-menu-quality-option:disabled { cursor: wait; }
+.more-menu-quality-option:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.more-menu-quality-option strong { font-size: 11px; font-weight: 740; }
+.more-menu-quality-option small { overflow: hidden; color: rgba(var(--more-fg-muted), 0.8); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.more-menu-quality-note { margin: -1px 4px 0; line-height: 1.4; }
+
 .more-menu-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3124,27 +3435,28 @@ onBeforeUnmount(() => {
   outline-offset: -2px;
 }
 
-.more-dialog-enter-active,
-.more-dialog-leave-active {
-  transition: opacity 0.18s ease;
+.more-dialog-enter-active .more-dialog-content {
+  transition: opacity 210ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.more-dialog-enter-from,
-.more-dialog-leave-to {
+.more-dialog-leave-active .more-dialog-content {
+  transition: opacity 145ms ease-in;
+}
+
+.more-dialog-leave-active .more-dialog-panel::before {
+  transition: opacity 190ms cubic-bezier(.4, 0, 1, 1);
+}
+
+.more-dialog-enter-from .more-dialog-content,
+.more-dialog-leave-to .more-dialog-content,
+.more-dialog-leave-to .more-dialog-panel::before {
   opacity: 0;
 }
 
-.more-dialog-enter-active .more-dialog-panel,
-.more-dialog-leave-active .more-dialog-panel {
-  transition: opacity 0.2s ease,
-  transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-  transform-origin: right bottom;
-}
-
-.more-dialog-enter-from .more-dialog-panel,
-.more-dialog-leave-to .more-dialog-panel {
-  opacity: 0;
-  transform: translateY(7px) scale(0.965);
+@media (prefers-reduced-motion: reduce) {
+  .more-dialog-enter-active .more-dialog-content,
+  .more-dialog-leave-active .more-dialog-content,
+  .more-dialog-leave-active .more-dialog-panel::before { transition-duration: 1ms; }
 }
 
 .player-range {

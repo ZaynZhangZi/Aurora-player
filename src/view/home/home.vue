@@ -5,23 +5,41 @@
     <main class="personal-main" data-route-motion-root>
       <section id="home-top" class="home-lobby">
         <article class="home-banner-card" :aria-label="bannerHero.title || '首页 Banner'">
-          <div v-if="bannerHero.media" class="home-banner-media">
-            <SmartMedia
-              :src="bannerHero.media"
-              :media-type="bannerHero.mediaType"
-              :alt="bannerHero.title ? `${bannerHero.title} 首页 Banner` : 'Aurora 首页 Banner'"
-              :image-width="1440"
-              :lock-muted="true"
-              img-loading="eager"
-              fetch-priority="high"
-              sizes="(min-width: 1376px) 1320px, calc(100vw - 56px)"
-            />
-          </div>
-          <div v-else class="home-banner-fallback" aria-hidden="true">
+          <div class="home-banner-fallback" :class="{'is-hidden': bannerHero.media && (bannerPosterReady || bannerMediaReady)}" aria-hidden="true">
             <span class="banner-orbit banner-orbit-one" />
             <span class="banner-orbit banner-orbit-two" />
             <span class="banner-disc" />
           </div>
+          <div v-if="bannerHero.media" class="home-banner-media">
+            <SmartMedia
+              ref="bannerMediaRef"
+              :key="bannerHero.media"
+              :src="bannerHero.media"
+              :media-type="bannerHero.mediaType"
+              :poster="bannerPosterFailed ? '' : bannerHero.poster"
+              :autoplay="!isBannerVideo"
+              :alt="bannerHero.title ? `${bannerHero.title} 首页 Banner` : 'Aurora 首页 Banner'"
+              :image-width="1440"
+              :lock-muted="true"
+              preload="auto"
+              img-loading="eager"
+              fetch-priority="high"
+              sizes="(min-width: 1376px) 1320px, calc(100vw - 56px)"
+              @loaded="onBannerMediaReady"
+              @first-frame="onBannerFirstFrame"
+            />
+          </div>
+          <img
+            v-if="isBannerVideo && bannerHero.poster && !bannerPosterFailed"
+            class="home-banner-poster"
+            :class="{'is-ready': bannerPosterReady, 'is-hidden': bannerMediaReady}"
+            :src="bannerHero.poster"
+            alt=""
+            aria-hidden="true"
+            fetchpriority="high"
+            @load="onBannerPosterLoaded"
+            @error="onBannerPosterError"
+          />
           <div class="home-banner-shade" />
           <div class="home-banner-content">
             <small class="home-banner-kicker">AURORA · FOR YOU</small>
@@ -224,6 +242,43 @@ const userStore = useCounterStore()
 const playerStore = usePlayerStore()
 const {resolveThemeFromCover} = usePlayerThemeFromCover()
 const {hero: bannerHero, loadHomeBanner} = useHomeData(userStore)
+const bannerMediaRef = ref(null)
+const bannerMediaReady = ref(false)
+const bannerPosterReady = ref(false)
+const bannerPosterFailed = ref(false)
+let bannerPlayTimer = 0
+const isBannerVideo = computed(() => {
+  const type = String(bannerHero.value.mediaType || '').toLowerCase()
+  if (type === 'video') return true
+  if (type === 'image') return false
+  return /\.(mp4|webm|ogg|ogv|mov|m4v|avi|mkv)(?:[?#]|$)/i.test(String(bannerHero.value.media || ''))
+})
+watch(() => [bannerHero.value.media, bannerHero.value.mediaType, bannerHero.value.poster], () => {
+  bannerMediaReady.value = false
+  bannerPosterReady.value = false
+  bannerPosterFailed.value = false
+  window.clearTimeout(bannerPlayTimer)
+}, {flush: 'sync'})
+
+function onBannerPosterLoaded() {
+  bannerPosterReady.value = true
+}
+function onBannerPosterError() {
+  bannerPosterReady.value = false
+  bannerPosterFailed.value = true
+}
+function onBannerMediaReady() {
+  if (!isBannerVideo.value) bannerMediaReady.value = true
+}
+function onBannerFirstFrame() {
+  if (!isBannerVideo.value) return
+  bannerMediaReady.value = true
+  window.clearTimeout(bannerPlayTimer)
+  const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300
+  bannerPlayTimer = window.setTimeout(() => {
+    bannerMediaRef.value?.playVideo?.()?.catch(() => {})
+  }, delay)
+}
 const {
   dailySongs,
   dailyPlaylists,
@@ -437,6 +492,7 @@ onMounted(() => {
   window.addEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
 onUnmounted(() => {
+  window.clearTimeout(bannerPlayTimer)
   playlistRequest += 1
   resumeThemeRequest += 1
   stationThemeRequest += 1
@@ -479,19 +535,25 @@ button { cursor: pointer; font: inherit; }
 .home-banner-card { position: relative; left: 50%; width: 100vw; height: clamp(440px, 76svh, 780px); overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
 .home-banner-media,
 .home-banner-fallback,
+.home-banner-poster,
 .home-banner-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
 .home-banner-media { z-index: 0; filter: saturate(0.94) contrast(1.02); transform: scale(1.015); }
+.home-banner-media :deep(> div) { background: transparent !important; }
 .home-banner-media :deep(> div),
 .home-banner-media :deep(img),
 .home-banner-media :deep(video) { width: 100% !important; height: 100% !important; object-fit: cover; }
-.home-banner-fallback { z-index: 0; overflow: hidden; background: radial-gradient(circle at 72% 24%, rgba(232, 87, 105, 0.58), transparent 23%), radial-gradient(circle at 58% 74%, rgba(102, 121, 190, 0.52), transparent 29%), radial-gradient(circle at 92% 72%, rgba(239, 174, 104, 0.28), transparent 22%), linear-gradient(138deg, #3c4354 0%, #242936 48%, #181b24 100%); }
+.home-banner-fallback { z-index: 1; overflow: hidden; background: radial-gradient(circle at 72% 24%, rgba(232, 87, 105, 0.58), transparent 23%), radial-gradient(circle at 58% 74%, rgba(102, 121, 190, 0.52), transparent 29%), radial-gradient(circle at 92% 72%, rgba(239, 174, 104, 0.28), transparent 22%), linear-gradient(138deg, #3c4354 0%, #242936 48%, #181b24 100%); transition: opacity 280ms ease; pointer-events: none; }
+.home-banner-fallback.is-hidden { opacity: 0; }
+.home-banner-poster { z-index: 2; object-fit: cover; opacity: 0; filter: saturate(0.94) contrast(1.02); transform: scale(1.015); transition: opacity 280ms ease; pointer-events: none; }
+.home-banner-poster.is-ready { opacity: 1; }
+.home-banner-poster.is-hidden { opacity: 0; }
 .home-banner-fallback::after { position: absolute; top: 12%; right: 19%; width: 30vw; min-width: 360px; aspect-ratio: 1; border-radius: 46% 54% 62% 38% / 42% 38% 62% 58%; background: rgba(255, 157, 173, 0.16); filter: blur(55px); content: ''; transform: rotate(-18deg); }
 .banner-orbit { position: absolute; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
 .banner-orbit-one { top: -210px; right: -80px; width: 560px; height: 560px; }
 .banner-orbit-two { right: 20px; bottom: -200px; width: 370px; height: 370px; }
 .banner-disc { position: absolute; top: 80px; right: 12%; width: 210px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #292d37 0 5px, #15171c 6px 12px); box-shadow: 0 35px 70px rgba(0, 0, 0, 0.36); }
-.home-banner-shade { z-index: 1; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.46) 35%, rgba(14, 15, 19, 0.06) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.44) 18%, transparent 62%); }
-.home-banner-content { position: absolute; inset: 0 auto 0 50%; z-index: 2; display: flex; box-sizing: border-box; width: min(100%, 1680px); flex-direction: column; justify-content: flex-end; padding: clamp(40px, 5vw, 72px) clamp(28px, 5vw, 72px) clamp(72px, 9vh, 104px); color: #fff; transform: translateX(-50%); }
+.home-banner-shade { z-index: 3; background: linear-gradient(90deg, rgba(14, 15, 19, 0.76) 0%, rgba(14, 15, 19, 0.46) 35%, rgba(14, 15, 19, 0.06) 76%), linear-gradient(0deg, rgba(14, 15, 19, 0.44) 18%, transparent 62%); }
+.home-banner-content { position: absolute; inset: 0 auto 0 50%; z-index: 4; display: flex; box-sizing: border-box; width: min(100%, 1680px); flex-direction: column; justify-content: flex-end; padding: clamp(40px, 5vw, 72px) clamp(28px, 5vw, 72px) clamp(72px, 9vh, 104px); color: #fff; transform: translateX(-50%); }
 .home-banner-kicker { margin-bottom: 12px; color: rgba(255, 188, 199, 0.92); font-size: 11px; font-weight: 900; letter-spacing: 0.2em; }
 .home-banner-card h1 { max-width: 680px; margin: 22px 0 0; font-size: clamp(42px, 5.4vw, 76px); font-weight: 920; letter-spacing: -0.065em; line-height: 0.98; text-wrap: balance; text-shadow: 0 5px 22px rgba(0, 0, 0, 0.28); }
 .home-banner-description { max-width: 560px; margin: 24px 0 0; color: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 580; line-height: 1.75; }

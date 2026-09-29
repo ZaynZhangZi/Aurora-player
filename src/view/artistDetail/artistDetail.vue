@@ -15,12 +15,24 @@
       </button>
 
       <template v-if="hasHeroVideo">
+        <img
+          v-if="heroPosterSrc"
+          class="artist-hero-poster"
+          :class="{'is-ready': heroPosterReady, 'artist-hero-poster-hidden': heroVideoReady}"
+          :src="heroPosterSrc"
+          alt=""
+          aria-hidden="true"
+          @load="onHeroPosterLoaded"
+          @error="onHeroPosterError"
+        />
         <video
+          ref="heroVideoRef"
+          :key="heroBannerVideo"
           class="artist-hero-video"
           :class="heroVideoReady ? 'artist-hero-video-ready' : 'artist-hero-video-pending'"
           :src="heroBannerVideo"
-          :poster="heroBannerPoster || artistAvatar"
-          autoplay muted loop playsinline preload="metadata"
+          :poster="heroPosterSrc"
+          muted loop playsinline preload="auto"
           @loadeddata="onHeroVideoLoaded"
           @error="onHeroVideoError"
         />
@@ -260,6 +272,10 @@ const artistProfile = ref(null)
 const heroBannerVideo = ref('')
 const heroBannerPoster = ref('')
 const heroVideoReady = ref(false)
+const heroPosterReady = ref(false)
+const heroPosterFailed = ref(false)
+const heroVideoRef = ref(null)
+let heroPlayTimer = 0
 let artistLoadSequence = 0
 
 const hotSongs = ref([])
@@ -370,6 +386,7 @@ const artistDescription = computed(() => {
 const artistAvatar = computed(() => {
   return artistProfile.value?.avatar || artistProfile.value?.picUrl || artistProfile.value?.img1v1Url || ''
 })
+const heroPosterSrc = computed(() => heroPosterFailed.value ? artistAvatar.value : (heroBannerPoster.value || artistAvatar.value))
 
 const hasHeroVideo = computed(() => Boolean(heroBannerVideo.value))
 
@@ -609,6 +626,8 @@ function resolveArtistBanner(payload) {
   ])
 
   const bannerPoster = firstValidUrl([
+    primary?.firstFrameUrl,
+    nested?.firstFrameUrl,
     primary?.poster,
     primary?.posterUrl,
     primary?.cover,
@@ -794,8 +813,28 @@ function onHeroVideoError() {
   heroBannerVideo.value = ''
 }
 
+function onHeroPosterLoaded() {
+  heroPosterReady.value = true
+}
+
+function onHeroPosterError(event) {
+  if (!heroPosterFailed.value && heroBannerPoster.value) {
+    heroPosterFailed.value = true
+    heroPosterReady.value = false
+    return
+  }
+  onAvatarError(event)
+  heroPosterReady.value = true
+}
+
 function onHeroVideoLoaded() {
+  if (heroVideoReady.value) return
   heroVideoReady.value = true
+  window.clearTimeout(heroPlayTimer)
+  const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 540
+  heroPlayTimer = window.setTimeout(() => {
+    heroVideoRef.value?.play?.()?.catch(() => {})
+  }, delay)
 }
 
 function formatDate(timestamp) {
@@ -1212,6 +1251,7 @@ async function ensureArtistId() {
 }
 
 async function loadArtistPage() {
+  window.clearTimeout(heroPlayTimer)
   const loadSequence = ++artistLoadSequence
   const isCurrentLoad = () => loadSequence === artistLoadSequence
   loading.value = true
@@ -1243,6 +1283,8 @@ async function loadArtistPage() {
   heroBannerVideo.value = ''
   heroBannerPoster.value = ''
   heroVideoReady.value = false
+  heroPosterReady.value = false
+  heroPosterFailed.value = false
 
   await ensureArtistId()
 
@@ -1328,6 +1370,8 @@ async function loadArtistPage() {
             heroBannerVideo.value = bannerVideo
             heroBannerPoster.value = bannerPoster
             heroVideoReady.value = false
+            heroPosterReady.value = false
+            heroPosterFailed.value = false
             await pickThemeFromImage(bannerPoster || fallbackArtwork, artistName.value, isCurrentLoad)
           })
           .catch(() => {
@@ -1335,6 +1379,8 @@ async function loadArtistPage() {
             heroBannerVideo.value = ''
             heroBannerPoster.value = ''
             heroVideoReady.value = false
+            heroPosterReady.value = false
+            heroPosterFailed.value = false
           })
       }
       settleCoreRequest(true)
@@ -1403,6 +1449,7 @@ onBeforeRouteLeave(() => {
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(heroPlayTimer)
   closeMvPlayer()
   if (themeRaf) {
     cancelAnimationFrame(themeRaf)
@@ -1567,12 +1614,33 @@ watch(
 .artist-hero-video {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center 28%;
   transition: opacity 520ms ease, filter 520ms ease;
+}
+
+.artist-hero-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 28%;
+  filter: saturate(.94);
+  opacity: 0;
+  transition: opacity 520ms ease;
+}
+
+.artist-hero-poster.is-ready {
+  opacity: 1;
+}
+
+.artist-hero-poster.artist-hero-poster-hidden {
+  opacity: 0;
 }
 
 .artist-hero-video-pending {

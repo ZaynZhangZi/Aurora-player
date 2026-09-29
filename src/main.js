@@ -33,6 +33,11 @@ pinia.use(piniaPluginPersistedstate);
 // 3) 依次挂载
 app.use(pinia);
 app.use(router);
+if (typeof window !== "undefined" && (window.location.pathname === "/" || window.location.pathname === "/home")) {
+  void import("./composables/useHomeData.js")
+    .then(({ prefetchHomeBanner }) => prefetchHomeBanner())
+    .catch(() => {});
+}
 installBehaviorTracker(router);
 void preloadRouteComponents(router);
 app.mount("#app");
