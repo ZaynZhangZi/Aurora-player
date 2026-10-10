@@ -10,7 +10,15 @@
       ref="reactMountRef"
       class="amll-react-mount"
       data-player-amll-react-mount
+      @pointerdown.capture="onLyricPointerDown"
+      @pointermove.capture="onLyricPointerMove"
+      @pointerup.capture="clearLongPress"
+      @pointercancel.capture="clearLongPress"
+      @click.capture="onCapturedClick"
     />
+    <div class="amll-share-tools">
+      <button type="button" :disabled="!shareAvailable" aria-label="分享歌词" :title="shareAvailable ? '选择歌词并制作分享图片' : '暂无可分享的歌词'" @click="emit('share-request')"><ArrowUpTrayIcon /><span>分享歌词</span></button>
+    </div>
   </div>
 </template>
 
@@ -43,6 +51,7 @@ import {
   onClickControlThumbAtom,
   onCycleRepeatModeAtom,
   onLyricLineClickAtom,
+  onLyricLineContextMenuAtom,
   onPlayOrResumeAtom,
   onRequestNextSongAtom,
   onRequestOpenMenuAtom,
@@ -52,6 +61,7 @@ import {
   repeatModeAtom,
 } from '@applemusic-like-lyrics/react-full'
 import {onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {ArrowUpTrayIcon} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   opened: {type: Boolean, default: false},
@@ -68,6 +78,7 @@ const props = defineProps({
   lowFreqVolume: {type: Number, default: 1},
   playMode: {type: String, default: 'sequence'},
   hideLyricView: {type: Boolean, default: false},
+  shareAvailable: {type: Boolean, default: false},
 })
 
 const emit = defineEmits([
@@ -83,12 +94,45 @@ const emit = defineEmits([
   'toggle-shuffle',
   'cycle-repeat',
   'audio-quality-click',
+  'share-line',
+  'share-request',
 ])
 
 const reactMountRef = ref(null)
 const reactStore = createStore()
 let reactRoot = null
 let stopHideLyricsWatch = null
+let longPressTimer = 0
+let touchStart = null
+let suppressClickUntil = 0
+
+function clearLongPress() {
+  clearTimeout(longPressTimer)
+  touchStart = null
+}
+function onLyricPointerDown(event) {
+  clearLongPress()
+  if (event.pointerType === 'mouse' || !event.isPrimary || !props.opened || !props.shareAvailable) return
+  const line = event.target.closest?.('.amll-lyric-player [class*="lyricLineWrapper"]')
+  if (!line || line.className.includes('bottomLineWrapper')) return
+  touchStart = {x: event.clientX, y: event.clientY}
+  longPressTimer = window.setTimeout(() => {
+    suppressClickUntil = performance.now() + 1000
+    line.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY}))
+    clearLongPress()
+  }, 550)
+}
+function onLyricPointerMove(event) {
+  if (touchStart && Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 10) clearLongPress()
+}
+function onCapturedClick(event) {
+  if (performance.now() < suppressClickUntil && event.target.closest?.('.amll-lyric-player')) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+}
+
+watch(() => props.opened, opened => { if (!opened) clearLongPress() })
 
 function clampUnit(value, fallback = 0) {
   const number = Number(value)
@@ -153,6 +197,14 @@ function configureCallbacks() {
   })
   reactStore.set(onLyricLineClickAtom, {
     onEmit: (event) => emit('line-click', event),
+  })
+  reactStore.set(onLyricLineContextMenuAtom, {
+    onEmit: (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const line = event.line?.getLine?.()
+      if (line && props.shareAvailable) emit('share-line', line)
+    },
   })
   reactStore.set(onChangeVolumeAtom, {
     onEmit: (volume) => emit('update:volume', clampUnit(volume, props.volume)),
@@ -253,6 +305,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearLongPress()
   reactStore.set(isLyricPageOpenedAtom, false)
   stopHideLyricsWatch?.()
   stopHideLyricsWatch = null
@@ -298,6 +351,15 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
 }
+
+.amll-share-tools { position: absolute; z-index: 5; top: calc(18px + env(safe-area-inset-top, 0px)); right: calc(22px + env(safe-area-inset-right, 0px)); }
+.amll-share-tools button { display: flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; color: rgb(255 255 255 / .8); border: 1px solid rgb(255 255 255 / .1); border-radius: 13px; background: rgb(255 255 255 / .07); backdrop-filter: blur(12px); font: inherit; font-size: 11px; cursor: pointer; transition: background 180ms ease; }
+.amll-share-tools button:hover { background: rgb(255 255 255 / .15); }
+.amll-share-tools button:disabled { opacity: .4; cursor: default; }
+.amll-share-tools button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.amll-share-tools svg { width: 16px; height: 16px; }
+.amll-wrapper .amll-lyric-player { -webkit-touch-callout: none; }
+@media (max-width: 620px) { .amll-share-tools { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; } .amll-share-tools button { min-height: 38px; padding: 10px; } .amll-share-tools span { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .amll-wrapper,

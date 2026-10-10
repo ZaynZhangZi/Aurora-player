@@ -424,16 +424,21 @@
           :playing="isPlaying"
           :low-freq-volume="amllLowFreqVolume"
           :play-mode="playerStore.playMode"
+          :share-available="canShareLyrics"
           @play-or-pause="togglePlay"
           @prev="playPrevSong"
           @next="playNextSong"
           @line-click="onAmllLineClick"
+          @share-line="openCurrentLyricShare"
+          @share-request="openCurrentLyricShare()"
           @open-playlist="togglePlaylistPanel"
           @toggle-shuffle="toggleShuffleMode"
           @cycle-repeat="cyclePlayMode"
         />
       </div>
     </Teleport>
+
+    <LyricShareDialog />
 
     <Teleport to="body">
       <Transition name="playlist-dialog">
@@ -656,6 +661,11 @@
                 <span class="more-menu-action-label">播放列表</span>
                 <span class="more-menu-action-value">{{ playQueue.length }} 首</span>
               </button>
+              <button class="more-menu-action" type="button" :disabled="!canShareLyrics" @click="openCurrentLyricShare()">
+                <ArrowUpTrayIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
+                <span class="more-menu-action-label">分享歌词</span>
+                <span class="more-menu-action-value">{{ canShareLyrics ? '选择歌词' : '暂无歌词' }}</span>
+              </button>
             </div>
             </div>
           </div>
@@ -714,6 +724,7 @@
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathRoundedSquareIcon,
+  ArrowUpTrayIcon,
   QueueListIcon,
   SparklesIcon,
   TrashIcon,
@@ -743,6 +754,9 @@ import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
 import AMLLReactPlayer from "@/components/globalFooterPlayer/AMLLReactPlayer.vue";
+import LyricShareDialog from "@/components/lyricShare/LyricShareDialog.vue";
+import {openLyricShare} from "@/composables/useLyricShare.js";
+import {normalizeShareLines} from "@/utils/lyricShare.js";
 import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
 import {autoMixEngine} from "@/audio/AutoMixEngine.js";
@@ -907,6 +921,8 @@ function isEventFromActiveDeck(event) {
 
 const amllHideLyricView = ref(false);
 const amllLyricLines = ref([]);
+const amllLyricSongId = ref("");
+const canShareLyrics = computed(() => amllLyricSongId.value === String(playerStore.currentSong?.id || "") && normalizeShareLines(amllLyricLines.value).length > 0);
 const amllAlbum = ref("");
 const AMLL_LYRIC_LEAD_MS = 320;
 const {
@@ -1201,8 +1217,9 @@ const {loadCurrentSongLyric} = usePlayerLyricLoader({
   collectLyricRowsForTranslate,
   attachAiTranslationIfNeeded,
   isLyricTranslateEnabled: () => lyricTranslateEnabled.value,
-  setLyricLines: (next) => {
+  setLyricLines: (next, songId) => {
     amllLyricLines.value = next;
+    amllLyricSongId.value = String(songId || "");
   },
 });
 const {
@@ -1662,6 +1679,17 @@ function onAmllLineClick(event) {
   active.currentTime = targetSec;
   playerStore.setCurrentTimeMs(startTime);
   amllCurrentTimeMsRef.value = Math.max(0, Math.floor(startTime + AMLL_LYRIC_LEAD_MS));
+}
+
+function openCurrentLyricShare(line = null) {
+  if (!canShareLyrics.value) return;
+  closeMorePanel();
+  openLyricShare({
+    name: songName.value,
+    artists: normalizedArtistList.value,
+    cover: coverUrl.value,
+    theme: {base: [...themeBaseRgb.value], accent: [...themeAccentRgb.value], glow: [...themeGlowRgb.value]},
+  }, amllLyricLines.value, {line, timeMs: currentTimeMs.value});
 }
 
 function stopAmllClock() {

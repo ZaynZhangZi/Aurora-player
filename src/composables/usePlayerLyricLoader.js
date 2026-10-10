@@ -39,7 +39,7 @@ export function usePlayerLyricLoader(options) {
     const requestToken = ++lyricLoadToken
     const id = Number(songId)
     if (!Number.isFinite(id) || id <= 0) {
-      if (requestToken === lyricLoadToken) setLyricLines([])
+      if (requestToken === lyricLoadToken) setLyricLines([], songId)
       return
     }
 
@@ -76,13 +76,13 @@ export function usePlayerLyricLoader(options) {
     }
 
     if (!lyricPayload) {
-      if (requestToken === lyricLoadToken) setLyricLines([])
+      if (requestToken === lyricLoadToken) setLyricLines([], id)
       return
     }
 
     const baseLines = normalizeLyricPayloadToAmll(lyricPayload)
     if (requestToken !== lyricLoadToken) return
-    setLyricLines(baseLines)
+    setLyricLines(baseLines, id)
 
     if (!isLyricTranslateEnabled()) return
 
@@ -102,6 +102,7 @@ export function usePlayerLyricLoader(options) {
         if (!line.words?.some((w) => w.word?.trim())) return line
         return { ...line, translatedLyric: '正在翻译...' }
       }),
+      id,
     )
 
     Promise.resolve().then(async () => {
@@ -112,13 +113,13 @@ export function usePlayerLyricLoader(options) {
       )
       if (requestToken !== lyricLoadToken) return
       if (translatedPayload === lyricPayload) {
-        setLyricLines(baseLines)
+        setLyricLines(baseLines, id)
         return
       }
 
       const translatedLines = normalizeLyricPayloadToAmll(translatedPayload)
       if (!translatedLines.length) return
-      setLyricLines(translatedLines)
+      setLyricLines(translatedLines, id)
     })
   }
 
