@@ -91,7 +91,7 @@ function fitHeader(ctx, value, width) {
 export function createShareLayout(song, lines, options, ctx) {
   const runs = []
   let y = 316
-  for (const line of lines) {
+  for (const [lineIndex, line] of lines.entries()) {
     const size = line.isBG ? 44 : 66
     const weight = options.boldText ? 750 : 500
     const lineHeight = Math.round(size * 1.35)
@@ -99,13 +99,13 @@ export function createShareLayout(song, lines, options, ctx) {
     const width = line.isBG ? 1170 : 1316
     ctx.font = `${weight} ${size}px ${SHARE_FONT}`
     for (const text of wrapShareText(ctx, line.text, width)) {
-      runs.push({text, x, y, size, weight, align: line.isDuet ? 'end' : 'start', opacity: line.isBG ? .72 : 1})
+      runs.push({text, x, y, size, weight, align: line.isDuet ? 'end' : 'start', opacity: line.isBG ? .72 : 1, lineIndex})
       y += lineHeight
     }
     if (options.showTranslation && line.translation) {
       ctx.font = `500 36px ${SHARE_FONT}`
       for (const text of wrapShareText(ctx, line.translation, width)) {
-        runs.push({text, x, y: y - 5, size: 36, weight: 500, align: line.isDuet ? 'end' : 'start', opacity: .6})
+        runs.push({text, x, y: y - 5, size: 36, weight: 500, align: line.isDuet ? 'end' : 'start', opacity: .6, lineIndex})
         y += 50
       }
     }
@@ -116,7 +116,7 @@ export function createShareLayout(song, lines, options, ctx) {
   const name = fitHeader(ctx, song.name, 1110)
   ctx.font = `500 32px ${SHARE_FONT}`
   const artists = fitHeader(ctx, song.artists, 1110)
-  return {width: SHARE_WIDTH, height, runs, name, artists, palette: sharePalette(song.theme)}
+  return {width: SHARE_WIDTH, height, runs, name, artists, lineCount: lines.length, palette: sharePalette(song.theme)}
 }
 
 export function formatShareTime(timeMs) {
@@ -124,9 +124,9 @@ export function formatShareTime(timeMs) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-export function shareFileName(song) {
+export function shareFileName(song, format = 'jpg') {
   const name = Array.from(song.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim()).slice(0, 60).join('') || '歌曲'
-  return `${name}-歌词分享.jpg`
+  return `${name}-歌词分享.${format === 'gif' ? 'gif' : 'jpg'}`
 }
 
 export function shareExportSize(layout, scale = 1) {

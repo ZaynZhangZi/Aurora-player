@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url'
 import {readFile, access} from 'node:fs/promises'
 import {createServer} from 'vite'
 import {createShareLayout, DEFAULT_SHARE_OPTIONS, initialShareLine, normalizeShareLines, normalizeShareSong, selectedShareLines, shareExportSize, shareFileName, sharePalette, wrapShareText} from '../src/utils/lyricShare.js'
+import {createSharePreviewMotion} from '../src/utils/lyricSharePreviewMotion.js'
 
 const storage = new Map()
 Object.defineProperty(globalThis, 'localStorage', {configurable: true, value: {
@@ -103,6 +104,44 @@ test('wrapping retains English words, explicit line breaks and Unicode code poin
   assert.deepEqual(wrapShareText(ctx, 'good morning\n你好 🌌', 80), ['good', 'morning', '你好 🌌'])
   const emoji = '🌌'.repeat(40)
   assert.equal(wrapShareText(ctx, emoji, 100).join(''), emoji)
+})
+
+test('preview height eases to the new layout, reverses from its current frame and cancels on unmount or reduced motion', () => {
+  const frames = new Map()
+  let nextFrame = 0
+  let height = 0
+  const motion = createSharePreviewMotion(value => { height = value }, {
+    requestFrame: callback => { frames.set(++nextFrame, callback); return nextFrame },
+    cancelFrame: id => frames.delete(id),
+  })
+  const tick = time => {
+    const callbacks = [...frames.values()]
+    frames.clear()
+    for (const callback of callbacks) callback(time)
+  }
+  motion.setHeight(700)
+  assert.equal(height, 700)
+  assert.equal(frames.size, 0, 'the first preview has no entrance resize')
+  motion.setHeight(1000)
+  tick(0)
+  tick(160)
+  assert.equal(height, 850)
+  motion.setHeight(700)
+  assert.equal(frames.size, 1, 'rapid changes cancel the preceding animation')
+  tick(170)
+  assert.equal(height, 850, 'a reversal starts at the current visual height without jumping')
+  tick(490)
+  assert.equal(height, 700)
+  assert.equal(frames.size, 0)
+  motion.setHeight(1000)
+  motion.setHeight(760, {animate: false})
+  assert.equal(height, 760)
+  assert.equal(frames.size, 0, 'reduced motion immediately applies the final height')
+  motion.setHeight(1000)
+  motion.stop()
+  assert.equal(frames.size, 0, 'unmount cancels all pending frames')
+  tick(1000)
+  assert.equal(height, 760)
 })
 
 test('export resolution is independently scaled and large canvases fail safely instead of clipping lyrics', () => {

@@ -3,7 +3,7 @@
     <dialog ref="dialogRef" class="lyric-share-dialog" :class="{'is-visible': visible}" aria-labelledby="lyric-share-title" @cancel.prevent="closeLyricShare" @pointerdown="backdropPressed = $event.target === dialogRef" @click="onBackdropClick">
       <section v-if="ui.song" class="share-panel" :class="{'is-preview': step === 'preview'}">
         <header class="share-header">
-          <button v-if="step === 'preview'" class="share-icon-button" type="button" aria-label="返回选择歌词" @click="step = 'select'"><ChevronLeftIcon /></button>
+          <button v-if="step === 'preview'" class="share-icon-button" type="button" :disabled="busy" aria-label="返回选择歌词" @click="step = 'select'"><ChevronLeftIcon /></button>
           <div><h2 id="lyric-share-title">{{ step === 'select' ? '选择歌词' : '分享歌词' }}</h2><p>{{ step === 'select' ? `${ui.song.name} · ${ui.song.artists}` : 'Apple Music 样式' }}</p></div>
           <button class="share-icon-button share-close" type="button" autofocus aria-label="关闭歌词分享" @click="closeLyricShare"><XMarkIcon /></button>
         </header>
@@ -23,12 +23,14 @@
             <div class="share-preview-stage"><LyricSharePreview :song="ui.song" :lines="outputLines" :options="options" /></div>
             <div class="share-settings">
               <div class="share-settings-heading"><span>分享图片</span><small>{{ outputLines.length }} 行 · 封面主题色</small></div>
-              <label class="share-setting"><span>显示翻译<small v-if="!hasTranslation">所选歌词暂无翻译</small></span><input v-model="options.showTranslation" type="checkbox" :disabled="!hasTranslation" /><span class="share-switch" aria-hidden="true" /></label>
-              <label class="share-setting"><span>显示背景人声<small v-if="!hasBackgroundVocals">这首歌暂无背景人声标记</small></span><input v-model="options.showBackgroundVocals" type="checkbox" :disabled="!hasBackgroundVocals" /><span class="share-switch" aria-hidden="true" /></label>
-              <label class="share-setting"><span>粗体文本</span><input v-model="options.boldText" type="checkbox" /><span class="share-switch" aria-hidden="true" /></label>
-              <label class="share-resolution"><span>图片清晰度</span><select v-model.number="options.scale"><option :value="1">标准 · 1500px</option><option :value="1.5">高清 · 2250px</option><option :value="2">超清 · 3000px</option></select></label>
+              <label class="share-setting"><span>显示翻译<small v-if="!hasTranslation">所选歌词暂无翻译</small></span><input v-model="options.showTranslation" type="checkbox" :disabled="busy || !hasTranslation" /><span class="share-switch" aria-hidden="true" /></label>
+              <label class="share-setting"><span>显示背景人声<small v-if="!hasBackgroundVocals">这首歌暂无背景人声标记</small></span><input v-model="options.showBackgroundVocals" type="checkbox" :disabled="busy || !hasBackgroundVocals" /><span class="share-switch" aria-hidden="true" /></label>
+              <label class="share-setting"><span>粗体文本</span><input v-model="options.boldText" type="checkbox" :disabled="busy" /><span class="share-switch" aria-hidden="true" /></label>
+              <label class="share-resolution"><span>图片清晰度</span><select v-model.number="options.scale" :disabled="busy"><option :value="1">标准 · 1500px</option><option :value="1.5">高清 · 2250px</option><option :value="2">超清 · 3000px</option></select></label>
               <p class="share-export-hint">图片高度随所选歌词调整，不裁切歌词。</p>
               <div class="share-export-buttons"><button type="button" class="share-secondary-button" :disabled="busy || !outputLines.length" @click="copyImage"><DocumentDuplicateIcon />{{ busyAction === 'copy' ? '复制中…' : '复制图片' }}</button><button type="button" class="share-primary-button" :disabled="busy || !outputLines.length" @click="saveImage"><ArrowDownTrayIcon />{{ busyAction === 'save' ? '保存中…' : '保存图片' }}</button></div>
+              <div class="share-gif-actions"><button type="button" class="share-secondary-button share-gif-button" :disabled="busy || !outputLines.length" @click="saveGif"><FilmIcon />{{ busyAction === 'gif' ? `生成中 · ${gifProgress}%` : '保存 GIF 动图' }}</button><button v-if="busyAction === 'gif'" type="button" class="share-secondary-button" @click="cancelGifExport">取消</button></div>
+              <p class="share-export-hint">GIF · {{ gifWidth }}px · 6 秒循环，无声音。复制图片仍为静态图片。</p>
               <p class="share-status" role="status">{{ status }}</p>
             </div>
           </div>
@@ -40,7 +42,7 @@
 
 <script setup>
 import {computed, nextTick, onBeforeUnmount, ref, watch} from 'vue'
-import {ArrowDownTrayIcon, ArrowRightIcon, CheckIcon, ChevronLeftIcon, DocumentDuplicateIcon, XMarkIcon} from '@heroicons/vue/24/outline'
+import {ArrowDownTrayIcon, ArrowRightIcon, CheckIcon, ChevronLeftIcon, DocumentDuplicateIcon, FilmIcon, XMarkIcon} from '@heroicons/vue/24/outline'
 import LyricSharePreview from './LyricSharePreview.vue'
 import {closeLyricShare, lyricShare as ui} from '@/composables/useLyricShare.js'
 import {DEFAULT_SHARE_OPTIONS, formatShareTime, selectedShareLines, shareFileName} from '@/utils/lyricShare.js'
@@ -54,7 +56,9 @@ const options = ref({...DEFAULT_SHARE_OPTIONS})
 const selectedIds = ref([])
 const status = ref('')
 const busyAction = ref('')
+const gifProgress = ref(0)
 const busy = computed(() => Boolean(busyAction.value))
+const gifWidth = computed(() => ({1: 480, 1.5: 720, 2: 960})[options.value.scale] || 480)
 const selectedSet = computed(() => new Set(selectedIds.value))
 const outputLines = computed(() => selectedShareLines(ui.lines, selectedIds.value, options.value))
 const hasTranslation = computed(() => outputLines.value.some(line => Boolean(line.translation)))
@@ -77,6 +81,7 @@ watch(() => ui.session, () => {
   step.value = 'select'
   status.value = ''
   busyAction.value = ''
+  gifProgress.value = 0
 }, {immediate: true, flush: 'sync'})
 watch([selectedIds, options], () => { status.value = '' }, {deep: true})
 
@@ -104,6 +109,7 @@ function startExport(action) {
   if (busy.value || !outputLines.value.length) return null
   exportController = new AbortController()
   busyAction.value = action
+  gifProgress.value = 0
   status.value = ''
   const session = ui.session
   const song = ui.song
@@ -117,23 +123,50 @@ function exportFailed(error, task, message) {
   if (isCurrentExport(task) && error?.name !== 'AbortError') status.value = error?.message || message
 }
 function finishExport(task) { if (ui.session === task.session) busyAction.value = '' }
+function downloadShareImage(result, filename) {
+  const url = URL.createObjectURL(result.blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500)
+}
 async function saveImage() {
   const task = startExport('save')
   if (!task) return
   try {
     const result = await renderLyricShareImage(task.song, task.lines, task.settings, {signal: task.signal})
     if (!isCurrentExport(task)) return
-    const url = URL.createObjectURL(result.blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = shareFileName(task.song)
-    document.body.append(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500)
+    downloadShareImage(result, shareFileName(task.song))
     status.value = result.coverUnavailable ? '图片已准备好；封面受跨域限制，已使用主题色占位。' : '图片已准备好，查看浏览器的下载列表。'
   } catch (error) { exportFailed(error, task, '图片保存失败，请重试。') }
   finally { finishExport(task) }
+}
+async function saveGif() {
+  const task = startExport('gif')
+  if (!task) return
+  status.value = '正在生成 GIF，可以随时取消。'
+  try {
+    // Load the exporter/encoder only when requested; normal preview remains lightweight.
+    const {renderLyricShareGif} = await import('@/utils/lyricShareGif.js')
+    if (!isCurrentExport(task)) return
+    const result = await renderLyricShareGif(task.song, task.lines, task.settings, {
+      signal: task.signal,
+      reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      onProgress: ({completed, total}) => { if (isCurrentExport(task)) gifProgress.value = Math.round(completed / total * 100) },
+    })
+    if (!isCurrentExport(task)) return
+    downloadShareImage(result, shareFileName(task.song, 'gif'))
+    status.value = result.coverUnavailable ? 'GIF 已准备好；封面受跨域限制，已使用主题色占位。' : `GIF 已准备好 · ${(result.blob.size / 1024 / 1024).toFixed(1)} MB，查看浏览器的下载列表。`
+  } catch (error) { exportFailed(error, task, 'GIF 保存失败，请重试。') }
+  finally { finishExport(task) }
+}
+function cancelGifExport() {
+  if (busyAction.value !== 'gif') return
+  exportController?.abort()
+  status.value = '已取消 GIF 生成。'
 }
 async function copyImage() {
   if (!window.isSecureContext || !navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
@@ -258,6 +291,8 @@ button:disabled { opacity: .4; cursor: default; }
 .share-export-hint { margin: 12px 0 0; color: #b0a6b8; font-size: 10px; line-height: 1.6; }
 .share-export-buttons { display: flex; gap: 9px; margin-top: 25px; }
 .share-export-buttons > button { flex: 1; padding-inline: 8px; }
+.share-gif-actions { display: flex; gap: 9px; margin-top: 10px; }
+.share-gif-button { flex: 1; }
 .share-status { min-height: 38px; margin: 12px 0 0; color: #a55c77; font-size: 11px; line-height: 1.6; }
 button:focus-visible, select:focus-visible { outline: 2px solid #b65a78; outline-offset: 3px; }
 .share-step-enter-active, .share-step-leave-active { transition: opacity 140ms ease; }
