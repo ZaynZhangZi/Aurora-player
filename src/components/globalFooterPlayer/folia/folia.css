@@ -1,0 +1,7 @@
+/* Scoped host baseline; native Tailwind classes remain as written upstream. */
+.folia-surface { position: absolute; inset: 0; font-size: 16px; line-height: 1.5; color: #f8fafc; --bg-color: #0f172a; --text-primary: #f8fafc; --text-secondary: #38bdf8; --text-accent: #fbbf24; }
+.folia-surface button { cursor: pointer; }
+.folia-surface button:focus-visible, .folia-surface input:focus-visible { outline: 2px solid #fbbf24; outline-offset: 4px; }
+.folia-surface .transition-colors, .folia-surface .transition-all, .folia-surface .transition-opacity, .folia-surface .transition-transform { transition-timing-function: cubic-bezier(.4,0,.2,1); }
+@font-face { font-family: 'Folia Noto Serif SC'; font-style: normal; font-weight: 400; font-display: swap; src: url('https://cdn.jsdmirror.cn/npm/@fontsource/noto-serif-sc@5.2.9/files/noto-serif-sc-chinese-simplified-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Folia Noto Serif SC'; font-style: normal; font-weight: 500; font-display: swap; src: url('https://cdn.jsdmirror.cn/npm/@fontsource/noto-serif-sc@5.2.9/files/noto-serif-sc-chinese-simplified-500-normal.woff2') format('woff2'); }

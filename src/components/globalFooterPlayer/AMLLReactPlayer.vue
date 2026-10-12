@@ -16,9 +16,6 @@
       @pointercancel.capture="clearLongPress"
       @click.capture="onCapturedClick"
     />
-    <div class="amll-share-tools">
-      <button type="button" :disabled="!shareAvailable" aria-label="分享歌词" :title="shareAvailable ? '选择歌词并制作分享图片' : '暂无可分享的歌词'" @click="emit('share-request')"><ArrowUpTrayIcon /><span>分享歌词</span></button>
-    </div>
   </div>
 </template>
 
@@ -61,7 +58,6 @@ import {
   repeatModeAtom,
 } from '@applemusic-like-lyrics/react-full'
 import {onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {ArrowUpTrayIcon} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   opened: {type: Boolean, default: false},
@@ -95,7 +91,6 @@ const emit = defineEmits([
   'cycle-repeat',
   'audio-quality-click',
   'share-line',
-  'share-request',
 ])
 
 const reactMountRef = ref(null)
@@ -352,14 +347,7 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
-.amll-share-tools { position: absolute; z-index: 5; top: calc(18px + env(safe-area-inset-top, 0px)); right: calc(22px + env(safe-area-inset-right, 0px)); }
-.amll-share-tools button { display: flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; color: rgb(255 255 255 / .8); border: 1px solid rgb(255 255 255 / .1); border-radius: 13px; background: rgb(255 255 255 / .07); backdrop-filter: blur(12px); font: inherit; font-size: 11px; cursor: pointer; transition: background 180ms ease; }
-.amll-share-tools button:hover { background: rgb(255 255 255 / .15); }
-.amll-share-tools button:disabled { opacity: .4; cursor: default; }
-.amll-share-tools button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.amll-share-tools svg { width: 16px; height: 16px; }
 .amll-wrapper .amll-lyric-player { -webkit-touch-callout: none; }
-@media (max-width: 620px) { .amll-share-tools { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; } .amll-share-tools button { min-height: 38px; padding: 10px; } .amll-share-tools span { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .amll-wrapper,

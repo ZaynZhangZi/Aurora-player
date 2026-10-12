@@ -175,17 +175,6 @@
         />
 
         <div class="player-desktop-volume">
-          <div class="player-side-menu">
-            <button
-              ref="moreMenuButtonRef"
-              class="player-chip-btn player-menu-btn grid h-9 w-9 place-items-center rounded-full text-[11px]"
-              type="button"
-              aria-label="显示更多播放设置"
-              @click="toggleMorePanel"
-            >
-              <EllipsisHorizontalIcon class="h-[18px] w-[18px]"/>
-            </button>
-          </div>
           <button
             class="player-volume-toggle grid h-8 w-8 place-items-center rounded-full"
             type="button"
@@ -407,8 +396,14 @@
         v-if="amllMounted"
         ref="amllHostRef"
         data-player-amll-host
+        tabindex="-1"
+        :role="amllOpened ? 'dialog' : null"
+        :aria-modal="amllOpened ? 'true' : null"
+        aria-label="全屏播放器"
+        @keydown="handleFullscreenKeydown"
       >
         <AMLLReactPlayer
+          v-if="playerAppearance === 'amll'"
           :opened="amllOpened"
           @update:opened="onAmllOpenedChange"
           v-model:current-time="amllCurrentTimeMs"
@@ -430,10 +425,36 @@
           @next="playNextSong"
           @line-click="onAmllLineClick"
           @share-line="openCurrentLyricShare"
-          @share-request="openCurrentLyricShare()"
           @open-playlist="togglePlaylistPanel"
           @toggle-shuffle="toggleShuffleMode"
           @cycle-repeat="cyclePlayMode"
+        />
+        <FoliaPlayer
+          v-else
+          :opened="amllOpened"
+          :mode="playerAppearance"
+          :music-name="songName"
+          :music-artists="artistList"
+          :cover="coverUrl"
+          :track-key="String(playerStore.currentSong?.id || '')"
+          :lyric-lines="amllLyricLines"
+          :current-time-ms="currentTimeMs"
+          :duration="durationMs"
+          :playing="isPlaying"
+          :play-mode="playerStore.playMode"
+          :can-prev="canPlayPrev"
+          :can-next="canPlayNext"
+          :clock="getSmoothPlaybackTimeMs"
+          :bands="getFoliaBands"
+          :lyric-lead-ms="AMLL_LYRIC_LEAD_MS"
+          :reduced-motion="prefersReducedMotion"
+          @close="onAmllOpenedChange(false)"
+          @play-or-pause="togglePlay"
+          @prev="playPrevSong"
+          @next="playNextSong"
+          @seek="seekToMs"
+          @cycle-repeat="cyclePlayMode"
+          @open-playlist="togglePlaylistPanel"
         />
       </div>
     </Teleport>
@@ -574,104 +595,26 @@
       </Transition>
     </Teleport>
 
-    <Teleport to="body">
-      <Transition name="more-dialog" :duration="{enter: prefersReducedMotion ? 0 : 210, leave: prefersReducedMotion ? 0 : 190}">
-        <div
-          v-show="morePanelOpen"
-          class="more-dialog-backdrop fixed inset-0 z-[1000]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="更多播放设置"
-          @click.self="closeMorePanel"
-        >
-          <div
-            class="more-dialog-panel"
-            :style="[morePanelStyle, morePanelThemeStyle]"
-            @click.stop
-          >
-            <div class="more-dialog-content">
-            <div class="more-menu-heading">
-              <span class="more-menu-heading-icon" aria-hidden="true">
-                <AdjustmentsHorizontalIcon class="h-[17px] w-[17px]"/>
-              </span>
-              <span>播放选项</span>
-            </div>
-
-            <div class="more-menu-switches">
-              <button
-                class="more-menu-switch-row"
-                :class="{'is-active': automixEnabled}"
-                type="button"
-                :aria-pressed="automixEnabled"
-                @click="onClickMoreAutomix"
-              >
-                <span class="more-menu-row-icon" aria-hidden="true">
-                  <SparklesIcon class="h-[17px] w-[17px]"/>
-                </span>
-                <span class="more-menu-row-copy">
-                  <span class="more-menu-row-label">智能混音</span>
-                  <span class="more-menu-row-note">自动优化歌曲衔接</span>
-                </span>
-                <span class="more-menu-toggle" aria-hidden="true">
-                  <span class="more-menu-toggle-thumb"/>
-                </span>
-              </button>
-
-            </div>
-
-            <div class="more-menu-quality">
-              <div class="more-menu-quality-heading">
-                <span>播放音质</span>
-                <small v-if="hasSong">当前 · {{ qualityLabel(currentQualityLevel) }}</small>
-              </div>
-              <div class="more-menu-quality-options">
-                <button
-                  v-for="option in AUDIO_QUALITY_OPTIONS"
-                  :key="option.level"
-                  type="button"
-                  class="more-menu-quality-option"
-                  :class="{ 'is-selected': selectedQuality === option.level }"
-                  :aria-pressed="selectedQuality === option.level"
-                  :disabled="qualitySwitching"
-                  @click="selectAudioQuality(option.level)"
-                >
-                  <strong>{{ option.label }}</strong>
-                  <small>{{ qualityLoadingLevel === option.level ? '获取音源中…' : option.detail }}</small>
-                </button>
-              </div>
-              <p v-if="hasSong && qualityRank(currentQualityLevel) < qualityRank(selectedQuality)" class="more-menu-quality-note">这首歌目前仅提供 {{ qualityLabel(currentQualityLevel) }} 音源</p>
-            </div>
-
-            <div class="more-menu-actions">
-              <button
-                class="more-menu-action"
-                type="button"
-                @click="onClickMorePlayMode"
-              >
-                <ArrowPathRoundedSquareIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
-                <span class="more-menu-action-label">播放模式</span>
-                <span class="more-menu-action-value">{{ playModeLabel }}</span>
-              </button>
-              <button
-                class="more-menu-action"
-                type="button"
-                @click="onClickMorePlaylist"
-              >
-                <QueueListIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
-                <span class="more-menu-action-label">播放列表</span>
-                <span class="more-menu-action-value">{{ playQueue.length }} 首</span>
-              </button>
-              <button class="more-menu-action" type="button" :disabled="!canShareLyrics" @click="openCurrentLyricShare()">
-                <ArrowUpTrayIcon class="more-menu-action-icon h-[18px] w-[18px]" aria-hidden="true"/>
-                <span class="more-menu-action-label">分享歌词</span>
-                <span class="more-menu-action-value">{{ canShareLyrics ? '选择歌词' : '暂无歌词' }}</span>
-              </button>
-            </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <AppSettingsDialog
+      :open="settingsOpen"
+      :automix-enabled="automixEnabled"
+      :play-mode="playerStore.playMode"
+      :selected-quality="selectedQuality"
+      :current-quality="currentQualityLevel"
+      :quality-switching="qualitySwitching"
+      :quality-loading-level="qualityLoadingLevel"
+      :has-song="hasSong"
+      :song-name="songName"
+      :queue-length="playQueue.length"
+      :share-available="canShareLyrics"
+      @close="closeAppSettings"
+      @after-close="onSettingsClosed"
+      @toggle-automix="toggleAutomix"
+      @play-mode="playerStore.setPlayMode($event)"
+      @quality="selectAudioQuality"
+      @playlist="openSettingsPlaylist"
+      @share="openSettingsShare"
+    />
 
     <AudioQualityUpgradeOverlay
       :visible="qualityOverlayVisible"
@@ -722,17 +665,11 @@
 
 <script setup>
 import {
-  AdjustmentsHorizontalIcon,
-  ArrowPathRoundedSquareIcon,
-  ArrowUpTrayIcon,
-  QueueListIcon,
-  SparklesIcon,
   TrashIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import {
   BackwardIcon,
-  EllipsisHorizontalIcon,
   ForwardIcon,
   PauseIcon,
   PlayIcon,
@@ -754,6 +691,8 @@ import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
 import AMLLReactPlayer from "@/components/globalFooterPlayer/AMLLReactPlayer.vue";
+import FoliaPlayer from "@/components/globalFooterPlayer/FoliaPlayer.vue";
+import AppSettingsDialog from "@/components/appSettings/AppSettingsDialog.vue";
 import LyricShareDialog from "@/components/lyricShare/LyricShareDialog.vue";
 import {openLyricShare} from "@/composables/useLyricShare.js";
 import {normalizeShareLines} from "@/utils/lyricShare.js";
@@ -766,8 +705,11 @@ import {usePlayerThemeFromCover} from "@/composables/usePlayerThemeFromCover.js"
 import {usePlayerRhythmAnalyzer} from "@/composables/usePlayerRhythmAnalyzer.js";
 import {usePlayerReporting} from "@/composables/usePlayerReporting.js";
 import {usePlayerManualSwitch} from "@/composables/usePlayerManualSwitch.js";
-import {usePlayerMorePanel} from "@/composables/usePlayerMorePanel.js";
+import {useAppSettings} from "@/composables/useAppSettings.js";
 import {usePlayerLyricOverlay} from "@/composables/usePlayerLyricOverlay.js";
+import {usePlayerAppearance} from "@/composables/usePlayerAppearance.js";
+import {foliaAudioBands} from "@/utils/player/foliaAudio.js";
+import {lockScroll, unlockScroll} from "@/utils/scrollLock.js";
 import {usePlayerFullscreenTransition} from "@/composables/usePlayerFullscreenTransition.js";
 import {usePlayerCrossfade} from "@/composables/usePlayerCrossfade.js";
 import {usePlayerCrossfadeFlow} from "@/composables/usePlayerCrossfadeFlow.js";
@@ -791,7 +733,7 @@ import {
   warmupNextTrack,
 } from "@/utils/globalPlayer.js";
 import {showPlaybackNotice} from "@/utils/playbackNotice.js";
-import {AUDIO_QUALITY_OPTIONS, normalizeAudioQuality, qualityLabel, qualityRank} from "@/utils/player/audioQuality.js";
+import {AUDIO_QUALITY_OPTIONS, normalizeAudioQuality} from "@/utils/player/audioQuality.js";
 import {
   getLastAutomixAnalysis,
   recommendNextQueueIndex,
@@ -805,6 +747,9 @@ import {rafThrottle, MemoryManager} from "@/utils/performanceOptimizer.js";
 const memoryManager = new MemoryManager();
 
 const playerStore = usePlayerStore();
+const {playerAppearance} = usePlayerAppearance();
+const {settingsOpen, closeAppSettings} = useAppSettings();
+let fullscreenScrollLocked = false;
 const AUTOMIX_DEBUG_VISIBLE = Boolean(
   import.meta.env.DEV && import.meta.env.VITE_AUTOMIX_DEBUG === "true",
 );
@@ -982,8 +927,8 @@ function openLyricPage() {
     requestAnimationFrame(() => {
       if (!amllOpened.value) return;
       const fullscreenControl = amllHostRef.value?.querySelector(
-        ".amll-prebuilt button",
-      );
+        "[data-player-close], .amll-prebuilt button, [data-folia-surface]",
+      ) || amllHostRef.value;
       try {
         fullscreenControl?.focus({preventScroll: true});
       } catch {
@@ -999,6 +944,26 @@ function onAmllOpenedChange(nextOpened) {
     return;
   }
   void closeFullscreen();
+}
+
+function handleFullscreenKeydown(event) {
+  if (!amllOpened.value || event.defaultPrevented) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    onAmllOpenedChange(false);
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const controls = [...(amllHostRef.value?.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex='0']") || [])]
+    .filter(element => element.getClientRects().length && !element.closest("[inert]"));
+  const first = controls[0];
+  const last = controls.at(-1);
+  if (!first) return;
+  if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus({preventScroll: true});
+  }
 }
 
 const amllCurrentTimeMsRef = ref(0);
@@ -1125,6 +1090,33 @@ const amllVolume = computed({
 const amllLowFreqVolume = computed(() =>
   clamp(0.08 + rhythmLevel.value * 0.48 + beatLevel.value * 0.64, 0.08, 1),
 );
+// Read the shared playback graph; switching themes never reconnects an audio element.
+let foliaFrequencyData = null;
+let foliaAnalyser = null;
+let foliaSourceAnalyser = null;
+function disposeFoliaAnalyser() {
+  if (foliaSourceAnalyser && foliaAnalyser) {
+    try { foliaSourceAnalyser.disconnect(foliaAnalyser); } catch { /* The audio graph may already be disposed. */ }
+  }
+  foliaAnalyser = null;
+  foliaSourceAnalyser = null;
+  foliaFrequencyData = null;
+}
+function getFoliaBands() {
+  const source = automixAudioGraph.getAnalyserNode();
+  if (!source) return null;
+  if (foliaSourceAnalyser !== source) {
+    disposeFoliaAnalyser();
+    foliaAnalyser = source.context.createAnalyser();
+    foliaAnalyser.fftSize = 2048;
+    foliaAnalyser.smoothingTimeConstant = 0.6;
+    source.connect(foliaAnalyser);
+    foliaSourceAnalyser = source;
+    foliaFrequencyData = new Uint8Array(foliaAnalyser.frequencyBinCount);
+  }
+  foliaAnalyser.getByteFrequencyData(foliaFrequencyData);
+  return foliaAudioBands(foliaFrequencyData, foliaAnalyser.context.sampleRate, foliaAnalyser.fftSize);
+}
 const automixEnabled = computed(() => Boolean(playerStore.automixEnabled));
 // 翻译入口暂时下线；保留 store 字段和歌词管线，后续可以无迁移恢复。
 const lyricTranslateEnabled = computed(() => false);
@@ -1146,23 +1138,6 @@ const suppressTrackSwapAnimation = ref(false);
 const trackSwapTransitionName = computed(() =>
   suppressTrackSwapAnimation.value ? "track-swap-none" : "track-swap",
 );
-const {
-  moreMenuButtonRef,
-  morePanelOpen,
-  morePanelStyle,
-  updateMorePanelPosition,
-  closeMorePanel,
-  toggleMorePanel,
-} = usePlayerMorePanel();
-const morePanelThemeStyle = computed(() => ({
-  "--more-base": themeBaseRgb.value.join(", "),
-  "--more-accent": themeAccentRgb.value.join(", "),
-  "--more-glow": themeGlowRgb.value.join(", "),
-  "--more-bg": themeIsDark.value ? "34, 44, 68" : "244, 247, 255",
-  "--more-border": themeIsDark.value ? "255, 255, 255" : "24, 31, 45",
-  "--more-fg": themeIsDark.value ? "238, 244, 255" : "24, 31, 45",
-  "--more-fg-muted": themeIsDark.value ? "205, 218, 238" : "84, 94, 114",
-}));
 const {
   updateMediaSessionMetadata,
   updateMediaSessionPlaybackState,
@@ -1683,7 +1658,7 @@ function onAmllLineClick(event) {
 
 function openCurrentLyricShare(line = null) {
   if (!canShareLyrics.value) return;
-  closeMorePanel();
+  closeAppSettings();
   openLyricShare({
     name: songName.value,
     artists: normalizedArtistList.value,
@@ -1702,7 +1677,7 @@ function tickAmllClock() {
   const active = getActiveAudio();
   const safeMs = Math.max(0, Math.floor(Number(active?.currentTime || 0) * 1000));
   amllCurrentTimeMsRef.value = safeMs + AMLL_LYRIC_LEAD_MS;
-  if (!amllOpened.value || !playerStore.isPlaying) {
+  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll") {
     amllClockRafId = 0;
     return;
   }
@@ -1710,7 +1685,7 @@ function tickAmllClock() {
 }
 
 function ensureAmllClock() {
-  if (!amllOpened.value || !playerStore.isPlaying) {
+  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll") {
     stopAmllClock();
     return;
   }
@@ -2161,17 +2136,21 @@ async function clearQueuedSongs() {
   }
 }
 
-function onClickMoreAutomix() {
-  toggleAutomix();
+let pendingSettingsAction = null;
+function openSettingsPlaylist() {
+  pendingSettingsAction = togglePlaylistPanel;
+  closeAppSettings();
 }
 
-function onClickMorePlayMode() {
-  cyclePlayMode();
+function openSettingsShare() {
+  pendingSettingsAction = () => openCurrentLyricShare();
+  closeAppSettings();
 }
 
-function onClickMorePlaylist() {
-  togglePlaylistPanel();
-  closeMorePanel();
+function onSettingsClosed() {
+  const action = pendingSettingsAction;
+  pendingSettingsAction = null;
+  action?.();
 }
 
 // A running dev tab may still hold a Pinia instance created before these actions
@@ -2274,7 +2253,6 @@ async function selectAudioQuality(level) {
   const previousLevel = currentQualityLevel.value;
   setPreferredQuality(level);
   if (!playerStore.currentSong?.id) {
-    closeMorePanel();
     return;
   }
 
@@ -2302,13 +2280,13 @@ async function selectAudioQuality(level) {
     return;
   }
 
-  closeMorePanel();
   if (source.url === currentSongUrl.value) {
     setSongQualityLevel(source.level || previousLevel);
     qualitySwitching.value = false;
     return;
   }
 
+  closeAppSettings();
   interruptAutomixForUserAction("quality-switch");
   const active = getActiveAudio();
   const positionMs = Math.max(0, Math.round(Number(active?.currentTime || 0) * 1000)) || playerStore.currentTimeMs;
@@ -2434,9 +2412,6 @@ function updatePlayerSpaceVar() {
     "--global-player-space",
     `${safeSpace}px`,
   );
-  if (morePanelOpen.value) {
-    updateMorePanelPosition();
-  }
 }
 
 async function onEnded(event) {
@@ -2621,7 +2596,6 @@ watch(
     if (qualityLastSongId !== null && String(qualityLastSongId) !== String(songId)) cancelQualitySwitch();
     qualityLastSongId = songId;
     resetPlayRecordCache();
-    closeMorePanel();
     setupMediaSessionHandlers({force: isIOSDevice.value});
     loadDynamicCover(songId);
     loadCurrentSongLyric(songId);
@@ -2680,6 +2654,13 @@ watch(
 watch(
   amllOpened,
   (opened) => {
+    if (opened && !fullscreenScrollLocked) {
+      lockScroll();
+      fullscreenScrollLocked = true;
+    } else if (!opened && fullscreenScrollLocked) {
+      unlockScroll();
+      fullscreenScrollLocked = false;
+    }
     if (!opened) {
       stopAmllClock();
       amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
@@ -2688,6 +2669,18 @@ watch(
     ensureAmllClock();
   },
 );
+
+watch(playerAppearance, async () => {
+  amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
+  ensureAmllClock();
+  if (!amllOpened.value || settingsOpen.value) return;
+  await nextTick();
+  amllHostRef.value?.querySelector(".folia-play-button, [data-player-close], button:not(:disabled)")?.focus({preventScroll: true});
+});
+
+watch([amllOpened, playerAppearance], () => {
+  if (!amllOpened.value || playerAppearance.value === "amll") disposeFoliaAnalyser();
+});
 
 watch(
   currentTimeMs,
@@ -2824,6 +2817,11 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposeFoliaAnalyser();
+  if (fullscreenScrollLocked) {
+    unlockScroll();
+    fullscreenScrollLocked = false;
+  }
   cancelQualitySwitch();
   playerStore.persistPlaybackPosition();
   window.removeEventListener("pagehide", playerStore.persistPlaybackPosition);
@@ -3169,322 +3167,6 @@ onBeforeUnmount(() => {
 .player-side-menu {
   display: grid;
   place-items: center;
-}
-
-.more-dialog-backdrop {
-  background: transparent;
-}
-
-.more-dialog-panel {
-  box-sizing: border-box;
-  position: fixed;
-  isolation: isolate;
-  width: min(286px, calc(100vw - 24px));
-  border-radius: 19px;
-  color: rgba(var(--more-fg), 0.95);
-  z-index: 1002;
-}
-
-.more-dialog-panel::before {
-  box-sizing: border-box;
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border: 1px solid rgba(var(--more-border), 0.16);
-  border-radius: inherit;
-  background:
-    linear-gradient(145deg, rgba(var(--more-glow), 0.1), rgba(var(--more-accent), 0.035) 46%, transparent 72%),
-    rgba(var(--more-base), 0.88);
-  box-shadow:
-    0 18px 46px rgba(15, 23, 42, 0.2),
-    0 3px 10px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(10px) saturate(1.08);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
-  pointer-events: none;
-  content: "";
-}
-
-.more-dialog-content {
-  box-sizing: border-box;
-  position: relative;
-  z-index: 1;
-  display: grid;
-  max-height: calc(100dvh - 24px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  gap: 9px;
-  padding: 11px;
-  border-radius: inherit;
-}
-
-.more-menu-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 1px 3px 3px;
-  font-size: 12px;
-  font-weight: 760;
-  letter-spacing: -0.01em;
-}
-
-.more-menu-heading-icon {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border-radius: 9px;
-  color: rgba(var(--more-fg), 0.9);
-  background: rgba(var(--more-fg), 0.09);
-}
-
-.more-menu-switches {
-  overflow: hidden;
-  border: 1px solid rgba(var(--more-border), 0.1);
-  border-radius: 14px;
-  background: rgba(var(--more-bg), 0.12);
-}
-
-.more-menu-switch-row {
-  box-sizing: border-box;
-  display: grid;
-  width: 100%;
-  min-height: 52px;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border: 0;
-  color: rgba(var(--more-fg), 0.94);
-  text-align: left;
-  background: transparent;
-  transition: background-color 160ms ease;
-}
-
-.more-menu-switch-row + .more-menu-switch-row {
-  border-top: 1px solid rgba(var(--more-border), 0.09);
-}
-
-.more-menu-switch-row:hover {
-  background: rgba(var(--more-fg), 0.075);
-}
-
-.more-menu-switch-row.is-active {
-  background: rgba(var(--more-fg), 0.055);
-}
-
-.more-menu-row-icon {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 10px;
-  color: rgba(var(--more-fg-muted), 0.9);
-  background: rgba(var(--more-fg), 0.075);
-  transition: color 160ms ease, background-color 160ms ease;
-}
-
-.more-menu-switch-row.is-active .more-menu-row-icon {
-  color: rgb(var(--more-bg));
-  background: rgba(var(--more-fg), 0.9);
-}
-
-.more-menu-row-copy {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.more-menu-row-label {
-  font-size: 12px;
-  font-weight: 720;
-  line-height: 1.35;
-}
-
-.more-menu-row-note {
-  overflow: hidden;
-  color: rgba(var(--more-fg-muted), 0.78);
-  font-size: 10px;
-  font-weight: 520;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-menu-toggle {
-  position: relative;
-  width: 28px;
-  height: 17px;
-  border-radius: 999px;
-  background: rgba(var(--more-fg-muted), 0.3);
-  transition: background-color 180ms ease;
-}
-
-.more-menu-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: rgba(var(--more-bg), 0.98);
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2);
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.more-menu-switch-row.is-active .more-menu-toggle {
-  background: rgba(var(--more-fg), 0.88);
-}
-
-.more-menu-switch-row.is-active .more-menu-toggle-thumb {
-  transform: translateX(11px);
-}
-
-.more-menu-quality {
-  display: grid;
-  gap: 8px;
-  padding: 2px 1px 4px;
-}
-
-.more-menu-quality-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 4px;
-  color: rgba(var(--more-fg), 0.94);
-  font-size: 11px;
-  font-weight: 740;
-}
-
-.more-menu-quality-heading small,
-.more-menu-quality-note {
-  color: rgba(var(--more-fg-muted), 0.78);
-  font-size: 10px;
-  font-weight: 520;
-}
-
-.more-menu-quality-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.more-menu-quality-option {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-  padding: 9px 10px;
-  border: 1px solid rgba(var(--more-border), 0.12);
-  border-radius: 12px;
-  color: rgba(var(--more-fg), 0.9);
-  text-align: left;
-  background: rgba(var(--more-bg), 0.12);
-  cursor: pointer;
-  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
-}
-
-.more-menu-quality-option:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: rgba(var(--more-fg), 0.09);
-}
-
-.more-menu-quality-option.is-selected {
-  border-color: rgba(var(--more-fg), 0.48);
-  background: rgba(var(--more-fg), 0.13);
-}
-
-.more-menu-quality-option:disabled { cursor: wait; }
-.more-menu-quality-option:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-.more-menu-quality-option strong { font-size: 11px; font-weight: 740; }
-.more-menu-quality-option small { overflow: hidden; color: rgba(var(--more-fg-muted), 0.8); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.more-menu-quality-note { margin: -1px 4px 0; line-height: 1.4; }
-
-.more-menu-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.more-menu-action {
-  box-sizing: border-box;
-  display: grid;
-  min-width: 0;
-  min-height: 58px;
-  grid-template-columns: 22px minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-content: center;
-  align-items: center;
-  gap: 1px 7px;
-  padding: 8px 9px;
-  border: 1px solid rgba(var(--more-border), 0.09);
-  border-radius: 13px;
-  color: rgba(var(--more-fg), 0.94);
-  text-align: left;
-  background: rgba(var(--more-bg), 0.13);
-  transition: background-color 160ms ease, transform 160ms ease;
-}
-
-.more-menu-action:hover {
-  background: rgba(var(--more-fg), 0.09);
-  transform: translateY(-1px);
-}
-
-.more-menu-action-icon {
-  grid-row: 1 / span 2;
-  color: rgba(var(--more-fg-muted), 0.9);
-}
-
-.more-menu-action-label {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 710;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-menu-action-value {
-  overflow: hidden;
-  color: rgba(var(--more-fg-muted), 0.76);
-  font-size: 10px;
-  font-weight: 560;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-menu-switch-row:focus-visible,
-.more-menu-action:focus-visible {
-  position: relative;
-  z-index: 1;
-  outline: 2px solid rgba(var(--more-fg), 0.75);
-  outline-offset: -2px;
-}
-
-.more-dialog-enter-active .more-dialog-content {
-  transition: opacity 210ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.more-dialog-leave-active .more-dialog-content {
-  transition: opacity 145ms ease-in;
-}
-
-.more-dialog-leave-active .more-dialog-panel::before {
-  transition: opacity 190ms cubic-bezier(.4, 0, 1, 1);
-}
-
-.more-dialog-enter-from .more-dialog-content,
-.more-dialog-leave-to .more-dialog-content,
-.more-dialog-leave-to .more-dialog-panel::before {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .more-dialog-enter-active .more-dialog-content,
-  .more-dialog-leave-active .more-dialog-content,
-  .more-dialog-leave-active .more-dialog-panel::before { transition-duration: 1ms; }
 }
 
 .player-range {

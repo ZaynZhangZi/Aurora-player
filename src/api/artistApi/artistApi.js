@@ -13,8 +13,8 @@ async function unwrap(request) {
 
 export const artistApi = {
   //获取歌手信息
-  getArtistInfo: (id) => {
-    return apiClient.get(`/artist/detail?id=${id}`);
+  getArtistInfo: (id, options = {}) => {
+    return apiClient.get(`/artist/detail?id=${id}`, options);
   },
 
   //获取歌手热门50首歌曲

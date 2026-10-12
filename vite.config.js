@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from "node:url";
+import process from "node:process";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig, loadEnv } from "vite";
@@ -38,7 +39,10 @@ export default defineConfig(({ mode }) => {
 		},
 		// 开发服务器优化
 		optimizeDeps: {
-			include: ['vue', 'vue-router', 'pinia'],
+			entries: ['index.html'],
+			include: ['vue', 'vue-router', 'pinia', 'react', 'react-dom/client', 'framer-motion',
+				'lucide-react', 'react-i18next', 'i18next', '@react-three/fiber', 'three',
+				'@chenglou/pretext', '@chenglou/pretext/rich-inline', '@applemusic-like-lyrics/ttml', '@xmldom/xmldom', '@paper-design/shaders-react'],
 			exclude: ['vite-plugin-vue-devtools'],
 		},
 		server: {

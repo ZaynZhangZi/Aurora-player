@@ -13,49 +13,52 @@
         <button type="button" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
       </nav>
 
-      <div ref="profileMenuRef" class="aurora-profile-wrap">
-        <button
-          class="aurora-profile"
-          :class="{ 'is-guest': !userStore.isLoggedIn, 'has-unread': totalMessageBadge > 0 }"
-          type="button"
-          :aria-expanded="userStore.isLoggedIn ? profileMenuOpen : undefined"
-          :aria-label="userStore.isLoggedIn ? '打开个人菜单' : '登录网易云音乐'"
-          @click="handleProfileClick"
-        >
-          <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
-          <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
-          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.25" />
-            <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
-          </svg>
-        </button>
+      <div class="aurora-header-actions">
+        <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
+        <div ref="profileMenuRef" class="aurora-profile-wrap">
+          <button
+            class="aurora-profile"
+            :class="{ 'is-guest': !userStore.isLoggedIn, 'has-unread': totalMessageBadge > 0 }"
+            type="button"
+            :aria-expanded="userStore.isLoggedIn ? profileMenuOpen : undefined"
+            :aria-label="userStore.isLoggedIn ? '打开个人菜单' : '登录网易云音乐'"
+            @click="handleProfileClick"
+          >
+            <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
+            <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
+            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.25" />
+              <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
+            </svg>
+          </button>
 
-        <Transition name="profile-menu">
-          <div v-if="userStore.isLoggedIn && profileMenuOpen" class="aurora-profile-menu">
-            <header>
-              <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="" />
-              <span v-else>{{ profileInitial }}</span>
-              <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
-            </header>
-            <nav aria-label="个人功能">
-              <button type="button" :class="{ 'is-active': isMessages }" @click="openMessages">
-                <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
-                <span><strong>消息中心</strong><small>通知与私信</small></span>
-                <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else>→</b>
-              </button>
-              <button type="button" :class="{ 'is-active': isMoments }" @click="openMoments">
-                <svg viewBox="0 0 24 24"><path d="M8 18V6l10-2v12"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>
-                <span><strong>音乐动态</strong><small>关注与分享</small></span>
-                <b>→</b>
-              </button>
-              <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">
-                <svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h6M8 15h4"/></svg>
-                <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
-                <b>→</b>
-              </button>
-            </nav>
-          </div>
-        </Transition>
+          <Transition name="profile-menu">
+            <div v-if="userStore.isLoggedIn && profileMenuOpen" class="aurora-profile-menu">
+              <header>
+                <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="" />
+                <span v-else>{{ profileInitial }}</span>
+                <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
+              </header>
+              <nav aria-label="个人功能">
+                <button type="button" :class="{ 'is-active': isMessages }" @click="openMessages">
+                  <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
+                  <span><strong>消息中心</strong><small>通知与私信</small></span>
+                  <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else>→</b>
+                </button>
+                <button type="button" :class="{ 'is-active': isMoments }" @click="openMoments">
+                  <svg viewBox="0 0 24 24"><path d="M8 18V6l10-2v12"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>
+                  <span><strong>音乐动态</strong><small>关注与分享</small></span>
+                  <b>→</b>
+                </button>
+                <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">
+                  <svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h6M8 15h4"/></svg>
+                  <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
+                  <b>→</b>
+                </button>
+              </nav>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
   </header>
@@ -67,6 +70,8 @@ import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
+import {Cog6ToothIcon} from '@heroicons/vue/24/outline'
+import {openAppSettings} from '@/composables/useAppSettings.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -125,6 +130,11 @@ function handleProfileClick() {
   profileMenuOpen.value = !profileMenuOpen.value
 }
 
+function openSettings() {
+  profileMenuOpen.value = false
+  openAppSettings()
+}
+
 function openMessages() {
   profileMenuOpen.value = false
   if (!isMessages.value) router.push({name: 'messages'})
@@ -160,6 +170,7 @@ async function openSearch() {
 function handleSearchShortcut(event) {
   if (!(event.metaKey || event.ctrlKey) || String(event.key).toLowerCase() !== 'k') return
   const target = event.target
+  if (target instanceof HTMLElement && target.closest('dialog[open]')) return
   if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
   event.preventDefault()
   void openSearch()
@@ -231,7 +242,11 @@ watch(() => route.fullPath, () => {
 
 .aurora-brand { grid-column: 1; }
 .aurora-nav { grid-column: 2; }
-.aurora-profile-wrap { grid-column: 3; }
+.aurora-header-actions { grid-column: 3; display: flex; align-items: center; gap: 16px; }
+.aurora-settings { display: flex; min-height: 40px; min-width: 40px; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; border: 0; border-radius: 12px; color: #73737d; background: transparent; font: inherit; font-size: 12px; cursor: pointer; transition: background 150ms, color 150ms; }
+.aurora-settings:hover { color: #3c3c45; background: #eaeaf0; }
+.aurora-settings:focus-visible { outline: 2px solid #ee8493; outline-offset: 3px; }
+.aurora-settings svg { width: 20px; height: 20px; }
 
 .aurora-brand,
 .aurora-nav button,
@@ -313,6 +328,8 @@ watch(() => route.fullPath, () => {
 }
 
 @media (max-width: 560px) {
+  .aurora-header-actions { gap: 8px; }
+  .aurora-settings span { display: none; }
   .aurora-brand { font-size: 12px; }
   .aurora-brand-mark { display: none; }
   .aurora-profile { width: 36px; }
