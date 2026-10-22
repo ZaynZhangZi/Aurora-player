@@ -10,8 +10,9 @@ export const searchApi = {
     })
   },
 
-  searchByType(keywords, { type = 1, limit = 30, offset = 0, endpoint = '/cloudsearch' } = {}) {
+  searchByType(keywords, { type = 1, limit = 30, offset = 0, endpoint = '/cloudsearch', signal } = {}) {
     return apiClient.get(endpoint, {
+      signal,
       params: {
         keywords,
         type,
@@ -21,18 +22,20 @@ export const searchApi = {
     })
   },
 
-  async searchComposite(keywords, { limit = 6, offsets = {} } = {}) {
+  async searchComposite(keywords, { limit = 6, offsets = {}, signal } = {}) {
     const artistOffset = offsets.artist || 0
     const songOffset = offsets.song || 0
     const playlistOffset = offsets.playlist || 0
 
     const requests = [
-      this.searchByType(keywords, { type: 100, limit, offset: artistOffset }),
-      this.searchByType(keywords, { type: 1, limit, offset: songOffset }),
-      this.searchByType(keywords, { type: 1000, limit, offset: playlistOffset }),
+      this.searchByType(keywords, { type: 100, limit, offset: artistOffset, signal }),
+      this.searchByType(keywords, { type: 1, limit, offset: songOffset, signal }),
+      this.searchByType(keywords, { type: 1000, limit, offset: playlistOffset, signal }),
     ]
 
     const [artistRes, songRes, playlistRes] = await Promise.allSettled(requests)
+    if (signal?.aborted) throw new DOMException('Search canceled', 'AbortError')
+    if ([artistRes, songRes, playlistRes].every(result => result.status === 'rejected')) throw artistRes.reason
 
     const artistResult = artistRes.status === 'fulfilled' ? artistRes.value?.data?.result || {} : {}
     const songResult = songRes.status === 'fulfilled' ? songRes.value?.data?.result || {} : {}

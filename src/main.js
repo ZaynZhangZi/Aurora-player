@@ -12,7 +12,7 @@ import "@applemusic-like-lyrics/core/style.css";
 import "@applemusic-like-lyrics/react-full/style.css";
 
 // 🔧 开发环境性能监控
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_PERF_DEBUG === 'true') {
   import("./utils/performanceDebug.js").then(({ startPerformanceMonitoring }) => {
     startPerformanceMonitoring();
   });

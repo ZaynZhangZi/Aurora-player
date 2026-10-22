@@ -31,7 +31,7 @@
               loop
               playsinline
             />
-            <img v-else-if="displayCoverUrl" :src="displayCoverUrl" alt="album-cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <img v-else-if="displayCoverUrl" v-bind="responsiveImageAttrs(displayCoverUrl, {width: 640, sizes: '(min-width: 1024px) 320px, (min-width: 768px) 288px, 256px'})" alt="album-cover" fetchpriority="high" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/10" />
           </div>
         </div>
@@ -158,6 +158,7 @@ import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
+import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
 import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
@@ -454,7 +455,7 @@ async function pickThemeFromCover(coverUrl, seed = 'album') {
     await new Promise((resolve, reject) => {
       image.onload = resolve
       image.onerror = reject
-      image.src = coverUrl
+      image.src = getOptimizedImageUrl(coverUrl, {width: 96})
     })
 
     const canvas = document.createElement('canvas')

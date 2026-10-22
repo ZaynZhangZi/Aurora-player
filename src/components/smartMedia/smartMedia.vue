@@ -104,7 +104,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch, onBeforeUnmount, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
 import { buildImageSrcSet, getOptimizedImageUrl, normalizeMediaUrl } from '@/utils/mediaUrl.js'
 
 /**
@@ -174,6 +174,9 @@ const wrapperRef = ref(null)
 const scrollScale = ref(1)
 let scrollListenerAttached = false
 let rafId = null
+let active = true
+let motionPreference = null
+const reducedMotion = ref(false)
 
 /**
  * ✅ 文案滚动（全部滚动）
@@ -185,6 +188,7 @@ const scrollIndex = ref(0)
 const scrollNoTransition = ref(false)
 let textTimer = null
 let scrollResetTimer = null
+let textResetFrame = 0
 
 const contentList = computed(() => {
   if (Array.isArray(props.content)) return props.content.filter(Boolean).map(v => String(v))
@@ -194,7 +198,7 @@ const contentList = computed(() => {
 })
 
 const hasTextOverlay = computed(() => !!props.title || contentList.value.length > 0)
-const shouldScroll = computed(() => contentList.value.length > 1)
+const shouldScroll = computed(() => contentList.value.length > 1 && !reducedMotion.value)
 
 const scrollLoop = computed(() => {
   const arr = contentList.value
@@ -204,7 +208,7 @@ const scrollLoop = computed(() => {
 
 function startTextScroll() {
   stopTextScroll()
-  if (!shouldScroll.value) return
+  if (!shouldScroll.value || !active || document.hidden) return
   const arr = contentList.value
   if (arr.length <= 1) return
 
@@ -216,8 +220,9 @@ function startTextScroll() {
       scrollResetTimer = window.setTimeout(() => {
         scrollNoTransition.value = true
         scrollIndex.value = 0
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
+        textResetFrame = window.requestAnimationFrame(() => {
+          textResetFrame = window.requestAnimationFrame(() => {
+            textResetFrame = 0
             scrollNoTransition.value = false
           })
         })
@@ -227,6 +232,8 @@ function startTextScroll() {
 }
 
 function stopTextScroll() {
+  cancelAnimationFrame(textResetFrame)
+  textResetFrame = 0
   if (textTimer) {
     clearInterval(textTimer)
     textTimer = null
@@ -239,23 +246,15 @@ function stopTextScroll() {
   scrollNoTransition.value = false
 }
 
-watch(contentList, () => {
+watch([contentList, reducedMotion], () => {
   startTextScroll()
-})
-
-onMounted(() => {
-  startTextScroll()
-})
-
-onBeforeUnmount(() => {
-  stopTextScroll()
 })
 
 /**
  * 把 src 统一为数组
  */
 const srcList = computed(() => {
-  if (Array.isArray(props.src)) return props.src
+  if (Array.isArray(props.src)) return [...props.src]
   return props.src ? [props.src] : []
 })
 
@@ -314,24 +313,30 @@ const mediaType = computed(() => {
 /**
  * createObjectURL 管理，避免内存泄漏
  */
-const createdUrls = new Set()
-const blobUrlCache = new WeakMap()
+const blobUrlCache = new Map()
 function toUrl(s) {
   if (isBlobLike(s)) {
     const cached = blobUrlCache.get(s)
     if (cached) return cached
     const url = URL.createObjectURL(s)
     blobUrlCache.set(s, url)
-    createdUrls.add(url)
     return url
   }
   return s
 }
 function revokeAll() {
-  createdUrls.forEach(u => {
+  blobUrlCache.forEach(u => {
     try { URL.revokeObjectURL(u) } catch (error) { void error }
   })
-  createdUrls.clear()
+  blobUrlCache.clear()
+}
+function revokeUnusedUrls() {
+  const retained = new Set(srcList.value.filter(isBlobLike))
+  blobUrlCache.forEach((url, blob) => {
+    if (retained.has(blob)) return
+    URL.revokeObjectURL(url)
+    blobUrlCache.delete(blob)
+  })
 }
 
 /**
@@ -395,7 +400,7 @@ const wrapperStyle = computed(() => {
     background: '#f6f7f9'
   }
 
-  if (props.scaleOnScroll) {
+  if (props.scaleOnScroll && !reducedMotion.value) {
     style.transform = `scale(${scrollScale.value})`
     style.transition = 'transform 0.58s cubic-bezier(0.34, 1.18, 0.64, 1)'
     style.willChange = 'transform'
@@ -461,14 +466,18 @@ watch(srcList, () => {
   loading.value = true
   error.value = false
   videoFirstFrameEmitted = false
-  revokeAll()
-}, { deep: true })
+  revokeUnusedUrls()
+}, { flush: 'post' })
 
 defineExpose({
   playVideo: () => videoRef.value?.play?.(),
 })
 
 onBeforeUnmount(() => {
+  active = false
+  stopTextScroll()
+  document.removeEventListener('visibilitychange', syncActivity)
+  motionPreference?.removeEventListener('change', syncMotionPreference)
   revokeAll()
   detachScrollListener()
 })
@@ -494,7 +503,7 @@ function handleScroll() {
 }
 
 function attachScrollListener() {
-  if (scrollListenerAttached || !props.scaleOnScroll) return
+  if (scrollListenerAttached || !props.scaleOnScroll || reducedMotion.value || !active || document.hidden) return
   scrollListenerAttached = true
   updateScrollScale()
   window.addEventListener('scroll', handleScroll, { passive: true })
@@ -513,6 +522,10 @@ function detachScrollListener() {
 }
 
 onMounted(() => {
+  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+  motionPreference.addEventListener('change', syncMotionPreference)
+  document.addEventListener('visibilitychange', syncActivity)
+  syncMotionPreference()
   nextTick(() => {
     enforceVideoMuteIfNeeded()
   })
@@ -521,6 +534,26 @@ onMounted(() => {
     attachScrollListener()
   }
 })
+
+function syncMotionPreference() {
+  reducedMotion.value = motionPreference?.matches || false
+  if (reducedMotion.value) {
+    detachScrollListener()
+    scrollScale.value = 1
+  }
+  syncActivity()
+}
+
+function syncActivity() {
+  stopTextScroll()
+  detachScrollListener()
+  if (!active || document.hidden) return
+  startTextScroll()
+  attachScrollListener()
+}
+
+onActivated(() => { active = true; syncActivity() })
+onDeactivated(() => { active = false; syncActivity() })
 
 watch([() => props.lockMuted, mediaType, videoPrimarySrc], () => {
   nextTick(() => {

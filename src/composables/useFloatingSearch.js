@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { searchApi } from '@/api/searchApi/searchApi.js'
 import { reportApi } from '@/api/reportApi/reportApi.js'
 
@@ -52,6 +52,20 @@ export function useFloatingSearch(inputValue, expanded, isOpen) {
 
   let searchTimer = null
   let searchRequestId = 0
+  let requestController = null
+  let watchersReady = false
+
+  function cancelSearch() {
+    searchRequestId += 1
+    requestController?.abort()
+    requestController = null
+    searching.value = false
+    sectionLoading.value = { artist: false, song: false, playlist: false }
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
+
+  onScopeDispose(cancelSearch)
 
   const artists = computed(() => searchResult.value?.artists || [])
   const songs = computed(() => searchResult.value?.songs || [])
@@ -124,6 +138,7 @@ export function useFloatingSearch(inputValue, expanded, isOpen) {
   const isSearchEmpty = computed(() => searchResult.value ? (artists.value.length === 0 && songs.value.length === 0 && playlists.value.length === 0) : false)
 
   function clearSearchState() {
+    cancelSearch()
     searchResult.value = null
     searchError.value = ''
     searching.value = false
@@ -137,11 +152,14 @@ export function useFloatingSearch(inputValue, expanded, isOpen) {
   }
 
   function debounceSearch(keyword) {
-    if (searchTimer) clearTimeout(searchTimer)
+    cancelSearch()
     searchTimer = setTimeout(() => runSearch(keyword), 280)
   }
 
   async function runSearch(keyword, { onlyType = '' } = {}) {
+    cancelSearch()
+    requestController = new AbortController()
+    const signal = requestController.signal
     const currentId = ++searchRequestId
     if (onlyType) {
       sectionLoading.value = { ...sectionLoading.value, [onlyType]: true }
@@ -160,10 +178,12 @@ export function useFloatingSearch(inputValue, expanded, isOpen) {
           type: typeMap[onlyType] || 1,
           limit: PAGE_SIZE,
           offset: (searchPage.value[onlyType] || 0) * PAGE_SIZE,
+          signal,
         })
       } else {
         res = await searchApi.searchComposite(keyword, {
           limit: PAGE_SIZE,
+          signal,
           offsets: {
             artist: searchPage.value.artist * PAGE_SIZE,
             song: searchPage.value.song * PAGE_SIZE,
@@ -259,6 +279,8 @@ export function useFloatingSearch(inputValue, expanded, isOpen) {
   }
 
   function setupSearchWatchers() {
+    if (watchersReady) return
+    watchersReady = true
     watch(inputValue, (value) => {
       const keyword = value.trim()
       if (!keyword || !expanded.value) {

@@ -40,7 +40,7 @@
       </template>
 
       <div v-else-if="!loading" class="artist-hero-ambient" aria-hidden="true">
-        <img :src="artistAvatar" alt="" @error="onAvatarError" />
+        <img v-bind="responsiveImageAttrs(artistAvatar, {width: 160, sizes: '160px', widths: [160]})" alt="" @error="onAvatarError" />
       </div>
 
       <div class="artist-hero-content">
@@ -50,7 +50,7 @@
           data-artist-detail-hero-cover
           class="artist-portrait"
         >
-          <img :src="artistAvatar" :alt="artistName" @error="onAvatarError" />
+          <img v-bind="responsiveImageAttrs(artistAvatar, {width: 640, sizes: '(max-width: 640px) 180px, 280px'})" :alt="artistName" fetchpriority="high" @error="onAvatarError" />
         </div>
 
         <h1 :class="{'is-loading': loading}">{{ loading ? '' : (artistName || '歌手详情') }}</h1>
@@ -83,7 +83,7 @@
             <h2>最新发行</h2>
             <button class="latest-release-card" type="button" @click="openAlbum(latestAlbum, $event)">
               <div class="latest-release-cover" data-album-hero-cover :data-album-id="latestAlbum.id">
-                <img :src="latestAlbum.picUrl" :alt="latestAlbum.name" @error="onBlockImageError" />
+                <img v-bind="responsiveImageAttrs(latestAlbum.picUrl, {width: 320, sizes: '160px'})" :alt="latestAlbum.name" @error="onBlockImageError" />
               </div>
               <div class="latest-release-copy">
                 <span>{{ formatDate(latestAlbum.publishTime) }}</span>
@@ -119,7 +119,7 @@
                   @click="openSong(song, getSongQueueIndex(index), getSongQueue())"
                 >
                   <span class="ranking-song-cover">
-                    <img :src="getSongCover(song)" :alt="song.name" loading="lazy" @error="onBlockImageError" />
+                    <img v-bind="responsiveImageAttrs(getSongCover(song), {width: 120, sizes: '60px', widths: [60, 120, 180]})" :alt="song.name" loading="lazy" @error="onBlockImageError" />
                     <span class="ranking-song-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
                   </span>
                   <span class="ranking-song-copy">
@@ -152,7 +152,7 @@
           <div class="album-grid">
             <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" @click="openAlbum(album, $event)">
               <span class="album-card-cover" data-album-hero-cover :data-album-id="album.id">
-                <img :src="album.picUrl" :alt="album.name" loading="lazy" @error="onBlockImageError" />
+                <img v-bind="responsiveImageAttrs(album.picUrl, {width: 480, sizes: '(max-width: 640px) 42vw, (max-width: 1000px) 28vw, 180px'})" :alt="album.name" loading="lazy" @error="onBlockImageError" />
                 <span class="album-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
               </span>
               <strong>{{ album.name }}</strong>
@@ -180,7 +180,7 @@
           <div class="mv-grid">
             <button v-for="mv in pagedMvs" :key="mv.id" class="mv-card" type="button" @click="openMv(mv)">
               <span class="mv-card-cover">
-                <img :src="getMvCover(mv)" :alt="mv.name" loading="lazy" @error="onBlockImageError" />
+                <img v-bind="responsiveImageAttrs(getMvCover(mv), {width: 640, sizes: '(max-width: 640px) 80vw, 300px', aspectRatio: 16 / 9})" :alt="mv.name" loading="lazy" @error="onBlockImageError" />
                 <span class="mv-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
               </span>
               <strong>{{ mv.name }}</strong>
@@ -254,6 +254,7 @@ import chroma from 'chroma-js'
 import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
+import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
 import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
@@ -691,7 +692,7 @@ async function pickThemeFromImage(imageUrl, seed, isCurrent = () => true) {
     await new Promise((resolve, reject) => {
       image.onload = resolve
       image.onerror = reject
-      image.src = imageUrl
+      image.src = getOptimizedImageUrl(imageUrl, {width: 144})
     })
     if (!isCurrent()) return
 
@@ -1210,13 +1211,19 @@ async function loadMoreSongs() {
 function onAvatarError(event) {
   const target = event?.target
   if (!(target instanceof HTMLImageElement)) return
-  target.src = 'https://p6.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/14059035116/5f31/95e5/9f95/7fe59b3cb7d4f0f2ec87a066529f5909.png'
+  target.removeAttribute('srcset')
+  target.removeAttribute('sizes')
+  const fallback = getOptimizedImageUrl('https://p6.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/14059035116/5f31/95e5/9f95/7fe59b3cb7d4f0f2ec87a066529f5909.png', {width: 320})
+  if (target.src !== fallback) target.src = fallback
 }
 
 function onBlockImageError(event) {
   const target = event?.target
   if (!(target instanceof HTMLImageElement)) return
-  target.src = artistAvatar.value
+  target.removeAttribute('srcset')
+  target.removeAttribute('sizes')
+  const fallback = getOptimizedImageUrl(artistAvatar.value, {width: 320})
+  if (fallback && target.src !== fallback) target.src = fallback
 }
 
 async function ensureArtistId() {

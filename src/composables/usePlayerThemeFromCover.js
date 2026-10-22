@@ -1,4 +1,5 @@
 import { buildThemeByBase, createFallbackTheme } from '@/utils/player/playerTheme.js'
+import {getOptimizedImageUrl} from '@/utils/mediaUrl.js'
 
 export function usePlayerThemeFromCover() {
   let themePickToken = 0
@@ -11,7 +12,7 @@ export function usePlayerThemeFromCover() {
     await new Promise((resolve, reject) => {
       image.onload = resolve
       image.onerror = reject
-      image.src = cover
+      image.src = getOptimizedImageUrl(cover, {width: 128})
     })
 
     const canvas = document.createElement('canvas')

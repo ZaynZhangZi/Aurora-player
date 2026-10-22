@@ -1,8 +1,9 @@
 ﻿<template>
   <div
+    ref="playlistPageRef"
     class="relative w-full text-stone-900 transition-colors duration-700"
-    :class="isModalPlaylistDetail
-      ? 'h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain'
+    :class="usesPageScroll
+      ? `${isModalPlaylistDetail ? 'h-full' : 'h-screen'} min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain`
       : 'flex h-screen flex-col overflow-hidden'"
     :style="pageStyle"
   >
@@ -12,7 +13,7 @@
 
     <main
       class="mx-auto flex w-full max-w-6xl flex-col px-6 pb-6 pt-4 sm:px-10"
-      :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1'"
+      :class="usesPageScroll ? '' : 'min-h-0 flex-1'"
     >
 
       <header ref="playlistHeroCardRef" class="shrink-0 flex flex-col items-center gap-8 md:flex-row md:items-start md:gap-12 md:pb-12" :style="playlistCardTransitionStyle">
@@ -23,7 +24,7 @@
           />
 
           <div ref="playlistHeroCoverRef" data-playlist-detail-hero-cover class="relative z-10 h-64 w-64 overflow-hidden rounded-[24px] shadow-[0_24px_50px_rgba(0,0,0,0.15)] md:h-72 md:w-72 lg:h-80 lg:w-80" :style="playlistCoverTransitionStyle">
-            <img v-if="playlist.coverImgUrl" :src="playlist.coverImgUrl" alt="playlist-cover" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <img v-if="playlist.coverImgUrl" v-bind="responsiveImageAttrs(playlist.coverImgUrl, {width: 640, sizes: '(min-width: 1024px) 320px, (min-width: 768px) 288px, 256px'})" alt="playlist-cover" fetchpriority="high" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div class="absolute inset-0 rounded-[24px] ring-1 ring-inset ring-black/5" />
           </div>
         </div>
@@ -84,27 +85,39 @@
       <section
         v-else
         class="relative z-10 flex flex-col"
-        :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1'"
+        :class="usesPageScroll ? '' : 'min-h-0 flex-1'"
       >
         <div class="mb-4 flex shrink-0 items-center justify-between px-4">
           <h3 class="text-lg font-bold text-stone-900">曲目列表</h3>
         </div>
 
         <TransitionGroup
+          ref="trackListRef"
           name="track-item"
           :css="tracks.length <= 80"
           tag="div"
-          class="playlist-track-scroll space-y-1 pb-24 pr-1"
-          :class="isModalPlaylistDetail ? '' : 'min-h-0 flex-1 overflow-y-auto'"
+          role="list"
+          aria-label="歌单曲目，使用上下方向键浏览，回车播放"
+          class="playlist-track-scroll pb-24 pr-1"
+          :class="usesPageScroll ? '' : 'min-h-0 flex-1 overflow-y-auto'"
           appear
         >
+          <div v-if="virtualized && trackRange.top" key="top-spacer" :style="{height: `${trackRange.top}px`}" aria-hidden="true" />
           <div
-            v-for="(track, index) in tracks"
+            v-for="({track, index}) in visibleTracks"
             :key="track.id"
             :style="getTrackItemStyle(index)"
-            class="group flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-white/60 hover:shadow-sm focus:outline-none"
+            class="playlist-track-row group flex w-full cursor-pointer items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-white/60 hover:shadow-sm"
+            :data-track-index="index"
+            role="listitem"
+            :aria-posinset="index + 1"
+            :aria-setsize="tracks.length"
+            :tabindex="virtualized ? (tabbableTrackIndex === index ? 0 : -1) : 0"
+            :aria-label="`播放第 ${index + 1} 首：${track.name || '未知歌曲'}`"
             :class="{ 'track-playback-pending': Number(playerStore.playbackPendingId) === Number(track.id) }"
             @click="openSong(track, index)"
+            @focus="focusedTrackIndex = index"
+            @keydown="handleTrackKeydown($event, index)"
           >
             <div class="flex min-w-0 flex-1 items-center gap-4">
               <div class="flex w-8 justify-center">
@@ -114,7 +127,7 @@
 
               <div class="min-w-0 flex-1">
                 <p class="truncate text-base font-bold text-stone-800" :title="track.name || '未知歌曲'">{{ track.name || '未知歌曲' }}</p>
-                <div class="mt-0.5 flex min-w-0 items-center gap-1 text-sm font-medium text-stone-500" :title="getTrackArtistsFullText(track)">
+                <div class="playlist-track-artists mt-0.5 flex min-w-0 items-center gap-1 text-sm font-medium text-stone-500" :title="getTrackArtistsFullText(track)">
                   <ArtistLinks
                     :artists="getTrackArtistsPreview(track)"
                     container-class="min-w-0 truncate"
@@ -144,6 +157,7 @@
               <span class="w-10 text-right text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(track.dt) }}</span>
             </div>
           </div>
+          <div v-if="virtualized && trackRange.bottom" key="bottom-spacer" :style="{height: `${trackRange.bottom}px`}" aria-hidden="true" />
         </TransitionGroup>
       </section>
     </main>
@@ -170,6 +184,8 @@ import {
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import { useCounterStore } from '@/stores/userStores.js'
 import { usePlayerStore } from '@/stores/playerStore.js'
+import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
+import {useVirtualTrackList} from '@/composables/useVirtualTrackList.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -185,6 +201,8 @@ const playlistHeroCardRef = ref(null)
 const playlistHeroCoverRef = ref(null)
 let heroEnterDone = Promise.resolve()
 let resolveHeroEnterGate = null
+let playlistLoadGeneration = 0
+let playlistLoadController = null
 
 const playlist = ref({
   id: null,
@@ -198,6 +216,36 @@ const playlist = ref({
   subscribed: false,
 })
 const tracks = ref([])
+const playlistPageRef = ref(null)
+const trackListRef = ref(null)
+const focusedTrackIndex = ref(0)
+const narrowLayout = ref(typeof window !== 'undefined' && window.innerWidth < 768)
+const usesPageScroll = computed(() => isModalPlaylistDetail || narrowLayout.value)
+const trackScrollRoot = computed(() => usesPageScroll.value ? playlistPageRef.value : null)
+const {virtualized, range: trackRange, visibleItems: visibleTracks, focusIndex} = useVirtualTrackList({
+  items: tracks, listRef: trackListRef, externalRoot: trackScrollRoot,
+  getBottomInset: root => {
+    const space = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--global-player-space')) || 104
+    return Math.max(0, root.getBoundingClientRect().bottom - (window.innerHeight - space))
+  },
+})
+const tabbableTrackIndex = computed(() => focusedTrackIndex.value >= trackRange.value.start && focusedTrackIndex.value < trackRange.value.end
+  ? focusedTrackIndex.value : trackRange.value.start)
+function updateNarrowLayout() { narrowLayout.value = window.innerWidth < 768 }
+onMounted(() => window.addEventListener('resize', updateNarrowLayout, {passive: true}))
+onBeforeUnmount(() => window.removeEventListener('resize', updateNarrowLayout))
+async function handleTrackKeydown(event, index) {
+  if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey) return
+  const destinations = {ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: tracks.value.length - 1}
+  if (event.key in destinations) {
+    event.preventDefault()
+    focusedTrackIndex.value = Math.min(tracks.value.length - 1, Math.max(0, destinations[event.key]))
+    await focusIndex(focusedTrackIndex.value)
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    void openSong(tracks.value[index], index)
+  }
+}
 const loading = ref(true)
 const error = ref('')
 const actionFeedback = ref('')
@@ -514,9 +562,9 @@ function getTrackItemStyle(index) {
   }
 }
 
-async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0) {
+async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0, signal) {
   const pageSize = 100
-  const first = await playListsApi.getPlayListSongs(playlistId, pageSize, 0)
+  const first = await playListsApi.getPlayListSongs(playlistId, pageSize, 0, {signal})
   const firstChunk = first?.data?.songs || []
   if (!firstChunk.length) return []
 
@@ -533,18 +581,18 @@ async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0) {
     let nextOffsetIndex = 0
     const workerCount = Math.min(3, restOffsets.length)
     const workers = Array.from({length: workerCount}, async () => {
-      while (nextOffsetIndex < restOffsets.length) {
+      while (nextOffsetIndex < restOffsets.length && !signal?.aborted) {
         const resultIndex = nextOffsetIndex
         nextOffsetIndex += 1
         const offset = restOffsets[resultIndex]
         restResults[resultIndex] = await playListsApi
-          .getPlayListSongs(playlistId, pageSize, offset)
+          .getPlayListSongs(playlistId, pageSize, offset, {signal})
           .then(r => r?.data?.songs || [])
           .catch(() => [])
       }
     })
     await Promise.all(workers)
-    allChunks = allChunks.concat(restResults)
+    allChunks = allChunks.concat(restResults.filter(Array.isArray))
   }
 
   const map = new Map()
@@ -584,7 +632,7 @@ async function pickThemeColor(coverUrl, seedName) {
     const loaded = await new Promise((resolve, reject) => {
       img.onload = resolve
       img.onerror = reject
-      img.src = coverUrl
+      img.src = getOptimizedImageUrl(coverUrl, {width: 96})
     })
     void loaded
 
@@ -620,6 +668,13 @@ async function pickThemeColor(coverUrl, seedName) {
 }
 
 async function loadPlaylist() {
+  const generation = ++playlistLoadGeneration
+  playlistLoadController?.abort()
+  resolveHeroEnterGate?.()
+  playlistLoadController = new AbortController()
+  const {signal} = playlistLoadController
+  const isCurrent = () => generation === playlistLoadGeneration && !signal.aborted
+  focusedTrackIndex.value = 0
   loading.value = true
   error.value = ''
   tracks.value = []
@@ -651,10 +706,12 @@ async function loadPlaylist() {
   }
 
   try {
-    const detailRes = await playListsApi.getPlayListDetail(id)
+    const detailRes = await playListsApi.getPlayListDetail(id, {signal})
+    if (!isCurrent()) return
     const detailPlaylist = detailRes?.data?.playlist || {}
 
     await heroEnterDone
+    if (!isCurrent()) return
 
     const apiCoverUrl = detailPlaylist.coverImgUrl || ''
     const needsCoverSwap = apiCoverUrl && apiCoverUrl !== heroPreviewCoverUrl
@@ -662,11 +719,20 @@ async function loadPlaylist() {
     if (needsCoverSwap) {
       await new Promise((resolve) => {
         const img = new Image()
-        img.onload = resolve
-        img.onerror = resolve
-        img.src = apiCoverUrl
+        const finish = () => {
+          signal.removeEventListener('abort', finish)
+          img.onload = null
+          img.onerror = null
+          if (signal.aborted) img.removeAttribute('src')
+          resolve()
+        }
+        signal.addEventListener('abort', finish, {once: true})
+        img.onload = finish
+        img.onerror = finish
+        img.src = getOptimizedImageUrl(apiCoverUrl, {width: 640})
       })
     }
+    if (!isCurrent()) return
 
     playlist.value = {
       id: Number(detailPlaylist.id || id),
@@ -687,18 +753,18 @@ async function loadPlaylist() {
 
     // 后台并行拉取剩余歌曲
     try {
-      const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0)
-      if (allSongs.length) {
+      const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0, signal)
+      if (isCurrent() && allSongs.length) {
         tracks.value = allSongs
       }
     } catch {
       // 剩余歌曲加载失败不影响已有展示
     }
-    loadLikedSongs()
+    if (isCurrent()) loadLikedSongs()
   } catch (err) {
-    error.value = err?.message || '歌单加载失败'
+    if (isCurrent()) error.value = err?.message || '歌单加载失败'
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
@@ -750,6 +816,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  playlistLoadGeneration += 1
+  playlistLoadController?.abort()
+  resolveHeroEnterGate?.()
   if (themeTweenFrame) {
     cancelAnimationFrame(themeTweenFrame)
     themeTweenFrame = 0
@@ -811,6 +880,11 @@ watch(
   content-visibility: auto;
   contain-intrinsic-size: auto 54px;
 }
+
+.playlist-track-scroll > [aria-hidden="true"] { content-visibility: visible; }
+.playlist-track-row { height: 70px; margin-bottom: 4px; box-sizing: border-box; }
+.playlist-track-row:focus-visible { outline: 2px solid #78716c; outline-offset: -2px; }
+.playlist-track-artists { height: 20px; overflow: hidden; }
 
 .track-playback-pending {
   cursor: wait;

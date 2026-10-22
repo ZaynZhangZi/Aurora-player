@@ -12,8 +12,8 @@ export const playListsApi = {
     },
 
     //获取歌单详情
-    getPlayListDetail: (id) => {
-        return apiClient.get(`/playlist/detail?id=${id}`);
+    getPlayListDetail: (id, {signal} = {}) => {
+        return apiClient.get(`/playlist/detail?id=${id}`, {signal});
     },
 
     //歌单 ( 网友精选碟 )
@@ -22,8 +22,8 @@ export const playListsApi = {
     },
 
     //获取歌单所有歌曲
-    getPlayListSongs: (id, limit = 200, offset = 0) => {
-        return apiClient.get(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
+    getPlayListSongs: (id, limit = 200, offset = 0, {signal} = {}) => {
+        return apiClient.get(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`, {signal});
     },
 
     //推荐歌单

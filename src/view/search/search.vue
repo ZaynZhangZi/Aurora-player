@@ -28,6 +28,8 @@
               aria-label="搜索歌曲、歌手、专辑或歌单"
               placeholder="搜索歌曲、艺人、专辑或歌单"
               @input="scheduleSearch"
+              @compositionstart="isComposing = true"
+              @compositionend="finishComposition"
             >
             <button v-if="searchInput" class="search-clear" type="button" aria-label="清空搜索" @click="clearSearch">×</button>
             <button class="search-submit" type="submit" aria-label="搜索">
@@ -238,6 +240,16 @@ const page = ref(0)
 const pageSize = 20
 let inputTimer = null
 let requestId = 0
+let requestController = null
+let isComposing = false
+
+function cancelSearch() {
+  requestId += 1
+  requestController?.abort()
+  requestController = null
+  loading.value = false
+  refreshing.value = false
+}
 
 const tabs = [
   {label: '综合', value: 'all'},
@@ -343,6 +355,7 @@ function extractResult(response, config) {
 }
 
 async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
+  cancelSearch()
   const q = String(query || '').trim()
   const searchTab = tabValues.has(tab) ? tab : 'all'
   const currentRequest = ++requestId
@@ -353,6 +366,8 @@ async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
     error.value = ''
     return
   }
+  requestController = new AbortController()
+  const signal = requestController.signal
 
   // 已有结果则保留并弱化（顶部进度线），首次搜索才展示骨架屏
   if (hasResults.value) refreshing.value = true
@@ -366,6 +381,7 @@ async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
         type: config.type,
         limit: config.key === 'songs' ? 6 : 5,
         offset: 0,
+        signal,
       })))
       if (currentRequest !== requestId) return
 
@@ -398,6 +414,7 @@ async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
       type: config.type,
       limit: pageSize,
       offset: page.value * pageSize,
+      signal,
     })
     if (currentRequest !== requestId) return
     const extracted = extractResult(response, config)
@@ -426,6 +443,7 @@ function updateRoute(q = searchInput.value.trim(), tab = activeTab.value, replac
 }
 
 function submitSearch() {
+  if (isComposing) return
   if (inputTimer) window.clearTimeout(inputTimer)
   const q = searchInput.value.trim()
   if (!q) {
@@ -434,20 +452,33 @@ function submitSearch() {
   }
   page.value = 0
   addHistory(q)
+  if (q === keyword.value) {
+    void runSearch()
+    return
+  }
   updateRoute(q, activeTab.value)
 }
 
 function scheduleSearch() {
   if (inputTimer) window.clearTimeout(inputTimer)
+  cancelSearch()
+  if (isComposing) return
   const q = searchInput.value.trim()
   inputTimer = window.setTimeout(() => {
     page.value = 0
     if (q) addHistory(q)
-    updateRoute(q, activeTab.value, true)
+    if (q && q === keyword.value) void runSearch()
+    else updateRoute(q, activeTab.value, true)
   }, 300)
 }
 
+function finishComposition() {
+  isComposing = false
+  scheduleSearch()
+}
+
 function clearSearch() {
+  cancelSearch()
   if (inputTimer) window.clearTimeout(inputTimer)
   searchInput.value = ''
   keyword.value = ''
@@ -549,6 +580,7 @@ watch(
     activeTab.value = nextTab
     page.value = 0
     if (!nextKeyword) {
+      cancelSearch()
       clearResults()
       return
     }
@@ -569,7 +601,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (inputTimer) window.clearTimeout(inputTimer)
-  requestId += 1
+  cancelSearch()
   window.removeEventListener('aurora:focus-search-page', focusSearchInput)
 })
 </script>

@@ -12,6 +12,7 @@ function clamp(value, min, max) {
 export function usePlayerRhythmAnalyzer({
   getHasSong,
   getIsPlaying,
+  getIsVisualActive = () => true,
   getPrefersReducedMotion,
   getIsIOSDevice,
   getActiveAudio,
@@ -38,6 +39,15 @@ export function usePlayerRhythmAnalyzer({
   let rhythmFluxEma = 0;
   let lowBandEma = 0;
   let rhythmGain = 1;
+  let disposed = false;
+  let loopGeneration = 0;
+  let starting = false;
+
+  function shouldRun() {
+    return !disposed && getHasSong?.() && getIsPlaying?.() && getIsVisualActive()
+      && !getPrefersReducedMotion?.() && !getIsIOSDevice?.()
+      && (typeof document === "undefined" || !document.hidden);
+  }
 
   function resetRhythmVisual() {
     rhythmLevel.value = 0;
@@ -102,6 +112,8 @@ export function usePlayerRhythmAnalyzer({
   }
 
   function stopRhythmLoop() {
+    loopGeneration += 1;
+    starting = false;
     if (analyserFrame) {
       cancelAnimationFrame(analyserFrame);
       analyserFrame = 0;
@@ -109,6 +121,12 @@ export function usePlayerRhythmAnalyzer({
   }
 
   function tickRhythm(now) {
+    analyserFrame = 0;
+    if (!shouldRun()) {
+      stopRhythmLoop();
+      resetRhythmVisual();
+      return;
+    }
     const active = getActiveAudio?.();
     if (
       active &&
@@ -234,31 +252,37 @@ export function usePlayerRhythmAnalyzer({
   }
 
   async function startRhythmLoop() {
-    if (!getHasSong?.()) return;
-    if (!getIsPlaying?.()) return;
-    if (getPrefersReducedMotion?.()) return;
+    if (!shouldRun()) {
+      stopRhythmLoop();
+      resetRhythmVisual();
+      return;
+    }
+    if (analyserFrame || starting) return;
     if (!ensureAnalyser()) return;
+    const generation = ++loopGeneration;
+    starting = true;
 
-    if (!ownsAudioGraph && resumeSharedAudioGraph) {
-      const resumed = await resumeSharedAudioGraph();
-      if (!resumed) return;
-    }
-
-    if (audioContext?.state === "suspended") {
-      try {
-        await audioContext.resume();
-      } catch {
-        return;
+    try {
+      if (!ownsAudioGraph && resumeSharedAudioGraph) {
+        const resumed = await resumeSharedAudioGraph();
+        if (!resumed) return;
       }
-    }
-
-    if (!analyserFrame) {
+      if (audioContext?.state === "suspended") {
+        await audioContext.resume();
+      }
+      // A pause, theme change, close or unmount may happen during resume().
+      if (generation !== loopGeneration || !shouldRun()) return;
       analyserLastTs = 0;
       analyserFrame = requestAnimationFrame(tickRhythm);
+    } catch {
+      // Frequency visuals are optional; audio playback keeps its own graph.
+    } finally {
+      if (generation === loopGeneration) starting = false;
     }
   }
 
   function disposeRhythmAnalyzer() {
+    disposed = true;
     stopRhythmLoop();
 
     if (mediaSourceNode) {

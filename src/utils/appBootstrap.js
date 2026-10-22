@@ -1,175 +1,93 @@
-/**
- * 应用启动引导：把开屏进度条绑定到真实的网络加载过程，
- * 而不是几个一次性跳变的时间节点。
- *
- * 分两段，都是真实存在、会随时间连续变化的信号：
- *
- * 阶段一（0-70%）：应用外壳的关键资源（index.html 里直接引用的
- * <script>/<link>）逐个下载完成 —— 用 PerformanceObserver 监听
- * 'resource' 条目，每完成一个真实请求就推进一点，而不是估算时间。
- *
- * 阶段二（70-100%）：当前路由 ready 后，后台预热所有页面 chunk，
- * 再等待字体加载（document.fonts.ready）和浏览器完成首帧绘制（rAF）。
- * 开屏收起后，页面间切换无需再等路由组件代码下载。
- */
+// Only resources required by the current page belong on the startup path.
+const routePreloads = new WeakMap()
 
-const SHELL_WEIGHT = 70
-const ROUTE_WEIGHT = 30
-const routePreloadPromises = new WeakMap()
+function waitFor(task, timeout, signal) {
+  return new Promise(resolve => {
+    let timer
+    const finish = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', finish)
+      resolve()
+    }
+    if (signal?.aborted) return finish()
+    signal?.addEventListener('abort', finish, {once: true})
+    timer = setTimeout(finish, timeout)
+    Promise.resolve(task).then(finish, finish)
+  })
+}
 
-function getCriticalShellResourceUrls() {
-  const selector = 'script[src], link[rel="stylesheet"], link[rel="modulepreload"]'
-  return new Set(
-    Array.from(document.querySelectorAll(selector))
-      .map((el) => el.src || el.href)
-      .filter(Boolean),
+function waitForShell(onProgress, signal) {
+  const targets = new Set(
+    [...document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="modulepreload"]')]
+      .map(el => el.src || el.href).filter(Boolean),
   )
-}
-
-/**
- * 追踪应用外壳关键资源的真实下载进度。
- * 每当浏览器报告某个资源的请求真正完成（Resource Timing 的
- * responseEnd 有值），就记一次；总数是当前文档里实际引用的
- * 资源数量，不是编造的数字。
- */
-function trackShellResourceProgress(onStep) {
-  const targets = getCriticalShellResourceUrls()
-  if (!targets.size) {
-    onStep(1)
-    return () => {}
-  }
-
   const loaded = new Set()
-  const total = targets.size
-
-  const markIfMatched = (entry) => {
-    if (!targets.has(entry.name) || loaded.has(entry.name)) return
-    // responseEnd === 0 说明浏览器还没真正收到完整响应
-    if (!entry.responseEnd) return
+  let observer
+  let complete
+  const ready = new Promise(resolve => { complete = resolve })
+  const mark = entry => {
+    if (!targets.has(entry.name) || loaded.has(entry.name) || !entry.responseEnd) return
     loaded.add(entry.name)
-    onStep(loaded.size / total)
+    onProgress?.(loaded.size / targets.size * 70, '正在加载资源')
+    if (loaded.size === targets.size) complete()
   }
-
-  // 有些资源在 observer 建立前就已经加载完了，先补一遍
-  performance.getEntriesByType('resource').forEach(markIfMatched)
-
-  let observer = null
+  onProgress?.(0, '正在加载资源')
+  if (!targets.size) complete()
+  performance.getEntriesByType('resource').forEach(mark)
   if (typeof PerformanceObserver !== 'undefined') {
-    observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach(markIfMatched)
-    })
     try {
-      observer.observe({ type: 'resource', buffered: true })
+      observer = new PerformanceObserver(list => list.getEntries().forEach(mark))
+      observer.observe({type: 'resource', buffered: true})
     } catch {
-      observer = null
+      observer?.disconnect()
     }
   }
-
-  // 兜底：3 秒后即便还有资源没触发 observer 回调也不再等待
-  const fallbackTimer = setTimeout(() => onStep(1), 3000)
-
-  return () => {
-    observer?.disconnect()
-    clearTimeout(fallbackTimer)
-  }
+  return waitFor(ready, 3000, signal).finally(() => observer?.disconnect())
 }
 
-function waitRouterReady(router) {
-  if (!router || typeof router.isReady !== 'function') return Promise.resolve()
-  return router.isReady().catch(() => {})
-}
-
+// Warm common destinations after first paint, one at a time. Slow connections
+// keep on-demand loading so background requests cannot compete with music.
 export function preloadRouteComponents(router) {
-  if (!router || typeof router.getRoutes !== 'function') return Promise.resolve()
-  const previousPreload = routePreloadPromises.get(router)
-  if (previousPreload) return previousPreload
+  if (!router?.getRoutes || typeof window === 'undefined') return Promise.resolve()
+  if (routePreloads.has(router)) return routePreloads.get(router)
+  const connection = navigator.connection
+  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || '')) return Promise.resolve()
 
-  const loaders = new Set()
-  router.getRoutes().forEach((record) => {
-    Object.values(record.components || {}).forEach((component) => {
-      // Vue Router stores lazy route components as import functions. Eagerly
-      // resolve those modules during the splash screen so later navigation
-      // does not pause while the browser downloads a page chunk.
-      if (typeof component === 'function') loaders.add(component)
-    })
-  })
-
-  const tasks = [...loaders].map((load) => {
-    try {
-      const result = load()
-      return result && typeof result.then === 'function' ? result : Promise.resolve()
-    } catch {
-      return Promise.resolve()
-    }
-  })
-  tasks.push(import('@/components/globalFooterPlayer/globalFooterPlayer.vue').catch(() => {}))
-  tasks.push(import('@applemusic-like-lyrics/react-full').catch(() => {}))
-
-  const preloadPromise = Promise.allSettled(tasks)
-  routePreloadPromises.set(router, preloadPromise)
-  return preloadPromise
-}
-
-function waitFontsReady() {
-  if (typeof document === 'undefined' || !document.fonts?.ready) {
-    return Promise.resolve()
-  }
-  return document.fonts.ready.catch(() => {})
-}
-
-function waitNextPaint() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve))
-  })
-}
-
-/**
- * @param {object} options
- * @param {import('vue-router').Router} options.router
- * @param {(progress: number, stepLabel: string) => void} options.onProgress
- * @returns {Promise<void>}
- */
-export async function runAppBootstrap({ router, onProgress } = {}) {
-  let shellRatio = 0
-  const report = (label) => {
-    const value = shellRatio * SHELL_WEIGHT
-    onProgress?.(value, label)
-  }
-
-  report('正在加载资源')
-  const stopTracking = trackShellResourceProgress((ratio) => {
-    shellRatio = ratio
-    report('正在加载资源')
-  })
-
-  // 在下载外壳资源的同时预热所有页面模块；首屏仍只依赖当前路由，
-  // 开屏收起前再等待其余页面模块完成，后续切页就不用临时下载代码。
-  const routePreload = preloadRouteComponents(router)
-
-  // 关键资源全部下载完成后再进入下一阶段；shell 资源通常很快，
-  // 但在弱网下会真实地把这一段拉长，这正是我们想要的效果。
-  await new Promise((resolve) => {
-    const check = () => {
-      if (shellRatio >= 1) {
-        resolve()
-        return
+  const preload = (async () => {
+    await router.isReady().catch(() => {})
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    for (const name of ['home', 'discover', 'search']) {
+      if (document.hidden) break
+      await new Promise(resolve => {
+        if (window.requestIdleCallback) window.requestIdleCallback(resolve, {timeout: 2000})
+        else setTimeout(resolve, 100)
+      })
+      if (document.hidden || router.currentRoute.value.name === name) continue
+      const component = router.getRoutes().find(record => record.name === name)?.components?.default
+      if (typeof component === 'function') {
+        try { await component() } catch { /* Navigation can retry a failed preload. */ }
       }
-      requestAnimationFrame(check)
     }
-    check()
+  })()
+  routePreloads.set(router, preload)
+  return preload
+}
+
+export async function runAppBootstrap({router, onProgress, signal} = {}) {
+  await waitForShell(onProgress, signal)
+  if (signal?.aborted) return
+  onProgress?.(70, '准备页面内容')
+  await router?.isReady?.().catch(() => {})
+  if (signal?.aborted) return
+  onProgress?.(85, '正在准备页面')
+  // Optional webfonts must not leave the application behind its splash screen.
+  await waitFor(document.fonts?.ready, 1200, signal)
+  if (signal?.aborted) return
+  let frame = 0
+  const painted = new Promise(resolve => {
+    frame = requestAnimationFrame(() => { frame = requestAnimationFrame(resolve) })
   })
-  stopTracking()
-
-  report('准备页面内容')
-  await waitRouterReady(router)
-  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.35, '正在预加载页面')
-
-  await routePreload
-  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.65, '正在准备页面')
-
-  await waitFontsReady()
-  onProgress?.(SHELL_WEIGHT + ROUTE_WEIGHT * 0.85, '准备页面内容')
-
-  await waitNextPaint()
-  onProgress?.(100, '完成')
+  await waitFor(painted, 100, signal)
+  cancelAnimationFrame(frame)
+  if (!signal?.aborted) onProgress?.(100, '完成')
 }

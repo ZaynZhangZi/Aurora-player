@@ -2,7 +2,7 @@
   <AppHeader />
   <div class="profile-page" :style="profilePageStyle" data-route-motion-root>
     <div class="profile-ambient" aria-hidden="true">
-      <img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="" />
+      <img v-if="profile.avatarUrl" v-bind="responsiveImageAttrs(profile.avatarUrl, {width: 160, sizes: '160px', widths: [160]})" alt="" />
     </div>
 
     <header class="profile-overview">
@@ -12,7 +12,7 @@
       <div class="profile-overview-grid">
         <div class="profile-identity">
           <div class="profile-avatar-shell">
-            <img v-if="profile.avatarUrl && !avatarLoadFailed" :src="profile.avatarUrl" :alt="`${profile.nickname || '用户'}头像`" @error="avatarLoadFailed = true" />
+            <img v-if="profile.avatarUrl && !avatarLoadFailed" v-bind="responsiveImageAttrs(profile.avatarUrl, {width: 264, sizes: '(max-width: 640px) 86px, 132px', widths: [132, 264, 396]})" :alt="`${profile.nickname || '用户'}头像`" @error="avatarLoadFailed = true" />
             <span v-else>{{ profileInitial }}</span>
           </div>
           <div class="profile-identity-copy">
@@ -92,7 +92,7 @@
                     data-playlist-hero-cover
                     :data-playlist-id="item.id"
                   >
-                    <img :src="item.coverImgUrl" :alt="`${item.name}封面`" loading="lazy" decoding="async" />
+                    <img v-bind="libraryCoverAttrs(item.coverImgUrl)" :alt="`${item.name}封面`" loading="lazy" />
                     <span class="profile-playlist-open" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </span>
@@ -124,7 +124,7 @@
                     data-playlist-hero-cover
                     :data-playlist-id="item.id"
                   >
-                    <img :src="item.coverImgUrl" :alt="`${item.name}封面`" loading="lazy" decoding="async" />
+                    <img v-bind="libraryCoverAttrs(item.coverImgUrl)" :alt="`${item.name}封面`" loading="lazy" />
                     <span class="profile-playlist-open" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </span>
@@ -217,7 +217,7 @@
                   <div class="profile-cloud-song">
                     <span class="profile-cloud-index">{{ String(index + 1 + (cloudPage - 1) * cloudLimit).padStart(2, '0') }}</span>
                     <div class="profile-cloud-cover">
-                      <img v-if="item.coverUrl" :src="item.coverUrl" :alt="`${item.songName}封面`" loading="lazy" decoding="async" />
+                      <img v-if="item.coverUrl" v-bind="responsiveImageAttrs(item.coverUrl, {width: 96, sizes: '48px', widths: [48, 96, 144]})" :alt="`${item.songName}封面`" loading="lazy" />
                       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
                       <span aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -352,7 +352,7 @@
                   <button v-for="(item, index) in listeningTopTracks" :key="item.id || `${item.name}-${index}`" type="button" @click="playListeningTrack(item)">
                     <span class="listening-track-index">{{ String(index + 1).padStart(2, '0') }}</span>
                     <span class="listening-track-cover">
-                      <img v-if="item.cover" :src="item.cover" :alt="`${item.name}封面`" loading="lazy" decoding="async" />
+                      <img v-if="item.cover" v-bind="responsiveImageAttrs(item.cover, {width: 84, sizes: '42px', widths: [42, 84, 126]})" :alt="`${item.name}封面`" loading="lazy" />
                       <i v-else>{{ item.name.slice(0, 1) }}</i>
                     </span>
                     <span class="listening-track-copy"><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artistItems" /></small></span>
@@ -466,6 +466,13 @@ import {setPendingTransition, consumeLatestPendingTransition, playHeroEnter} fro
 import {useDetailNavigation, DETAIL_CLOSE_EVENT} from '@/composables/useDetailNavigation.js'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
+import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
+
+const libraryCoverAttrs = value => responsiveImageAttrs(value, {
+  width: 480,
+  sizes: '(max-width: 640px) 44vw, (max-width: 1000px) 28vw, 210px',
+  widths: [160, 240, 320, 480, 640],
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -1285,7 +1292,7 @@ async function pickAvatarTheme(avatarUrl, seed) {
     await new Promise((resolve, reject) => {
       image.onload = resolve
       image.onerror = reject
-      image.src = avatarUrl
+      image.src = getOptimizedImageUrl(avatarUrl, {width: 144})
     })
 
     const canvas = document.createElement('canvas')

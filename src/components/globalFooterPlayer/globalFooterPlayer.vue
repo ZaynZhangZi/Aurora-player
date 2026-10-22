@@ -45,7 +45,7 @@
                   >
                   <img
                     v-else-if="coverUrl"
-                    :src="coverUrl"
+                    v-bind="responsiveImageAttrs(coverUrl, {width: 112, sizes: '56px', widths: [56, 112, 168]})"
                     alt="cover"
                     class="cover-media"
                   >
@@ -231,7 +231,7 @@
                 >
                 <img
                   v-else-if="coverUrl"
-                  :src="coverUrl"
+                    v-bind="responsiveImageAttrs(coverUrl, {width: 112, sizes: '56px', widths: [56, 112, 168]})"
                   alt="cover"
                   class="cover-media"
                 >
@@ -402,6 +402,12 @@
         aria-label="全屏播放器"
         @keydown="handleFullscreenKeydown"
       >
+        <div v-if="amllOpened && activeFullPlayerStatus !== 'ready'" class="full-player-loading">
+          <div v-if="activeFullPlayerStatus !== 'error'" class="full-player-loading-wave" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+          <p role="status">{{ activeFullPlayerStatus === 'error' ? '歌词播放器加载失败' : '正在准备歌词…' }}</p>
+          <button v-if="activeFullPlayerStatus === 'error'" type="button" @click="retryFullPlayer">重新加载</button>
+          <button type="button" @click="onAmllOpenedChange(false)">返回播放</button>
+        </div>
         <AMLLReactPlayer
           v-if="playerAppearance === 'amll'"
           :opened="amllOpened"
@@ -678,9 +684,11 @@ import {
 } from "@heroicons/vue/24/solid";
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
+  reactive,
   ref,
   watch,
 } from "vue";
@@ -690,8 +698,6 @@ import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
-import AMLLReactPlayer from "@/components/globalFooterPlayer/AMLLReactPlayer.vue";
-import FoliaPlayer from "@/components/globalFooterPlayer/FoliaPlayer.vue";
 import AppSettingsDialog from "@/components/appSettings/AppSettingsDialog.vue";
 import LyricShareDialog from "@/components/lyricShare/LyricShareDialog.vue";
 import {openLyricShare} from "@/composables/useLyricShare.js";
@@ -743,6 +749,30 @@ import {normalizeLyricPayloadToAmll} from "@/utils/lyricAdapter.js";
 import {dissolveElement} from "@/utils/particleDissolve.js";
 // 🔧 性能优化：导入性能工具
 import {rafThrottle, MemoryManager} from "@/utils/performanceOptimizer.js";
+import {responsiveImageAttrs} from "@/utils/mediaUrl.js";
+
+const fullPlayerStatus = reactive({amll: 'idle', folia: 'idle'});
+const fullPlayerRetries = {};
+function lazyFullPlayer(key, load) {
+  return defineAsyncComponent({
+    loader: async () => {
+      fullPlayerStatus[key] = 'loading';
+      const component = await load();
+      fullPlayerStatus[key] = 'ready';
+      return component;
+    },
+    onError: (_error, retry) => {
+      fullPlayerStatus[key] = 'error';
+      fullPlayerRetries[key] = retry;
+    },
+  });
+}
+const AMLLReactPlayer = lazyFullPlayer('amll', () => import('./AMLLReactPlayer.vue'));
+const FoliaPlayer = lazyFullPlayer('folia', () => import('./FoliaPlayer.vue'));
+const activeFullPlayerStatus = computed(() => fullPlayerStatus[playerAppearance.value === 'amll' ? 'amll' : 'folia']);
+function retryFullPlayer() {
+  fullPlayerRetries[playerAppearance.value === 'amll' ? 'amll' : 'folia']?.();
+}
 
 const memoryManager = new MemoryManager();
 
@@ -884,6 +914,19 @@ const {
   clearTimer: (id) => window.clearTimeout(id),
   setTimer: (cb, ms) => window.setTimeout(cb, ms),
 });
+
+watch(activeFullPlayerStatus, (status) => {
+  if (status !== 'ready') return;
+  void nextTick(() => {
+    const host = amllHostRef.value;
+    if (!amllOpened.value || !host) return;
+    // The loading controls disappear when the async player mounts. Preserve
+    // focus inside the dialog so Escape and its focus trap keep working.
+    if (document.activeElement === document.body || host.contains(document.activeElement)) {
+      host.focus({preventScroll: true});
+    }
+  });
+}, {flush: 'post'});
 
 function getVisibleMiniCover() {
   for (const cover of [desktopCoverRef.value, mobileCoverRef.value]) {
@@ -1103,6 +1146,7 @@ function disposeFoliaAnalyser() {
   foliaFrequencyData = null;
 }
 function getFoliaBands() {
+  if (!amllOpened.value || playerAppearance.value === "amll" || document.hidden || !playerStore.isPlaying || prefersReducedMotion.value) return null;
   const source = automixAudioGraph.getAnalyserNode();
   if (!source) return null;
   if (foliaSourceAnalyser !== source) {
@@ -1208,6 +1252,7 @@ const {
 } = usePlayerRhythmAnalyzer({
   getHasSong: () => hasSong.value,
   getIsPlaying: () => playerStore.isPlaying,
+  getIsVisualActive: () => amllOpened.value && playerAppearance.value === "amll",
   getPrefersReducedMotion: () => prefersReducedMotion.value,
   getIsIOSDevice: () => isIOSDevice.value,
   getActiveAudio: () => getActiveAudio(),
@@ -1677,7 +1722,7 @@ function tickAmllClock() {
   const active = getActiveAudio();
   const safeMs = Math.max(0, Math.floor(Number(active?.currentTime || 0) * 1000));
   amllCurrentTimeMsRef.value = safeMs + AMLL_LYRIC_LEAD_MS;
-  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll") {
+  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll" || document.hidden) {
     amllClockRafId = 0;
     return;
   }
@@ -1685,7 +1730,7 @@ function tickAmllClock() {
 }
 
 function ensureAmllClock() {
-  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll") {
+  if (!amllOpened.value || !playerStore.isPlaying || playerAppearance.value !== "amll" || document.hidden) {
     stopAmllClock();
     return;
   }
@@ -2368,8 +2413,12 @@ function onTimeUpdate(event) {
   scheduleMediaSessionPositionStateUpdate();
 }
 
-// 🔧 性能优化：节流 timeUpdate 事件（每 100ms 最多触发一次）
-const throttledOnTimeUpdate = rafThrottle(onTimeUpdate);
+// Native timeupdate continues when animation frames are suspended in background.
+const onTimeUpdateFrame = rafThrottle(onTimeUpdate);
+function throttledOnTimeUpdate(event) {
+  if (document.hidden) onTimeUpdate(event);
+  else onTimeUpdateFrame(event);
+}
 
 function onPlay(event) {
   if (!isEventFromActiveDeck(event)) return;
@@ -2485,14 +2534,6 @@ function onAudioError(event) {
     dedupeKey: `media-source:${songId}:${mediaErrorCode}`,
   });
 }
-
-watch(
-  hasSong,
-  (has) => {
-    if (has) prepareLyricPage();
-  },
-  {immediate: true},
-);
 
 watch(
   currentSongUrl,
@@ -2680,6 +2721,7 @@ watch(playerAppearance, async () => {
 
 watch([amllOpened, playerAppearance], () => {
   if (!amllOpened.value || playerAppearance.value === "amll") disposeFoliaAnalyser();
+  void startRhythmLoop();
 });
 
 watch(
@@ -2764,6 +2806,10 @@ onMounted(() => {
   visibilityChangeHandler = () => {
     if (typeof document === "undefined") return;
     if (document.hidden) {
+      stopRhythmLoop();
+      stopAmllClock();
+      resetRhythmVisual();
+      disposeFoliaAnalyser();
       playerStore.persistPlaybackPosition();
       if (backgroundCheckTimer) clearInterval(backgroundCheckTimer);
       const active = getActiveAudio();
@@ -2785,6 +2831,8 @@ onMounted(() => {
     }
     const active = getActiveAudio();
     if (!active || !hasSong.value) return;
+    void startRhythmLoop();
+    ensureAmllClock();
     const shouldPlay = playerStore.isPlaying || playerStore.autoPlayOnLoad;
     if (shouldPlay && active.paused) {
       active.play().catch(() => {});
@@ -2876,6 +2924,35 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.full-player-loading-wave { display: flex; height: 38px; align-items: center; gap: 5px; color: #d58f9a; }
+.full-player-loading-wave i { display: block; width: 4px; height: 18px; border-radius: 4px; background: currentColor; animation: full-player-loading-wave 1.1s ease-in-out infinite; }
+.full-player-loading-wave i:nth-child(2), .full-player-loading-wave i:nth-child(4) { height: 28px; animation-delay: -.3s; }
+.full-player-loading-wave i:nth-child(3) { height: 38px; animation-delay: -.6s; }
+@keyframes full-player-loading-wave { 0%, 100% { transform: scaleY(.45); opacity: .6; } 50% { transform: scaleY(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .full-player-loading-wave i { animation: none; } }
+.full-player-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #333;
+  background: #f6f5f3;
+}
+.full-player-loading button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #e9e7e4;
+  cursor: pointer;
+}
+.full-player-loading button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
 .player-root {
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;

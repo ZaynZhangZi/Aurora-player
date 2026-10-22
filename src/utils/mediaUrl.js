@@ -51,15 +51,30 @@ export function getOptimizedImageUrl(value, {width = 0, height = width} = {}) {
   return url.toString()
 }
 
-export function buildImageSrcSet(value, widths = DEFAULT_RESPONSIVE_WIDTHS) {
+export function buildImageSrcSet(value, widths = DEFAULT_RESPONSIVE_WIDTHS, {aspectRatio = 1} = {}) {
   if (!isNeteaseImageUrl(value)) return ''
   const normalizedWidths = [...new Set((Array.isArray(widths) ? widths : DEFAULT_RESPONSIVE_WIDTHS)
     .map(toPositiveInteger)
     .filter(Boolean))]
     .sort((a, b) => a - b)
+  const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1
 
   return normalizedWidths
-    .map((width) => `${getOptimizedImageUrl(value, {width})} ${width}w`)
+    .map((width) => `${getOptimizedImageUrl(value, {width, height: width / ratio})} ${width}w`)
     .join(', ')
+}
+
+// Use on native images so existing cover geometry, error handlers and Hero
+// transitions stay intact. Non-resizable hosts and local media keep their URL.
+export function responsiveImageAttrs(value, {width = 640, sizes = '320px', widths, aspectRatio = 1} = {}) {
+  const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1
+  const candidates = widths || [Math.round(width / 2), width, Math.round(width * 1.5)]
+  const srcset = buildImageSrcSet(value, candidates, {aspectRatio: ratio})
+  return {
+    src: getOptimizedImageUrl(value, {width, height: width / ratio}),
+    srcset: srcset || undefined,
+    sizes: srcset ? sizes : undefined,
+    decoding: 'async',
+  }
 }
 

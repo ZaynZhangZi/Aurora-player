@@ -274,30 +274,34 @@ function shouldShowSplash() {
 const showSplash = ref(shouldShowSplash());
 
 // 开屏动画完成回调
-function onSplashComplete() {
+function onSplashComplete({restoreFocus = false} = {}) {
 	showSplash.value = false;
 	try {
 		window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
 	} catch (error) {
 		void error;
 	}
-	// 动画完成后触发路由进入动画
-	nextTick(() => {
-		runRouteEnterMotion();
-	});
+	try {
+		window.localStorage.setItem("aurora-welcomed", "1");
+	} catch (error) {
+		void error;
+	}
+	// The loader already fades into the rendered page; another enter animation
+	// would briefly hide it again. Restore focus only after an interaction.
+	if (restoreFocus) {
+		void nextTick(() => {
+			const target = document.querySelector('[data-route-motion-root] input:not([disabled]), [data-route-motion-root] button:not([disabled])') || document.querySelector('.aurora-brand');
+			target?.focus({preventScroll: true});
+		});
+	}
 }
 
-// 检测是否需要显示开屏动画（首次访问或刷新）
+// The early loading screen also covers the bundle download on repeat visits.
 onMounted(() => {
-	// 如果用户禁用动画，跳过开屏
-	const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-	if (prefersReducedMotion) {
-		showSplash.value = false;
-		try {
-			window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
-		} catch (error) {
-			void error;
-		}
+	if (!showSplash.value) {
+		const screen = document.getElementById("aurora-boot");
+		if (typeof screen?.finish === "function") void screen.finish({immediate: true});
+		else screen?.remove();
 	}
 });
 
