@@ -2,7 +2,7 @@
 import axios from 'axios'
 import { useCounterStore } from '@/stores/userStores.js'
 
-function resolveAdminApiBaseUrl() {
+export function resolveAdminApiBaseUrl() {
   const configured = import.meta.env.VITE_ADMIN_API_BASE_URL
   if (configured) return configured
   if (typeof window !== 'undefined' && window.location.hostname === 'music.xiaojunjunjun.com') {

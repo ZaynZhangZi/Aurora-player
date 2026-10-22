@@ -2,7 +2,7 @@ import { createPinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { createApp } from "vue";
 
-import App from "./App.vue";
+import App from "./MaintenanceGate.vue";
 import router, { showRouteError } from "./router";
 import { installBehaviorTracker } from "./utils/behaviorTracker.js";
 import { preloadRouteComponents } from "./utils/appBootstrap.js";
