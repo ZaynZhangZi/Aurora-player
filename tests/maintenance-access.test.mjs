@@ -70,7 +70,8 @@ test('global, route, requested feature and active feature maintenance have deter
   });
   assert.equal(resolveMaintenanceContext(scoped, 'search', 'feature.login').key, 'page.search');
   assert.equal(resolveMaintenanceContext(scoped, 'search').page.customHtml, '<h1>搜索维护</h1>');
-  assert.equal(resolveMaintenanceContext(scoped, 'home', 'feature.login').page.title, scoped.title);
+  assert.equal(resolveMaintenanceContext(scoped, 'home', 'feature.login').page.message, '该功能正在维护，请稍后再试。');
+  assert.equal(resolveMaintenanceContext(scoped, 'home', 'feature.login').page.customHtml, '');
   assert.equal(resolveMaintenanceContext(scoped, 'home', '', ['feature.cloud']).page.title, '云盘维护');
   assert.equal(resolveMaintenanceContext(scoped, 'home'), null);
   assert.equal(resolveMaintenanceContext({ ...scoped, enabled: true }, 'search', 'feature.login').key, 'global');

@@ -1,5 +1,5 @@
 <template>
-  <section class="maintenance-page" :class="{ 'maintenance-embedded': embedded }" :style="pageStyle" :aria-label="scopeLabel ? `${scopeLabel}维护中` : '网站维护'">
+  <section class="maintenance-page" :style="pageStyle" :aria-label="scopeLabel ? `${scopeLabel}维护中` : '网站维护'">
     <iframe v-if="settings.customHtml.trim()" class="maintenance-custom" :srcdoc="settings.customHtml"
       sandbox="" referrerpolicy="no-referrer" title="自定义维护页面" />
     <div v-else class="maintenance-content">
@@ -16,7 +16,7 @@
       <span class="maintenance-indicator" :class="{ offline }" />
       <span>{{ recovering ? '维护已结束，正在返回…' : offline ? '暂时无法连接，正在自动重试…' : '每 10 秒自动检查，恢复后自动返回' }}</span>
       <button v-if="!recovering" type="button" :disabled="checking" @click="$emit('check')">{{ checking ? '检查中…' : '立即检查' }} <span aria-hidden="true">↗</span></button>
-      <button v-if="canReturn && !recovering" type="button" @click="$emit('return')">{{ embedded ? '我知道了' : '返回可用页面' }}</button>
+      <button v-if="canReturn && !recovering" type="button" @click="$emit('return')">返回可用页面</button>
     </footer>
   </section>
 </template>
@@ -24,7 +24,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 const props = defineProps({ settings: { type: Object, required: true }, offline: Boolean, checking: Boolean, recovering: Boolean,
-  scopeLabel: { type: String, default: '' }, canReturn: Boolean, embedded: Boolean });
+  scopeLabel: { type: String, default: '' }, canReturn: Boolean });
 defineEmits(['check', 'return']);
 const titleRef = ref(null);
 const pageStyle = computed(() => ({ '--maintenance-accent': props.settings.accentColor,
@@ -44,8 +44,6 @@ onMounted(() => { titleRef.value?.focus({ preventScroll: true }); });
 .maintenance-wave{height:35px;display:flex;gap:5px;align-items:center;justify-content:center;margin:30px 0}.maintenance-wave i{width:3px;height:calc(5px + mod(var(--n) * 7, 23) * 1px);border-radius:4px;background:var(--maintenance-accent);opacity:.45;animation:maintenance-wave 2s ease-in-out infinite;animation-delay:calc(var(--n) * -.12s)}
 .maintenance-status{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:20px 22px 28px;font-size:11px;color:#aaa7bb;position:relative;background:#0d0e18;border-top:1px solid #ffffff0a}.maintenance-indicator{width:6px;height:6px;border-radius:50%;background:var(--maintenance-accent)}.maintenance-indicator.offline{background:#e4b46c}.maintenance-status button{border:1px solid #ffffff24;border-radius:100px;background:#ffffff06;color:#e9e6f5;padding:8px 14px;font:inherit;cursor:pointer;margin-left:12px}.maintenance-status button:disabled{opacity:.5;cursor:wait}.maintenance-status button:focus-visible{outline:2px solid var(--maintenance-accent);outline-offset:3px}
 .maintenance-custom{width:100%;flex:1;min-height:240px;border:0;background:#fff}.maintenance-custom + .maintenance-status{flex-shrink:0}
-.maintenance-embedded{position:relative;inset:auto;z-index:auto;max-height:min(calc(80dvh - 54px),706px);min-height:min(320px,calc(80dvh - 54px));border-radius:0 0 22px 22px;overscroll-behavior:contain}
-.maintenance-embedded .maintenance-content{padding:34px 28px 8px}.maintenance-embedded .maintenance-brand span{display:none}.maintenance-embedded .maintenance-record{width:88px;height:88px;margin:28px auto}.maintenance-embedded .maintenance-record div{width:34px;height:34px}.maintenance-embedded h1{font-size:28px}.maintenance-embedded .maintenance-message{font-size:13px;margin-top:16px}.maintenance-embedded .maintenance-wave{margin:16px 0}.maintenance-embedded .maintenance-status{padding:16px;flex-shrink:0}.maintenance-embedded .maintenance-custom{height:min(55dvh,480px);flex:0 0 auto}
 @keyframes maintenance-spin{to{transform:rotate(360deg)}}@keyframes maintenance-wave{50%{transform:scaleY(.4);opacity:.25}}
 @media(max-width:600px){.maintenance-brand span{display:block;margin:12px 0 0;font-size:10px}.maintenance-record{margin-top:36px;width:130px;height:130px}.maintenance-status{font-size:10px}.maintenance-status button{margin-left:0}.maintenance-content{padding-top:28px}}
 @media(prefers-reduced-motion:reduce){.maintenance-record,.maintenance-wave i{animation:none}}

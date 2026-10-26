@@ -40,6 +40,7 @@ async function waitFor(expression, description) {
 }
 const settings = { enabled: true, title: '让好音乐，稍等片刻', message: '正在升级音乐服务，感谢你的耐心等待。\n维护结束后，将自动回到你刚才的页面。', estimatedReturn: '今天 22:00', accentColor: '#a78bfa', backgroundUrl: '', customHtml: '' };
 let failStatus = false;
+let failSave = false;
 let statusRequests = [];
 const exceptions = [];
 const saves = [];
@@ -55,8 +56,8 @@ async function intercept({ requestId, request }) {
     code = failStatus ? 503 : 200;
     body = { code, data: settings };
   } else if (path.endsWith('/admin/maintenance')) {
-    if (request.method === 'PUT') { Object.assign(settings, JSON.parse(request.postData)); saves.push({ ...settings }); }
-    body = { code: 200, data: settings };
+    if (request.method === 'PUT' && failSave) { code = 500; body = {code:500,message:'模拟保存失败'}; }
+    else { if (request.method === 'PUT') { Object.assign(settings, JSON.parse(request.postData)); saves.push({ ...settings }); } body = {code:200,data:settings}; }
   } else if (path.endsWith('/auth/me')) {
     body = { code: 200, data: { id: 1, username: 'admin', nickname: '维护管理员', roles: 'ROLE_ADMIN' } };
   }
@@ -166,14 +167,16 @@ try {
   await evaluate("window.dispatchEvent(new Event('online'))");
   await delay(200);
   await evaluate("document.querySelector('.recognition-launch').focus(); document.querySelector('.recognition-launch').click()");
-  await waitFor("document.querySelector('.maintenance-custom')?.srcdoc.includes('feature.recognition')", 'blocked recognition action uses custom page');
-  assert.equal(await evaluate("!!document.querySelector('.maintenance-dialog[role=dialog]')"), true);
+  await waitFor("document.querySelector('.maintenance-dialog-title')?.textContent.includes('feature.recognition')", 'blocked recognition action shows a plain alert');
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-dialog[role=alertdialog]')"), true);
   assert.equal(await evaluate('location.pathname + location.search'), '/search?q=keep-me', 'feature dialog keeps the URL unchanged');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.search-page')).visibility"), 'visible', 'feature dialog preserves the visible page');
   assert.equal(await evaluate("!!document.querySelector('.recognition-dialog')"), false, 'disabled recognition does not request microphone access');
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-dialog iframe, .maintenance-dialog .maintenance-page, .maintenance-dialog .maintenance-record')"), false, 'function alerts contain no maintenance page or HTML');
+  assert.ok(await evaluate("document.querySelector('.maintenance-dialog').getBoundingClientRect().height < 340"), 'feature alert stays compact');
   await screenshot('scoped-feature.png');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
-  await waitFor("!document.querySelector('.maintenance-page')", 'return from individual feature maintenance');
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'return from individual feature maintenance');
   await waitFor("document.activeElement === document.querySelector('.recognition-launch')", 'focus returns to the feature button');
   await evaluate("document.querySelector('.recognition-launch').click()");
   await waitFor("!!document.querySelector('.maintenance-dialog')", 'disabled feature can show the dialog again');
@@ -184,7 +187,7 @@ try {
   await evaluate("window.dispatchEvent(new Event('online'))");
   await delay(200);
   await evaluate("document.querySelector('.recognition-launch').click()");
-  await waitFor("document.querySelector('.maintenance-dialog h1')?.textContent.includes('听歌识曲维护中')", 'default maintenance dialog');
+  await waitFor("document.querySelector('.maintenance-dialog-title')?.textContent.includes('听歌识曲维护中')", 'default maintenance dialog');
   await screenshot('feature-dialog-default.png');
   assert.ok(await evaluate("document.querySelector('.maintenance-dialog').getBoundingClientRect().height <= innerHeight"), 'dialog fits mobile viewport');
   await evaluate("document.querySelector('.maintenance-dialog-close').click()");
@@ -198,24 +201,24 @@ try {
   await waitFor("!!document.querySelector('dialog[open]')", 'settings dialog opens');
   settings.targets = { 'feature.settings': targetSettings('feature.settings') };
   await evaluate("window.dispatchEvent(new Event('online'))");
-  await waitFor("!!document.querySelector('.maintenance-custom') && !document.querySelector('dialog[open]')", 'live switch closes native dialog');
+  await waitFor("!!document.querySelector('.maintenance-dialog') && !document.querySelector('dialog[open]')", 'live switch closes native dialog');
   assert.equal(await evaluate('location.pathname'), '/home');
   settings.targets['feature.settings'].available = true;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
-  await waitFor("!document.querySelector('.maintenance-page')", 'feature automatically reopens');
+  await evaluate("document.querySelector('.maintenance-dialog-check').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'feature automatically reopens');
   assert.notEqual(await evaluate('document.body.style.overflow'), 'hidden', 'nested native dialog does not leave the page scroll locked');
 
   // Kept-alive pages release active feature registrations when navigating away.
   settings.targets = { 'feature.styles': targetSettings('feature.styles') };
   await send('Page.navigate', { url: 'http://127.0.0.1:4187/discover?tab=styles' });
-  await waitFor("document.querySelector('.maintenance-custom')?.srcdoc.includes('feature.styles')", 'deep-linked discover tab maintenance');
+  await waitFor("document.querySelector('.maintenance-dialog-title')?.textContent.includes('feature.styles')", 'deep-linked discover tab maintenance');
   settings.targets['feature.styles'].available = true;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
-  await waitFor("!document.querySelector('.maintenance-page')", 'discover tab recovery');
+  await evaluate("document.querySelector('.maintenance-dialog-check').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'discover tab recovery');
   assert.equal(await evaluate('location.search'), '?tab=styles');
   settings.targets['feature.styles'].available = false;
   await evaluate("window.dispatchEvent(new Event('online'))");
-  await waitFor("!!document.querySelector('.maintenance-page')", 'close active tab live');
+  await waitFor("!!document.querySelector('.maintenance-dialog')", 'close active tab live');
   await evaluate("document.querySelector('.maintenance-dialog-close').click()");
   await waitFor("!document.querySelector('.maintenance-dialog')", 'dismiss maintenance for active tab');
   assert.equal(await evaluate('location.pathname + location.search'), '/discover?tab=styles');
@@ -236,42 +239,80 @@ try {
   settings.targets['feature.login'] = { available: true, useGlobalPage: true, title: null, message: null,
     estimatedReturn: null, accentColor: null, backgroundUrl: null, customHtml: null };
   await send('Page.navigate', { url: 'http://127.0.0.1:4188/maintenance' });
-  await waitFor("!!document.querySelector('.maintenance-preview')", 'admin settings page');
-  await screenshot('admin.png');
-  await evaluate(`(() => {
-    const title = [...document.querySelectorAll('input')].find(input => input.maxLength === 120);
-    title.value = '维护页面已更新'; title.dispatchEvent(new Event('input', {bubbles:true}));
-    document.querySelector('input[type=checkbox]').click();
-  })()`);
-  await waitFor("document.querySelector('.maintenance-preview').textContent.includes('维护页面已更新')", 'live preview');
-  await evaluate("document.querySelector('button[type=submit]').click()");
-  await waitFor("document.querySelector('form').textContent.includes('当前已发布：维护中')", 'save published maintenance');
-  assert.equal(saves.at(-1).title, '维护页面已更新');
-  assert.equal(saves.at(-1).enabled, true);
-  assert.equal(Object.keys(saves.at(-1).targets).length, catalog.length);
-  assert.equal(typeof saves.at(-1).targets['feature.login'].title, 'string', 'legacy minimal target fields receive editable defaults');
-  await evaluate(`(() => {
-    document.querySelector('[data-target="page.search"] input').click();
-    const row = document.querySelector('[data-target="page.search"]');
-    row.querySelector('button').click();
-  })()`);
-  await waitFor("document.querySelector('form').textContent.includes('搜索页面 · 维护页面')", 'edit individual maintenance page');
-  await evaluate(`(() => {
-    const checkbox = [...document.querySelectorAll('label')].find(label => label.textContent.includes('使用全站维护页面')).querySelector('input');
-    checkbox.click();
-    const title = [...document.querySelectorAll('input')].find(input => input.maxLength === 120);
-    title.value = '搜索专用维护页'; title.dispatchEvent(new Event('input', {bubbles:true}));
-  })()`);
-  await waitFor("document.querySelector('.maintenance-preview').textContent.includes('搜索专用维护页')", 'independent preview');
+  await waitFor("!!document.querySelector('.control-columns')", 'admin workspace');
+  await screenshot('admin-columns.png');
+  assert.equal(await evaluate("document.querySelectorAll('.target-row').length"), 11, 'pages form their own partition');
+  assert.ok(await evaluate("getComputedStyle(document.querySelector('.control-columns')).gridTemplateColumns.split(' ').length === 3"), 'desktop has three columns');
+  assert.equal(await evaluate("!!document.querySelector('.editor-panel iframe')"), false);
+  await evaluate("document.querySelector('[data-target=\"page.search\"] input').click(); document.querySelector('[data-target=\"page.search\"] .target-select').click()");
+  await waitFor("document.querySelector('.editor-heading h2').textContent === '搜索页面'", 'selected page editor');
+  assert.equal(saves.length, 0, 'draft changes do not publish automatically');
+  await evaluate("document.querySelector('[data-field=inherit]').click()");
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='搜索专用维护页';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
+  await evaluate("document.querySelector('[data-editor-tab=preview]').click()");
+  await waitFor("document.querySelector('.page-preview h3').textContent.includes('搜索专用维护页')", 'page preview');
   await screenshot('admin-scoped.png');
-  await evaluate("document.querySelector('button[type=submit]').click()");
-  await waitFor("!document.querySelector('form').textContent.includes('有未保存的修改')", 'scope save settles');
-  await delay(150);
+  await evaluate("document.querySelector('[data-group=\"播放器\"]').click()");
+  await waitFor("document.querySelectorAll('.target-row').length === 7", 'player partition');
+  await evaluate("document.querySelector('[data-target=\"feature.settings\"] .target-select').click()");
+  await waitFor("!!document.querySelector('.editor-info')", 'feature text editor');
+  assert.equal(await evaluate("!!document.querySelector('[data-editor-tab=appearance]')"), false, 'features have no page appearance editor');
+  assert.equal(await evaluate("document.querySelector('.editor-fields input[maxlength=\"120\"]').value"), '外观与播放设置暂时不可用', 'default reminder fields match effective content');
+  await evaluate("document.querySelector('[data-field=inherit]').click()");
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='设置暂时无法使用';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
+  await evaluate("document.querySelector('[data-editor-tab=preview]').click()");
+  await waitFor("document.querySelector('.alert-preview h3').textContent === '设置暂时无法使用'", 'compact alert preview');
+  assert.equal(await evaluate("!!document.querySelector('.editor-panel iframe')"), false);
+  await screenshot('admin-feature-preview.png');
+  await evaluate("document.querySelector('[data-action=save]').click()");
+  await waitFor("!document.querySelector('.draft-badge')", 'save all drafts');
   assert.equal(saves.at(-1).targets['page.search'].available, false);
-  assert.equal(saves.at(-1).targets['page.search'].useGlobalPage, false);
   assert.equal(saves.at(-1).targets['page.search'].title, '搜索专用维护页');
+  assert.equal(saves.at(-1).targets['feature.settings'].title, '设置暂时无法使用');
+  assert.equal(typeof saves.at(-1).targets['feature.login'].title, 'string');
+  assert.equal(Object.keys(saves.at(-1).targets).length, catalog.length);
+
+  await evaluate("document.querySelector('[data-editor-tab=content]').click()");
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='临时修改';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
+  await evaluate("document.querySelector('.reset-target').click()");
+  await waitFor("document.querySelector('.editor-fields input[maxlength=\"120\"]').value === '设置暂时无法使用' && !document.querySelector('.draft-badge')", 'restore only the selected item');
+
+  // Batch operations affect only this partition, and undo restores persisted values.
+  const savedBeforeBatch=structuredClone(saves.at(-1));
+  await evaluate("[...document.querySelectorAll('.target-batch button')].find(button=>button.textContent==='全部关闭').click()");
+  await waitFor("!!document.querySelector('.draft-badge')", 'batch draft');
+  await evaluate("document.querySelector('[data-group=\"页面\"]').click()");
+  assert.equal(await evaluate("document.querySelector('[data-target=\"page.home\"] input').checked"), savedBeforeBatch.targets['page.home'].available, 'player batch leaves pages unchanged');
+  await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='放弃修改').click()");
+  await waitFor("!document.querySelector('.draft-badge')", 'discard drafts');
+  await evaluate("document.querySelector('.target-search input').value='不存在的项目';document.querySelector('.target-search input').dispatchEvent(new Event('input',{bubbles:true}))");
+  await waitFor("!!document.querySelector('.empty-targets') && !!document.querySelector('.empty-editor')", 'empty search clears stale selection');
+  await evaluate("document.querySelector('.empty-targets button').click()");
+  await waitFor("document.querySelectorAll('.target-row').length === 11", 'clear filters');
+
+  // A failed save retains the user's draft and supports retry.
+  await evaluate("document.querySelector('[data-target=\"page.home\"] input').click()");
+  failSave=true;
+  await evaluate("document.querySelector('[data-action=save]').click()");
+  await waitFor("!!document.querySelector('.save-error')", 'failed save inline error');
+  assert.ok(await evaluate("!!document.querySelector('.draft-badge')"), 'failed save retains draft');
+  failSave=false;
+  await evaluate("document.querySelector('[data-action=save]').click()");
+  await waitFor("!document.querySelector('.draft-badge') && !document.querySelector('.save-error')", 'retry save');
+  await evaluate("document.querySelector('[data-group=global]').click()");
+  await waitFor("!!document.querySelector('[data-switch=global]')", 'separate global control');
+  await evaluate("document.querySelector('[data-switch=global]').click()");
+  await waitFor("!!document.querySelector('.global-notice') && !!document.querySelector('.draft-badge')", 'global toggle remains a draft until saved');
+  await evaluate("document.querySelector('[data-action=save]').click()");
+  await waitFor("!document.querySelector('.draft-badge')", 'global switch saves');
+  assert.equal(saves.at(-1).enabled, true);
+  await screenshot('admin-global.png');
+  await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await delay(4500);
+  await screenshot('admin-mobile.png');
+  assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'mobile workspace has no horizontal overflow');
   assert.deepEqual(exceptions, []);
-  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'feature dialogs preserve page and URL', 'Escape, backdrop dismissal and focus restoration', 'dismissed dialogs stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'mobile layout', 'network failure', 'same-route recovery', 'retained page instance', 'sandboxed HTML', '50 admin switches, custom preview and persistence'], screenshots: output }, null, 2));
+  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'compact plain-text feature alerts', 'Escape, backdrop dismissal and focus restoration', 'dismissed alerts stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'mobile layout', 'three-column partitioned admin workspace', 'separate page and reminder editors', 'drafts retained across partitions', 'partition-scoped batch changes and discard', 'failed save retains drafts and supports retry', 'custom preview and persistence'], screenshots: output }, null, 2));
 } finally {
   if (ws?.readyState === WebSocket.OPEN) {
     void send('Browser.close').catch(() => {});

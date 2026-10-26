@@ -18,6 +18,9 @@ export const isRouteAvailable = (settings, name) => isTargetAvailable(settings, 
 
 export function targetMaintenancePage(settings, key) {
   const target = settings.targets?.[key];
+  if (key.startsWith('feature.') && (!target || target.useGlobalPage !== false)) {
+    return { ...DEFAULT_MAINTENANCE, title: `${targetLabel(key)}暂时不可用`, message: '该功能正在维护，请稍后再试。' };
+  }
   if (!target || target.useGlobalPage !== false) return settings;
   return { ...DEFAULT_MAINTENANCE, ...target, targets: {}, enabled: true };
 }
