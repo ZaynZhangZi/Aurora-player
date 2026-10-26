@@ -1,5 +1,6 @@
 // src/axios/myBackend.js
 import axios from 'axios'
+import { assertMaintenanceRequest } from '../utils/maintenanceAccess.js'
 import { useCounterStore } from '@/stores/userStores.js'
 
 export function resolveAdminApiBaseUrl() {
@@ -25,6 +26,7 @@ const requestLocal = axios.create({
 
 requestLocal.interceptors.request.use(
   (config) => {
+    assertMaintenanceRequest(config.url)
     const cacheBust = Boolean(config.cacheBust)
     if (cacheBust) {
       config.params = {

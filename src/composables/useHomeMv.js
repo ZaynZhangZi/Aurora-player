@@ -1,4 +1,6 @@
-import { ref } from 'vue'
+import { ref, unref } from 'vue'
+import { requireFeature } from '../utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from './useMaintenanceAccess.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 
 export function useHomeMv(playerStore, loading, errors) {
@@ -44,8 +46,8 @@ export function useHomeMv(playerStore, loading, errors) {
   async function loadMvList({ reset = false } = {}) {
     if (reset) mvOffset.value = 0
 
-    loading.value.mv = true
-    errors.value.mv = ''
+    unref(loading).mv = true
+    unref(errors).mv = ''
 
     try {
       let res
@@ -83,9 +85,9 @@ export function useHomeMv(playerStore, loading, errors) {
       mvList.value = (res?.data?.result || res?.data?.data || []).map(normalizeMvItem)
       mvHasMore.value = false
     } catch {
-      errors.value.mv = 'MV 加载失败'
+      unref(errors).mv = 'MV 加载失败'
     } finally {
-      loading.value.mv = false
+      unref(loading).mv = false
     }
   }
 
@@ -96,13 +98,13 @@ export function useHomeMv(playerStore, loading, errors) {
   }
 
   function nextMvPage() {
-    if (!mvHasMore.value || loading.value.mv) return
+    if (!mvHasMore.value || unref(loading).mv) return
     mvOffset.value += mvLimit.value
     loadMvList()
   }
 
   function prevMvPage() {
-    if (mvOffset.value <= 0 || loading.value.mv) return
+    if (mvOffset.value <= 0 || unref(loading).mv) return
     mvOffset.value = Math.max(0, mvOffset.value - mvLimit.value)
     loadMvList()
   }
@@ -140,6 +142,7 @@ export function useHomeMv(playerStore, loading, errors) {
   }
 
   function openMv(mv) {
+    if (!requireFeature('feature.mv')) return
     if (!mv?.id) return
     shouldResumeMusicOnClose.value = Boolean(playerStore.isPlaying && playerStore.hasSong)
     if (shouldResumeMusicOnClose.value) playerStore.setPlaying(false)
@@ -189,6 +192,11 @@ export function useHomeMv(playerStore, loading, errors) {
     }
     shouldResumeMusicOnClose.value = false
   }
+
+  useFeatureMaintenance('feature.mv', () => mvPlayerOpen.value, () => {
+    shouldResumeMusicOnClose.value = false
+    closeMvPlayer()
+  })
 
   return {
     mvList,

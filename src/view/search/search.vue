@@ -36,7 +36,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           </form>
-          <button ref="recognitionButtonRef" class="recognition-launch" type="button" aria-label="听歌识曲" title="听歌识曲" @click="recognitionOpen = true">
+          <button v-maintenance="'feature.recognition'" ref="recognitionButtonRef" class="recognition-launch" type="button" aria-label="听歌识曲" title="听歌识曲" @click="recognitionOpen = true">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="10.5" y="3.5" width="7" height="14" rx="3.5"/><path d="M7 13.5a7 7 0 0 0 14 0M14 20.5v4m-4 0h8" stroke-linecap="round"/></svg>
           </button>
         </div>
@@ -202,6 +202,8 @@
 </template>
 
 <script setup>
+import { MAINTENANCE_TARGETS, requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'SearchPage'})
 
 import {computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch} from 'vue'
@@ -355,6 +357,8 @@ function extractResult(response, config) {
 }
 
 async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
+  const key = MAINTENANCE_TARGETS.find(target => target.searchTab === tab)?.key
+  if (key && !requireFeature(key)) return
   cancelSearch()
   const q = String(query || '').trim()
   const searchTab = tabValues.has(tab) ? tab : 'all'
@@ -507,6 +511,8 @@ function searchRecognizedSong(name) {
 }
 
 function switchTab(tab) {
+  const key = MAINTENANCE_TARGETS.find(target => target.searchTab === tab)?.key
+  if (key && !requireFeature(key)) return
   if (!tabValues.has(tab) || tab === activeTab.value) return
   page.value = 0
   updateRoute(keyword.value, tab, true)
@@ -604,6 +610,10 @@ onBeforeUnmount(() => {
   cancelSearch()
   window.removeEventListener('aurora:focus-search-page', focusSearchInput)
 })
+useFeatureMaintenance('feature.recognition', () => recognitionOpen.value, closeRecognition)
+for (const target of MAINTENANCE_TARGETS.filter(target => target.searchTab)) {
+  useFeatureMaintenance(target.key, () => activeTab.value === target.searchTab, undefined, () => runSearch())
+}
 </script>
 
 <style scoped>

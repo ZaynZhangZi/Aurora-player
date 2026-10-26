@@ -1,10 +1,10 @@
 <template>
-  <div class="personal-home">
+  <div class="personal-home" @maintenance-restored="reloadAfterMaintenance">
     <AppHeader />
 
     <main class="personal-main" data-route-motion-root>
       <section id="home-top" class="home-lobby">
-        <article class="home-banner-card" :aria-label="bannerHero.title || '首页 Banner'">
+        <article v-maintenance="'feature.homeBanners'" class="home-banner-card" :aria-label="bannerHero.title || '首页 Banner'">
           <div class="home-banner-fallback" :class="{'is-hidden': bannerHero.media && (bannerPosterReady || bannerMediaReady)}" aria-hidden="true">
             <span class="banner-orbit banner-orbit-one" />
             <span class="banner-orbit banner-orbit-two" />
@@ -53,7 +53,7 @@
       </section>
 
       <div class="home-listening-grid" :class="{'has-resume': resumeSong}">
-        <aside class="personal-now-card" :style="stationThemeStyle" aria-label="你的私人电台">
+        <aside v-maintenance="'feature.personalFm'" class="personal-now-card" :style="stationThemeStyle" aria-label="你的私人电台">
 
           <div class="personal-now-heading">
             <div><p>AURORA RADIO</p><h2>{{ userStore.isLoggedIn ? '私人频率' : '先听这些' }}</h2></div>
@@ -76,7 +76,7 @@
           </div>
         </aside>
 
-      <section v-if="resumeSong" class="lofi-resume" :style="resumeThemeStyle" aria-label="继续播放">
+      <section v-if="resumeSong" v-maintenance="'feature.recentPlayback'" class="lofi-resume" :style="resumeThemeStyle" aria-label="继续播放">
         <div class="lofi-resume-fluid" aria-hidden="true">
           <i class="is-primary" />
           <i class="is-accent" />
@@ -113,7 +113,7 @@
       </section>
       </div>
 
-      <section class="personal-section personal-scenes">
+      <section v-maintenance="'feature.sceneRadio'" class="personal-section personal-scenes">
         <div class="personal-section-heading">
           <div><p>CHOOSE YOUR MOMENT</p><h2>此刻想怎么听？</h2></div>
           <span>不需要挑歌，选择现在的状态就好。</span>
@@ -136,7 +136,7 @@
         </div>
       </section>
 
-      <section class="personal-section personal-daily">
+      <section v-maintenance="'feature.dailyRecommendations'" class="personal-section personal-daily">
         <div class="personal-section-heading">
           <div><p>DAILY ROTATION</p><h2>{{ userStore.isLoggedIn ? '只属于今天的推荐' : '今天先从这些开始' }}</h2></div>
           <button v-if="dailySongs.length" type="button" :disabled="isSongPending(dailySongs[0])" @click="playDailySongs"><HomePlaybackIcon :loading="isSongPending(dailySongs[0])" :playing="isSongPlaying(dailySongs[0])" />{{ isSongPlaying(dailySongs[0]) ? '暂停播放' : '全部播放' }}</button>
@@ -172,7 +172,7 @@
         </div>
       </section>
 
-      <section class="personal-section personal-playlists">
+      <section v-maintenance="'feature.playlistRecommendations'" class="personal-section personal-playlists">
         <div class="personal-section-heading">
           <div><p>MADE FOR YOUR DAY</p><h2>{{ userStore.isLoggedIn ? '为你留下的歌单' : '值得收藏的歌单' }}</h2></div>
           <button type="button" @click="openDiscover">去发现页浏览全部 →</button>
@@ -184,7 +184,7 @@
         <div v-else class="personal-empty">暂时没有推荐歌单，稍后再来看看。</div>
       </section>
 
-      <section v-if="recentCollections.length" class="personal-section personal-recent-collections">
+      <section v-if="recentCollections.length" v-maintenance="'feature.recentPlayback'" class="personal-section personal-recent-collections">
         <div class="personal-section-heading">
           <div><p>RECENTLY PLAYED</p><h2>最近听过</h2></div>
         </div>
@@ -208,6 +208,7 @@
 </template>
 
 <script setup>
+import { requireFeature } from '@/utils/maintenanceAccess.js'
 defineOptions({name: 'HomePage'})
 
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
@@ -368,11 +369,13 @@ function toggleCurrentSong(song) {
 }
 
 async function playStationSong(song = stationSong.value, index = 0) {
+  if (!requireFeature('feature.personalFm')) return
   if (!song || isSongPending(song) || toggleCurrentSong(song)) return
   await playSongWithQueue(song, stationQueue.value, index)
 }
 
 async function startScene(scene) {
+  if (!requireFeature('feature.sceneRadio')) return
   if (!userStore.isLoggedIn) {
     openLoginDialog()
     return
@@ -382,15 +385,18 @@ async function startScene(scene) {
 }
 
 async function playDailySong(song, index = 0) {
+  if (!requireFeature('feature.dailyRecommendations')) return
   if (isSongPending(song) || toggleCurrentSong(song)) return
   await playSongWithQueue(song, dailySongs.value, index)
 }
 
 async function playDailySongs() {
+  if (!requireFeature('feature.dailyRecommendations')) return
   if (dailySongs.value.length) await playDailySong(dailySongs.value[0], 0)
 }
 
 async function playResumeSong(song = resumeSong.value) {
+  if (!requireFeature('feature.recentPlayback')) return
   if (!song || isSongPending(song) || toggleCurrentSong(song)) return
   const index = playerStore.playQueue.findIndex(item => String(item.id) === String(song.id))
   if (index >= 0) await playQueueByIndex(index)
@@ -413,6 +419,7 @@ function isPlaylistPlaying(item) {
 }
 
 async function playHomePlaylist(item) {
+  if (!requireFeature('feature.playlistRecommendations')) return
   if (String(playlistLoadingId.value) === String(item.id)) return
   if (isPlaylistActive(item) && toggleCurrentSong(playerStore.currentSong)) return
   const token = ++playlistRequest
@@ -466,6 +473,7 @@ async function runPlaylistHeroReturn() {
 }
 
 function openRecentCollection(item) {
+  if (!requireFeature('feature.recentPlayback')) return
   const id = Number(item?.id || 0)
   if (!id) return
   if (item.type === 'album') openDetail('album', id)
@@ -498,6 +506,13 @@ onUnmounted(() => {
   stationThemeRequest += 1
   window.removeEventListener(DETAIL_CLOSE_EVENT, onDetailClosed)
 })
+let maintenanceReloadQueued = false
+function reloadAfterMaintenance() {
+  if (route.name !== 'home' || maintenanceReloadQueued) return
+  maintenanceReloadQueued = true
+  queueMicrotask(() => { maintenanceReloadQueued = false; reloadHome() })
+}
+
 function reloadHome() {
   return loadPersonalHome(userStore.isLoggedIn, userStore.userId)
 }

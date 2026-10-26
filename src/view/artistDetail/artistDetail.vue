@@ -244,6 +244,8 @@
 </template>
 
 <script setup>
+import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 import {computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import {useRoute} from 'vue-router'
@@ -917,6 +919,7 @@ function openAlbum(album, event) {
 }
 
 function openMv(mv) {
+  if (!requireFeature('feature.mv')) return
   if (!mv?.id) return
   shouldResumeMusicOnClose.value = Boolean(playerStore.isPlaying && playerStore.hasSong)
   if (shouldResumeMusicOnClose.value) {
@@ -1561,6 +1564,7 @@ watch(
     }
   },
 )
+useFeatureMaintenance('feature.mv', () => mvPlayerOpen.value, closeMvPlayer)
 </script>
 
 <style scoped>

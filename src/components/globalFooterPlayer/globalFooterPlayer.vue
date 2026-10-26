@@ -700,7 +700,9 @@ import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
 import AppSettingsDialog from "@/components/appSettings/AppSettingsDialog.vue";
 import LyricShareDialog from "@/components/lyricShare/LyricShareDialog.vue";
-import {openLyricShare} from "@/composables/useLyricShare.js";
+import {openLyricShare, lyricShare, closeLyricShare} from "@/composables/useLyricShare.js";
+import { useFeatureMaintenance } from "@/composables/useMaintenanceAccess.js";
+import { requireFeature } from "@/utils/maintenanceAccess.js";
 import {normalizeShareLines} from "@/utils/lyricShare.js";
 import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
@@ -956,6 +958,7 @@ const {
 });
 
 function openLyricPage() {
+  if (!requireFeature('feature.lyrics')) return;
   // Mount first, then reveal the React player with its wrapper transition.
   // Opening no longer waits for the legacy Vue cover-transition selectors.
   const focusedElement = document.activeElement;
@@ -982,6 +985,7 @@ function openLyricPage() {
 }
 
 function onAmllOpenedChange(nextOpened) {
+  if (nextOpened && !requireFeature('feature.lyrics')) return;
   if (nextOpened) {
     commitAmllOpenedChange(true);
     return;
@@ -1666,6 +1670,7 @@ async function ensurePlaybackState() {
 }
 
 function togglePlay() {
+  if (!isPlaying.value && !requireFeature('feature.playback')) return;
   const active = getActiveAudio();
   const idle = getIdleAudio();
   if (!active || !hasSong.value) return;
@@ -1829,6 +1834,7 @@ function requestAutomixWarmup(reason = "unknown") {
 }
 
 function toggleAutomix() {
+  if (!playerStore.automixEnabled && !requireFeature('feature.automix')) return;
   playerStore.toggleAutomixEnabled();
   if (playerStore.automixEnabled) {
     autoMixEngine.enable();
@@ -2294,6 +2300,7 @@ function failQualitySwitch() {
 }
 
 async function selectAudioQuality(level) {
+  if (!requireFeature('feature.audioQuality')) return;
   if (qualitySwitching.value) return;
   const previousLevel = currentQualityLevel.value;
   setPreferredQuality(level);
@@ -2421,6 +2428,7 @@ function throttledOnTimeUpdate(event) {
 }
 
 function onPlay(event) {
+  if (!requireFeature('feature.playback')) { event?.target?.pause(); return; }
   if (!isEventFromActiveDeck(event)) return;
   if (playerStore.automixEnabled) {
     autoMixEngine.enable();
@@ -2920,6 +2928,21 @@ onBeforeUnmount(() => {
     clearInterval(backgroundCheckTimer);
     backgroundCheckTimer = null;
   }
+});
+useFeatureMaintenance('feature.lyrics', () => amllOpened.value, () => commitAmllOpenedChange(false));
+useFeatureMaintenance('feature.queue', () => playlistPanelOpen.value, closePlaylistPanel);
+useFeatureMaintenance('feature.settings', () => settingsOpen.value, closeAppSettings);
+useFeatureMaintenance('feature.lyricShare', () => lyricShare.open, closeLyricShare);
+useFeatureMaintenance('feature.playback', () => playerStore.isPlaying || playerStore.autoPlayOnLoad, () => {
+  playerStore.autoPlayOnLoad = false;
+  playerStore.setPlaying(false);
+  getActiveAudio()?.pause();
+  getIdleAudio()?.pause();
+});
+useFeatureMaintenance('feature.automix', () => playerStore.automixEnabled, () => {
+  playerStore.setAutomixEnabled(false);
+  autoMixEngine.disable();
+  stopCrossfade();
 });
 </script>
 

@@ -33,7 +33,7 @@
         </nav>
 
         <Transition name="message-panel" mode="out-in">
-          <section v-if="messageTab === 'notice'" key="notice" class="notice-workspace">
+          <section v-if="messageTab === 'notice'" key="notice" v-maintenance="'feature.notifications'" class="notice-workspace">
             <div class="workspace-title">
               <div><small>NOTIFICATIONS</small><h2>与你有关的新消息</h2></div>
               <button type="button" :disabled="noticeLoading" @click="fetchNotices({ reset: true })">{{ noticeLoading ? '同步中' : '刷新' }}</button>
@@ -62,7 +62,7 @@
             <div v-else class="message-empty"><span>○</span><h3>通知已经读完了</h3><p>新的关注、互动和系统消息会出现在这里。</p></div>
           </section>
 
-          <section v-else key="private" class="private-workspace">
+          <section v-else-if="messageTab === 'private'" key="private" v-maintenance="'feature.privateMessages'" class="private-workspace">
             <aside class="conversation-sidebar">
               <div class="workspace-title is-compact">
                 <div><small>CONVERSATIONS</small><h2>私信</h2></div>
@@ -134,6 +134,8 @@
 </template>
 
 <script setup>
+import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'MessagesPage'})
 
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
@@ -166,6 +168,8 @@ const filteredPrivateList = computed(() => {
 const visiblePrivateHistory = computed(() => privateHistory.value.slice(-privateHistoryRenderLimit.value))
 
 function switchMessageTab(tab) {
+  if (!requireFeature('page.messages')) return
+  if (!requireFeature(tab === 'private' ? 'feature.privateMessages' : 'feature.notifications')) return
   if (messageTab.value === tab) return
   messageTab.value = tab
   clearMessageBadgeCount(tab)
@@ -244,6 +248,8 @@ watch(
 
 onMounted(loadMessages)
 onBeforeUnmount(cleanupTimers)
+useFeatureMaintenance('feature.privateMessages', () => userStore.isLoggedIn && messageTab.value === 'private', undefined, () => fetchPrivateMessages({reset: true}))
+useFeatureMaintenance('feature.notifications', () => userStore.isLoggedIn && messageTab.value === 'notice', undefined, () => fetchNotices({reset: true}))
 </script>
 
 <style scoped>

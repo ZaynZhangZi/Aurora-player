@@ -139,6 +139,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQrLogin } from '@/composables/useQrLogin.js'
 import { useCounterStore } from '@/stores/userStores.js'
 import { OPEN_LOGIN_DIALOG_EVENT } from '@/utils/loginDialog.js'
+import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 
 const userStore = useCounterStore()
 const opened = ref(false)
@@ -319,6 +321,7 @@ async function animateHeaderAvatarIntoDialog(source) {
 }
 
 async function openDialog() {
+  if (!requireFeature('feature.login')) return
   if (userStore.isLoggedIn || opened.value) return
   const sourceAvatar = document.querySelector('.aurora-profile')
   entryAvatarAnimating.value = sourceAvatar instanceof HTMLElement
@@ -473,6 +476,7 @@ watch(successAvatarUrl, async (avatarUrl, previousAvatarUrl) => {
     { duration: 720, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
   )
 })
+useFeatureMaintenance('feature.login', () => opened.value, closeDialog)
 </script>
 
 <style scoped>

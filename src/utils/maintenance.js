@@ -7,6 +7,7 @@ export const DEFAULT_MAINTENANCE = Object.freeze({
   accentColor: '#a78bfa',
   backgroundUrl: '',
   customHtml: '',
+  targets: Object.freeze({}),
 });
 
 // Invalid responses must never turn an active maintenance screen off.
@@ -16,6 +17,20 @@ export function parseMaintenanceStatus(body) {
   const data = 'code' in body ? body.data : body;
   if (!data || typeof data.enabled !== 'boolean') throw new Error('维护状态缺少 enabled');
   const text = (key, max) => typeof data[key] === 'string' ? data[key].slice(0, max) : DEFAULT_MAINTENANCE[key];
+  const targets = {};
+  if (data.targets != null) {
+    if (typeof data.targets !== 'object' || Array.isArray(data.targets)) throw new Error('维护开关配置无效');
+    const entries = Object.entries(data.targets);
+    if (entries.length > 100) throw new Error('维护开关数量超限');
+    for (const [key, value] of entries) {
+      if (!/^(page|feature)\.[a-zA-Z][a-zA-Z0-9]*$/.test(key) || !value || typeof value.available !== 'boolean'
+        || (value.useGlobalPage !== undefined && typeof value.useGlobalPage !== 'boolean')) throw new Error('维护开关配置无效');
+      const page = parseMaintenanceStatus({ ...value, enabled: false, targets: undefined });
+      const { targets: ignored, ...content } = page;
+      void ignored;
+      targets[key] = { ...content, available: value.available, useGlobalPage: value.useGlobalPage !== false };
+    }
+  }
   return {
     enabled: data.enabled,
     title: text('title', 120) || DEFAULT_MAINTENANCE.title,
@@ -24,6 +39,7 @@ export function parseMaintenanceStatus(body) {
     accentColor: /^#[0-9a-f]{6}$/i.test(data.accentColor) ? data.accentColor : DEFAULT_MAINTENANCE.accentColor,
     backgroundUrl: /^https?:\/\/\S+$/i.test(data.backgroundUrl) ? text('backgroundUrl', 2048) : '',
     customHtml: text('customHtml', 100000),
+    targets,
   };
 }
 

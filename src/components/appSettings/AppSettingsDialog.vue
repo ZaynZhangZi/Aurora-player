@@ -18,7 +18,7 @@
             </section>
             <section v-show="section === 'playback'" id="settings-playback" role="tabpanel" aria-labelledby="settings-tab-playback" tabindex="0">
               <div class="settings-section-heading"><h3>播放偏好</h3><p>为每一次聆听选择合适的声音</p></div>
-              <label class="settings-row">
+              <label v-maintenance="'feature.automix'" class="settings-row">
                 <span><strong>智能混音</strong><small>自动优化歌曲之间的衔接</small></span>
                 <input type="checkbox" role="switch" :checked="automixEnabled" aria-label="智能混音" @change="emit('toggle-automix')" />
                 <span class="settings-switch" aria-hidden="true" />
@@ -27,7 +27,7 @@
                 <span><strong>播放模式</strong><small>选择歌曲播放的顺序</small></span>
                 <select :value="playMode" aria-label="播放模式" @change="emit('play-mode', $event.target.value)"><option value="sequence">顺序播放</option><option value="single">单曲循环</option><option value="shuffle">随机播放</option></select>
               </div>
-              <div class="settings-quality">
+              <div v-maintenance="'feature.audioQuality'" class="settings-quality">
                 <div class="settings-quality-heading"><h3>播放音质</h3><small v-if="hasSong">当前 · {{ qualityLabel(currentQuality) }}</small></div>
                 <div class="settings-quality-options">
                   <button v-for="option in AUDIO_QUALITY_OPTIONS" :key="option.level" type="button" :class="{'is-selected': selectedQuality === option.level}" :aria-pressed="selectedQuality === option.level" :disabled="qualitySwitching" @click="emit('quality', option.level)"><strong>{{ option.label }}<CheckIcon v-if="selectedQuality === option.level" /></strong><small>{{ qualityLoadingLevel === option.level ? '获取音源中…' : option.detail }}</small></button>

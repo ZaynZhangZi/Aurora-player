@@ -122,11 +122,14 @@ import DetailOverlayHost from "@/components/detailOverlay/DetailOverlayHost.vue"
 import { DETAIL_CLOSE_EVENT, isDetailRoute, supportsDetailOverlay } from "@/composables/useDetailNavigation.js";
 import { peekPendingTransition } from "@/utils/heroTransition.js";
 import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
+import { useMaintenanceAccess } from "@/composables/useMaintenanceAccess.js";
+import { isRouteAvailable } from "@/utils/maintenanceAccess.js";
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 
 const route = useRoute();
 const router = useRouter();
+const maintenanceAccess = useMaintenanceAccess();
 const userStore = useCounterStore();
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
@@ -204,8 +207,10 @@ function closeOverlay() {
 }
 
 watch(
-	() => route.fullPath,
+	[() => route.fullPath, () => isRouteAvailable(maintenanceAccess.value.settings, route.name)],
 	() => {
+		if (route.meta.maintenance) return;
+		if (!isRouteAvailable(maintenanceAccess.value.settings, route.name)) return;
 		const previousBackgroundKey = bgKey.value;
 		const record = route.matched[route.matched.length - 1] || null;
 		const comp = record?.components?.default || null;

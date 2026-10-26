@@ -139,7 +139,7 @@
         </section>
 
         <!-- Tab Content 2: High-Fidelity Music Cloud Drive List -->
-        <section id="profile-panel-cloud" v-else-if="activeTab === 'cloud'" key="cloud" class="profile-workspace profile-cloud" role="tabpanel" aria-labelledby="profile-tab-cloud">
+        <section v-maintenance="'feature.cloud'" id="profile-panel-cloud" v-else-if="activeTab === 'cloud'" key="cloud" class="profile-workspace profile-cloud" role="tabpanel" aria-labelledby="profile-tab-cloud">
           <div class="profile-section-heading">
             <div><p>PRIVATE CLOUD</p><h2>云盘管理</h2><span>把自己的声音带在身边，并保持每一份文件清楚可见。</span></div>
             <button
@@ -286,7 +286,7 @@
         </section>
 
         <!-- Tab Content 3: Sound Fingerprint Portrait Analysis -->
-        <section id="profile-panel-listening" v-else-if="activeTab === 'listening'" key="listening" class="profile-workspace profile-listening" role="tabpanel" aria-labelledby="profile-tab-listening">
+        <section v-maintenance="'feature.listeningProfile'" id="profile-panel-listening" v-else-if="activeTab === 'listening'" key="listening" class="profile-workspace profile-listening" role="tabpanel" aria-labelledby="profile-tab-listening">
           <div class="profile-section-heading">
             <div><p>LISTENING PORTRAIT</p><h2>听歌画像</h2><span>从播放记录里整理偏好，不把你定义成某一种风格。</span></div>
             <div class="listening-range-control" aria-label="画像时间范围">
@@ -454,6 +454,8 @@
   </Teleport>
 </template>
 <script setup>
+import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({ name: 'ProfilePage' })
 import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
@@ -1468,6 +1470,8 @@ async function playListeningTrack(item) {
 }
 
 function switchTab(tab) {
+  const key = {cloud: 'feature.cloud', listening: 'feature.listeningProfile'}[tab]
+  if (key && !requireFeature(key)) return
   activeTab.value = tab
 }
 
@@ -1912,6 +1916,8 @@ watch(
   },
 )
 
+useFeatureMaintenance('feature.cloud', () => activeTab.value === 'cloud', undefined, () => loadCloudSongs(1))
+useFeatureMaintenance('feature.listeningProfile', () => activeTab.value === 'listening', undefined, () => setListeningRange(listeningRange.value))
 </script>
 
 <style scoped>

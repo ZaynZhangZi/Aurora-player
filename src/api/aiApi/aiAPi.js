@@ -1,4 +1,5 @@
 import axios from "axios";
+import { requireFeature, MaintenanceBlockedError } from '../../utils/maintenanceAccess.js';
 import apiClient from "@/axios/apiClient.js";
 
 const DEEPSEEK_API_KEY = String(import.meta.env.VITE_DEEPSEEKAPI || "").trim();
@@ -7,6 +8,7 @@ const DEEPSEEK_MODEL = String(import.meta.env.VITE_DEEPSEEK_MODEL || "deepseek-c
 
 export const aiAPi = {
 	deepseekAPi(payload = {}) {
+    if (!requireFeature('feature.ai')) return Promise.reject(new MaintenanceBlockedError('feature.ai'));
 		if (DEEPSEEK_API_KEY) {
 			const prompt = String(payload?.prompt || payload?.content || "").trim();
 			const messages = Array.isArray(payload?.messages) && payload.messages.length

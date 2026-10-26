@@ -159,6 +159,12 @@ const router = createRouter({
       meta: { title: '更新日志' },
     },
     {
+      path: '/maintenance',
+      name: 'maintenance',
+      component: () => import('@/view/maintenance/MaintenanceRoute.vue'),
+      meta: { title: '维护中', maintenance: true },
+    },
+    {
       path: '/error',
       name: 'routeError',
       component: SystemStatus,

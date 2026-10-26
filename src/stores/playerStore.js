@@ -1,4 +1,5 @@
 import {acceptHMRUpdate, defineStore} from 'pinia'
+import { requireFeature } from '../utils/maintenanceAccess.js'
 import {readPlaybackPosition, writePlaybackPosition} from '@/utils/player/playbackPosition.js'
 import {normalizeAudioQuality} from '@/utils/player/audioQuality.js'
 
@@ -240,6 +241,7 @@ export const usePlayerStore = defineStore('global-player', {
 
   actions: {
     setTrack(song, {autoplay = true, resetTime = true} = {}) {
+      if (autoplay && !requireFeature('feature.playback')) return false
       const sameTrack = this.currentSong.id && song?.id && String(this.currentSong.id) === String(song.id)
       const next = {
         id: song?.id ?? null,
@@ -267,6 +269,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setAudioQuality(level) {
+      if (!requireFeature('feature.audioQuality')) return
       const next = normalizeAudioQuality(level)
       if (next === this.audioQuality) return
       this.audioQuality = next
@@ -290,6 +293,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setPlaying(value) {
+      if (value && !requireFeature('feature.playback')) return false
       this.isPlaying = Boolean(value)
       if (!this.isPlaying) this.persistPlaybackPosition()
     },
@@ -385,6 +389,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     removeQueueEntry(queueEntryId) {
+      if (!requireFeature('feature.queue')) return false
       const targetEntryId = String(queueEntryId || '').trim()
       if (!targetEntryId || !this.playQueue.length) return false
 
@@ -422,6 +427,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     clearQueueExceptCurrent() {
+      if (!requireFeature('feature.queue')) return 0
       if (!this.playQueue.length) {
         this.currentQueueIndex = -1
         persistPlayerState(this)
@@ -465,19 +471,23 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setPlaylistPanelOpen(value) {
+      if (value && !requireFeature('feature.queue')) return
       this.playlistPanelOpen = Boolean(value)
     },
 
     togglePlaylistPanel() {
+      if (!this.playlistPanelOpen && !requireFeature('feature.queue')) return
       this.playlistPanelOpen = !this.playlistPanelOpen
     },
 
     setAutomixEnabled(value) {
+      if (value && !requireFeature('feature.automix')) return
       this.automixEnabled = Boolean(value)
       persistPlayerState(this)
     },
 
     toggleAutomixEnabled() {
+      if (!this.automixEnabled && !requireFeature('feature.automix')) return
       this.automixEnabled = !this.automixEnabled
       persistPlayerState(this)
     },

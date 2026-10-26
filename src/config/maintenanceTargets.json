@@ -1,0 +1,397 @@
+[
+  {
+    "key": "page.home",
+    "label": "首页",
+    "group": "页面",
+    "routeNames": [
+      "home"
+    ]
+  },
+  {
+    "key": "page.discover",
+    "label": "发现音乐",
+    "group": "页面",
+    "routeNames": [
+      "discover"
+    ]
+  },
+  {
+    "key": "page.style",
+    "label": "曲风详情",
+    "group": "页面",
+    "routeNames": [
+      "styleDetailPage"
+    ]
+  },
+  {
+    "key": "page.search",
+    "label": "搜索页面",
+    "group": "页面",
+    "routeNames": [
+      "search"
+    ]
+  },
+  {
+    "key": "page.playlist",
+    "label": "歌单详情",
+    "group": "页面",
+    "routeNames": [
+      "playlist"
+    ]
+  },
+  {
+    "key": "page.album",
+    "label": "专辑详情",
+    "group": "页面",
+    "routeNames": [
+      "album"
+    ]
+  },
+  {
+    "key": "page.artist",
+    "label": "歌手详情",
+    "group": "页面",
+    "routeNames": [
+      "artist",
+      "artistByName"
+    ]
+  },
+  {
+    "key": "page.profile",
+    "label": "个人中心 / 音乐库",
+    "group": "页面",
+    "routeNames": [
+      "profile"
+    ]
+  },
+  {
+    "key": "page.messages",
+    "label": "消息中心",
+    "group": "页面",
+    "routeNames": [
+      "messages"
+    ]
+  },
+  {
+    "key": "page.moments",
+    "label": "音乐动态",
+    "group": "页面",
+    "routeNames": [
+      "moments"
+    ]
+  },
+  {
+    "key": "page.releaseNotes",
+    "label": "更新日志",
+    "group": "页面",
+    "routeNames": [
+      "releaseNotes"
+    ]
+  },
+  {
+    "key": "feature.login",
+    "label": "登录 / 扫码登录",
+    "group": "账号与个人中心",
+    "apiPatterns": [
+      "^/login(?:/|$)",
+      "^/captcha/"
+    ]
+  },
+  {
+    "key": "feature.profileEdit",
+    "label": "账号资料与绑定",
+    "group": "账号与个人中心",
+    "apiPatterns": [
+      "^/user/(?:update|binding|bindingcellphone)(?:/|$)",
+      "^/avatar/upload$"
+    ]
+  },
+  {
+    "key": "feature.cloud",
+    "label": "云盘管理 / 上传",
+    "group": "账号与个人中心",
+    "apiPatterns": [
+      "^/user/cloud(?:/|$)",
+      "^/cloud(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.listeningProfile",
+    "label": "听歌画像",
+    "group": "账号与个人中心",
+    "apiPatterns": [
+      "^/user/record$"
+    ]
+  },
+  {
+    "key": "feature.playback",
+    "label": "音乐播放",
+    "group": "播放器",
+    "apiPatterns": [
+      "^/song/url(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.lyrics",
+    "label": "全屏歌词 / 可视化播放器",
+    "group": "播放器",
+    "apiPatterns": [
+      "^/lyric(?:/|$)",
+      "^/api/v1/content/lyrics(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.automix",
+    "label": "AutoMix 自动混音",
+    "group": "播放器"
+  },
+  {
+    "key": "feature.audioQuality",
+    "label": "音质切换",
+    "group": "播放器"
+  },
+  {
+    "key": "feature.queue",
+    "label": "播放列表管理",
+    "group": "播放器"
+  },
+  {
+    "key": "feature.lyricShare",
+    "label": "歌词分享 / 图片与 GIF 导出",
+    "group": "播放器"
+  },
+  {
+    "key": "feature.settings",
+    "label": "外观与播放设置",
+    "group": "播放器"
+  },
+  {
+    "key": "feature.recognition",
+    "label": "听歌识曲",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/audio/match$"
+    ]
+  },
+  {
+    "key": "feature.mv",
+    "label": "MV 浏览与播放",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/mv(?:/|$)",
+      "^/video(?:/|$)",
+      "^/personalized/mv$",
+      "^/api/v1/content/singer-videos(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.homeBanners",
+    "label": "首页 Banner",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/banner$",
+      "^/api/v1/content/banners(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.dailyRecommendations",
+    "label": "每日推荐歌曲",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/recommend/songs$",
+      "^/personalized/newsong$"
+    ]
+  },
+  {
+    "key": "feature.personalFm",
+    "label": "私人电台",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/personal_fm$",
+      "^/personal/fm/"
+    ]
+  },
+  {
+    "key": "feature.sceneRadio",
+    "label": "场景电台",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/scene(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.playlistRecommendations",
+    "label": "推荐歌单",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/recommend/resource$",
+      "^/personalized$"
+    ]
+  },
+  {
+    "key": "feature.recentPlayback",
+    "label": "最近播放 / 继续播放",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/record/recent/"
+    ]
+  },
+  {
+    "key": "feature.favorites",
+    "label": "收藏歌曲 / 歌单 / 专辑",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/like$",
+      "^/playlist/subscribe$",
+      "^/album/sub$",
+      "^/artist/sub$"
+    ]
+  },
+  {
+    "key": "feature.ai",
+    "label": "AI 推荐",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/ai(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.privateMessages",
+    "label": "私信阅读与发送",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/msg/private(?:/|$)",
+      "^/send/text$"
+    ]
+  },
+  {
+    "key": "feature.notifications",
+    "label": "通知与消息互动",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/msg/(?:notices|comments|forwards|replies|recentcontact)(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.socialPublish",
+    "label": "发布 / 转发 / 删除动态",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/share/resource$",
+      "^/event/(?:forward|del)$"
+    ]
+  },
+  {
+    "key": "feature.socialComments",
+    "label": "动态评论与回复",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/comment(?:/event)?$"
+    ]
+  },
+  {
+    "key": "feature.socialLikes",
+    "label": "动态点赞",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/resource/like$"
+    ]
+  },
+  {
+    "key": "feature.follow",
+    "label": "关注用户",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/follow$"
+    ]
+  },
+  {
+    "key": "feature.topics",
+    "label": "热门话题与话题动态",
+    "group": "消息与社交",
+    "apiPatterns": [
+      "^/hot/topic$",
+      "^/topic(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.discoverFeatured",
+    "label": "发现页精选",
+    "group": "发现与推荐",
+    "discoverTab": "featured"
+  },
+  {
+    "key": "feature.styles",
+    "label": "曲风浏览",
+    "group": "发现与推荐",
+    "discoverTab": "styles",
+    "apiPatterns": [
+      "^/style/(?:list|detail|song|album|playlist|artist)$"
+    ]
+  },
+  {
+    "key": "feature.newReleases",
+    "label": "新发行专辑",
+    "group": "发现与推荐",
+    "discoverTab": "releases",
+    "apiPatterns": [
+      "^/top/album$"
+    ]
+  },
+  {
+    "key": "feature.charts",
+    "label": "音乐排行榜",
+    "group": "发现与推荐",
+    "discoverTab": "charts",
+    "apiPatterns": [
+      "^/toplist(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.artists",
+    "label": "艺人目录",
+    "group": "发现与推荐",
+    "discoverTab": "artists",
+    "apiPatterns": [
+      "^/artist/list$"
+    ]
+  },
+  {
+    "key": "feature.podcasts",
+    "label": "播客电台",
+    "group": "发现与推荐",
+    "apiPatterns": [
+      "^/dj(?:/|$)"
+    ]
+  },
+  {
+    "key": "feature.searchAll",
+    "label": "综合搜索",
+    "group": "搜索",
+    "searchTab": "all"
+  },
+  {
+    "key": "feature.searchSongs",
+    "label": "歌曲搜索",
+    "group": "搜索",
+    "searchTab": "songs"
+  },
+  {
+    "key": "feature.searchArtists",
+    "label": "艺人搜索",
+    "group": "搜索",
+    "searchTab": "artists"
+  },
+  {
+    "key": "feature.searchAlbums",
+    "label": "专辑搜索",
+    "group": "搜索",
+    "searchTab": "albums"
+  },
+  {
+    "key": "feature.searchPlaylists",
+    "label": "歌单搜索",
+    "group": "搜索",
+    "searchTab": "playlists"
+  }
+]

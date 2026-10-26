@@ -20,7 +20,7 @@
       </section>
 
       <template v-else>
-        <section class="share-studio">
+        <section v-maintenance="'feature.socialPublish'" class="share-studio">
           <div class="share-avatar">
             <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="你的头像" />
             <span v-else>{{ initial(userStore.nickname) }}</span>
@@ -144,7 +144,7 @@
               <p v-else class="sidebar-state">暂时没有关注的人</p>
             </section>
 
-            <section class="topics-panel">
+            <section v-maintenance="'feature.topics'" class="topics-panel">
               <header><div><small>HOT TOPICS</small><h2>热门话题</h2></div><span>此刻</span></header>
               <p v-if="topicsLoading" class="sidebar-state">正在同步话题…</p>
               <div v-else-if="topics.length" class="topic-list">
@@ -249,6 +249,8 @@
 </template>
 
 <script setup>
+import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'MomentsPage'})
 
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
@@ -478,6 +480,7 @@ async function loadComments({reset = false} = {}) {
 }
 
 function openComments(event) {
+  if (!requireFeature('feature.socialComments')) return
   activeCommentEvent.value = event
   commentsDrawerOpen.value = true
   commentsTotal.value = Number(event?.commentCount || 0)
@@ -512,6 +515,7 @@ function cancelCommentReply() {
 }
 
 async function submitEventComment() {
+  if (!requireFeature('feature.socialComments')) return
   const event = activeCommentEvent.value
   const content = commentContent.value.trim()
   if (!event?.threadId || !content || commentSending.value) return
@@ -562,6 +566,7 @@ async function submitEventComment() {
 }
 
 async function toggleEventLike(event) {
+  if (!requireFeature('feature.socialLikes')) return
   if (!event?.threadId || event.likePending) return
   const previousLiked = Boolean(event.liked)
   const previousCount = Number(event.likedCount || 0)
@@ -732,6 +737,7 @@ function chooseSong(song) {
 }
 
 async function submitShare() {
+  if (!requireFeature('feature.socialPublish')) return
   const content = shareText.value.trim()
   if (!content && !selectedSong.value) return
   sharing.value = true
@@ -758,6 +764,7 @@ async function submitShare() {
 }
 
 function toggleForward(eventId) {
+  if (!requireFeature('feature.socialPublish')) return
   forwardingEventId.value = forwardingEventId.value === eventId ? '' : eventId
   forwardText.value = ''
   forwardFeedback.value = ''
@@ -765,6 +772,7 @@ function toggleForward(eventId) {
 }
 
 async function submitForward(event) {
+  if (!requireFeature('feature.socialPublish')) return
   forwarding.value = true
   try {
     const response = await userApi.forwardUserEvent(event.id, forwardText.value.trim(), userStore.userId)
@@ -795,6 +803,7 @@ async function openResource(resource) {
 }
 
 async function openTopic(topic) {
+  if (!requireFeature('feature.topics')) return
   activeTopic.value = topic
   topicDialogOpen.value = true
   topicLoading.value = true
@@ -866,6 +875,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleOverlayEscape)
   if (commentsDrawerOpen.value) document.body.style.overflow = previousBodyOverflow
 })
+useFeatureMaintenance('feature.topics', () => topicDialogOpen.value, closeTopic)
+useFeatureMaintenance('feature.socialComments', () => commentsDrawerOpen.value, closeComments)
 </script>
 
 <style scoped>

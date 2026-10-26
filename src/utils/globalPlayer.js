@@ -1,4 +1,5 @@
 import {songsApi} from '@/api/songsApi/songsApi.js'
+import { requireFeature } from './maintenanceAccess.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
 import {MAX_ANALYSIS_LOOKAHEAD} from '@/audio/constants.js'
@@ -456,6 +457,7 @@ export async function warmupNextTrack() {
 }
 
 export async function playSongById(songInput, {autoplay = true} = {}) {
+  if (!requireFeature('feature.playback')) return false
   const id = Number(songInput?.id || songInput)
   if (!Number.isFinite(id) || id <= 0) return false
 
@@ -570,6 +572,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
 }
 
 export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {autoplay = true} = {}) {
+  if (!requireFeature('feature.playback')) return false
   const playerStore = usePlayerStore()
   playerStore.setQueue(queue, {startIndex: queueIndex})
   const ok = await playSongById(songInput, {autoplay})
@@ -624,6 +627,7 @@ async function resolveNextIndex({direction = 'next', trigger = 'manual'} = {}) {
 }
 
 export async function playQueueByDirection(direction = 'next', {trigger = 'manual'} = {}) {
+  if (!requireFeature('feature.playback')) return false
   const playerStore = usePlayerStore()
   const navigationToken = ++queueNavigationToken
   dismissPlaybackNotice()
@@ -643,6 +647,7 @@ export async function playQueueByDirection(direction = 'next', {trigger = 'manua
 }
 
 export async function playQueueByIndex(index, {autoplay = true} = {}) {
+  if (!requireFeature('feature.playback')) return false
   const playerStore = usePlayerStore()
   const previousIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   const nextIndex = Number(index)

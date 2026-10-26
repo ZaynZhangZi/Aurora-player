@@ -256,6 +256,8 @@
 </template>
 
 <script setup>
+import { MAINTENANCE_TARGETS, requireFeature } from '@/utils/maintenanceAccess.js'
+import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'DiscoverPage'})
 
 import {computed, nextTick, onActivated, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
@@ -339,6 +341,8 @@ function normalizedTab(value) {
 }
 
 async function ensureTabData(tab) {
+  const key = MAINTENANCE_TARGETS.find(target => target.discoverTab === tab)?.key
+  if (key && !requireFeature(key)) return
   const isFeatured = tab === 'featured'
   const jobs = []
   if (!newAlbums.value.length && !loading.albums) jobs.push(refreshAlbums())
@@ -350,6 +354,8 @@ async function ensureTabData(tab) {
 }
 
 function switchTab(tab) {
+  const key = MAINTENANCE_TARGETS.find(target => target.discoverTab === normalizedTab(tab))?.key
+  if (key && !requireFeature(key)) return
   const next = normalizedTab(tab)
   if (activeTab.value === next) return
   activeTab.value = next
@@ -459,6 +465,7 @@ function formatReleaseDate(value) {
 watch(
   () => route.query.tab,
   (tab) => {
+    if (route.name !== 'discover') return
     const legacyStyleId = Number(route.query.style || 0)
     if (legacyStyleId) {
       void router.replace({name: 'styleDetailPage', params: {id: legacyStyleId}})
@@ -490,6 +497,10 @@ onUnmounted(() => {
 })
 
 onBeforeUnmount(closeMvPlayer)
+for (const target of MAINTENANCE_TARGETS.filter(target => target.discoverTab)) {
+  useFeatureMaintenance(target.key, () => activeTab.value === target.discoverTab, undefined, () => ensureTabData(activeTab.value))
+}
+useFeatureMaintenance('feature.podcasts', () => activeTab.value === 'airwaves' && airwaveMode.value === 'radio', undefined, refreshRadio)
 </script>
 
 <style scoped>

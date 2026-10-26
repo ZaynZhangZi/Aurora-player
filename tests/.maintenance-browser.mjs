@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
+import catalog from '../src/config/maintenanceTargets.json' with { type: 'json' };
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const output = resolve('docs/screenshots/maintenance');
@@ -85,12 +86,19 @@ try {
       if (item) message.error ? item.reject(new Error(message.error.message)) : item.resolve(message.result);
     } else if (message.method === 'Fetch.requestPaused') {
       intercept(message.params).catch(error => exceptions.push(error.message));
-    } else if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
+    } else if (message.method === 'Runtime.exceptionThrown') {
+      const details = message.params.exceptionDetails;
+      const error = details.exception?.description || details.text;
+      exceptions.push(error);
+      console.error('Browser exception:', error);
+    }
   });
   await send('Page.enable'); await send('Runtime.enable'); await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: 'http://127.0.0.1:4187/maintenance-smoke?keep=1' });
   await waitFor("document.querySelector('.maintenance-page') && !document.querySelector('#aurora-boot')", 'initial maintenance screen');
+  await waitFor("location.pathname === '/maintenance'", 'global maintenance route');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('from')"), '/maintenance-smoke?keep=1');
   assert.equal(await evaluate("!!document.querySelector('.app-shell')"), false, 'business app does not mount during initial maintenance');
   await screenshot('desktop.png');
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
@@ -127,11 +135,106 @@ try {
   await waitFor("!document.querySelector('.maintenance-page')", 'second recovery');
   assert.equal(await evaluate("document.querySelector('.app-shell').dataset.retained"), 'yes', 'existing page instance survives maintenance');
 
+  // Every business page, including deep links and aliases, must be gated before its content mounts.
+  const routePaths = { home: '/home', discover: '/discover?tab=charts', styleDetailPage: '/discover/style/1',
+    search: '/search?q=keep-me', playlist: '/playlist/1', album: '/album/1', artist: '/artist/1',
+    artistByName: '/artist?name=keep-me', profile: '/home/profile', messages: '/messages', moments: '/moments', releaseNotes: '/release-notes' };
+  const targetSettings = key => ({ available: false, useGlobalPage: false, title: `${key}维护中`, message: '独立维护',
+    estimatedReturn: '', accentColor: '#a78bfa', backgroundUrl: '', customHtml: `<h1>${key}独立维护</h1>` });
+  settings.enabled = false;
+  settings.customHtml = '';
+  for (const target of catalog.filter(target => target.routeNames)) {
+    for (const name of target.routeNames) {
+      settings.targets = { [target.key]: targetSettings(target.key) };
+      await send('Page.navigate', { url: `http://127.0.0.1:4187${routePaths[name]}` });
+      await waitFor(`document.querySelector('.maintenance-custom')?.srcdoc.includes(${JSON.stringify(target.key)})`, `direct page gate: ${name}`);
+      assert.equal(await evaluate("!!document.querySelector('.app-shell')"), false, `closed page never mounts: ${name}`);
+      await waitFor(`location.pathname === '/maintenance' && new URLSearchParams(location.search).get('from') === ${JSON.stringify(routePaths[name])}`, `maintenance URL: ${name}`);
+    }
+  }
+  settings.targets = { 'page.search': targetSettings('page.search') };
+  await send('Page.navigate', { url: 'http://127.0.0.1:4187/search?q=keep-me' });
+  await waitFor("!!document.querySelector('.maintenance-custom')", 'custom search maintenance');
+  await waitFor("location.pathname === '/maintenance'", 'search page redirects to maintenance route');
+  await screenshot('scoped-page.png');
+  settings.targets['page.search'].available = true;
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("document.querySelector('.search-page') && !document.querySelector('.maintenance-page')", 'page automatically recovers to exact deep link');
+  assert.equal(await evaluate('location.pathname + location.search'), '/search?q=keep-me');
+
+  settings.targets = { 'feature.recognition': targetSettings('feature.recognition') };
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await delay(200);
+  await evaluate("document.querySelector('.recognition-launch').focus(); document.querySelector('.recognition-launch').click()");
+  await waitFor("document.querySelector('.maintenance-custom')?.srcdoc.includes('feature.recognition')", 'blocked recognition action uses custom page');
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-dialog[role=dialog]')"), true);
+  assert.equal(await evaluate('location.pathname + location.search'), '/search?q=keep-me', 'feature dialog keeps the URL unchanged');
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.search-page')).visibility"), 'visible', 'feature dialog preserves the visible page');
+  assert.equal(await evaluate("!!document.querySelector('.recognition-dialog')"), false, 'disabled recognition does not request microphone access');
+  await screenshot('scoped-feature.png');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+  await waitFor("!document.querySelector('.maintenance-page')", 'return from individual feature maintenance');
+  await waitFor("document.activeElement === document.querySelector('.recognition-launch')", 'focus returns to the feature button');
+  await evaluate("document.querySelector('.recognition-launch').click()");
+  await waitFor("!!document.querySelector('.maintenance-dialog')", 'disabled feature can show the dialog again');
+  await evaluate("document.querySelector('.maintenance-dialog-backdrop').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'clicking the backdrop closes the feature dialog');
+  settings.targets['feature.recognition'].title = '听歌识曲维护中';
+  settings.targets['feature.recognition'].customHtml = '';
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await delay(200);
+  await evaluate("document.querySelector('.recognition-launch').click()");
+  await waitFor("document.querySelector('.maintenance-dialog h1')?.textContent.includes('听歌识曲维护中')", 'default maintenance dialog');
+  await screenshot('feature-dialog-default.png');
+  assert.ok(await evaluate("document.querySelector('.maintenance-dialog').getBoundingClientRect().height <= innerHeight"), 'dialog fits mobile viewport');
+  await evaluate("document.querySelector('.maintenance-dialog-close').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'close button dismisses dialog');
+
+  // Close an already-open native dialog before presenting maintenance; it cannot cover the overlay.
+  settings.targets = {};
+  await send('Page.navigate', { url: 'http://127.0.0.1:4187/home' });
+  await waitFor("!!document.querySelector('.aurora-settings')", 'home header');
+  await evaluate("document.querySelector('.aurora-settings').click()");
+  await waitFor("!!document.querySelector('dialog[open]')", 'settings dialog opens');
+  settings.targets = { 'feature.settings': targetSettings('feature.settings') };
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await waitFor("!!document.querySelector('.maintenance-custom') && !document.querySelector('dialog[open]')", 'live switch closes native dialog');
+  assert.equal(await evaluate('location.pathname'), '/home');
+  settings.targets['feature.settings'].available = true;
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("!document.querySelector('.maintenance-page')", 'feature automatically reopens');
+  assert.notEqual(await evaluate('document.body.style.overflow'), 'hidden', 'nested native dialog does not leave the page scroll locked');
+
+  // Kept-alive pages release active feature registrations when navigating away.
+  settings.targets = { 'feature.styles': targetSettings('feature.styles') };
+  await send('Page.navigate', { url: 'http://127.0.0.1:4187/discover?tab=styles' });
+  await waitFor("document.querySelector('.maintenance-custom')?.srcdoc.includes('feature.styles')", 'deep-linked discover tab maintenance');
+  settings.targets['feature.styles'].available = true;
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("!document.querySelector('.maintenance-page')", 'discover tab recovery');
+  assert.equal(await evaluate('location.search'), '?tab=styles');
+  settings.targets['feature.styles'].available = false;
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await waitFor("!!document.querySelector('.maintenance-page')", 'close active tab live');
+  await evaluate("document.querySelector('.maintenance-dialog-close').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog')", 'dismiss maintenance for active tab');
+  assert.equal(await evaluate('location.pathname + location.search'), '/discover?tab=styles');
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await delay(300);
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-dialog')"), false, 'polling does not reopen a dismissed dialog');
+  await evaluate("document.querySelector('.aurora-brand').click()");
+  await waitFor("location.pathname === '/home' && !document.querySelector('.maintenance-page')", 'navigate away from closed tab');
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await delay(200);
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-page')"), false, 'cached tab never blocks another page');
+
   // Authenticate only the isolated mock browser session; no production services are used.
   const auth = JSON.stringify({ token: 'test-token', expiresAt: Date.now() + 86400000 });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `if(location.port==='4188')localStorage.setItem('auth',${JSON.stringify(auth)});` });
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   settings.customHtml = '';
+  settings.targets['feature.login'] = { available: true, useGlobalPage: true, title: null, message: null,
+    estimatedReturn: null, accentColor: null, backgroundUrl: null, customHtml: null };
   await send('Page.navigate', { url: 'http://127.0.0.1:4188/maintenance' });
   await waitFor("!!document.querySelector('.maintenance-preview')", 'admin settings page');
   await screenshot('admin.png');
@@ -145,8 +248,30 @@ try {
   await waitFor("document.querySelector('form').textContent.includes('当前已发布：维护中')", 'save published maintenance');
   assert.equal(saves.at(-1).title, '维护页面已更新');
   assert.equal(saves.at(-1).enabled, true);
+  assert.equal(Object.keys(saves.at(-1).targets).length, catalog.length);
+  assert.equal(typeof saves.at(-1).targets['feature.login'].title, 'string', 'legacy minimal target fields receive editable defaults');
+  await evaluate(`(() => {
+    document.querySelector('[data-target="page.search"] input').click();
+    const row = document.querySelector('[data-target="page.search"]');
+    row.querySelector('button').click();
+  })()`);
+  await waitFor("document.querySelector('form').textContent.includes('搜索页面 · 维护页面')", 'edit individual maintenance page');
+  await evaluate(`(() => {
+    const checkbox = [...document.querySelectorAll('label')].find(label => label.textContent.includes('使用全站维护页面')).querySelector('input');
+    checkbox.click();
+    const title = [...document.querySelectorAll('input')].find(input => input.maxLength === 120);
+    title.value = '搜索专用维护页'; title.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await waitFor("document.querySelector('.maintenance-preview').textContent.includes('搜索专用维护页')", 'independent preview');
+  await screenshot('admin-scoped.png');
+  await evaluate("document.querySelector('button[type=submit]').click()");
+  await waitFor("!document.querySelector('form').textContent.includes('有未保存的修改')", 'scope save settles');
+  await delay(150);
+  assert.equal(saves.at(-1).targets['page.search'].available, false);
+  assert.equal(saves.at(-1).targets['page.search'].useGlobalPage, false);
+  assert.equal(saves.at(-1).targets['page.search'].title, '搜索专用维护页');
   assert.deepEqual(exceptions, []);
-  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'initial gate', 'mobile layout', 'network failure', 'same-route recovery', 'retained page instance', 'sandboxed HTML', 'admin preview and save'], screenshots: output }, null, 2));
+  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'feature dialogs preserve page and URL', 'Escape, backdrop dismissal and focus restoration', 'dismissed dialogs stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'mobile layout', 'network failure', 'same-route recovery', 'retained page instance', 'sandboxed HTML', '50 admin switches, custom preview and persistence'], screenshots: output }, null, 2));
 } finally {
   if (ws?.readyState === WebSocket.OPEN) {
     void send('Browser.close').catch(() => {});
