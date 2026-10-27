@@ -1,4 +1,7 @@
 export const MAINTENANCE_POLL_INTERVAL = 10_000;
+export const nextMaintenanceCheckAt = timestamp => (Math.floor(timestamp / MAINTENANCE_POLL_INTERVAL) + 1) * MAINTENANCE_POLL_INTERVAL;
+const beijingClock = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+export const formatBeijingTime = timestamp => beijingClock.format(timestamp);
 export const DEFAULT_MAINTENANCE = Object.freeze({
   enabled: false,
   title: '让好音乐，稍等片刻',
@@ -43,17 +46,41 @@ export function parseMaintenanceStatus(body) {
   };
 }
 
-export function createMaintenancePoller({ fetchStatus, onStatus, onError = () => {}, onSettled = () => {},
-  schedule = setInterval, cancel = clearInterval, timeout = setTimeout, clearTimeoutFn = clearTimeout }) {
+export function createMaintenancePoller({ fetchStatus, onStatus, onError = () => {}, onSettled = () => {}, onTiming = () => {},
+  now = Date.now, schedule = setTimeout, cancel = clearTimeout, timeout = setTimeout, clearTimeoutFn = clearTimeout }) {
   let stopped = false;
   let inFlight = null;
   let controller;
+  let clockOffset = 0;
+  let clockSynced = false;
+  let scheduled;
+  function plan() {
+    if (stopped) return;
+    cancel(scheduled);
+    const current = now() + clockOffset;
+    const nextCheckAt = nextMaintenanceCheckAt(current);
+    onTiming({ nextCheckAt, clockOffset, clockSynced });
+    scheduled = schedule(() => {
+      // Recompute from wall time after a delayed/background timer. Never replay
+      // missed slots or shift the cadence by the time spent fetching a response.
+      void check();
+    }, Math.max(1, Math.ceil(nextCheckAt - current)));
+  }
   async function run() {
     controller = new AbortController();
     const requestController = controller;
+    const startedAt = now();
     const timer = timeout(() => requestController.abort(), 4000);
     try {
-      const status = parseMaintenanceStatus(await fetchStatus(requestController.signal));
+      const status = parseMaintenanceStatus(await fetchStatus(requestController.signal, serverTime => {
+        if (stopped || requestController.signal.aborted || serverTime == null || String(serverTime).trim() === '') return;
+        const timestamp = Number(serverTime);
+        if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > 8.64e15) return;
+        const receivedAt = now();
+        clockOffset = timestamp + Math.min(4000, Math.max(0, receivedAt - startedAt)) / 2 - receivedAt;
+        clockSynced = true;
+        plan();
+      }));
       if (!stopped) onStatus(status);
     } catch (error) {
       if (!stopped) onError(error);
@@ -64,13 +91,13 @@ export function createMaintenancePoller({ fetchStatus, onStatus, onError = () =>
   }
   function check() {
     if (stopped) return Promise.resolve();
+    plan();
     if (!inFlight) inFlight = run().finally(() => { inFlight = null; });
     return inFlight;
   }
-  const interval = schedule(() => { void check(); }, MAINTENANCE_POLL_INTERVAL);
   void check();
   return {
     check,
-    stop() { stopped = true; cancel(interval); controller?.abort(); },
+    stop() { stopped = true; cancel(scheduled); controller?.abort(); },
   };
 }

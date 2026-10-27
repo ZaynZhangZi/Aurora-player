@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import catalog from '../src/config/maintenanceTargets.json' with { type: 'json' };
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const output = resolve('docs/screenshots/maintenance');
+const output = resolve(process.env.MAINTENANCE_SCREENSHOT_DIR || 'docs/screenshots/maintenance');
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), 'aurora-maintenance-'));
 const adminDir = resolve('../../backend/backend-fornt/AuroraPlayeradmin-panel');
@@ -41,6 +41,7 @@ async function waitFor(expression, description) {
 const settings = { enabled: true, title: '让好音乐，稍等片刻', message: '正在升级音乐服务，感谢你的耐心等待。\n维护结束后，将自动回到你刚才的页面。', estimatedReturn: '今天 22:00', accentColor: '#a78bfa', backgroundUrl: '', customHtml: '' };
 let failStatus = false;
 let failSave = false;
+let saveDelayMs = 0, activeSaves = 0, maxActiveSaves = 0, saveAttempts = 0;
 let statusRequests = [];
 const exceptions = [];
 const saves = [];
@@ -59,8 +60,14 @@ async function intercept({ requestId, request }) {
     code = failStatus ? 503 : 200;
     body = { code, data: settings };
   } else if (path.endsWith('/admin/maintenance')) {
-    if (request.method === 'PUT' && failSave) { code = 500; body = {code:500,message:'模拟保存失败'}; }
-    else { if (request.method === 'PUT') { Object.assign(settings, JSON.parse(request.postData)); saves.push({ ...settings }); } body = {code:200,data:settings}; }
+    if (request.method === 'PUT') {
+      const payload = JSON.parse(request.postData), failure = failSave;
+      saveAttempts++; activeSaves++; maxActiveSaves = Math.max(maxActiveSaves, activeSaves);
+      await delay(saveDelayMs);
+      activeSaves--;
+      if (failure) { code = 500; body = {code:500,message:'模拟保存失败'}; }
+      else { Object.assign(settings, payload); saves.push(structuredClone(settings)); body = {code:200,data:settings}; }
+    } else body = {code:200,data:settings};
   } else if (path.endsWith('/auth/me')) {
     body = { code: 200, data: { id: 1, username: 'admin', nickname: '维护管理员', roles: 'ROLE_ADMIN' } };
   } else if (/\/(?:cloudsearch|search)$/.test(path)) {
@@ -91,7 +98,9 @@ async function intercept({ requestId, request }) {
     body = {code:200,data:[{id:Number(url.searchParams.get('id')),url:'http://127.0.0.1:4187/maintenance-test.mp3',level:'exhigh'}]};
   }
   return send('Fetch.fulfillRequest', { requestId, responseCode: code,
-    responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' }],
+    responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' },
+      {name:'Access-Control-Expose-Headers',value:'X-Maintenance-Server-Time'},
+      ...(path.endsWith('/system/maintenance') ? [{name:'X-Maintenance-Server-Time',value:String(Date.now())}] : [])],
     body: Buffer.from(JSON.stringify(body)).toString('base64') });
 }
 async function screenshot(name) {
@@ -125,21 +134,47 @@ try {
     }
   });
   await send('Page.enable'); await send('Runtime.enable'); await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+  if (process.env.MAINTENANCE_ADMIN_ONLY !== '1') {
+  await send('Emulation.setTimezoneOverride', {timezoneId:'America/New_York'});
+  const skewScript = await send('Page.addScriptToEvaluateOnNewDocument', {source:"if(location.port==='4187'){window.__maintenanceRealNow=Date.now;Date.now=()=>window.__maintenanceRealNow()+125000}"});
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: 'http://127.0.0.1:4187/maintenance-smoke?keep=1' });
   await waitFor("document.querySelector('.maintenance-page') && !document.querySelector('#aurora-boot')", 'initial maintenance screen');
   await waitFor("location.pathname === '/maintenance'", 'global maintenance route');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('from')"), '/maintenance-smoke?keep=1');
   assert.equal(await evaluate("!!document.querySelector('.app-shell')"), false, 'business app does not mount during initial maintenance');
+  await waitFor("document.querySelector('.maintenance-timing').textContent.includes('已校准')", 'clock is calibrated from response headers');
+  const clockSeconds = await evaluate("document.querySelector('.maintenance-clock').textContent.split(':').map(Number).reduce((hours,value)=>hours*60+value,0)");
+  const expectedSeconds = Math.floor((Date.now()+8*3600000)/1000)%86400;
+  assert.ok(Math.min((clockSeconds-expectedSeconds+86400)%86400,(expectedSeconds-clockSeconds+86400)%86400)<=2, 'Beijing display ignores the wrong device clock and browser timezone');
+  assert.match(await evaluate("document.querySelector('.maintenance-next-time').textContent"), /:[0-5]0$/);
   await screenshot('desktop.png');
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await screenshot('mobile.png');
   assert.ok(await evaluate("document.querySelector('.maintenance-page').scrollWidth <= innerWidth"), 'mobile page does not overflow');
-  const requestsBefore = statusRequests.length;
-  await delay(10500);
-  assert.ok(statusRequests.length > requestsBefore, 'timer checks without user interaction');
-  const interval = statusRequests.at(-1) - statusRequests.at(-2);
+  const alignedSlots=()=>[...new Map(statusRequests.slice(1).filter(time=>Math.min(time%10000,10000-time%10000)<250).map(time=>[Math.round(time/10000),time])).values()];
+  for(let i=0;i<220 && alignedSlots().length<2;i++) await delay(100);
+  const ticks=alignedSlots();
+  assert.ok(ticks.length>=2, 'real timer requests align to shared ten-second boundaries');
+  const interval = ticks.at(-1) - ticks.at(-2);
   assert.ok(interval >= 9500 && interval <= 11000, `actual poll interval: ${interval}ms`);
+  await send('Page.removeScriptToEvaluateOnNewDocument', {identifier:skewScript.identifier});
+  await send('Emulation.setTimezoneOverride', {timezoneId:'Asia/Shanghai'});
+  const originalCopy={title:settings.title,message:settings.message};
+  settings.title='维护页面也应该清楚展示完整的自定义文案。'.repeat(8).slice(0,120);
+  settings.message='我们正在维护和优化音乐服务，恢复后会自动返回。\n'.repeat(70).slice(0,2000);
+  await send('Emulation.setDeviceMetricsOverride', {width:320,height:680,deviceScaleFactor:1,mobile:true});
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("document.querySelector('.maintenance-message').textContent.length>1000", 'long custom copy');
+  await evaluate("const page=document.querySelector('.maintenance-page');page.scrollTop=page.scrollHeight");
+  assert.ok(await evaluate("document.querySelector('.maintenance-page').scrollWidth<=innerWidth"),'long copy stays within a narrow screen');
+  assert.ok(await evaluate("(()=>{const rect=document.querySelector('.maintenance-check').getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight})()"),'long copy does not overlap or hide the check control');
+  await screenshot('long-content-mobile.png');
+  Object.assign(settings,originalCopy);
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("document.querySelector('.maintenance-message').textContent.length<200",'restore short copy');
+  await evaluate("document.querySelector('.maintenance-page').scrollTop=0");
+  await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
   failStatus = true;
   await evaluate("document.querySelector('.maintenance-status button').click()");
   await waitFor("document.querySelector('.maintenance-status').textContent.includes('暂时无法连接')", 'network failure retains maintenance');
@@ -380,10 +415,13 @@ try {
   }
 
   // Authenticate only the isolated mock browser session; no production services are used.
+  }
   const auth = JSON.stringify({ token: 'test-token', expiresAt: Date.now() + 86400000 });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `if(location.port==='4188')localStorage.setItem('auth',${JSON.stringify(auth)});` });
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   settings.customHtml = '';
+  settings.enabled = false;
+  settings.targets = {};
   settings.targets['feature.login'] = { available: true, useGlobalPage: true, title: null, message: null,
     estimatedReturn: null, accentColor: null, backgroundUrl: null, customHtml: null };
   await send('Page.navigate', { url: 'http://127.0.0.1:4188/maintenance' });
@@ -392,28 +430,38 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.target-row').length"), 11, 'pages form their own partition');
   assert.ok(await evaluate("getComputedStyle(document.querySelector('.control-columns')).gridTemplateColumns.split(' ').length === 3"), 'desktop has three columns');
   assert.equal(await evaluate("!!document.querySelector('.editor-panel iframe')"), false);
+  assert.equal(await evaluate("!!document.querySelector('[data-action=save], .draft-badge')"), false, 'there is no extra save confirmation');
+  assert.equal(saves.length, 0, 'loading configuration never writes it back');
   await evaluate("document.querySelector('[data-target=\"page.search\"] input').click(); document.querySelector('[data-target=\"page.search\"] .target-select').click()");
   await waitFor("document.querySelector('.editor-heading h2').textContent === '搜索页面'", 'selected page editor');
-  assert.equal(saves.length, 0, 'draft changes do not publish automatically');
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'switch saves immediately');
+  assert.equal(saves.at(-1).targets['page.search'].available, false);
   await evaluate("document.querySelector('[data-field=inherit]').click()");
-  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='搜索专用维护页';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'inheritance change saves');
+  const savesBeforeTyping = saves.length;
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');for(const text of ['搜索','搜索专用','搜索专用维护页']){title.value=text;title.dispatchEvent(new Event('input',{bubbles:true}))} })()");
+  await delay(150);
+  assert.equal(saves.length, savesBeforeTyping, 'typing is debounced');
   await evaluate("document.querySelector('[data-editor-tab=preview]').click()");
   await waitFor("document.querySelector('.page-preview h3').textContent.includes('搜索专用维护页')", 'page preview');
   await screenshot('admin-scoped.png');
   await evaluate("document.querySelector('[data-group=\"播放器\"]').click()");
   await waitFor("document.querySelectorAll('.target-row').length === 7", 'player partition');
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'text saves across partitions');
+  assert.equal(saves.length, savesBeforeTyping + 1, 'typing coalesces into one request');
+  assert.equal(saves.at(-1).targets['page.search'].title, '搜索专用维护页');
   await evaluate("document.querySelector('[data-target=\"feature.settings\"] .target-select').click()");
   await waitFor("!!document.querySelector('.editor-info')", 'feature text editor');
   assert.equal(await evaluate("!!document.querySelector('[data-editor-tab=appearance]')"), false, 'features have no page appearance editor');
   assert.equal(await evaluate("document.querySelector('.editor-fields input[maxlength=\"120\"]').value"), '外观与播放设置暂时不可用', 'default reminder fields match effective content');
   await evaluate("document.querySelector('[data-field=inherit]').click()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'default reminder setting saves');
   await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='设置暂时无法使用';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
   await evaluate("document.querySelector('[data-editor-tab=preview]').click()");
   await waitFor("document.querySelector('.alert-preview h3').textContent === '设置暂时无法使用'", 'compact alert preview');
   assert.equal(await evaluate("!!document.querySelector('.editor-panel iframe')"), false);
   await screenshot('admin-feature-preview.png');
-  await evaluate("document.querySelector('[data-action=save]').click()");
-  await waitFor("!document.querySelector('.draft-badge')", 'save all drafts');
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'reminder text automatically saves');
   assert.equal(saves.at(-1).targets['page.search'].available, false);
   assert.equal(saves.at(-1).targets['page.search'].title, '搜索专用维护页');
   assert.equal(saves.at(-1).targets['feature.settings'].title, '设置暂时无法使用');
@@ -421,38 +469,59 @@ try {
   assert.equal(Object.keys(saves.at(-1).targets).length, catalog.length);
 
   await evaluate("document.querySelector('[data-editor-tab=content]').click()");
-  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='临时修改';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
-  await evaluate("document.querySelector('.reset-target').click()");
-  await waitFor("document.querySelector('.editor-fields input[maxlength=\"120\"]').value === '设置暂时无法使用' && !document.querySelector('.draft-badge')", 'restore only the selected item');
+  saveDelayMs = 450;
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='第一版';title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true})) })()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('正在自动保存')", 'slow save is visible');
+  assert.equal(await evaluate("document.querySelector('.editor-fields input[maxlength=\"120\"]').disabled || document.querySelector('[data-target=\"feature.queue\"] input').disabled"), false, 'editing remains enabled during save');
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='连续编辑的最终版本';title.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-target=\"feature.queue\"] input').click() })()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'queued changes save in order');
+  assert.equal(saves.at(-1).targets['feature.settings'].title, '连续编辑的最终版本');
+  assert.equal(saves.at(-1).targets['feature.queue'].available, false);
+  assert.equal(await evaluate("document.querySelector('.editor-fields input[maxlength=\"120\"]').value"), '连续编辑的最终版本', 'slow response never overwrites newer input');
+  assert.equal(maxActiveSaves, 1, 'only one settings write runs at a time');
+  saveDelayMs = 0;
 
-  // Batch operations affect only this partition, and undo restores persisted values.
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='';title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true})) })()");
+  await waitFor("!!document.querySelector('.validation-notice')", 'incomplete text is marked inline');
+  await evaluate("document.querySelector('[data-target=\"feature.settings\"] input').click()");
+  await waitFor("!document.querySelector('[data-target=\"feature.settings\"] .target-sync-state') || document.querySelector('[data-autosave-status]').textContent.includes('部分内容待补全')", 'valid switch is independent of invalid text');
+  await delay(100);
+  assert.equal(saves.at(-1).targets['feature.settings'].available, false);
+  assert.equal(saves.at(-1).targets['feature.settings'].title, '连续编辑的最终版本', 'invalid title retains server value');
+  assert.equal(await evaluate("document.querySelector('.editor-fields input[maxlength=\"120\"]').value"), '', 'invalid input is retained for correction');
+  await evaluate("(() => { const title=document.querySelector('.editor-fields input[maxlength=\"120\"]');title.value='修正后的提醒';title.dispatchEvent(new Event('input',{bubbles:true})) })()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'corrected text saves automatically');
+
+  // Batch operations publish once and affect only this partition.
   const savedBeforeBatch=structuredClone(saves.at(-1));
+  const requestsBeforeBatch=saveAttempts;
   await evaluate("[...document.querySelectorAll('.target-batch button')].find(button=>button.textContent==='全部关闭').click()");
-  await waitFor("!!document.querySelector('.draft-badge')", 'batch draft');
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'batch changes automatically save');
+  assert.equal(saveAttempts,requestsBeforeBatch+1,'a batch uses one request');
+  for(const target of catalog.filter(target=>target.group==='播放器')) assert.equal(saves.at(-1).targets[target.key].available,false);
   await evaluate("document.querySelector('[data-group=\"页面\"]').click()");
   assert.equal(await evaluate("document.querySelector('[data-target=\"page.home\"] input').checked"), savedBeforeBatch.targets['page.home'].available, 'player batch leaves pages unchanged');
-  await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='放弃修改').click()");
-  await waitFor("!document.querySelector('.draft-badge')", 'discard drafts');
   await evaluate("document.querySelector('.target-search input').value='不存在的项目';document.querySelector('.target-search input').dispatchEvent(new Event('input',{bubbles:true}))");
   await waitFor("!!document.querySelector('.empty-targets') && !!document.querySelector('.empty-editor')", 'empty search clears stale selection');
   await evaluate("document.querySelector('.empty-targets button').click()");
   await waitFor("document.querySelectorAll('.target-row').length === 11", 'clear filters');
 
-  // A failed save retains the user's draft and supports retry.
-  await evaluate("document.querySelector('[data-target=\"page.home\"] input').click()");
+  // Failure is explicit and does not trigger an automatic retry loop.
   failSave=true;
-  await evaluate("document.querySelector('[data-action=save]').click()");
-  await waitFor("!!document.querySelector('.save-error')", 'failed save inline error');
-  assert.ok(await evaluate("!!document.querySelector('.draft-badge')"), 'failed save retains draft');
+  await evaluate("document.querySelector('[data-target=\"page.home\"] input').click()");
+  await waitFor("!!document.querySelector('.save-error-banner')", 'failed automatic save is visible');
+  await screenshot('admin-save-error.png');
+  assert.equal(await evaluate("document.querySelector('[data-target=\"page.home\"] input').checked"),false,'failed edit is retained');
+  const failedAttempts=saveAttempts;
+  await delay(800);
+  assert.equal(saveAttempts,failedAttempts,'no endless failure retries');
   failSave=false;
-  await evaluate("document.querySelector('[data-action=save]').click()");
-  await waitFor("!document.querySelector('.draft-badge') && !document.querySelector('.save-error')", 'retry save');
+  await evaluate("document.querySelector('[data-action=retry]').click()");
+  await waitFor("document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存') && !document.querySelector('.save-error-banner')", 'retry automatic save');
   await evaluate("document.querySelector('[data-group=global]').click()");
   await waitFor("!!document.querySelector('[data-switch=global]')", 'separate global control');
   await evaluate("document.querySelector('[data-switch=global]').click()");
-  await waitFor("!!document.querySelector('.global-notice') && !!document.querySelector('.draft-badge')", 'global toggle remains a draft until saved');
-  await evaluate("document.querySelector('[data-action=save]').click()");
-  await waitFor("!document.querySelector('.draft-badge')", 'global switch saves');
+  await waitFor("!!document.querySelector('.global-notice') && document.querySelector('[data-autosave-status]').textContent.includes('所有更改已保存')", 'global switch takes effect directly');
   assert.equal(saves.at(-1).enabled, true);
   await screenshot('admin-global.png');
   await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
@@ -460,7 +529,8 @@ try {
   await screenshot('admin-mobile.png');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'mobile workspace has no horizontal overflow');
   assert.deepEqual(exceptions, []);
-  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'compact plain-text feature alerts', 'Escape, backdrop dismissal and focus restoration', 'dismissed alerts stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'cached results blocked for every search and discover scope', 'cloud deletion confirmation closes and cached actions disappear', 'notifications and private messages stay blocked after dismissal', 'internal detail links and history re-entry stay gated', 'teleported business surfaces remain isolated until recovery', 'mobile layout', 'three-column partitioned admin workspace', 'separate page and reminder editors', 'drafts retained across partitions', 'partition-scoped batch changes and discard', 'failed save retains drafts and supports retry', 'custom preview and persistence'], screenshots: output }, null, 2));
+  const frontendChecks = process.env.MAINTENANCE_ADMIN_ONLY === '1' ? [] : ['10s polling', 'all page redirects with original URLs', 'compact plain-text feature alerts', 'Escape, backdrop dismissal and focus restoration', 'dismissed alerts stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'cached search and discover scopes stay blocked', 'cloud confirmation and cached actions close', 'notifications and private messages stay blocked', 'internal links and history stay gated', 'teleported surfaces remain isolated', 'interrupted audio requests never resume automatically'];
+  console.log(JSON.stringify({passed:true, checks:[...frontendChecks, 'mobile layout', 'three-column partitioned admin workspace', 'separate page and reminder editors', 'switches save without confirmation', 'debounced typing survives partition changes', 'slow responses preserve newer edits', 'settings requests run serially', 'incomplete fields do not block valid switches', 'partition batches use one request', 'failed saves retain edits and support retry', 'global switch saves directly', 'custom preview and persistence'],screenshots:output},null,2));
 } finally {
   if (ws?.readyState === WebSocket.OPEN) {
     void send('Browser.close').catch(() => {});

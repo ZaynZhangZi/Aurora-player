@@ -5,6 +5,7 @@
   <Transition name="maintenance-fade" @after-leave="restoreFocus">
     <MaintenancePage v-if="pageVisible" :settings="displaySettings" :offline="offline"
       :scope-label="displayLabel" :can-return="context && context.key !== 'global'" :checking="checking"
+      :next-check-at="timing.nextCheckAt" :clock-offset="timing.clockOffset" :clock-synced="timing.clockSynced"
       :recovering="recovering" @check="check" @return="returnToAvailablePage" />
   </Transition>
   <Teleport to="body">
@@ -40,6 +41,7 @@ const recovering = ref(false);
 const displayPresentation = ref('page');
 const offline = ref(false);
 const checking = ref(true);
+const timing = ref({ nextCheckAt: 0, clockOffset: 0, clockSynced: false });
 const blocked = computed(() => Boolean(context.value) || recovering.value);
 const pageVisible = computed(() => context.value?.presentation === 'page' || (recovering.value && displayPresentation.value === 'page'));
 const checked = ref(false);
@@ -72,13 +74,15 @@ function dismissBootScreen() {
 }
 
 const poller = createMaintenancePoller({
-  async fetchStatus(signal) {
+  async fetchStatus(signal, syncClock) {
     checking.value = true;
     const endpoint = import.meta.env.VITE_MAINTENANCE_STATUS_URL || `${resolveAdminApiBaseUrl().replace(/\/$/, '')}/api/v1/system/maintenance`;
     const response = await fetch(endpoint, { signal, cache: 'no-store', credentials: 'omit', headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error(`Maintenance status: ${response.status}`);
+    syncClock(response.headers.get('X-Maintenance-Server-Time'));
     return response.json();
   },
+  onTiming(value) { timing.value = value; },
   onStatus(value) {
     offline.value = false;
     updateMaintenanceSettings(value);
