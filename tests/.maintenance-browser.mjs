@@ -143,11 +143,10 @@ try {
   await waitFor("location.pathname === '/maintenance'", 'global maintenance route');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('from')"), '/maintenance-smoke?keep=1');
   assert.equal(await evaluate("!!document.querySelector('.app-shell')"), false, 'business app does not mount during initial maintenance');
-  await waitFor("document.querySelector('.maintenance-timing').textContent.includes('已校准')", 'clock is calibrated from response headers');
-  const clockSeconds = await evaluate("document.querySelector('.maintenance-clock').textContent.split(':').map(Number).reduce((hours,value)=>hours*60+value,0)");
-  const expectedSeconds = Math.floor((Date.now()+8*3600000)/1000)%86400;
-  assert.ok(Math.min((clockSeconds-expectedSeconds+86400)%86400,(expectedSeconds-clockSeconds+86400)%86400)<=2, 'Beijing display ignores the wrong device clock and browser timezone');
-  assert.match(await evaluate("document.querySelector('.maintenance-next-time').textContent"), /:[0-5]0$/);
+  assert.equal(await evaluate("document.querySelector('.maintenance-return-hint').textContent"), '维护完成以后自动退出维护页面');
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-status, .maintenance-timing, .maintenance-clock, .maintenance-check')"), false, 'maintenance page omits status, controls, clock and countdown');
+  assert.ok(await evaluate('Date.now()-window.__maintenanceRealNow()>120000'), 'test device clock is intentionally wrong');
+  assert.equal(await evaluate('Intl.DateTimeFormat().resolvedOptions().timeZone'), 'America/New_York');
   await screenshot('desktop.png');
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await screenshot('mobile.png');
@@ -164,24 +163,27 @@ try {
   settings.title='维护页面也应该清楚展示完整的自定义文案。'.repeat(8).slice(0,120);
   settings.message='我们正在维护和优化音乐服务，恢复后会自动返回。\n'.repeat(70).slice(0,2000);
   await send('Emulation.setDeviceMetricsOverride', {width:320,height:680,deviceScaleFactor:1,mobile:true});
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("document.querySelector('.maintenance-message').textContent.length>1000", 'long custom copy');
   await evaluate("const page=document.querySelector('.maintenance-page');page.scrollTop=page.scrollHeight");
   assert.ok(await evaluate("document.querySelector('.maintenance-page').scrollWidth<=innerWidth"),'long copy stays within a narrow screen');
-  assert.ok(await evaluate("(()=>{const rect=document.querySelector('.maintenance-check').getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight})()"),'long copy does not overlap or hide the check control');
+  assert.ok(await evaluate("(()=>{const rect=document.querySelector('.maintenance-return-hint').getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight})()"),'automatic exit hint remains accessible after long copy');
   await screenshot('long-content-mobile.png');
   Object.assign(settings,originalCopy);
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("document.querySelector('.maintenance-message').textContent.length<200",'restore short copy');
   await evaluate("document.querySelector('.maintenance-page').scrollTop=0");
   await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
   failStatus = true;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
-  await waitFor("document.querySelector('.maintenance-status').textContent.includes('暂时无法连接')", 'network failure retains maintenance');
+  const beforeFailure = statusRequests.length;
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  for (let i = 0; i < 40 && statusRequests.length === beforeFailure; i++) await delay(100);
+  assert.ok(statusRequests.length > beforeFailure, 'network failure request was attempted');
+  await delay(400);
   assert.equal(await evaluate("!!document.querySelector('.maintenance-page')"), true);
+  assert.equal(await evaluate("!!document.querySelector('.maintenance-status')"), false, 'network failure does not restore removed panel');
   failStatus = false;
   settings.enabled = false;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
   await waitFor("document.querySelector('.app-shell') && !document.querySelector('.maintenance-page')", 'automatic recovery');
   assert.equal(await evaluate('location.pathname + location.search'), '/maintenance-smoke?keep=1');
   await evaluate("document.querySelector('.app-shell').dataset.retained = 'yes'");
@@ -190,14 +192,14 @@ try {
   await waitFor("!!document.querySelector('.maintenance-page')", 'enter maintenance from running app');
   assert.equal(await evaluate("document.querySelector('.app-shell').dataset.retained"), 'yes');
   settings.customHtml = '<style>body{background:#15352a;color:white;font:24px system-ui;padding:40px}</style><h1>自定义维护页面</h1><script>parent.document.body.dataset.escaped="bad"</script>';
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("!!document.querySelector('.maintenance-custom')", 'custom HTML');
   assert.equal(await evaluate("document.querySelector('.maintenance-custom').getAttribute('sandbox')"), '');
   await delay(300);
   assert.equal(await evaluate('document.body.dataset.escaped'), undefined);
   await screenshot('custom.png');
   settings.enabled = false;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("!document.querySelector('.maintenance-page')", 'second recovery');
   assert.equal(await evaluate("document.querySelector('.app-shell').dataset.retained"), 'yes', 'existing page instance survives maintenance');
 
@@ -224,7 +226,7 @@ try {
   await waitFor("location.pathname === '/maintenance'", 'search page redirects to maintenance route');
   await screenshot('scoped-page.png');
   settings.targets['page.search'].available = true;
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("document.querySelector('.search-page') && !document.querySelector('.maintenance-page')", 'page automatically recovers to exact deep link');
   assert.equal(await evaluate('location.pathname + location.search'), '/search?q=keep-me');
 
@@ -373,7 +375,7 @@ try {
   await evaluate("document.querySelector('#business-teleport-test button').click()");
   assert.equal(await evaluate("window.__escapedMaintenance"), undefined, 'programmatic clicks cannot reach isolated business handlers');
   settings.targets = {};
-  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await evaluate("window.dispatchEvent(new Event('online'))");
   await waitFor("!document.querySelector('.maintenance-page') && !document.querySelector('#business-teleport-test').inert", 'teleport isolation restores after recovery');
   await evaluate("document.querySelector('#business-teleport-test').remove()");
 
