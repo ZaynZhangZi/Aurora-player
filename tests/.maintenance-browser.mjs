@@ -44,6 +44,9 @@ let failSave = false;
 let statusRequests = [];
 const exceptions = [];
 const saves = [];
+let fixtureSongId = 101;
+let holdSongResponse = false;
+let releaseSongResponse;
 async function intercept({ requestId, request }) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -60,12 +63,39 @@ async function intercept({ requestId, request }) {
     else { if (request.method === 'PUT') { Object.assign(settings, JSON.parse(request.postData)); saves.push({ ...settings }); } body = {code:200,data:settings}; }
   } else if (path.endsWith('/auth/me')) {
     body = { code: 200, data: { id: 1, username: 'admin', nickname: '维护管理员', roles: 'ROLE_ADMIN' } };
+  } else if (/\/(?:cloudsearch|search)$/.test(path)) {
+    const type = Number(url.searchParams.get('type') || 1);
+    const result = {
+      1: {songs: [{id: fixtureSongId, name: '维护回归歌曲', ar: [{id: 201, name: '测试艺人'}], al: {id: 301, name: '测试专辑'}, dt: 180000}], songCount: 40},
+      100: {artists: [{id: 201, name: '测试艺人'}], artistCount: 1},
+      10: {albums: [{id: 301, name: '测试专辑', artists: [{id: 201, name: '测试艺人'}]}], albumCount: 1},
+      1000: {playlists: [{id: 401, name: '测试歌单', trackCount: 1}], playlistCount: 1},
+    }[type] || {};
+    body = {code: 200, result};
+  } else if (path.endsWith('/style/list')) {
+    body = {code: 200, data: [{tagId: 1, tagName: '回归曲风', enName: 'TEST'}]};
+  } else if (path.endsWith('/top/album')) {
+    body = {code: 200, albums: [{id: 301, name: '测试专辑'}]};
+  } else if (path.endsWith('/toplist/detail')) {
+    body = {code: 200, list: [{id: 401, name: '测试榜单'}]};
+  } else if (path.endsWith('/artist/list')) {
+    body = {code: 200, artists: [{id: 201, name: '测试艺人'}], more: false};
+  } else if (path.endsWith('/user/cloud')) {
+    body = {code: 200, data: [{songId: 101, songName: '云盘回归歌曲', artist: '测试艺人', fileSize: 1024}], hasMore: false};
+  } else if (path.endsWith('/msg/notices')) {
+    body = {code: 200, notices: [{id: 1, typeTitle: '回归通知', notice: JSON.stringify({content: '维护前已加载的通知'})}]};
+  } else if (path.endsWith('/msg/private') || path.endsWith('/msg/private/history')) {
+    body = {code: 200, msgs: [{id: 1, fromUser: {userId: 2, nickname: '测试联系人'}, toUser: {userId: 1}, msg: JSON.stringify({msg: '维护前的消息'})}]};
+  } else if (/\/song\/url(?:\/v1)?$/.test(path)) {
+    if (holdSongResponse) await new Promise(resolve => { releaseSongResponse = resolve; });
+    body = {code:200,data:[{id:Number(url.searchParams.get('id')),url:'http://127.0.0.1:4187/maintenance-test.mp3',level:'exhigh'}]};
   }
   return send('Fetch.fulfillRequest', { requestId, responseCode: code,
     responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' }],
     body: Buffer.from(JSON.stringify(body)).toString('base64') });
 }
 async function screenshot(name) {
+  if (process.env.MAINTENANCE_SCREENSHOTS === '0') return;
   await delay(650);
   const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(join(output, name), Buffer.from(data, 'base64'));
@@ -231,6 +261,124 @@ try {
   await delay(200);
   assert.equal(await evaluate("!!document.querySelector('.maintenance-page')"), false, 'cached tab never blocks another page');
 
+  // Start with populated caches: dismissal must never expose usable results.
+  for (const target of catalog.filter(target => target.searchTab)) {
+    settings.targets = {};
+    await send('Page.navigate', {url: `http://127.0.0.1:4187/search?q=maintenance&tab=${target.searchTab}`});
+    await waitFor("!!document.querySelector('.results-body button')", `populated search: ${target.key}`);
+    settings.targets = {[target.key]: targetSettings(target.key)};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor("!!document.querySelector('.maintenance-dialog')", `live disable: ${target.key}`);
+    await evaluate("document.querySelector('.maintenance-dialog-confirm').click()");
+    await waitFor(`!!document.querySelector('[data-unavailable-target="${target.key}"]') && !document.querySelector('.maintenance-dialog')`, `dismissed but blocked: ${target.key}`);
+    assert.equal(await evaluate("!!document.querySelector('.results-body, .results .pagination')"), false, `${target.key}: cached actions removed`);
+    await evaluate("document.querySelector('.maintenance-feature-unavailable button').click()");
+    await waitFor("!!document.querySelector('.maintenance-dialog')", 'retry still blocks');
+    settings.targets[target.key].available = true;
+    await evaluate("document.querySelector('.maintenance-dialog-check').click()");
+    await waitFor("!document.querySelector('.maintenance-dialog') && !!document.querySelector('.results-body button')", `${target.key}: recovery reloads results`);
+  }
+  for (const target of catalog.filter(target => target.discoverTab)) {
+    settings.targets = {};
+    await send('Page.navigate', {url: `http://127.0.0.1:4187/discover?tab=${target.discoverTab}`});
+    await waitFor("!!document.querySelector('.browse-tab-stage .browse-section button')", `populated discover: ${target.key}`);
+    settings.targets = {[target.key]: targetSettings(target.key)};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor("!!document.querySelector('.maintenance-dialog')", `disable cached discover: ${target.key}`);
+    await evaluate("document.querySelector('.maintenance-dialog-close').click()");
+    await waitFor(`!!document.querySelector('[data-unavailable-target="${target.key}"]') && !document.querySelector('.maintenance-dialog')`, `discover stays blocked: ${target.key}`);
+    assert.equal(await evaluate("!!document.querySelector('.browse-tab-stage .browse-section')"), false, `${target.key}: cached browsing removed`);
+    // Header navigation remains usable while the current feature is disabled.
+    await evaluate("document.querySelector('.aurora-brand').click()");
+    await waitFor("location.pathname === '/home' && !document.querySelector('.maintenance-dialog')", 'leave disabled region');
+  }
+
+  // Closing either the originating feature or page cancels a pending playback
+  // intent, even when that scope recovers before the slow audio URL arrives.
+  for (const key of ['feature.searchSongs', 'page.search']) {
+    settings.targets = {};
+    fixtureSongId++;
+    holdSongResponse = true;
+    releaseSongResponse = undefined;
+    await send('Page.navigate', {url:'http://127.0.0.1:4187/search?q=delayed&tab=songs'});
+    await waitFor("!!document.querySelector('.results .song-row')", 'delayed playback fixture');
+    await evaluate("document.querySelector('.results .song-row').click()");
+    for (let i=0; i<60 && !releaseSongResponse; i++) await delay(50);
+    assert.equal(typeof releaseSongResponse, 'function', 'audio URL remains in flight');
+    settings.targets = {[key]:targetSettings(key)};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor(key.startsWith('page.') ? "!!document.querySelector('.maintenance-page')" : "!!document.querySelector('.maintenance-dialog')", `interrupt playback from ${key}`);
+    settings.targets = {};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor("!document.querySelector('.maintenance-page, .maintenance-dialog') && !!document.querySelector('.results')", 'scope recovers before audio URL');
+    holdSongResponse = false;
+    releaseSongResponse();
+    await delay(300);
+    assert.equal(await evaluate("Boolean(JSON.parse(localStorage.getItem('global-player-store') || '{}').currentSong?.id)"), false, 'late audio never starts after interrupted action');
+  }
+
+  // Previously mounted routes, history and internal links use the same page gate.
+  settings.targets = {};
+  await send('Page.navigate', {url: 'http://127.0.0.1:4187/discover?tab=releases'});
+  await waitFor("!!document.querySelector('.release-spotlight button')", 'album navigation fixture');
+  settings.targets = {'page.album': targetSettings('page.album')};
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await delay(150);
+  await evaluate("document.querySelector('.release-spotlight button').click()");
+  await waitFor("location.pathname === '/maintenance' && !!document.querySelector('.maintenance-page')", 'in-app closed detail is gated');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('from')"), '/album/301');
+  assert.equal(await evaluate("!!document.querySelector('.detail-overlay')"), false, 'closed detail is not mounted');
+  // Replacing the URL with the original route cannot bypass its switch.
+  await evaluate("history.pushState({}, '', '/album/301'); window.dispatchEvent(new PopStateEvent('popstate'))");
+  await waitFor("location.pathname === '/maintenance' && !!document.querySelector('.maintenance-page')", 'history re-entry remains gated');
+
+  // A business surface teleported outside #app must also stay inert.
+  await evaluate("(() => { const layer=document.createElement('div'); layer.id='business-teleport-test'; const button=document.createElement('button');button.textContent='业务操作';button.onclick=()=>window.__escapedMaintenance=true;layer.append(button);document.body.append(layer); })()");
+  await waitFor("document.querySelector('#business-teleport-test').inert", 'new business teleport is isolated');
+  await evaluate("document.querySelector('#business-teleport-test button').click()");
+  assert.equal(await evaluate("window.__escapedMaintenance"), undefined, 'programmatic clicks cannot reach isolated business handlers');
+  settings.targets = {};
+  await evaluate("document.querySelector('.maintenance-status button').click()");
+  await waitFor("!document.querySelector('.maintenance-page') && !document.querySelector('#business-teleport-test').inert", 'teleport isolation restores after recovery');
+  await evaluate("document.querySelector('#business-teleport-test').remove()");
+
+  // Simulated login is local to this browser profile, and every API is mocked.
+  await send('Page.addScriptToEvaluateOnNewDocument', {source: `if(location.port==='4187') {
+    localStorage.setItem('usermasgcookie','MUSIC_U=maintenance-test');
+    localStorage.setItem('usermasg',JSON.stringify({data:{profile:{userId:1,nickname:'回归账号'}}}));
+  }`});
+  await send('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await send('Page.navigate', {url: 'http://127.0.0.1:4187/home/profile'});
+  await waitFor("!!document.querySelector('#profile-tab-cloud')", 'profile fixture');
+  await evaluate("document.querySelector('#profile-tab-cloud').click()");
+  await waitFor("!!document.querySelector('.profile-cloud-actions .is-danger')", 'populated cloud cache');
+  await evaluate("document.querySelector('.profile-cloud-actions .is-danger').click()");
+  await waitFor("!!document.querySelector('.profile-cloud-delete-layer')", 'cloud confirmation outside app content');
+  settings.targets = {'feature.cloud': targetSettings('feature.cloud')};
+  await evaluate("window.dispatchEvent(new Event('online'))");
+  await waitFor("!!document.querySelector('.maintenance-dialog') && !document.querySelector('.profile-cloud-delete-layer')", 'disable closes pending cloud confirmation');
+  await evaluate("document.querySelector('.maintenance-dialog-confirm').click()");
+  await waitFor("!document.querySelector('.maintenance-dialog') && !!document.querySelector('[data-unavailable-target=\"feature.cloud\"]')", 'cloud remains unavailable');
+  assert.equal(await evaluate("!!document.querySelector('.profile-cloud-row, #profile-panel-cloud input')"), false, 'no cached play/upload/delete controls');
+  await evaluate("document.querySelector('#profile-tab-playlist').click()");
+  await waitFor("!!document.querySelector('#profile-panel-playlist')", 'available library still opens');
+  settings.targets = {};
+  await send('Page.navigate', {url:'http://127.0.0.1:4187/messages'});
+  await waitFor("!!document.querySelector('.notice-workspace')", 'logged-in messages');
+  for (const [key, tab, region] of [['feature.notifications', '通知', '.notice-workspace'], ['feature.privateMessages', '私信', '.private-workspace']]) {
+    await evaluate(`[...document.querySelectorAll('.messages-tabs button')].find(button=>button.textContent.includes(${JSON.stringify(tab)})).click()`);
+    await waitFor(`!!document.querySelector(${JSON.stringify(region)})`, `message scope: ${key}`);
+    settings.targets = {[key]:targetSettings(key)};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor("!!document.querySelector('.maintenance-dialog')", `close active ${key}`);
+    await evaluate("document.querySelector('.maintenance-dialog-close').click()");
+    await waitFor(`!document.querySelector('.maintenance-dialog') && !!document.querySelector('[data-unavailable-target="${key}"]')`, `message closure persists: ${key}`);
+    assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(region)})`), false, 'cached message controls stay removed');
+    settings.targets = {};
+    await evaluate("window.dispatchEvent(new Event('online'))");
+    await waitFor(`!!document.querySelector(${JSON.stringify(region)})`, 'message recovery');
+  }
+
   // Authenticate only the isolated mock browser session; no production services are used.
   const auth = JSON.stringify({ token: 'test-token', expiresAt: Date.now() + 86400000 });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `if(location.port==='4188')localStorage.setItem('auth',${JSON.stringify(auth)});` });
@@ -312,7 +460,7 @@ try {
   await screenshot('admin-mobile.png');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'mobile workspace has no horizontal overflow');
   assert.deepEqual(exceptions, []);
-  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'compact plain-text feature alerts', 'Escape, backdrop dismissal and focus restoration', 'dismissed alerts stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'mobile layout', 'three-column partitioned admin workspace', 'separate page and reminder editors', 'drafts retained across partitions', 'partition-scoped batch changes and discard', 'failed save retains drafts and supports retry', 'custom preview and persistence'], screenshots: output }, null, 2));
+  console.log(JSON.stringify({ passed: true, checks: ['10s polling', 'all page redirects with original URLs', 'compact plain-text feature alerts', 'Escape, backdrop dismissal and focus restoration', 'dismissed alerts stay closed across polls', 'native dialog live closure', 'keep-alive isolation', 'cached results blocked for every search and discover scope', 'cloud deletion confirmation closes and cached actions disappear', 'notifications and private messages stay blocked after dismissal', 'internal detail links and history re-entry stay gated', 'teleported business surfaces remain isolated until recovery', 'mobile layout', 'three-column partitioned admin workspace', 'separate page and reminder editors', 'drafts retained across partitions', 'partition-scoped batch changes and discard', 'failed save retains drafts and supports retry', 'custom preview and persistence'], screenshots: output }, null, 2));
 } finally {
   if (ws?.readyState === WebSocket.OPEN) {
     void send('Browser.close').catch(() => {});

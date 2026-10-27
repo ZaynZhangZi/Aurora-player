@@ -10,9 +10,10 @@ export const searchApi = {
     })
   },
 
-  searchByType(keywords, { type = 1, limit = 30, offset = 0, endpoint = '/cloudsearch', signal } = {}) {
+  searchByType(keywords, { type = 1, limit = 30, offset = 0, endpoint = '/cloudsearch', signal, maintenanceTargets } = {}) {
     return apiClient.get(endpoint, {
       signal,
+      maintenanceTargets,
       params: {
         keywords,
         type,

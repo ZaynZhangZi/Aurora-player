@@ -155,7 +155,7 @@ function backToDiscover() {
 function openPlaylist(item) { const id = Number(item?.id || 0); if (id) openDetail('playlist', id) }
 function openAlbum(item) { const id = Number(item?.id || 0); if (id) openDetail('album', id) }
 function openArtist(item) { const id = Number(item?.id || 0); if (id) openDetail('artist', id) }
-async function playStyleSong(song, index = 0) { await playSongWithQueue(song, styleSongs.value, index) }
+async function playStyleSong(song, index = 0) { await playSongWithQueue(song, styleSongs.value, index, {maintenanceTargets: ['page.style', 'feature.styles']}) }
 
 function formatCount(value) {
   const raw = String(value ?? '').trim()

@@ -794,7 +794,7 @@ async function submitForward(event) {
 
 async function openResource(resource) {
   if (resource.kind === 'song') {
-    await playSongWithQueue(resource.raw, [resource.raw], 0)
+    await playSongWithQueue(resource.raw, [resource.raw], 0, {maintenanceTargets: ['page.moments']})
     return
   }
   if (resource.kind === 'playlist' && resource.id) openDetail('playlist', resource.id)

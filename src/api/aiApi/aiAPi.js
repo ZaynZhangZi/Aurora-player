@@ -1,5 +1,5 @@
 import axios from "axios";
-import { requireFeature, MaintenanceBlockedError } from '../../utils/maintenanceAccess.js';
+import { requireFeature, MaintenanceBlockedError, assertMaintenanceRequest } from '../../utils/maintenanceAccess.js';
 import apiClient from "@/axios/apiClient.js";
 
 const DEEPSEEK_API_KEY = String(import.meta.env.VITE_DEEPSEEKAPI || "").trim();
@@ -31,7 +31,10 @@ export const aiAPi = {
 					},
 					timeout: Number(import.meta.env.VITE_DEEPSEEK_TIMEOUT || 60000),
 				},
-			);
+			).then(response => {
+        assertMaintenanceRequest({maintenanceTargets: ['feature.ai']}, {notify: false});
+        return response;
+      });
 		}
 
 		return apiClient.post("/ai/deepseek", payload);

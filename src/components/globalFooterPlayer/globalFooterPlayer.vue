@@ -1751,6 +1751,7 @@ function getSmoothPlaybackTimeMs() {
 }
 
 function seekToMs(nextTime) {
+  if (!requireFeature('feature.playback')) return;
   const active = getActiveAudio();
   if (!active) return;
   interruptAutomixForUserAction("timeline-seek");
@@ -2319,6 +2320,7 @@ async function selectAudioQuality(level) {
     source = null;
   }
   if (requestToken !== qualityRequestToken || String(playerStore.currentSong?.id) !== songId) return;
+  if (!requireFeature('feature.audioQuality')) { cancelQualitySwitch(); return; }
   qualityLoadingLevel.value = "";
   if (!source?.url) {
     qualitySwitching.value = false;
@@ -2944,6 +2946,7 @@ useFeatureMaintenance('feature.automix', () => playerStore.automixEnabled, () =>
   autoMixEngine.disable();
   stopCrossfade();
 });
+useFeatureMaintenance('feature.audioQuality', () => qualitySwitching.value, cancelQualitySwitch);
 </script>
 
 <style scoped>

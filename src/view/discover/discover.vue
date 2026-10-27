@@ -3,7 +3,7 @@
     <AppHeader />
 
     <main class="browse-main" data-route-motion-root>
-      <section class="browse-hero">
+      <section v-maintenance="'feature.newReleases'" class="browse-hero">
         <div class="browse-hero-heading">
           <div>
             <p>EDITOR'S PICKS</p>
@@ -36,6 +36,7 @@
       </nav>
 
       <div class="browse-tab-stage">
+        <MaintenanceFeature :target="MAINTENANCE_TARGETS.find(target => target.discoverTab === activeTab)?.key">
         <Transition name="browse-tab-content">
           <section v-if="activeTab === 'featured'" key="featured" class="browse-section featured-dashboard">
         <header class="section-heading featured-heading">
@@ -44,7 +45,7 @@
         </header>
 
         <div class="quick-discovery" aria-label="快速发现">
-          <button class="quick-discovery-card is-random" type="button" @click="openRandomStyle">
+          <button v-maintenance="'feature.styles'" class="quick-discovery-card is-random" type="button" @click="openRandomStyle">
             <span>01</span><small>随机漫游</small><strong>随便逛一种曲风</strong><i>→</i>
           </button>
           <button class="quick-discovery-card is-release" type="button" @click="switchTab('releases')">
@@ -58,7 +59,7 @@
           </button>
         </div>
 
-        <section class="featured-block">
+        <section v-maintenance="'feature.newReleases'" class="featured-block">
           <header class="featured-block-heading">
             <div><small>FRESH RELEASES</small><h3>新鲜上架</h3></div>
             <button type="button" @click="switchTab('releases')">查看全部 <span>→</span></button>
@@ -78,7 +79,7 @@
         </section>
 
         <div class="featured-split">
-          <section class="featured-block featured-chart-block">
+          <section v-maintenance="'feature.charts'" class="featured-block featured-chart-block">
             <header class="featured-block-heading">
               <div><small>TRENDING NOW</small><h3>正在上升</h3></div>
               <button type="button" @click="switchTab('charts')">完整榜单 <span>→</span></button>
@@ -95,7 +96,7 @@
             <div v-else class="featured-empty"><span>趋势数据暂时不可用</span><button type="button" @click="loadCharts">重新加载</button></div>
           </section>
 
-          <section class="featured-block featured-artist-block">
+          <section v-maintenance="'feature.artists'" class="featured-block featured-artist-block">
             <header class="featured-block-heading">
               <div><small>NEW VOICES</small><h3>值得认识的声音</h3></div>
               <button type="button" @click="switchTab('artists')">艺人目录 <span>→</span></button>
@@ -112,7 +113,7 @@
           </section>
         </div>
 
-        <section class="featured-block featured-video-block">
+        <section v-maintenance="'feature.mv'" class="featured-block featured-video-block">
           <header class="featured-block-heading">
             <div><small>WATCH & LISTEN</small><h3>今晚看什么</h3></div>
             <button type="button" @click="openFeaturedAirwaves">更多影像 <span>→</span></button>
@@ -216,7 +217,7 @@
             <div class="segmented-control"><button type="button" :class="{ 'is-active': airwaveMode === 'mv' }" @click="airwaveMode = 'mv'">音乐视频</button><button type="button" :class="{ 'is-active': airwaveMode === 'radio' }" @click="openRadio">播客电台</button></div>
           </header>
 
-          <template v-if="airwaveMode === 'mv'">
+          <MaintenanceFeature v-if="airwaveMode === 'mv'" target="feature.mv">
             <div class="media-toolbar"><div class="filter-pills"><button v-for="source in mvSourceOptions" :key="source.value" type="button" :class="{ 'is-active': activeMvSource === source.value }" @click="switchMvSource(source.value)">{{ source.label }}</button></div><div v-if="activeMvSource === 'all'" class="select-row"><select v-model="mvArea" aria-label="MV 地区" @change="refreshMv"><option v-for="area in mvAreas" :key="area">{{ area }}</option></select><select v-model="mvType" aria-label="MV 类型" @change="refreshMv"><option v-for="type in mvTypes" :key="type">{{ type }}</option></select><select v-model="mvOrder" aria-label="MV 排序" @change="refreshMv"><option v-for="order in mvOrders" :key="order">{{ order }}</option></select></div></div>
             <div v-if="loading.mv" class="video-grid skeleton-grid"><span v-for="index in 9" :key="index" /></div>
             <div v-else-if="errors.mv" class="browse-state"><p>{{ errors.mv }}</p><button type="button" @click="refreshMv">重新加载</button></div>
@@ -224,9 +225,9 @@
               <button v-for="item in mvList" :key="item.id" type="button" @click="openMv(item)"><span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="760" sizes="(min-width: 900px) 31vw, 92vw" /><i>▶</i></span><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small></button>
             </div>
             <div v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'" class="browse-pagination"><button type="button" :disabled="mvOffset <= 0 || loading.mv" @click="prevMvPage">上一页</button><span>第 {{ Math.floor(mvOffset / mvLimit) + 1 }} 页</span><button type="button" :disabled="!mvHasMore || loading.mv" @click="nextMvPage">下一页</button></div>
-          </template>
+          </MaintenanceFeature>
 
-          <template v-else>
+          <MaintenanceFeature v-else target="feature.podcasts">
             <div class="radio-categories"><button v-for="category in djCategories" :key="category.id" type="button" :class="{ 'is-active': Number(activeRadioCategory) === Number(category.id) }" @click="changeRadioCategory(category.id)"><img :src="category.pic56x56Url" alt=""><span>{{ category.name }}</span></button></div>
             <div v-if="loading.radio" class="radio-grid skeleton-grid"><span v-for="index in 8" :key="index" /></div>
             <div v-else-if="errors.radio" class="browse-state"><p>{{ errors.radio }}</p><button type="button" @click="refreshRadio">重新加载</button></div>
@@ -234,9 +235,10 @@
               <div class="radio-grid"><article v-for="radio in radios" :key="radio.id"><span class="radio-art"><SmartMedia :src="radio.picUrl" :alt="`${radio.name}封面`" :image-width="460" sizes="210px" /></span><div><small>{{ radio.category || '播客电台' }}</small><strong>{{ radio.name }}</strong><span>{{ radio.dj?.nickname || radio.desc || '声音创作者' }}</span></div></article></div>
               <aside class="program-list"><p>热门节目</p><button v-for="(entry, index) in programs" :key="entry.program?.id || index" type="button" @click="playProgram(entry)"><b>{{ index + 1 }}</b><SmartMedia :src="entry.program?.coverUrl" :alt="`${entry.program?.name || '节目'}封面`" :image-width="140" sizes="52px" /><span><strong>{{ entry.program?.name || '播客节目' }}</strong><small>点击播放</small></span><i>▶</i></button></aside>
             </div>
-          </template>
+          </MaintenanceFeature>
           </section>
         </Transition>
+        </MaintenanceFeature>
       </div>
     </main>
 
@@ -364,12 +366,14 @@ function switchTab(tab) {
 }
 
 function openStyle(style) {
+  if (!requireFeature('feature.styles')) return
   const id = Number(style?.tagId || style?.id || 0)
   if (!id) return
   router.push({name: 'styleDetailPage', params: {id}})
 }
 
 async function openRandomStyle() {
+  if (!requireFeature('feature.styles')) return
   if (!styles.value.length && !loading.styles) await loadStyles()
   const candidates = styles.value
     .flatMap(style => [style, ...(style?.childrenTags || [])])
@@ -391,6 +395,7 @@ function changeArtistFilter(key, value) { artistFilters[key] = value; artistFilt
 function changeArtistPage(direction) { artistFilters.offset = Math.max(0, artistFilters.offset + direction * artistFilters.limit); void refreshArtists(); window.scrollTo({top: 420, behavior: 'smooth'}) }
 
 function openRadio() {
+  if (!requireFeature('feature.podcasts')) return
   airwaveMode.value = 'radio'
   if (!djCategories.value.length || !radios.value.length) void refreshRadio()
 }
@@ -448,12 +453,13 @@ function runDiscoverHeroReturn() {
 }
 
 async function playProgram(entry) {
+  if (!requireFeature('feature.podcasts')) return
   const program = entry?.program || entry || {}
   const song = program?.mainSong || {}
   const id = Number(song?.id || program?.id || 0)
   if (!id) return
   const playable = {...song, id, name: program?.name || song?.name || '播客节目', cover: program?.coverUrl || program?.blurCoverUrl || '', artists: song?.artists || song?.ar || []}
-  await playSongWithQueue(playable, [playable], 0)
+  await playSongWithQueue(playable, [playable], 0, {maintenanceTargets: ['page.discover', 'feature.podcasts']})
 }
 
 function formatReleaseDate(value) {
@@ -501,6 +507,7 @@ for (const target of MAINTENANCE_TARGETS.filter(target => target.discoverTab)) {
   useFeatureMaintenance(target.key, () => activeTab.value === target.discoverTab, undefined, () => ensureTabData(activeTab.value))
 }
 useFeatureMaintenance('feature.podcasts', () => activeTab.value === 'airwaves' && airwaveMode.value === 'radio', undefined, refreshRadio)
+useFeatureMaintenance('feature.mv', () => activeTab.value === 'airwaves' && airwaveMode.value === 'mv', undefined, () => loadMvList({reset: true}))
 </script>
 
 <style scoped>

@@ -65,7 +65,7 @@ const axiosInstance = axios.create({
 // 请求拦截器，用于在请求之前做一些处理
 axiosInstance.interceptors.request.use(
     (config) => {
-        assertMaintenanceRequest(config.url);
+        assertMaintenanceRequest(config);
         const store = useCounterStore();
         const loginCookie = normalizeCookieString(store.getUserCookie || readStoredCookieFallback());
         const skipAuthCookie = Boolean(config.skipAuthCookie || config.params?.noCookie);
@@ -110,6 +110,7 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器，用于对响应数据进行处理
 axiosInstance.interceptors.response.use(
     (response) => {
+        assertMaintenanceRequest(response.config, { notify: false });
         // 可以根据需要对响应数据进行处理
         return response;
     },

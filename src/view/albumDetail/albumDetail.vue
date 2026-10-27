@@ -340,7 +340,7 @@ async function playFromIndex(startIndex = 0) {
 
   for (let i = startIndex; i < songs.value.length; i += 1) {
     const targetSong = songs.value[i]
-    const ok = await playSongWithQueue(targetSong, songs.value, i)
+    const ok = await playSongWithQueue(targetSong, songs.value, i, {maintenanceTargets: ['page.album']})
     if (ok) {
       if (i !== startIndex) {
         playHint.value = '首选曲目暂不可播放，已自动切换'

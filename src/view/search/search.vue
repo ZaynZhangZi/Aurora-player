@@ -85,6 +85,7 @@
 
       <!-- 结果态 -->
       <div v-if="hasKeyword" ref="resultsTopRef" class="results" :aria-busy="busy">
+        <MaintenanceFeature :target="MAINTENANCE_TARGETS.find(target => target.searchTab === activeTab)?.key">
         <div v-if="loading && !visibleHasResults" class="results-skeleton">
           <SearchSkeleton />
         </div>
@@ -109,11 +110,12 @@
           <template v-if="displayTab === 'all'">
             <div class="overview-lead">
               <SearchBestMatch
+                v-maintenance="bestMatch?.type === 'song' ? 'feature.searchSongs' : bestMatch?.type === 'artist' ? 'feature.searchArtists' : bestMatch?.type === 'album' ? 'feature.searchAlbums' : 'feature.searchPlaylists'"
                 v-if="bestMatch"
                 :match="bestMatch"
                 @open="openBestMatch"
               />
-              <div v-if="results.songs.length" class="overview-song-panel">
+              <div v-if="results.songs.length" v-maintenance="'feature.searchSongs'" class="overview-song-panel">
                 <SearchSongList
                   :songs="results.songs.slice(0, 5)"
                   :start-index="0"
@@ -126,6 +128,7 @@
             </div>
             <div class="overview-sections">
               <SearchMediaSection
+                v-maintenance="'feature.searchAlbums'"
                 v-if="results.albums.length"
                 variant="album"
                 title="专辑"
@@ -135,6 +138,7 @@
                 @view-all="switchTab('albums')"
               />
               <SearchMediaSection
+                v-maintenance="'feature.searchPlaylists'"
                 v-if="results.playlists.length"
                 variant="playlist"
                 title="歌单"
@@ -144,6 +148,7 @@
                 @view-all="switchTab('playlists')"
               />
               <SearchMediaSection
+                v-maintenance="'feature.searchArtists'"
                 v-if="results.artists.length"
                 variant="artist"
                 title="相关艺人"
@@ -195,6 +200,7 @@
             </div>
           </Transition>
         </div>
+        </MaintenanceFeature>
       </div>
     </main>
     <SearchSongRecognition v-if="recognitionOpen" @close="closeRecognition" @search="searchRecognizedSong" />
@@ -386,6 +392,7 @@ async function runSearch({query = keyword.value, tab = activeTab.value} = {}) {
         limit: config.key === 'songs' ? 6 : 5,
         offset: 0,
         signal,
+        maintenanceTargets: ['feature.searchAll'],
       })))
       if (currentRequest !== requestId) return
 
@@ -531,7 +538,10 @@ function changePage(nextPage) {
 }
 
 async function playSong(song, index = 0) {
-  await playSongWithQueue(song, results.songs, Math.max(0, index - page.value * pageSize))
+  if (!requireSearchResult('feature.searchSongs')) return
+  const scope = MAINTENANCE_TARGETS.find(target => target.searchTab === activeTab.value)?.key
+  await playSongWithQueue(song, results.songs, Math.max(0, index - page.value * pageSize),
+    {maintenanceTargets: ['page.search', 'feature.searchSongs', ...(scope ? [scope] : [])]})
 }
 
 function openBestMatch(match) {
@@ -547,18 +557,26 @@ function openBestMatch(match) {
 }
 
 function openArtist(artist) {
+  if (!requireSearchResult('feature.searchArtists')) return
   const id = Number(artist?.id || 0)
   if (id) openDetail('artist', id, {query: artist?.name ? {name: artist.name} : undefined})
 }
 
 function openAlbum(album) {
+  if (!requireSearchResult('feature.searchAlbums')) return
   const id = Number(album?.id || 0)
   if (id) openDetail('album', id)
 }
 
 function openPlaylist(playlist) {
+  if (!requireSearchResult('feature.searchPlaylists')) return
   const id = Number(playlist?.id || playlist?.playlistId || 0)
   if (id) openDetail('playlist', id)
+}
+
+function requireSearchResult(key) {
+  const current = MAINTENANCE_TARGETS.find(target => target.searchTab === activeTab.value)?.key
+  return (!current || requireFeature(current)) && requireFeature(key)
 }
 
 function formatCount(value) {
@@ -612,7 +630,7 @@ onBeforeUnmount(() => {
 })
 useFeatureMaintenance('feature.recognition', () => recognitionOpen.value, closeRecognition)
 for (const target of MAINTENANCE_TARGETS.filter(target => target.searchTab)) {
-  useFeatureMaintenance(target.key, () => activeTab.value === target.searchTab, undefined, () => runSearch())
+  useFeatureMaintenance(target.key, () => hasKeyword.value && activeTab.value === target.searchTab, cancelSearch, () => runSearch())
 }
 </script>
 

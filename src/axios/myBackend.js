@@ -26,7 +26,7 @@ const requestLocal = axios.create({
 
 requestLocal.interceptors.request.use(
   (config) => {
-    assertMaintenanceRequest(config.url)
+    assertMaintenanceRequest(config)
     const cacheBust = Boolean(config.cacheBust)
     if (cacheBust) {
       config.params = {
@@ -48,7 +48,10 @@ requestLocal.interceptors.request.use(
 )
 
 requestLocal.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    assertMaintenanceRequest(response.config, { notify: false })
+    return response
+  },
   (error) => Promise.reject(error),
 )
 

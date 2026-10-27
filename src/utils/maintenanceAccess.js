@@ -65,17 +65,28 @@ export function setMaintenanceFeatureActive(token, key, active) {
 export class MaintenanceBlockedError extends Error {
   constructor(key) { super(`${targetLabel(key)}正在维护`); this.name = 'MaintenanceBlockedError'; this.target = key; }
 }
-export function requestMaintenanceTargets(url = '') {
-  let path;
-  try { path = new URL(url, 'https://maintenance.local').pathname; } catch { return []; }
-  return [...new Set(apiRules.filter(([pattern]) => pattern.test(path)).map(([, key]) => key))];
+const requestPath = url => url.pathname.replace(/^\/backend-api(?=\/)/, '').replace(/^\/api\/(?!v1(?:\/|$))/, '/');
+export function requestMaintenanceTargets(request = '') {
+  const config = typeof request === 'string' ? { url: request } : request || {};
+  let url;
+  try { url = new URL(config.url || '', 'https://maintenance.local'); } catch { return []; }
+  const path = requestPath(url);
+  const keys = apiRules.filter(([pattern]) => pattern.test(path)).map(([, key]) => key);
+  if (/^\/(?:cloudsearch|search)$/.test(path)) {
+    const type = config.params?.get?.('type') ?? config.params?.type ?? url.searchParams.get('type') ?? 1;
+    const key = { 1: 'feature.searchSongs', 10: 'feature.searchAlbums', 100: 'feature.searchArtists', 1000: 'feature.searchPlaylists', 1018: 'feature.searchAll' }[Number(type)];
+    if (key) keys.push(key);
+  }
+  if (Array.isArray(config.maintenanceTargets)) keys.push(...config.maintenanceTargets);
+  return [...new Set(keys)];
 }
 // Background data loads must not open a maintenance screen over an unrelated feature.
-export function assertMaintenanceRequest(url) {
-  const key = requestMaintenanceTargets(url).find(key => !isTargetAvailable(snapshot.settings, key));
+export function assertMaintenanceRequest(request, { notify = true } = {}) {
+  const key = requestMaintenanceTargets(request).find(key => !isTargetAvailable(snapshot.settings, key));
   if (key) {
-    const path = new URL(url, 'https://maintenance.local').pathname;
-    if (/^\/(?:send\/text|share\/resource|event\/(?:forward|del)|comment|resource\/like|follow|like|playlist\/subscribe|album\/sub|artist\/sub|user\/(?:update|bindingcellphone|cloud\/del)|avatar\/upload|cloud(?:\/match)?)$/.test(path)) requireFeature(key);
+    const url = typeof request === 'string' ? request : request?.url || '';
+    const path = requestPath(new URL(url, 'https://maintenance.local'));
+    if (notify && /^\/(?:send\/text|share\/resource|event\/(?:forward|del)|comment|resource\/like|follow|like|playlist\/subscribe|album\/sub|artist\/sub|user\/(?:update|bindingcellphone|cloud\/del)|avatar\/upload|cloud(?:\/match)?)$/.test(path)) requireFeature(key);
     throw new MaintenanceBlockedError(key);
   }
 }

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { visitApi } from '@/api/visitApi/visitApi.js'
 import { supportsDetailOverlay } from '@/composables/useDetailNavigation.js'
 import SystemStatus from '@/view/systemStatus.vue'
+import { getMaintenanceSnapshot, isRouteAvailable } from '@/utils/maintenanceAccess.js'
 
 let navigatingBackMarkedAt = 0
 
@@ -179,6 +180,15 @@ const router = createRouter({
       meta: { title: '页面未找到' },
     },
   ],
+})
+
+// Gate aliases, detail overlays and history navigation before mounting content.
+router.beforeEach((to) => {
+  if (to.name === 'maintenance') return true
+  if (!isRouteAvailable(getMaintenanceSnapshot().settings, to.name)) {
+    return { name: 'maintenance', query: { from: to.fullPath }, replace: true }
+  }
+  return true
 })
 
 router.afterEach((to) => {

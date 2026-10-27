@@ -1,3 +1,5 @@
+import { requireFeature } from '../utils/maintenanceAccess.js'
+
 export function usePlayerMediaSession(options) {
   const {
     getSongName,
@@ -121,6 +123,7 @@ export function usePlayerMediaSession(options) {
     }
 
     setHandler('play', async () => {
+      if (!requireFeature('feature.playback')) return
       const active = getActiveAudio()
       if (!active || !getHasSong()) return
       try {
@@ -140,6 +143,7 @@ export function usePlayerMediaSession(options) {
     setHandler('seekbackward', null)
     setHandler('seekforward', null)
     setHandler('seekto', (details = {}) => {
+      if (!requireFeature('feature.playback')) return
       const active = getActiveAudio()
       if (!active) return
       const seekTime = Number(details.seekTime)

@@ -24,6 +24,7 @@ import MaintenanceDialog from './components/maintenance/MaintenanceDialog.vue';
 import { resolveAdminApiBaseUrl } from './axios/myBackend.js';
 import { createMaintenancePoller, DEFAULT_MAINTENANCE } from './utils/maintenance.js';
 import { useMaintenanceAccess } from './composables/useMaintenanceAccess.js';
+import { createMaintenanceIsolation } from './utils/maintenanceIsolation.js';
 import { dismissTargetMaintenance, isRouteAvailable, maintenanceReturnPath, resolveMaintenanceContext, updateMaintenanceSettings } from './utils/maintenanceAccess.js';
 
 const router = useRouter();
@@ -42,6 +43,8 @@ const checking = ref(true);
 const blocked = computed(() => Boolean(context.value) || recovering.value);
 const pageVisible = computed(() => context.value?.presentation === 'page' || (recovering.value && displayPresentation.value === 'page'));
 const checked = ref(false);
+const isolation = createMaintenanceIsolation(() => blocked.value);
+watch(blocked, isolation.sync, {flush: 'sync'});
 let previousFocus;
 let disposed = false;
 let reconciling = false;
@@ -136,6 +139,7 @@ window.addEventListener('online', check);
 document.addEventListener('visibilitychange', onVisibility);
 onBeforeUnmount(() => {
   disposed = true;
+  isolation.destroy();
   poller.stop();
   window.removeEventListener('online', check);
   document.removeEventListener('visibilitychange', onVisibility);

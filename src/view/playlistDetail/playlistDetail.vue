@@ -448,7 +448,7 @@ onBeforeRouteLeave(() => {
 })
 
 async function openSong(track, index = 0) {
-  await playSongWithQueue(track, tracks.value, index)
+  await playSongWithQueue(track, tracks.value, index, {maintenanceTargets: ['page.playlist']})
 }
 
 function isSongLiked(songId) {
@@ -462,7 +462,7 @@ async function playAllTracks() {
     actionTarget: String(playlist.value.id || detailId.value || ''),
     actionDetail: JSON.stringify({name: playlist.value.name || '', trackCount: tracks.value.length}),
   })
-  await playSongWithQueue(tracks.value[0], tracks.value, 0)
+  await playSongWithQueue(tracks.value[0], tracks.value, 0, {maintenanceTargets: ['page.playlist']})
 }
 
 async function loadLikedSongs() {

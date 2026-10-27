@@ -4,6 +4,7 @@
 
     <main class="personal-main" data-route-motion-root>
       <section id="home-top" class="home-lobby">
+        <MaintenanceFeature target="feature.homeBanners" @restored="reloadAfterMaintenance">
         <article v-maintenance="'feature.homeBanners'" class="home-banner-card" :aria-label="bannerHero.title || '首页 Banner'">
           <div class="home-banner-fallback" :class="{'is-hidden': bannerHero.media && (bannerPosterReady || bannerMediaReady)}" aria-hidden="true">
             <span class="banner-orbit banner-orbit-one" />
@@ -49,10 +50,12 @@
             </p>
           </div>
         </article>
+        </MaintenanceFeature>
 
       </section>
 
       <div class="home-listening-grid" :class="{'has-resume': resumeSong}">
+        <MaintenanceFeature target="feature.personalFm" @restored="reloadAfterMaintenance">
         <aside v-maintenance="'feature.personalFm'" class="personal-now-card" :style="stationThemeStyle" aria-label="你的私人电台">
 
           <div class="personal-now-heading">
@@ -75,7 +78,9 @@
             <div v-else class="personal-station-empty" role="status">{{ loading.personalFmSongs || loading.dailySongs ? '正在准备你的第一首歌…' : '暂时没有推荐，稍后再来听听' }}</div>
           </div>
         </aside>
+        </MaintenanceFeature>
 
+      <MaintenanceFeature v-if="resumeSong" target="feature.recentPlayback" @restored="reloadAfterMaintenance">
       <section v-if="resumeSong" v-maintenance="'feature.recentPlayback'" class="lofi-resume" :style="resumeThemeStyle" aria-label="继续播放">
         <div class="lofi-resume-fluid" aria-hidden="true">
           <i class="is-primary" />
@@ -107,12 +112,14 @@
           <div v-for="entry in resumeNext" :key="entry.song.queueEntryId" class="resume-queue-row">
             <span>{{ String(entry.index + 1).padStart(2, '0') }}</span>
             <div><strong>{{ entry.song.name }}</strong><small><ArtistLinks :artists="getSongArtists(entry.song)" /></small></div>
-            <button type="button" :aria-label="playLabel(entry.song)" :disabled="isSongPending(entry.song)" @click="playQueueByIndex(entry.index)"><HomePlaybackIcon :loading="isSongPending(entry.song)" /></button>
+            <button type="button" :aria-label="playLabel(entry.song)" :disabled="isSongPending(entry.song)" @click="playQueueByIndex(entry.index, {maintenanceTargets: ['page.home', 'feature.recentPlayback']})"><HomePlaybackIcon :loading="isSongPending(entry.song)" /></button>
           </div>
         </div>
       </section>
+      </MaintenanceFeature>
       </div>
 
+      <MaintenanceFeature target="feature.sceneRadio" @restored="reloadAfterMaintenance">
       <section v-maintenance="'feature.sceneRadio'" class="personal-section personal-scenes">
         <div class="personal-section-heading">
           <div><p>CHOOSE YOUR MOMENT</p><h2>此刻想怎么听？</h2></div>
@@ -136,6 +143,8 @@
         </div>
       </section>
 
+      </MaintenanceFeature>
+      <MaintenanceFeature target="feature.dailyRecommendations" @restored="reloadAfterMaintenance">
       <section v-maintenance="'feature.dailyRecommendations'" class="personal-section personal-daily">
         <div class="personal-section-heading">
           <div><p>DAILY ROTATION</p><h2>{{ userStore.isLoggedIn ? '只属于今天的推荐' : '今天先从这些开始' }}</h2></div>
@@ -162,7 +171,7 @@
             <p>YOUR TASTE</p>
             <h3>{{ userStore.isLoggedIn ? '你的声音坐标' : '从曲风开始认识音乐' }}</h3>
             <span>{{ userStore.isLoggedIn ? '根据近期偏好整理，点击任意曲风去发现更多。' : '登录后这里会变成你的个人曲风地图。' }}</span>
-            <div class="personal-taste-list">
+            <div v-maintenance="'feature.styles'" class="personal-taste-list">
               <button v-for="(tag, index) in tasteTags" :key="tag.id" type="button" @click="openStyle(tag)">
                 <span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ tag.name }}</strong><small>{{ tag.enName || 'EXPLORE' }}</small><i>→</i>
               </button>
@@ -172,6 +181,8 @@
         </div>
       </section>
 
+      </MaintenanceFeature>
+      <MaintenanceFeature target="feature.playlistRecommendations" @restored="reloadAfterMaintenance">
       <section v-maintenance="'feature.playlistRecommendations'" class="personal-section personal-playlists">
         <div class="personal-section-heading">
           <div><p>MADE FOR YOUR DAY</p><h2>{{ userStore.isLoggedIn ? '为你留下的歌单' : '值得收藏的歌单' }}</h2></div>
@@ -184,6 +195,8 @@
         <div v-else class="personal-empty">暂时没有推荐歌单，稍后再来看看。</div>
       </section>
 
+      </MaintenanceFeature>
+      <MaintenanceFeature v-if="recentCollections.length" target="feature.recentPlayback" @restored="reloadAfterMaintenance">
       <section v-if="recentCollections.length" v-maintenance="'feature.recentPlayback'" class="personal-section personal-recent-collections">
         <div class="personal-section-heading">
           <div><p>RECENTLY PLAYED</p><h2>最近听过</h2></div>
@@ -197,6 +210,7 @@
         </div>
       </section>
 
+      </MaintenanceFeature>
       <p v-if="error" class="personal-load-note" role="status">{{ error }} <button type="button" @click="reloadHome">重试</button></p>
 
       <footer class="personal-footer">
@@ -371,7 +385,7 @@ function toggleCurrentSong(song) {
 async function playStationSong(song = stationSong.value, index = 0) {
   if (!requireFeature('feature.personalFm')) return
   if (!song || isSongPending(song) || toggleCurrentSong(song)) return
-  await playSongWithQueue(song, stationQueue.value, index)
+  await playSongWithQueue(song, stationQueue.value, index, {maintenanceTargets: ['page.home', 'feature.personalFm']})
 }
 
 async function startScene(scene) {
@@ -381,13 +395,13 @@ async function startScene(scene) {
     return
   }
   const songs = await loadSceneSongs(scene)
-  if (songs.length) await playSongWithQueue(songs[0], songs, 0)
+  if (songs.length) await playSongWithQueue(songs[0], songs, 0, {maintenanceTargets: ['page.home', 'feature.sceneRadio']})
 }
 
 async function playDailySong(song, index = 0) {
   if (!requireFeature('feature.dailyRecommendations')) return
   if (isSongPending(song) || toggleCurrentSong(song)) return
-  await playSongWithQueue(song, dailySongs.value, index)
+  await playSongWithQueue(song, dailySongs.value, index, {maintenanceTargets: ['page.home', 'feature.dailyRecommendations']})
 }
 
 async function playDailySongs() {
@@ -399,8 +413,8 @@ async function playResumeSong(song = resumeSong.value) {
   if (!requireFeature('feature.recentPlayback')) return
   if (!song || isSongPending(song) || toggleCurrentSong(song)) return
   const index = playerStore.playQueue.findIndex(item => String(item.id) === String(song.id))
-  if (index >= 0) await playQueueByIndex(index)
-  else await playSongWithQueue(song, [song], 0)
+  if (index >= 0) await playQueueByIndex(index, {maintenanceTargets: ['page.home', 'feature.recentPlayback']})
+  else await playSongWithQueue(song, [song], 0, {maintenanceTargets: ['page.home', 'feature.recentPlayback']})
 }
 
 const playlistLoadingId = ref(null)
@@ -436,7 +450,7 @@ async function playHomePlaylist(item) {
       showPlaybackNotice({title: '歌单暂时没有可播放歌曲', message: '可以打开歌单查看详情，或选择其他歌单。'})
       return
     }
-    const played = await playSongWithQueue(songs[0], songs, 0)
+    const played = await playSongWithQueue(songs[0], songs, 0, {maintenanceTargets: ['page.home', 'feature.playlistRecommendations']})
     if (played && token === playlistRequest) {
       activePlaylistId.value = item.id
       activePlaylistEntries = playerStore.playQueue.map(song => song.queueEntryId)

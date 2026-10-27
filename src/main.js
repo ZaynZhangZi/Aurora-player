@@ -7,6 +7,7 @@ import router, { showRouteError } from "./router";
 import { installBehaviorTracker } from "./utils/behaviorTracker.js";
 import { preloadRouteComponents } from "./utils/appBootstrap.js";
 import { maintenanceDirective } from "./directives/maintenance.js";
+import MaintenanceFeature from "./components/maintenance/MaintenanceFeature.vue";
 
 import "./index.css";
 import "@applemusic-like-lyrics/core/style.css";
@@ -21,6 +22,7 @@ if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_PERF_DEBUG === 'true') {
 
 const app = createApp(App);
 app.directive('maintenance', maintenanceDirective);
+app.component('MaintenanceFeature', MaintenanceFeature);
 
 app.config.errorHandler = (error, _instance, info) => {
   if (error?.name === 'MaintenanceBlockedError') return;

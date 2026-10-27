@@ -1,3 +1,5 @@
+import {requireFeature} from '../utils/maintenanceAccess.js';
+
 export function usePlayerManualSwitch({
   playerStore,
   canPlayPrev,
@@ -27,10 +29,11 @@ export function usePlayerManualSwitch({
   }
 
   async function playSongAtIndex(index) {
+    if (!requireFeature('feature.queue')) return;
     onManualSkip?.("queue-select");
     const targetSong = playerStore.playQueue?.[index];
     reportBehavior("QUEUE_SELECT", targetSong?.id || "", {queueIndex: index});
-    await playQueueByIndex(index);
+    await playQueueByIndex(index, {maintenanceTargets: ['feature.queue']});
     closePlaylistPanel();
   }
 

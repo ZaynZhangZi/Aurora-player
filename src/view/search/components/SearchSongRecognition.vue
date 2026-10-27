@@ -430,7 +430,7 @@ function artistLabel(song) {
 async function playMatch(song, index) {
   if (playingId.value) return
   playingId.value = song.id
-  try { await playSongWithQueue(song, matches.value, index) }
+  try { await playSongWithQueue(song, matches.value, index, {maintenanceTargets: ['page.search', 'feature.recognition']}) }
   finally { playingId.value = null }
 }
 

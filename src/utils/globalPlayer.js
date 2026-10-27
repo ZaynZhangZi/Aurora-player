@@ -1,5 +1,5 @@
 import {songsApi} from '@/api/songsApi/songsApi.js'
-import { requireFeature } from './maintenanceAccess.js'
+import { requireFeature, getMaintenanceSnapshot, isTargetAvailable, subscribeMaintenance } from './maintenanceAccess.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
 import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
 import {MAX_ANALYSIS_LOOKAHEAD} from '@/audio/constants.js'
@@ -456,10 +456,15 @@ export async function warmupNextTrack() {
   }
 }
 
-export async function playSongById(songInput, {autoplay = true} = {}) {
-  if (!requireFeature('feature.playback')) return false
+export async function playSongById(songInput, {autoplay = true, maintenanceTargets = []} = {}) {
+  const targets = ['feature.playback', ...maintenanceTargets]
+  if (!targets.every(requireFeature)) return false
   const id = Number(songInput?.id || songInput)
   if (!Number.isFinite(id) || id <= 0) return false
+  let interrupted = false
+  const stopMaintenanceWatch = subscribeMaintenance(({settings}) => {
+    if (targets.some(key => !isTargetAvailable(settings, key))) interrupted = true
+  })
 
   const requestToken = ++playbackRequestToken
   queueNavigationToken += 1
@@ -470,6 +475,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
   try {
     const source = await resolveSongPlayableSource(id, {quality: playerStore.audioQuality})
     if (requestToken !== playbackRequestToken) return null
+    if (interrupted || targets.some(key => !isTargetAvailable(getMaintenanceSnapshot().settings, key))) return false
     const url = source?.url || ''
 
     if (!url) {
@@ -493,7 +499,7 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
       mixProfile: songInput?.mixProfile || null,
     }
 
-    playerStore.setTrack(nextTrack, {autoplay, resetTime: true})
+    if (playerStore.setTrack(nextTrack, {autoplay, resetTime: true}) === false) return false
     if (playerStore.automixEnabled) {
       autoMixEngine.enable()
       autoMixEngine.setQueue(playerStore.playQueue)
@@ -554,7 +560,8 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
       })
 
     return true
-  } catch {
+  } catch (error) {
+    if (interrupted || error?.name === 'MaintenanceBlockedError') return false
     if (requestToken !== playbackRequestToken) return null
     showPlaybackNotice({
       kind: 'network',
@@ -565,17 +572,18 @@ export async function playSongById(songInput, {autoplay = true} = {}) {
     })
     return false
   } finally {
+    stopMaintenanceWatch()
     if (requestToken === playbackRequestToken) {
       playerStore.setPlaybackPendingId(null)
     }
   }
 }
 
-export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {autoplay = true} = {}) {
-  if (!requireFeature('feature.playback')) return false
+export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {autoplay = true, maintenanceTargets = []} = {}) {
+  if (!['feature.playback', ...maintenanceTargets].every(requireFeature)) return false
   const playerStore = usePlayerStore()
   playerStore.setQueue(queue, {startIndex: queueIndex})
-  const ok = await playSongById(songInput, {autoplay})
+  const ok = await playSongById(songInput, {autoplay, maintenanceTargets})
   if (ok === null) return true
   if (ok) {
     playerStore.syncQueueIndexBySongId(songInput?.id || songInput)
@@ -646,8 +654,8 @@ export async function playQueueByDirection(direction = 'next', {trigger = 'manua
   return ok
 }
 
-export async function playQueueByIndex(index, {autoplay = true} = {}) {
-  if (!requireFeature('feature.playback')) return false
+export async function playQueueByIndex(index, {autoplay = true, maintenanceTargets = []} = {}) {
+  if (!['feature.playback', ...maintenanceTargets].every(requireFeature)) return false
   const playerStore = usePlayerStore()
   const previousIndex = Number.isInteger(playerStore.currentQueueIndex) ? playerStore.currentQueueIndex : -1
   const nextIndex = Number(index)
@@ -655,7 +663,7 @@ export async function playQueueByIndex(index, {autoplay = true} = {}) {
   const targetSong = playerStore.playQueue[nextIndex]
   if (!targetSong?.id) return false
   playerStore.setCurrentQueueIndex(nextIndex)
-  const ok = await playSongById(targetSong, {autoplay})
+  const ok = await playSongById(targetSong, {autoplay, maintenanceTargets})
   if (ok === null) return true
   if (ok === false && previousIndex >= 0 && playerStore.currentQueueIndex === nextIndex) {
     playerStore.setCurrentQueueIndex(previousIndex)

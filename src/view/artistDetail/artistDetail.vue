@@ -162,6 +162,7 @@
           <p v-if="albumLoadingMore" class="artist-inline-loading">正在加载更多发行...</p>
         </section>
 
+        <MaintenanceFeature target="feature.mv" @restored="refreshArtistMvs">
         <section v-if="pagedMvs.length" class="artist-library-section">
           <div class="artist-section-heading">
             <div class="artist-heading-link">
@@ -189,6 +190,7 @@
           </div>
         </section>
 
+        </MaintenanceFeature>
         <section ref="aboutRef" class="artist-about">
           <h2>{{ artistName }} 简介</h2>
           <p>{{ artistDescription }}</p>
@@ -881,7 +883,7 @@ async function playArtist() {
 }
 
 async function openSong(song, index = 0, queue = topSongs.value) {
-  await playSongWithQueue(song, queue, index)
+  await playSongWithQueue(song, queue, index, {maintenanceTargets: ['page.artist']})
 }
 
 function mergeSongs(base = [], incoming = []) {
@@ -1089,6 +1091,7 @@ async function jumpToAllSongPage() {
 }
 
 async function loadMoreMvs() {
+  if (!requireFeature('feature.mv')) return false
   if (!artistId.value || mvLoadingMore.value || !mvHasMore.value) return false
 
   mvLoadingMore.value = true
@@ -1119,6 +1122,20 @@ async function loadMoreMvs() {
   } finally {
     mvLoadingMore.value = false
   }
+}
+
+async function refreshArtistMvs() {
+  const sequence = artistLoadSequence
+  const id = artistId.value
+  if (!id) return
+  try {
+    const response = await artistApi.getArtistMv(id, {limit: mvPageSize * 2, offset: 0})
+    if (sequence !== artistLoadSequence || id !== artistId.value) return
+    mvs.value = response?.data?.mvs || []
+    mvOffset.value = mvs.value.length
+    mvHasMore.value = Boolean(response?.data?.hasMore)
+    mvPage.value = 1
+  } catch { /* The unavailable region remains available for a later retry. */ }
 }
 
 function prevAlbumPage() {
@@ -1459,6 +1476,7 @@ onBeforeRouteLeave(() => {
 })
 
 onBeforeUnmount(() => {
+  artistLoadSequence += 1
   window.clearTimeout(heroPlayTimer)
   closeMvPlayer()
   if (themeRaf) {

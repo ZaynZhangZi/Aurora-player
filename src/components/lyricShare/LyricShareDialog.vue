@@ -47,6 +47,7 @@ import LyricSharePreview from './LyricSharePreview.vue'
 import {closeLyricShare, lyricShare as ui} from '@/composables/useLyricShare.js'
 import {DEFAULT_SHARE_OPTIONS, formatShareTime, selectedShareLines, shareFileName} from '@/utils/lyricShare.js'
 import {renderLyricShareImage} from '@/utils/lyricShareImage.js'
+import {requireFeature, isTargetAvailable, getMaintenanceSnapshot} from '@/utils/maintenanceAccess.js'
 
 const dialogRef = ref(null)
 const lyricListRef = ref(null)
@@ -106,6 +107,7 @@ function onStepEntered() {
 }
 
 function startExport(action) {
+  if (!requireFeature('feature.lyricShare')) return null
   if (busy.value || !outputLines.value.length) return null
   exportController = new AbortController()
   busyAction.value = action
@@ -118,12 +120,13 @@ function startExport(action) {
   const signal = exportController.signal
   return {session, song, lines, settings, signal}
 }
-function isCurrentExport(task) { return ui.open && ui.session === task.session && !task.signal.aborted }
+function isCurrentExport(task) { return ui.open && ui.session === task.session && !task.signal.aborted && isTargetAvailable(getMaintenanceSnapshot().settings, 'feature.lyricShare') }
 function exportFailed(error, task, message) {
   if (isCurrentExport(task) && error?.name !== 'AbortError') status.value = error?.message || message
 }
 function finishExport(task) { if (ui.session === task.session) busyAction.value = '' }
 function downloadShareImage(result, filename) {
+  if (!requireFeature('feature.lyricShare')) return
   const url = URL.createObjectURL(result.blob)
   const link = document.createElement('a')
   link.href = url
@@ -177,7 +180,11 @@ async function copyImage() {
   if (!task) return
   let result = null
   try {
-    const image = renderLyricShareImage(task.song, task.lines, task.settings, {type: 'image/png', signal: task.signal}).then(value => { result = value; return value.blob })
+    const image = renderLyricShareImage(task.song, task.lines, task.settings, {type: 'image/png', signal: task.signal}).then(value => {
+      if (!isCurrentExport(task)) throw new DOMException('Export canceled', 'AbortError')
+      result = value
+      return value.blob
+    })
     void image.catch(() => {}) // The clipboard may reject before it consumes the image promise.
     // Invoke write during the user gesture, not after a slow cover fetch (Safari).
     await navigator.clipboard.write([new ClipboardItem({'image/png': image})])

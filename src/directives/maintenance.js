@@ -1,5 +1,9 @@
 import { requireFeature, isTargetAvailable, getMaintenanceSnapshot, subscribeMaintenance } from '../utils/maintenanceAccess.js';
 
+// Guard initiating events too: keyboard, sliders, file inputs and drag/drop.
+const guardedEvents = ['click', 'dblclick', 'auxclick', 'contextmenu', 'pointerdown', 'mousedown', 'touchstart',
+  'keydown', 'keyup', 'beforeinput', 'input', 'change', 'submit', 'dragstart', 'drop', 'paste', 'cut'];
+
 // Capture before Vue click handlers, including controls inside Teleport surfaces.
 export const maintenanceDirective = {
   mounted(element, binding) {
@@ -11,20 +15,18 @@ export const maintenanceDirective = {
       available = next;
     });
     const intercept = event => {
-      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      if (['keydown', 'keyup'].includes(event.type) && ['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return;
       if (requireFeature(element.dataset.maintenanceTarget)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     element.__maintenanceIntercept = intercept;
-    element.addEventListener('click', intercept, true);
-    element.addEventListener('keydown', intercept, true);
+    for (const name of guardedEvents) element.addEventListener(name, intercept, { capture: true, passive: false });
   },
   updated(element, binding) { element.dataset.maintenanceTarget = binding.value; },
   unmounted(element) {
     element.__maintenanceUnsubscribe?.();
-    element.removeEventListener('click', element.__maintenanceIntercept, true);
-    element.removeEventListener('keydown', element.__maintenanceIntercept, true);
+    for (const name of guardedEvents) element.removeEventListener(name, element.__maintenanceIntercept, true);
     delete element.__maintenanceIntercept;
     delete element.__maintenanceUnsubscribe;
   },

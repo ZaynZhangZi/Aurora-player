@@ -55,6 +55,7 @@
 
     <!-- Main Content Stream Grid Frame -->
     <main class="profile-content">
+      <MaintenanceFeature :target="activeTab === 'cloud' ? 'feature.cloud' : activeTab === 'listening' ? 'feature.listeningProfile' : ''">
       <transition name="tab-panel" mode="out-in">
 
         <!-- Tab Content 1: Borderless Clean Library Layout -->
@@ -384,6 +385,7 @@
           </div>
         </section>
       </transition>
+      </MaintenanceFeature>
     </main>
   </div>
 
@@ -1466,7 +1468,7 @@ async function playListeningTrack(item) {
     name: item.name,
     artists: item.artistItems,
     cover: item.cover,
-  }, queue, queueIndex)
+  }, queue, queueIndex, {maintenanceTargets: ['page.profile', 'feature.listeningProfile']})
 }
 
 function switchTab(tab) {
@@ -1629,6 +1631,7 @@ function onCloudFileChange(event) {
 }
 
 async function uploadCloudSong() {
+  if (!requireFeature('feature.cloud')) return
   if (!cloudUploadFile.value || cloudUploading.value || cloudDeletingId.value) return
 
   cloudUploading.value = true
@@ -1687,6 +1690,7 @@ async function toggleCloudDetail(item) {
 }
 
 function openCloudDeleteDialog(item) {
+  if (!requireFeature('feature.cloud')) return
   const sid = Number(item?.songId || 0)
   if (!sid || cloudDeletingId.value) return
   cloudDeleteError.value = ''
@@ -1700,11 +1704,13 @@ function closeCloudDeleteDialog() {
 }
 
 async function confirmCloudDelete() {
+  if (!requireFeature('feature.cloud')) return
   if (!cloudDeleteTarget.value || cloudDeletingId.value) return
   await deleteCloudSong(cloudDeleteTarget.value)
 }
 
 async function deleteCloudSong(item) {
+  if (!requireFeature('feature.cloud')) return
   const sid = Number(item?.songId || 0)
   if (!sid || cloudDeletingId.value) return
 
@@ -1746,6 +1752,7 @@ async function deleteCloudSong(item) {
 }
 
 async function playCloudSong(item) {
+  if (!requireFeature('feature.cloud')) return
   const sid = Number(item?.songId || 0)
   if (!sid || cloudPlayingId.value === sid) return
 
@@ -1754,7 +1761,7 @@ async function playCloudSong(item) {
   try {
     const queue = cloudSongs.value.map(toCloudQueueItem).filter(song => song.id > 0)
     const queueIndex = Math.max(0, queue.findIndex(song => song.id === sid))
-    const ok = await playSongWithQueue(toCloudQueueItem(item), queue, queueIndex)
+    const ok = await playSongWithQueue(toCloudQueueItem(item), queue, queueIndex, {maintenanceTargets: ['page.profile', 'feature.cloud']})
     if (!ok) {
       cloudError.value = '当前云盘歌曲暂时无法播放'
     }
@@ -1916,7 +1923,9 @@ watch(
   },
 )
 
-useFeatureMaintenance('feature.cloud', () => activeTab.value === 'cloud', undefined, () => loadCloudSongs(1))
+useFeatureMaintenance('feature.cloud', () => activeTab.value === 'cloud' || Boolean(cloudDeleteTarget.value), () => {
+  cloudDeleteTarget.value = null
+}, () => loadCloudSongs(1))
 useFeatureMaintenance('feature.listeningProfile', () => activeTab.value === 'listening', undefined, () => setListeningRange(listeningRange.value))
 </script>
 

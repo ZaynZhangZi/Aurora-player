@@ -32,6 +32,7 @@
           </button>
         </nav>
 
+        <MaintenanceFeature :target="messageTab === 'private' ? 'feature.privateMessages' : 'feature.notifications'">
         <Transition name="message-panel" mode="out-in">
           <section v-if="messageTab === 'notice'" key="notice" v-maintenance="'feature.notifications'" class="notice-workspace">
             <div class="workspace-title">
@@ -128,6 +129,7 @@
             </div>
           </section>
         </Transition>
+        </MaintenanceFeature>
       </template>
     </main>
   </div>

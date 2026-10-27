@@ -48,6 +48,7 @@ export const artistApi = {
   //获取歌手mv
   getArtistMv: (id, {limit = 30, offset = 0} = {}) => {
     return apiClient.get('/artist/mv', {
+      maintenanceTargets: ['feature.mv'],
       params: {
         id,
         limit,

@@ -283,6 +283,7 @@ export const usePlayerStore = defineStore('global-player', {
     },
 
     setCurrentSongSource(url, qualityLevel, {resumeMs = 0, autoplay = false} = {}) {
+      if (autoplay && !requireFeature('feature.playback')) return false
       if (!this.currentSong?.id || !url) return false
       this.pendingResumeMs = Math.max(0, Number(resumeMs) || 0)
       this.autoPlayOnLoad = Boolean(autoplay)

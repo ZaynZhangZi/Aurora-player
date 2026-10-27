@@ -1,4 +1,5 @@
 import {readonly, ref} from 'vue'
+import {requireFeature} from '../utils/maintenanceAccess.js'
 import {normalizePlayerAppearance, PLAYER_APPEARANCE_STORAGE_KEY} from '@/utils/player/playerAppearance.js'
 import {normalizeFoliaBackground, FOLIA_BACKGROUND_STORAGE_KEY} from '@/utils/player/foliaBackground.js'
 
@@ -18,6 +19,7 @@ const foliaBackground = ref((() => {
 
 export function usePlayerAppearance() {
   function setPlayerAppearance(value) {
+    if (!requireFeature('feature.settings')) return
     playerAppearance.value = normalizePlayerAppearance(value)
     try {
       globalThis.localStorage?.setItem(PLAYER_APPEARANCE_STORAGE_KEY, playerAppearance.value)
@@ -27,6 +29,7 @@ export function usePlayerAppearance() {
   }
 
   function setFoliaBackground(value) {
+    if (!requireFeature('feature.settings')) return
     foliaBackground.value = normalizeFoliaBackground(value)
     try { globalThis.localStorage?.setItem(FOLIA_BACKGROUND_STORAGE_KEY, foliaBackground.value) }
     catch { /* Keep the current choice when storage is unavailable. */ }
