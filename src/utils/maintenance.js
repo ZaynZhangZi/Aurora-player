@@ -49,13 +49,14 @@ export function parseMaintenanceStatus(body) {
 export function createMaintenancePoller({ fetchStatus, onStatus, onError = () => {}, onSettled = () => {}, onTiming = () => {},
   now = Date.now, schedule = setTimeout, cancel = clearTimeout, timeout = setTimeout, clearTimeoutFn = clearTimeout }) {
   let stopped = false;
+  let suspended = false;
   let inFlight = null;
   let controller;
   let clockOffset = 0;
   let clockSynced = false;
   let scheduled;
   function plan() {
-    if (stopped) return;
+    if (stopped || suspended) { cancel(scheduled); return; }
     cancel(scheduled);
     const current = now() + clockOffset;
     const nextCheckAt = nextMaintenanceCheckAt(current);
@@ -98,6 +99,12 @@ export function createMaintenancePoller({ fetchStatus, onStatus, onError = () =>
   void check();
   return {
     check,
+    setSuspended(value) {
+      if (stopped || suspended === Boolean(value)) return;
+      suspended = Boolean(value);
+      cancel(scheduled);
+      if (!suspended) void check();
+    },
     stop() { stopped = true; cancel(scheduled); controller?.abort(); },
   };
 }

@@ -2,7 +2,8 @@ import { reportApi } from '@/api/reportApi/reportApi.js'
 
 let installed = false
 let currentRoute = null
-let routeStartedAt = Date.now()
+let visibleSince = null
+let foregroundMs = 0
 let maxScrollPercent = 0
 let scrollMarks = new Set()
 let scrollTimer = 0
@@ -178,15 +179,21 @@ function handleChange(event) {
 
 function resetRouteState(route) {
   currentRoute = route
-  routeStartedAt = Date.now()
+  foregroundMs = 0
+  visibleSince = document.visibilityState === 'hidden' ? null : Date.now()
   maxScrollPercent = getScrollPercent()
   scrollMarks = new Set()
 }
 
 function reportDwell(nextRoute = null) {
   const route = getRouteInfo()
-  const durationSec = Math.round((Date.now() - routeStartedAt) / 1000)
+  if (visibleSince !== null) {
+    foregroundMs += Math.max(0, Date.now() - visibleSince)
+    visibleSince = document.visibilityState === 'hidden' ? null : Date.now()
+  }
+  const durationSec = Math.floor(foregroundMs / 1000)
   if (durationSec < 3) return
+  foregroundMs = 0
   sendBehavior('ROUTE_DWELL', route.path, {
     routeName: route.name,
     routePath: route.path,
@@ -232,8 +239,10 @@ export function installBehaviorTracker(router) {
   document.addEventListener('click', handleClick, true)
   document.addEventListener('change', handleChange, true)
   window.addEventListener('scroll', handleScroll, { passive: true })
-  window.addEventListener('pagehide', () => reportDwell(null))
+  window.addEventListener('pagehide', () => { reportDwell(null); visibleSince = null })
+  window.addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden' && visibleSince === null) visibleSince = Date.now() })
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') reportDwell(null)
+    else if (visibleSince === null) visibleSince = Date.now()
   })
 }

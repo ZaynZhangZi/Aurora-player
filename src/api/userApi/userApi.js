@@ -7,16 +7,16 @@ import apiClient from "@/axios/apiClient";
 export const userApi={
 
     //二维码 key 生成接口
-    getQrKey(){
-        return apiClient.get('/login/qr/key', {
+    getQrKey({signal} = {}){
+        return apiClient.get('/login/qr/key', {signal,
             cacheBust: true,
             skipAuthCookie: true,
         })
     },
 
     //生成二维码图片
-    getQrCode(key){
-        return apiClient.get('/login/qr/create', {
+    getQrCode(key, {signal} = {}){
+        return apiClient.get('/login/qr/create', {signal,
             params: {
                 key,
                 qrimg: true,
@@ -27,8 +27,8 @@ export const userApi={
     },
 
     //二维码检测扫码状态接口
-    checkQrCode(key, {noCookie = true} = {}){
-        return apiClient.get('/login/qr/check', {
+    checkQrCode(key, {noCookie = true, signal} = {}){
+        return apiClient.get('/login/qr/check', {signal,
             params: {
                 key,
                 ...(noCookie ? {noCookie: true} : {}),
@@ -39,8 +39,8 @@ export const userApi={
     },
 
     //获取账号信息
-    getUserInfo(){
-        return apiClient.get('/user/account')
+    getUserInfo({signal} = {}){
+        return apiClient.get('/user/account', {signal})
     },
 
     //获取账号信息（别名）
@@ -410,7 +410,7 @@ export const userApi={
         })
     },
 
-    logout() {
-        return apiClient.get('/logout')
+    logout({signal} = {}) {
+        return apiClient.get('/logout', {signal})
     },
 }

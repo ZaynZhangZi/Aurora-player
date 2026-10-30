@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch, getCurrentScope, onScopeDispose } from 'vue'
 import { userApi } from '@/api/userApi/userApi.js'
 import { searchApi } from '@/api/searchApi/searchApi.js'
 
@@ -126,6 +126,27 @@ export function useMessageCenter(userStore) {
   const privateFeedback = ref('')
   const privateFeedbackIsError = ref(false)
 
+  let noticeRequestId = 0, privateListRequestId = 0, sendRequestId = 0
+  let disposed = false
+  const accountKey = () => String(userStore.userId || '') + ':' + String(userStore.getUserCookie || '')
+  const belongsToAccount = key => !disposed && key === accountKey()
+  function resetAccount() {
+    noticeRequestId++; privateListRequestId++; privateHistoryRequestId++; sendRequestId++
+    privateReceiverSearchRequestId++
+    noticeList.value = []; privateList.value = []; privateHistory.value = []
+    noticeBadgeCount.value = 0; privateBadgeCount.value = 0
+    selectedPrivateTarget.value = null; activePrivateId.value = ''; privateContent.value = ''
+    privateReceiverResults.value = []; privateTargetKeyword.value = ''
+    noticeLoading.value = false; noticeLoadingMore.value = false
+    privateLoading.value = false; privateLoadingMore.value = false
+    privateHistoryLoading.value = false; privateHistoryLoadingMore.value = false
+    sendingPrivate.value = false; privateFeedback.value = ''
+  }
+  if (getCurrentScope()) {
+    watch(accountKey, resetAccount, {flush: 'sync'})
+    onScopeDispose(cleanupTimers)
+  }
+
   let privateReceiverSearchTimer = null
   let privateReceiverSearchRequestId = 0
   let privateHistoryRequestId = 0
@@ -219,6 +240,8 @@ export function useMessageCenter(userStore) {
   }
 
   async function fetchNotices({ reset = false } = {}) {
+    const run = ++noticeRequestId, account = accountKey()
+    const valid = () => run === noticeRequestId && belongsToAccount(account)
     const badgeEpoch = noticeBadgeRequestEpoch
     const badgeUserKey = getBadgeUserKey()
     if (reset) {
@@ -230,6 +253,7 @@ export function useMessageCenter(userStore) {
     noticeError.value = ''
     try {
       const res = await userApi.getNotices(30, noticeLastTime.value)
+      if (!valid()) return
       const payload = res?.data || {}
       const list = normalizeNoticeList(payload)
       noticeList.value = reset ? list : mergeById(noticeList.value, list)
@@ -242,9 +266,11 @@ export function useMessageCenter(userStore) {
         noticeLastTime.value = Number.isFinite(Number(nextLast)) ? Number(nextLast) : noticeLastTime.value
       }
     } catch (error) {
+      if (!valid()) return
       noticeError.value = error?.message || '通知加载失败'
       if (reset) noticeList.value = []
     } finally {
+      if (!valid()) return
       if (reset) noticeLoading.value = false
       else noticeLoadingMore.value = false
     }
@@ -253,6 +279,8 @@ export function useMessageCenter(userStore) {
   async function fetchPrivateHistory(targetId, { reset = false } = {}) {
     if (!targetId) return
     const currentId = ++privateHistoryRequestId
+    const account = accountKey()
+    const valid = () => currentId === privateHistoryRequestId && belongsToAccount(account) && String(selectedPrivateTarget.value?.userId) === String(targetId)
     if (reset) {
       privateHistoryRenderLimit.value = 180
       privateHistoryLoading.value = true
@@ -264,7 +292,7 @@ export function useMessageCenter(userStore) {
     }
     try {
       const res = await userApi.getPrivateHistory(targetId, 30, privateHistoryBefore.value)
-      if (currentId !== privateHistoryRequestId) return
+      if (!valid()) return
       const payload = res?.data || {}
       const list = normalizePrivateHistoryList(payload)
       privateHistoryHasMore.value = Boolean(payload?.more)
@@ -273,7 +301,7 @@ export function useMessageCenter(userStore) {
         privateHistoryBefore.value = Number(privateHistory.value[0].time || privateHistoryBefore.value)
       }
     } catch (error) {
-      if (currentId !== privateHistoryRequestId) return
+      if (!valid()) return
       const preview = privateList.value.find((item) => String(item.counterpartId) === String(targetId)) || null
       if (reset && preview) {
         privateHistory.value = [{
@@ -286,7 +314,7 @@ export function useMessageCenter(userStore) {
       }
       privateHistoryError.value = error?.message || '会话加载失败'
     } finally {
-      if (currentId === privateHistoryRequestId) {
+      if (valid()) {
         if (reset) privateHistoryLoading.value = false
         else privateHistoryLoadingMore.value = false
       }
@@ -316,6 +344,8 @@ export function useMessageCenter(userStore) {
   }
 
   async function fetchPrivateMessages({ reset = false } = {}) {
+    const run = ++privateListRequestId, account = accountKey()
+    const valid = () => run === privateListRequestId && belongsToAccount(account)
     const badgeEpoch = privateBadgeRequestEpoch
     const badgeUserKey = getBadgeUserKey()
     if (reset) {
@@ -327,6 +357,7 @@ export function useMessageCenter(userStore) {
     privateError.value = ''
     try {
       const res = await userApi.getPrivateMessages(30, privateOffset.value)
+      if (!valid()) return
       const payload = res?.data || {}
       const list = normalizePrivateList(payload)
       privateList.value = reset ? list : mergeById(privateList.value, list)
@@ -335,7 +366,7 @@ export function useMessageCenter(userStore) {
         privateBadgeCount.value = extractPrivateUnread(payload)
       }
       privateOffset.value += 30
-      if (reset && window.innerWidth >= 768) {
+      if (reset && window.innerWidth >= 768 && !selectedPrivateTarget.value) {
         const matched = privateList.value[0]
         if (matched) openPrivateConversation(matched)
         else {
@@ -345,9 +376,11 @@ export function useMessageCenter(userStore) {
         }
       }
     } catch (error) {
+      if (!valid()) return
       privateError.value = error?.message || '私信加载失败'
       if (reset) privateList.value = []
     } finally {
+      if (!valid()) return
       if (reset) privateLoading.value = false
       else privateLoadingMore.value = false
     }
@@ -422,6 +455,9 @@ export function useMessageCenter(userStore) {
   }
 
   async function submitPrivateMessage() {
+    if (sendingPrivate.value || disposed) return
+    const account = accountKey(), run = ++sendRequestId
+    const valid = () => belongsToAccount(account) && run === sendRequestId
     privateFeedback.value = ''
     privateFeedbackIsError.value = false
     const target = selectedPrivateTarget.value?.userId
@@ -442,6 +478,11 @@ export function useMessageCenter(userStore) {
       const res = await userApi.sendPrivateMessage(String(target), content)
       const code = res?.data?.code
       if (code && code !== 200) throw new Error(res?.data?.message || `发送失败，错误码 ${code}`)
+      if (!valid()) return
+      if (String(selectedPrivateTarget.value?.userId) !== String(target)) {
+        await fetchPrivateMessages({reset: true})
+        return
+      }
       privateFeedback.value = '发送成功'
       privateHistory.value = mergeByIdAsc(privateHistory.value, [{
         id: `local-${Date.now()}`,
@@ -449,15 +490,17 @@ export function useMessageCenter(userStore) {
         time: Date.now(),
         isSelf: true,
       }])
-      privateContent.value = ''
+      if (privateContent.value.trim() === content) privateContent.value = ''
       await fetchPrivateMessages({ reset: true })
+      if (!valid() || String(selectedPrivateTarget.value?.userId) !== String(target)) return
       await fetchPrivateHistory(String(target), { reset: true })
       clearMessageBadgeCount('private')
     } catch (error) {
+      if (!valid()) return
       privateFeedback.value = error?.message || '发送失败'
       privateFeedbackIsError.value = true
     } finally {
-      sendingPrivate.value = false
+      if (valid()) sendingPrivate.value = false
     }
   }
 
@@ -474,6 +517,8 @@ export function useMessageCenter(userStore) {
   }
 
   function cleanupTimers() {
+    disposed = true
+    noticeRequestId++; privateListRequestId++; privateHistoryRequestId++; sendRequestId++; privateReceiverSearchRequestId++
     if (privateReceiverSearchTimer) clearTimeout(privateReceiverSearchTimer)
   }
 

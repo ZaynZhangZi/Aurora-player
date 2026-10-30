@@ -1272,6 +1272,7 @@ const {
   reportBehavior,
   reportCurrentPlayRecord,
   resetPlayRecordCache,
+  samplePlayback,
 } = usePlayerReporting({
   reportApi,
   getCurrentSong: () => playerStore.currentSong,
@@ -2408,6 +2409,7 @@ function onDurationChange() {
 }
 
 function onTimeUpdate(event) {
+  samplePlayback();
   if (!isEventFromActiveDeck(event)) return;
   const active = getActiveAudio();
   if (!active) return;

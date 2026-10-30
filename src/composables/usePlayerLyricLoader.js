@@ -15,8 +15,9 @@ export function usePlayerLyricLoader(options) {
   } = options
 
   let lyricLoadToken = 0
+  let lyricController
 
-  async function tryLoadLyricFromSearch(songId, title = '', artist = '') {
+  async function tryLoadLyricFromSearch(songId, title = '', artist = '', signal) {
     if (!title) title = String(getSongName() || '').trim()
     if (!artist) artist = String(getFirstArtistName() || '').trim()
     const keyword = [title, artist].filter(Boolean).join('-')
@@ -24,6 +25,7 @@ export function usePlayerLyricLoader(options) {
     try {
       const response = await songsApi.getLyricSearch({
         keyword,
+        signal,
         id: songId,
         name: title,
         artist,
@@ -37,6 +39,9 @@ export function usePlayerLyricLoader(options) {
 
   async function loadCurrentSongLyric(songId) {
     const requestToken = ++lyricLoadToken
+    lyricController?.abort()
+    lyricController = new AbortController()
+    const {signal} = lyricController
     const id = Number(songId)
     if (!Number.isFinite(id) || id <= 0) {
       if (requestToken === lyricLoadToken) setLyricLines([], songId)
@@ -47,26 +52,26 @@ export function usePlayerLyricLoader(options) {
     const snapshotTitle = String(currentSong?.name || '').trim()
     const snapshotArtist = String((currentSong?.artists || [])[0]?.name || '').trim()
 
-    let lyricPayload = await tryLoadLyricFromSearch(id, snapshotTitle, snapshotArtist)
+    let lyricPayload = await tryLoadLyricFromSearch(id, snapshotTitle, snapshotArtist, signal)
     if (requestToken !== lyricLoadToken) return
 
     if (!hasLyricText(lyricPayload || {})) {
       if (requestToken !== lyricLoadToken) return
       try {
-        const { data: newData } = await songsApi.getLyricNew(id)
+        const { data: newData } = await songsApi.getLyricNew(id, {signal})
         if (requestToken !== lyricLoadToken) return
         const hasWordByWord = /\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(String(newData?.yrc?.lyric || ''))
         if (hasWordByWord && hasLyricText(newData || {})) {
           lyricPayload = newData || {}
         } else {
-          const { data: normalData } = await songsApi.getLyric(id)
+          const { data: normalData } = await songsApi.getLyric(id, {signal})
           if (requestToken !== lyricLoadToken) return
           lyricPayload = normalData || {}
         }
       } catch {
         if (requestToken !== lyricLoadToken) return
         try {
-          const { data: normalData } = await songsApi.getLyric(id)
+          const { data: normalData } = await songsApi.getLyric(id, {signal})
           if (requestToken !== lyricLoadToken) return
           lyricPayload = normalData || {}
         } catch {

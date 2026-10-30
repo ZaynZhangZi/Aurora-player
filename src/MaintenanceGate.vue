@@ -23,6 +23,7 @@ import MaintenancePage from './components/maintenance/MaintenancePage.vue';
 import MaintenanceDialog from './components/maintenance/MaintenanceDialog.vue';
 import { resolveAdminApiBaseUrl } from './axios/myBackend.js';
 import { createMaintenancePoller, DEFAULT_MAINTENANCE } from './utils/maintenance.js';
+import { createMaintenanceStream } from './utils/maintenanceStream.js';
 import { useMaintenanceAccess } from './composables/useMaintenanceAccess.js';
 import { createMaintenanceIsolation } from './utils/maintenanceIsolation.js';
 import { dismissTargetMaintenance, isRouteAvailable, maintenanceReturnPath, resolveMaintenanceContext, updateMaintenanceSettings } from './utils/maintenanceAccess.js';
@@ -48,6 +49,7 @@ watch(blocked, isolation.sync, {flush: 'sync'});
 let previousFocus;
 let disposed = false;
 let reconciling = false;
+let streamConnected = false;
 
 watch(context, (value, previous) => {
   if (value) {
@@ -81,16 +83,30 @@ const poller = createMaintenancePoller({
     return response.json();
   },
   onStatus(value) {
+    if (streamConnected) return;
     offline.value = false;
     updateMaintenanceSettings(value);
   },
-  onError() { offline.value = true; },
+  onError() { if (!streamConnected) offline.value = true; },
   onSettled() {
     checking.value = false;
     checked.value = true;
     void reconcileView();
   },
 });
+
+const statusUrl = import.meta.env.VITE_MAINTENANCE_STATUS_URL || `${resolveAdminApiBaseUrl().replace(/\/$/, '')}/api/v1/system/maintenance`;
+const stream = !import.meta.env.VITE_MAINTENANCE_STATUS_URL ? createMaintenanceStream({
+  url: `${statusUrl}/events`,
+  onStatus(value) {
+    offline.value = false;
+    checking.value = false;
+    checked.value = true;
+    updateMaintenanceSettings(value);
+    void reconcileView();
+  },
+  onConnection(connected) { streamConnected = connected; poller.setSuspended(connected); },
+}) : {stop() {}};
 
 async function reconcileView() {
   if (!checked.value || disposed || reconciling) return;
@@ -142,6 +158,7 @@ onBeforeUnmount(() => {
   disposed = true;
   isolation.destroy();
   poller.stop();
+  stream.stop();
   window.removeEventListener('online', check);
   document.removeEventListener('visibilitychange', onVisibility);
 });

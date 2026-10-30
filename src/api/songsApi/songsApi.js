@@ -1,3 +1,6 @@
+import {ExpiringCache} from '@/utils/expiringCache.js';
+const lyricCache = new ExpiringCache({max: 64, ttl: 30000});
+let lyricAuth = '';
 /**
  * author: zijun
  * @description: 歌曲接口
@@ -68,26 +71,40 @@ export const songsApi = {
 		return apiClient.get(`/song/url?id=${id}`, {timeout: 6000});
 	},
 
-	getLyric(id) {
-		return apiClient.get(`/lyric?id=${id}`);
+	getLyric(id, {signal} = {}) {
+		return apiClient.get(`/lyric?id=${id}`, {signal});
 	},
 
-	getLyricNew(id) {
-		return apiClient.get(`/lyric/new?id=${id}`);
+	getLyricNew(id, {signal} = {}) {
+		return apiClient.get(`/lyric/new?id=${id}`, {signal});
 	},
 
 	async getLyricSearch(params = {}) {
 		const songName = params.songName || params.name || params.keyword || '';
 		const artist = params.artist || '';
+		const songId = String(params.songId || params.id || '');
+		const auth = String(useCounterStore().getUserCookie || '');
+		if (auth !== lyricAuth) { lyricAuth = auth; lyricCache.clear(); }
+		const key = JSON.stringify([songId, songName, artist]);
+		const cached = lyricCache.get(key);
+		if (cached) return cached;
 		const data = await unwrap(requestLocal.get('/api/v1/content/lyrics/search', {
+			signal: params.signal,
 			params: {
+				songId,
 				songName,
 				artist,
 			},
 		}));
 		const list = Array.isArray(data) ? data : [];
-		const hydrated = await Promise.all(list.map(hydrateBackendLyric));
-		return { data: hydrated };
+		const ranked = [...list].sort((a, b) => {
+            const score = item => (String(item.songId || '') === songId ? 100 : 0) + (item.songName === songName ? 10 : 0) + (item.artist === artist ? 5 : 0);
+            return score(b) - score(a);
+        });
+        const hydrated = ranked.length ? [await hydrateBackendLyric(ranked[0], params.signal)] : [];
+        const result = {data: hydrated};
+        if (!params.signal?.aborted) lyricCache.set(key, result);
+        return result;
 	},
 
 	//搜索歌曲
@@ -153,7 +170,7 @@ export const songsApi = {
 
 };
 
-async function hydrateBackendLyric(item) {
+async function hydrateBackendLyric(item, signal) {
 	if (!item || typeof item !== 'object') return item;
 	const lyricUrl = toBackendMediaUrl(item.lyricUrl);
 	if (String(item.lyricContent || '').trim() || !lyricUrl) {
@@ -161,6 +178,7 @@ async function hydrateBackendLyric(item) {
 	}
 	try {
 		const response = await requestLocal.get(toBackendRequestUrl(lyricUrl), {
+			signal,
 			responseType: 'text',
 			transformResponse: [(value) => value],
 		});
@@ -169,9 +187,10 @@ async function hydrateBackendLyric(item) {
 			lyricUrl,
 			lyricContent: String(response?.data || '').replace(/^\uFEFF/, ''),
 		};
-	} catch {
+	} catch (error) {
+		if (signal?.aborted) throw error;
 		try {
-			const detail = await unwrap(requestLocal.get(`/api/v1/content/lyrics/${item.id}`));
+			const detail = await unwrap(requestLocal.get(`/api/v1/content/lyrics/${item.id}`, {signal}));
 			return {
 				...item,
 				...detail,

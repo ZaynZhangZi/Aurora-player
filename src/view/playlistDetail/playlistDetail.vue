@@ -490,12 +490,14 @@ async function toggleSongLike(track) {
   const songId = Number(track.id)
   const liked = isSongLiked(songId)
   const nextLiked = !liked
+  const requestedUser = userStore.userId
 
   likeLoadingSongId.value = songId
   actionFeedback.value = ''
 
   try {
     await songsApi.likeSongs(songId, liked ? 'false' : 'true')
+    if (userStore.userId !== requestedUser) return
 
     const next = new Set(likedSongIdSet.value)
     if (liked) next.delete(String(songId))
@@ -504,8 +506,9 @@ async function toggleSongLike(track) {
 
     triggerSongLikeAnimation(songId, nextLiked)
 
-    if (!liked) {
+    {
       reportApi.reportLikedSong({
+        liked: nextLiked,
         songId,
         songName: track.name,
         artist: normalizeTrackArtistNameList(track).join(', '),
@@ -528,26 +531,24 @@ async function toggleSubscribePlaylist() {
     return
   }
 
+  const targetPlaylist = playlist.value
+  const requestedId = targetPlaylist.id
+  const requestedUser = userStore.userId
   subscribing.value = true
   actionFeedback.value = ''
 
   try {
-    const shouldSubscribe = !playlist.value.subscribed
-    await playListsApi.subscribePlayList(playlist.value.id, shouldSubscribe ? 1 : 2)
+    const shouldSubscribe = !targetPlaylist.subscribed
+    await playListsApi.subscribePlayList(requestedId, shouldSubscribe ? 1 : 2)
+    reportApi.reportCollection({collectionType: 'PLAYLIST', targetId: requestedId, targetName: targetPlaylist.name, coverUrl: targetPlaylist.coverImgUrl, collected: shouldSubscribe, userId: requestedUser})
+    if (playlist.value !== targetPlaylist || userStore.userId !== requestedUser) return
 
     playlist.value.subscribed = shouldSubscribe
     playlist.value.subscribedCount = Math.max(0, Number(playlist.value.subscribedCount || 0) + (shouldSubscribe ? 1 : -1))
 
     triggerPlaylistLikeAnimation(shouldSubscribe)
 
-    if (shouldSubscribe) {
-      reportApi.reportCollection({
-        collectionType: 'PLAYLIST',
-        targetId: playlist.value.id,
-        targetName: playlist.value.name,
-        coverUrl: playlist.value.coverImgUrl,
-      })
-    }
+
   } catch {
     actionFeedback.value = '歌单收藏操作失败，请稍后再试'
   } finally {

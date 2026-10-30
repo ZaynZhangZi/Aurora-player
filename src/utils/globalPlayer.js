@@ -1,3 +1,5 @@
+import {ExpiringCache} from './expiringCache.js'
+import {useCounterStore} from '@/stores/userStores.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import { requireFeature, getMaintenanceSnapshot, isTargetAvailable, subscribeMaintenance } from './maintenanceAccess.js'
 import {reportApi} from '@/api/reportApi/reportApi.js'
@@ -13,7 +15,18 @@ import {
 import {dismissPlaybackNotice, showPlaybackNotice} from '@/utils/playbackNotice.js'
 import {actualAudioQuality, normalizeAudioQuality, qualityFallbackLevels} from '@/utils/player/audioQuality.js'
 
-const preloadedSongUrlCache = new Map()
+const preloadedSongUrlCache = new ExpiringCache()
+const sourceRequests = new Map()
+let sourceAuth = '', sourceEpoch = 0
+function sourceKey(id, quality) {
+  const user = useCounterStore()
+  const auth = String(user.userId || '') + ':' + String(user.getUserCookie || '')
+  if (auth !== sourceAuth) {
+    sourceAuth = auth; sourceEpoch++
+    preloadedSongUrlCache.clear(); sourceRequests.clear()
+  }
+  return sourceEpoch + ':' + String(id) + ':' + normalizeAudioQuality(quality)
+}
 let warmupToken = 0
 let playbackRequestToken = 0
 let queueNavigationToken = 0
@@ -316,10 +329,17 @@ function summarizeSongForReport(song) {
 }
 
 export async function resolveSongPlayableSource(id, {quality = 'exhigh'} = {}) {
-  const requestedLevel = normalizeAudioQuality(quality)
-  const cacheKey = `${String(id)}:${requestedLevel}`
-  const cached = preloadedSongUrlCache.get(cacheKey)
+  const key = sourceKey(id, quality)
+  const cached = preloadedSongUrlCache.get(key)
   if (cached) return cached
+  if (sourceRequests.has(key)) return sourceRequests.get(key)
+  const task = loadPlayableSource(id, quality, key).finally(() => { if (sourceRequests.get(key) === task) sourceRequests.delete(key) })
+  sourceRequests.set(key, task)
+  return task
+}
+
+async function loadPlayableSource(id, quality, cacheKey) {
+  const requestedLevel = normalizeAudioQuality(quality)
 
   const observations = []
   const requestErrors = []
@@ -393,7 +413,7 @@ export function clearSongPlayableUrlCache(songId) {
   const cacheKey = String(songId || '').trim()
   if (!cacheKey) return
   for (const key of preloadedSongUrlCache.keys()) {
-    if (key.startsWith(`${cacheKey}:`)) preloadedSongUrlCache.delete(key)
+    if (key.split(':')[1] === cacheKey) preloadedSongUrlCache.delete(key)
   }
 }
 
@@ -435,7 +455,7 @@ export async function warmupNextTrack() {
   const targetId = Number(targetSong?.id)
   if (!Number.isFinite(targetId) || targetId <= 0) return
 
-  const cacheKey = `${String(targetId)}:${normalizeAudioQuality(playerStore.audioQuality)}`
+  const cacheKey = sourceKey(targetId, playerStore.audioQuality)
   if (preloadedSongUrlCache.has(cacheKey)) {
     scheduleBrowserAutomixAnalysis(playerStore, targetSong, preloadedSongUrlCache.get(cacheKey), {role: 'next-1'})
     if (typeof console !== 'undefined') {

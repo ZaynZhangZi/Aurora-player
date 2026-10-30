@@ -1770,7 +1770,12 @@ async function playCloudSong(item) {
   }
 }
 
+let profileLoadSequence = 0
 async function loadProfilePage() {
+  const sequence = ++profileLoadSequence
+  const requestedUser = String(userStore.userId || '')
+  const requestedCookie = userStore.getUserCookie
+  const isCurrent = () => !profileUnmounted && sequence === profileLoadSequence && requestedUser === String(userStore.userId || '') && requestedCookie === userStore.getUserCookie
   loading.value = true
   error.value = ''
 
@@ -1787,6 +1792,7 @@ async function loadProfilePage() {
       userApi.getUserPlaylist(userStore.userId, 40, 0),
     ])
 
+    if (!isCurrent()) return
     const detailProfile = detailRes?.data?.profile || {}
     profile.value = {
       userId: detailProfile.userId || userStore.userId,
@@ -1804,6 +1810,7 @@ async function loadProfilePage() {
 
     await pickAvatarTheme(profile.value.avatarUrl, profile.value.nickname)
 
+    if (!isCurrent()) return
     const syncedProfile = {
       userId: profile.value.userId,
       nickname: profile.value.nickname,
@@ -1820,9 +1827,10 @@ async function loadProfilePage() {
     await loadCloudSongs(1)
     await setListeningRange(listeningRange.value)
   } catch (err) {
+    if (!isCurrent()) return
     error.value = err?.message || '个人中心加载失败'
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 

@@ -31,7 +31,10 @@ function safeCall(fn, label = 'report') {
   }
 }
 
+const syncRequests = new Map()
+
 export const reportApi = {
+  getUserKey: () => String(getUserId() || ''),
   async syncNeteaseUser(profile = {}, { force = false } = {}) {
     const neteaseUserId = profile.userId || profile.neteaseUserId || getUserId()
     if (!neteaseUserId) return null
@@ -39,21 +42,28 @@ export const reportApi = {
     try {
       const lastSyncedAt = Number(localStorage.getItem(syncKey) || 0)
       if (!force && Date.now() - lastSyncedAt < 6 * 60 * 60 * 1000) return null
-      localStorage.setItem(syncKey, String(Date.now()))
+
     } catch {}
+    if (syncRequests.has(String(neteaseUserId))) return syncRequests.get(String(neteaseUserId))
+    const task = (async () => {
     try {
       const response = await requestLocal.post('/api/v1/netease-users/sync-login', {
         neteaseUserId: Number(neteaseUserId),
         nickname: profile.nickname || '',
         avatarUrl: profile.avatarUrl || '',
       })
-      return unwrapBackendResponse(response)
+      const result = unwrapBackendResponse(response)
+      try { localStorage.setItem(syncKey, String(Date.now())) } catch {}
+      return result
     } catch (error) {
       if (import.meta.env.DEV || localStorage.getItem('behavior_debug') === '1') {
         console.warn('[syncNeteaseUser] failed', error)
       }
       return null
-    }
+    } finally { syncRequests.delete(String(neteaseUserId)) }
+    })()
+    syncRequests.set(String(neteaseUserId), task)
+    return task
   },
 
   async getNeteaseUserStatus(neteaseUserId = getUserId()) {
@@ -63,10 +73,12 @@ export const reportApi = {
   },
 
   /** 上报播放记录 */
-  reportPlayRecord({ songId, songName, artist, album, duration, coverUrl, playDuration, playProgress, completed }) {
+  reportPlayRecord({ songId, songName, artist, album, duration, coverUrl, playDuration, playProgress, completed, sessionId, userId }) {
     const neteaseUserId = getUserId()
     if (!neteaseUserId) return
+    if (userId != null && String(userId) !== String(neteaseUserId)) return
     safeCall(() => requestLocal.post('/api/v1/user-data/play-record', {
+      sessionId,
       neteaseUserId: String(neteaseUserId),
       songId: String(songId),
       songName, artist, album,
@@ -76,10 +88,11 @@ export const reportApi = {
   },
 
   /** 上报喜欢歌曲 */
-  reportLikedSong({ songId, songName, artist, album, duration, coverUrl }) {
+  reportLikedSong({ songId, songName, artist, album, duration, coverUrl, liked = true }) {
     const neteaseUserId = getUserId()
     if (!neteaseUserId) return
     safeCall(() => requestLocal.post('/api/v1/user-data/liked-song', {
+      liked,
       neteaseUserId: String(neteaseUserId),
       songId: String(songId),
       songName, artist, album,
@@ -88,10 +101,12 @@ export const reportApi = {
   },
 
   /** 上报收藏记录 */
-  reportCollection({ collectionType, targetId, targetName, coverUrl }) {
+  reportCollection({ collectionType, targetId, targetName, coverUrl, collected = true, userId }) {
     const neteaseUserId = getUserId()
     if (!neteaseUserId) return
+    if (userId != null && String(userId) !== String(neteaseUserId)) return
     safeCall(() => requestLocal.post('/api/v1/user-data/collection', {
+      collected,
       neteaseUserId: String(neteaseUserId),
       collectionType, targetId: String(targetId),
       targetName, coverUrl,

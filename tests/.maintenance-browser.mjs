@@ -9,7 +9,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const output = resolve(process.env.MAINTENANCE_SCREENSHOT_DIR || 'docs/screenshots/maintenance');
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), 'aurora-maintenance-'));
-const adminDir = resolve('../../backend/backend-fornt/AuroraPlayeradmin-panel');
+const adminDir = resolve(process.env.MAINTENANCE_ADMIN_DIR || '../../backend/backend-fornt/AuroraPlayeradmin-panel');
 const servers = [
   spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4187', '--strictPort'], { cwd: process.cwd(), windowsHide: true, stdio: 'ignore' }),
   spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4188', '--strictPort'], { cwd: adminDir, windowsHide: true, stdio: 'ignore' }),
