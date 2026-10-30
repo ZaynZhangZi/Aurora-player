@@ -67,7 +67,6 @@
  *  - 向详情组件提供 matchedRouteKey 等注入，保证 onBeforeRouteLeave 正常。
  */
 import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
-import { gsap } from 'gsap'
 import {
   matchedRouteKey,
   routerViewLocationKey,
@@ -212,71 +211,47 @@ function handleBackdropClick() {
 }
 
 /* ── 动画 ── */
+const animations = new Set()
+const heroTimers = new Set()
+function tween(target, frames, duration, easing, done) {
+  if (!target?.animate) { done?.(); return }
+  const animation = target.animate(frames, {duration, easing, fill: 'both'})
+  animations.add(animation)
+  let ended = false
+  const finish = () => {
+    if (ended) return
+    ended = true
+    animations.delete(animation)
+    animation.cancel()
+    done?.()
+  }
+  animation.onfinish = finish
+  animation.oncancel = finish
+}
 function handleEnter(el, done) {
   lastFocusedEl = document.activeElement
   bindEscape()
-
   const backdrop = el.querySelector('.detail-overlay-backdrop')
   const dialog = el.querySelector('.detail-overlay-dialog')
-
-  if (prefersReducedMotion()) {
-    gsap.set([backdrop, dialog], { opacity: 1, scale: 1, y: 0, filter: 'none' })
-    nextTick(focusFirstInDialog)
-    done()
-    return
-  }
-
-  // 有封面 Hero 飞入时：不做缩放/模糊（会裁切飞入的封面），只做遮罩淡入。
-  if (hasPendingHero()) {
-    const prevOverflow = dialog.style.overflow
-    dialog.style.overflow = 'visible'
-    gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' })
-    gsap.set(dialog, { opacity: 1, scale: 1, y: 0 })
-    nextTick(focusFirstInDialog)
-    window.setTimeout(() => {
-      dialog.style.overflow = prevOverflow || ''
-    }, 880)
-    done()
-    return
-  }
-
-  gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power2.out' })
-  gsap.fromTo(
-    dialog,
-    { opacity: 0, scale: 0.965, y: 24, filter: 'blur(8px)' },
-    {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      filter: 'blur(0px)',
-      duration: 0.6,
-      ease: 'back.out(0.82)',
-      onComplete: done,
-    },
-  )
   nextTick(focusFirstInDialog)
+  if (prefersReducedMotion()) { done(); return }
+  tween(backdrop, [{opacity: 0}, {opacity: 1}], 180, 'ease-out')
+  if (hasPendingHero()) {
+    const overflow = dialog.style.overflow
+    dialog.style.overflow = 'visible'
+    const timer = setTimeout(() => { heroTimers.delete(timer); dialog.style.overflow = overflow }, 880)
+    heroTimers.add(timer)
+    done(); return
+  }
+  tween(dialog, [{opacity: 0, transform: 'translateY(12px) scale(0.985)'}, {opacity: 1, transform: 'none'}],
+    220, 'cubic-bezier(0.2, 0.8, 0.2, 1)', done)
 }
-
 function handleLeave(el, done) {
   unbindEscape()
-  const backdrop = el.querySelector('.detail-overlay-backdrop')
-  const dialog = el.querySelector('.detail-overlay-dialog')
-
-  if (prefersReducedMotion()) {
-    done()
-    return
-  }
-
-  gsap.to(backdrop, { opacity: 0, duration: 0.22, ease: 'power2.in' })
-  gsap.to(dialog, {
-    opacity: 0,
-    scale: 0.975,
-    y: 12,
-    filter: 'blur(4px)',
-    duration: 0.26,
-    ease: 'power3.in',
-    onComplete: done,
-  })
+  if (prefersReducedMotion()) { done(); return }
+  tween(el.querySelector('.detail-overlay-backdrop'), [{opacity: 1}, {opacity: 0}], 140, 'ease-in')
+  tween(el.querySelector('.detail-overlay-dialog'), [{opacity: 1, transform: 'none'}, {opacity: 0, transform: 'translateY(6px) scale(0.99)'}],
+    160, 'ease-in', done)
 }
 
 function handleAfterLeave() {
@@ -290,6 +265,8 @@ function handleAfterLeave() {
 }
 
 onBeforeUnmount(() => {
+  for (const animation of animations) animation.cancel()
+  for (const timer of heroTimers) clearTimeout(timer)
   unbindEscape()
   if (overlayLockActive) {
     unlockScroll()

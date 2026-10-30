@@ -33,6 +33,7 @@
         :key="item.id"
         type="button"
         class="media-card"
+        v-detail-prefetch="{type: variant, id: item.id}"
         :aria-label="`打开${title}：${nameOf(item)}`"
         :style="{ '--search-item-delay': `${Math.min(index, 10) * 32}ms` }"
         @click="emit('open', item)"

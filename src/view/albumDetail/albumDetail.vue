@@ -150,20 +150,18 @@
 <script setup>
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
-import { useRoute, useRouter } from 'vue-router'
-import { markNavigatingBack } from '@/router/index.js'
-import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
+import { useRoute } from 'vue-router'
+import { DETAIL_OVERLAY_MODE_KEY } from '@/composables/useDetailNavigation.js'
 import { lockScroll, unlockScroll } from '@/utils/scrollLock.js'
 import { artistApi } from '@/api/artistApi/artistApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'
 import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import ArtistLinks from '@/components/artistLinks/artistLinks.vue'
 import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
-import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
+import {loadImageAsset} from '@/utils/loadImageAsset.js'
+import {setPendingTransition, consumePendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
-const router = useRouter()
-const { closeDetail } = useDetailNavigation()
 // 悬浮模式（DetailOverlayHost 注入）；整页模式为 false。
 const isOverlay = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
 // 详情 id：规范 URL 用 params，旧地址回退 query。
@@ -189,6 +187,9 @@ const dynamicCover = ref({ url: '', isVideo: false })
 const themeRgb = ref('178, 154, 122')
 const animatedThemeRgb = ref(themeRgb.value)
 let themeRaf = 0
+let albumLoadGeneration = 0
+let albumLoadController = null
+let themePickGeneration = 0
 
 // 控制弹窗显示的变量
 const showModal = ref(false)
@@ -315,24 +316,24 @@ function pickDynamicCover(payload) {
   return { url: '', isVideo: false }
 }
 
-async function loadAlbumDynamicCover(trackList = []) {
-  dynamicCover.value = { url: '', isVideo: false }
-  const ids = trackList
+async function loadAlbumDynamicCover(trackList, {signal, isCurrent}) {
+  const ids = [...new Set(trackList
     .map(item => Number(item?.id || 0))
-    .filter(id => Number.isFinite(id) && id > 0)
+    .filter(id => Number.isFinite(id) && id > 0))]
     .slice(0, 6)
 
   for (const id of ids) {
+    if (!isCurrent()) return null
     try {
-      const res = await songsApi.getDynamicCover(id)
+      const res = await songsApi.getDynamicCover(id, {signal})
+      if (!isCurrent()) return null
       const media = pickDynamicCover(res)
-      if (media.url) {
-        dynamicCover.value = media
-        return
-      }
+      if (media.url) return media
     } catch {
+      // An unavailable optional cover can fall through to the next track.
     }
   }
+  return null
 }
 
 async function playFromIndex(startIndex = 0) {
@@ -406,13 +407,6 @@ async function runAlbumHeroFlipEnter() {
   })
 }
 
-function goBack() {
-  markNavigatingBack()
-  prepareAlbumHeroReturn()
-  // 统一关闭：悬浮层 back 弹出一条历史；整页直接访问回退首页兜底。
-  closeDetail()
-}
-
 function easeOutCubic(t) {
   return 1 - (1 - t) ** 3
 }
@@ -441,22 +435,19 @@ function animateThemeTo(nextRgb, {duration = 500} = {}) {
   themeRaf = requestAnimationFrame(tick)
 }
 
-async function pickThemeFromCover(coverUrl, seed = 'album') {
+async function pickThemeFromCover(coverUrl, seed, {signal, isCurrent}) {
+  const generation = ++themePickGeneration
+  const canApply = () => isCurrent() && generation === themePickGeneration
+  if (!canApply()) return
   if (!coverUrl) {
     themeRgb.value = '178, 154, 122'
     return
   }
 
   try {
-    const image = new Image()
-    image.crossOrigin = 'anonymous'
-    image.referrerPolicy = 'no-referrer'
-
-    await new Promise((resolve, reject) => {
-      image.onload = resolve
-      image.onerror = reject
-      image.src = getOptimizedImageUrl(coverUrl, {width: 96})
-    })
+    const image = await loadImageAsset(getOptimizedImageUrl(coverUrl, {width: 96}), {signal, crossOrigin: 'anonymous'})
+    if (!canApply()) return
+    if (!image) throw new Error('cover unavailable')
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d', {willReadFrequently: true})
@@ -478,12 +469,19 @@ async function pickThemeFromCover(coverUrl, seed = 'album') {
     // 重新放宽限制，保留真实色彩的鲜艳度和对比度
     themeRgb.value = `${Math.min(240, Math.max(40, Math.round(r / count)))}, ${Math.min(240, Math.max(40, Math.round(g / count)))}, ${Math.min(240, Math.max(40, Math.round(b / count)))}`
   } catch {
+    if (!canApply()) return
     const hash = Array.from(String(seed)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
     themeRgb.value = `${160 + (hash % 28)}, ${136 + (hash % 24)}, ${108 + (hash % 20)}`
   }
 }
 
 async function loadAlbum() {
+  const generation = ++albumLoadGeneration
+  albumLoadController?.abort()
+  albumLoadController = new AbortController()
+  const {signal} = albumLoadController
+  const isCurrent = () => generation === albumLoadGeneration && !signal.aborted
+  const assets = {signal, isCurrent}
   loading.value = true
   error.value = ''
   playHint.value = ''
@@ -499,7 +497,8 @@ async function loadAlbum() {
   }
 
   try {
-    const res = await artistApi.getAlbumDetail(id)
+    const res = await artistApi.getAlbumDetail(id, {signal})
+    if (!isCurrent()) return
     const albumData = res?.data?.album || {}
     const tracks = res?.data?.songs || []
 
@@ -515,13 +514,18 @@ async function loadAlbum() {
     }
 
     songs.value = tracks
-    await loadAlbumDynamicCover(tracks)
-    const themeCover = dynamicCover.value.isVideo ? album.value.cover : (dynamicCover.value.url || album.value.cover)
-    await pickThemeFromCover(themeCover, album.value.name)
+    // The track list is usable as soon as the album request completes.
+    const seed = album.value.name
+    void pickThemeFromCover(album.value.cover, seed, assets)
+    void loadAlbumDynamicCover(tracks, assets).then(media => {
+      if (!media || !isCurrent()) return
+      dynamicCover.value = media
+      if (!media.isVideo) void pickThemeFromCover(media.url, seed, assets)
+    })
   } catch (err) {
-    error.value = err?.message || '专辑加载失败'
+    if (isCurrent()) error.value = err?.message || '专辑加载失败'
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
@@ -536,6 +540,7 @@ onBeforeRouteLeave(() => {
 })
 
 onBeforeUnmount(() => {
+  albumLoadController?.abort()
   if (themeRaf) {
     cancelAnimationFrame(themeRaf)
     themeRaf = 0

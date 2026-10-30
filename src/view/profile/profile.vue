@@ -85,7 +85,7 @@
                   class="profile-playlist-card group"
                   role="button"
                   tabindex="0"
-                  @click="openPlaylist(item, $event)"
+                  v-detail-prefetch="{type: 'playlist', id: item.id}" @click="openPlaylist(item, $event)"
                   @keyup.enter="openPlaylist(item, $event)"
                 >
                   <div
@@ -117,7 +117,7 @@
                   class="profile-playlist-card group"
                   role="button"
                   tabindex="0"
-                  @click="openPlaylist(item, $event)"
+                  v-detail-prefetch="{type: 'playlist', id: item.id}" @click="openPlaylist(item, $event)"
                   @keyup.enter="openPlaylist(item, $event)"
                 >
                   <div
@@ -1808,7 +1808,8 @@ async function loadProfilePage() {
       userType: detailProfile.userType || 0,
     }
 
-    await pickAvatarTheme(profile.value.avatarUrl, profile.value.nickname)
+    // Artwork and secondary tabs must not hold the playlist behind a spinner.
+    void pickAvatarTheme(profile.value.avatarUrl, profile.value.nickname)
 
     if (!isCurrent()) return
     const syncedProfile = {
@@ -1824,8 +1825,8 @@ async function loadProfilePage() {
     }
 
     playlists.value = playlistRes?.data?.playlist || []
-    await loadCloudSongs(1)
-    await setListeningRange(listeningRange.value)
+    void loadCloudSongs(1)
+    void setListeningRange(listeningRange.value)
   } catch (err) {
     if (!isCurrent()) return
     error.value = err?.message || '个人中心加载失败'

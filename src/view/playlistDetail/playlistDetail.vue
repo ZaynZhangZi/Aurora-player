@@ -165,10 +165,10 @@
 </template>
 
 <script setup>
+import {loadPlaylistPages} from '@/utils/playlistPages.js'
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { markNavigatingBack } from '@/router/index.js'
-import { DETAIL_OVERLAY_MODE_KEY, useDetailNavigation } from '@/composables/useDetailNavigation.js'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { DETAIL_OVERLAY_MODE_KEY } from '@/composables/useDetailNavigation.js'
 import { HeartIcon as HeartOutlineIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
@@ -185,13 +185,12 @@ import { playSongWithQueue } from '@/utils/globalPlayer.js'
 import { useCounterStore } from '@/stores/userStores.js'
 import { usePlayerStore } from '@/stores/playerStore.js'
 import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
+import {loadImageAsset} from '@/utils/loadImageAsset.js'
 import {useVirtualTrackList} from '@/composables/useVirtualTrackList.js'
 
 const route = useRoute()
-const router = useRouter()
 const userStore = useCounterStore()
 const playerStore = usePlayerStore()
-const { closeDetail } = useDetailNavigation()
 // 悬浮模式由 DetailOverlayHost 注入；整页模式（直接访问/刷新）为 false。
 // 详情组件挂载期间模式不变，用静态布尔即可。
 const isModalPlaylistDetail = Boolean(inject(DETAIL_OVERLAY_MODE_KEY, false))
@@ -435,13 +434,6 @@ function preparePlaylistHeroReturn() {
   })
 }
 
-async function goBack() {
-  markNavigatingBack()
-  preparePlaylistHeroReturn()
-  // 统一关闭：悬浮层用 router.back() 弹出一条历史；整页直接访问回退到首页兜底。
-  closeDetail()
-}
-
 onBeforeRouteLeave(() => {
   // 无论返回哪个背景页，都准备封面 Hero 返回动画（由背景页消费）。
   preparePlaylistHeroReturn()
@@ -563,48 +555,10 @@ function getTrackItemStyle(index) {
   }
 }
 
-async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0, signal) {
-  const pageSize = 100
-  const first = await playListsApi.getPlayListSongs(playlistId, pageSize, 0, {signal})
-  const firstChunk = first?.data?.songs || []
-  if (!firstChunk.length) return []
-
-  const total = expectedTotal > 0 ? expectedTotal : firstChunk.length
-  const pages = Math.ceil(total / pageSize)
-  const restOffsets = []
-  for (let i = 1; i < pages; i++) {
-    restOffsets.push(i * pageSize)
-  }
-
-  let allChunks = [firstChunk]
-  if (restOffsets.length > 0) {
-    const restResults = Array.from({length: restOffsets.length})
-    let nextOffsetIndex = 0
-    const workerCount = Math.min(3, restOffsets.length)
-    const workers = Array.from({length: workerCount}, async () => {
-      while (nextOffsetIndex < restOffsets.length && !signal?.aborted) {
-        const resultIndex = nextOffsetIndex
-        nextOffsetIndex += 1
-        const offset = restOffsets[resultIndex]
-        restResults[resultIndex] = await playListsApi
-          .getPlayListSongs(playlistId, pageSize, offset, {signal})
-          .then(r => r?.data?.songs || [])
-          .catch(() => [])
-      }
-    })
-    await Promise.all(workers)
-    allChunks = allChunks.concat(restResults.filter(Array.isArray))
-  }
-
-  const map = new Map()
-  for (const chunk of allChunks) {
-    for (const song of chunk) {
-      if (song?.id && !map.has(song.id)) {
-        map.set(song.id, song)
-      }
-    }
-  }
-  return Array.from(map.values())
+async function fetchAllPlaylistSongs(playlistId, expectedTotal = 0, signal, initial = []) {
+  return loadPlaylistPages({initial, total: expectedTotal, signal,
+    fetchPage: (limit, offset) => playListsApi.getPlayListSongs(playlistId, limit, offset, {signal}).then(response => response?.data?.songs || []),
+  })
 }
 
 function colorFromString(seed) {
@@ -619,23 +573,20 @@ function colorFromString(seed) {
   return `${r}, ${g}, ${b}`
 }
 
-async function pickThemeColor(coverUrl, seedName) {
+let themePickGeneration = 0
+async function pickThemeColor(coverUrl, seedName, {signal, isCurrent: isLoadCurrent}) {
+  const generation = ++themePickGeneration
+  const isCurrent = () => isLoadCurrent() && generation === themePickGeneration
+  if (!isCurrent()) return
   if (!coverUrl) {
     themeRgb.value = colorFromString(seedName)
     return
   }
 
   try {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.referrerPolicy = 'no-referrer'
-
-    const loaded = await new Promise((resolve, reject) => {
-      img.onload = resolve
-      img.onerror = reject
-      img.src = getOptimizedImageUrl(coverUrl, {width: 96})
-    })
-    void loaded
+    const img = await loadImageAsset(getOptimizedImageUrl(coverUrl, {width: 96}), {signal, crossOrigin: 'anonymous'})
+    if (!isCurrent()) return
+    if (!img) throw new Error('cover unavailable')
 
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d', {willReadFrequently: true})
@@ -664,7 +615,7 @@ async function pickThemeColor(coverUrl, seedName) {
 
     themeRgb.value = `${rr}, ${gg}, ${bb}`
   } catch {
-    themeRgb.value = colorFromString(seedName)
+    if (isCurrent()) themeRgb.value = colorFromString(seedName)
   }
 }
 
@@ -711,34 +662,13 @@ async function loadPlaylist() {
     if (!isCurrent()) return
     const detailPlaylist = detailRes?.data?.playlist || {}
 
-    await heroEnterDone
-    if (!isCurrent()) return
-
     const apiCoverUrl = detailPlaylist.coverImgUrl || ''
-    const needsCoverSwap = apiCoverUrl && apiCoverUrl !== heroPreviewCoverUrl
-
-    if (needsCoverSwap) {
-      await new Promise((resolve) => {
-        const img = new Image()
-        const finish = () => {
-          signal.removeEventListener('abort', finish)
-          img.onload = null
-          img.onerror = null
-          if (signal.aborted) img.removeAttribute('src')
-          resolve()
-        }
-        signal.addEventListener('abort', finish, {once: true})
-        img.onload = finish
-        img.onerror = finish
-        img.src = getOptimizedImageUrl(apiCoverUrl, {width: 640})
-      })
-    }
-    if (!isCurrent()) return
+    const needsCoverSwap = heroPreviewCoverUrl && apiCoverUrl && apiCoverUrl !== heroPreviewCoverUrl
 
     playlist.value = {
       id: Number(detailPlaylist.id || id),
       name: detailPlaylist.name || '',
-      coverImgUrl: needsCoverSwap ? apiCoverUrl : (heroPreviewCoverUrl || apiCoverUrl),
+      coverImgUrl: heroPreviewCoverUrl || apiCoverUrl,
       creatorName: detailPlaylist.creator?.nickname || '',
       description: detailPlaylist.description || '',
       trackCount: detailPlaylist.trackCount || 0,
@@ -749,12 +679,25 @@ async function loadPlaylist() {
 
     // 立即展示初始歌曲，不阻塞
     tracks.value = detailPlaylist.tracks || []
-    pickThemeColor(playlist.value.coverImgUrl, playlist.value.name)
+    void pickThemeColor(playlist.value.coverImgUrl, playlist.value.name, {signal, isCurrent})
     loading.value = false
+
+    // Preserve the flying cover through its Hero transition; artwork loading
+    // runs separately from metadata, initial tracks and the remaining pages.
+    if (needsCoverSwap) {
+      void (async () => {
+        await heroEnterDone
+        if (!isCurrent()) return
+        const image = await loadImageAsset(getOptimizedImageUrl(apiCoverUrl, {width: 640}), {signal})
+        if (!image || !isCurrent()) return
+        playlist.value = {...playlist.value, coverImgUrl: apiCoverUrl}
+        void pickThemeColor(apiCoverUrl, playlist.value.name, {signal, isCurrent})
+      })()
+    }
 
     // 后台并行拉取剩余歌曲
     try {
-      const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0, signal)
+      const allSongs = await fetchAllPlaylistSongs(id, detailPlaylist.trackCount || 0, signal, detailPlaylist.tracks || [])
       if (isCurrent() && allSongs.length) {
         tracks.value = allSongs
       }

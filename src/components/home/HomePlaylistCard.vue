@@ -1,6 +1,7 @@
 <template>
   <article
     class="playlist-card"
+    v-detail-prefetch="{type: 'playlist', id: item?.id}"
     :class="{ 'is-search': variant === 'search' }"
   >
     <div class="playlist-artwork">

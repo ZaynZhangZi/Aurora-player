@@ -1,3 +1,4 @@
+import {loadDetailResource} from '@/utils/detailResourceCache.js';
 /**
  * author: zijun
  * @description: 歌单接口
@@ -13,7 +14,7 @@ export const playListsApi = {
 
     //获取歌单详情
     getPlayListDetail: (id, {signal} = {}) => {
-        return apiClient.get(`/playlist/detail?id=${id}`, {signal});
+        return loadDetailResource('playlist', id, {url: '/playlist/detail'}, requestSignal => apiClient.get('/playlist/detail', {params: {id}, signal: requestSignal}), {signal});
     },
 
     //歌单 ( 网友精选碟 )

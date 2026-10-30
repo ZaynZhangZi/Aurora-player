@@ -16,8 +16,8 @@ async function unwrap(request) {
 
 export const songsApi = {
 	//获取动态封面
-	getDynamicCover(id) {
-		return apiClient.get(`/song/dynamic/cover?id=${id}`);
+	getDynamicCover(id, {signal} = {}) {
+		return apiClient.get(`/song/dynamic/cover?id=${id}`, {signal});
 	},
 
 	getSongDetail(id) {

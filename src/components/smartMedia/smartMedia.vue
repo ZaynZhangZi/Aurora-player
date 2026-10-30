@@ -31,7 +31,6 @@
       class="relative z-1 block w-full h-full"
       :src="videoPrimarySrc"
       :poster="optimizedPoster"
-      :autoplay="autoplay"
       :muted="muted"
       :loop="loop"
       :controls="controls"
@@ -104,8 +103,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch, onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onBeforeUnmount, onMounted } from 'vue'
 import { buildImageSrcSet, getOptimizedImageUrl, normalizeMediaUrl } from '@/utils/mediaUrl.js'
+import {useElementActivity} from '@/composables/useElementActivity.js'
+import {useVideoActivity} from '@/composables/useVideoActivity.js'
 
 /**
  * 允许的扩展名
@@ -174,7 +175,6 @@ const wrapperRef = ref(null)
 const scrollScale = ref(1)
 let scrollListenerAttached = false
 let rafId = null
-let active = true
 let motionPreference = null
 const reducedMotion = ref(false)
 
@@ -208,7 +208,7 @@ const scrollLoop = computed(() => {
 
 function startTextScroll() {
   stopTextScroll()
-  if (!shouldScroll.value || !active || document.hidden) return
+  if (!shouldScroll.value || !mediaActive.value) return
   const arr = contentList.value
   if (arr.length <= 1) return
 
@@ -309,6 +309,10 @@ const mediaType = computed(() => {
   if (hasVideo && hasImage) return 'video' // 混合时优先视频
   return 'unknown'
 })
+
+const activityTarget = computed(() => mediaType.value === 'video' || props.scaleOnScroll || shouldScroll.value ? wrapperRef.value : null)
+const mediaActive = useElementActivity(activityTarget)
+const {play: playVideo, pause: pauseVideo} = useVideoActivity(videoRef, mediaActive, computed(() => props.autoplay))
 
 /**
  * createObjectURL 管理，避免内存泄漏
@@ -436,12 +440,12 @@ function onErrored(e) {
  * 悬停播放
  */
 function handleMouseEnter() {
-  if (!props.hoverPlay || mediaType.value !== 'video') return
-  videoRef.value?.play?.().catch(() => {})
+  if (!props.hoverPlay || mediaType.value !== 'video' || !mediaActive.value) return
+  playVideo()?.catch(() => {})
 }
 function handleMouseLeave() {
   if (!props.hoverPlay || mediaType.value !== 'video') return
-  if (!props.autoplay) videoRef.value?.pause?.()
+  if (!props.autoplay) pauseVideo()
 }
 
 function enforceVideoMuteIfNeeded() {
@@ -470,13 +474,11 @@ watch(srcList, () => {
 }, { flush: 'post' })
 
 defineExpose({
-  playVideo: () => videoRef.value?.play?.(),
+  playVideo,
 })
 
 onBeforeUnmount(() => {
-  active = false
   stopTextScroll()
-  document.removeEventListener('visibilitychange', syncActivity)
   motionPreference?.removeEventListener('change', syncMotionPreference)
   revokeAll()
   detachScrollListener()
@@ -503,7 +505,7 @@ function handleScroll() {
 }
 
 function attachScrollListener() {
-  if (scrollListenerAttached || !props.scaleOnScroll || reducedMotion.value || !active || document.hidden) return
+  if (scrollListenerAttached || !props.scaleOnScroll || reducedMotion.value || !mediaActive.value) return
   scrollListenerAttached = true
   updateScrollScale()
   window.addEventListener('scroll', handleScroll, { passive: true })
@@ -524,7 +526,6 @@ function detachScrollListener() {
 onMounted(() => {
   motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
   motionPreference.addEventListener('change', syncMotionPreference)
-  document.addEventListener('visibilitychange', syncActivity)
   syncMotionPreference()
   nextTick(() => {
     enforceVideoMuteIfNeeded()
@@ -547,13 +548,12 @@ function syncMotionPreference() {
 function syncActivity() {
   stopTextScroll()
   detachScrollListener()
-  if (!active || document.hidden) return
+  if (!mediaActive.value) return
   startTextScroll()
   attachScrollListener()
 }
 
-onActivated(() => { active = true; syncActivity() })
-onDeactivated(() => { active = false; syncActivity() })
+watch(mediaActive, syncActivity)
 
 watch([() => props.lockMuted, mediaType, videoPrimarySrc], () => {
   nextTick(() => {

@@ -1,3 +1,4 @@
+import {prefetchDetail} from '@/utils/detailPrefetch.js'
 /**
  * useDetailNavigation.js — 统一的「实体详情」导航入口
  *
@@ -104,6 +105,7 @@ export function useDetailNavigation() {
   function openDetail(type, id, options = {}) {
     const location = buildDetailLocation(type, id, options.query)
     if (!location) return Promise.resolve()
+    void prefetchDetail(router, normalizeDetailType(type), id)
     return options.replace ? router.replace(location) : router.push(location)
   }
 

@@ -8,6 +8,7 @@
       ref="cardRef"
       type="button"
       class="best-match-card"
+      v-detail-prefetch="{type, id: item.id}"
       :style="cardThemeStyle"
       @mouseenter="playHoverAnimation"
       @mouseleave="resetHoverAnimation"

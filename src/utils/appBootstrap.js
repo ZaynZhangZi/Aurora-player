@@ -1,4 +1,6 @@
 // Only resources required by the current page belong on the startup path.
+import {canPreloadRoutes, preloadRouteComponent} from './routePerformance.js'
+
 const routePreloads = new WeakMap()
 
 function waitFor(task, timeout, signal) {
@@ -50,8 +52,7 @@ function waitForShell(onProgress, signal) {
 export function preloadRouteComponents(router) {
   if (!router?.getRoutes || typeof window === 'undefined') return Promise.resolve()
   if (routePreloads.has(router)) return routePreloads.get(router)
-  const connection = navigator.connection
-  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || '')) return Promise.resolve()
+  if (!canPreloadRoutes()) return Promise.resolve()
 
   const preload = (async () => {
     await router.isReady().catch(() => {})
@@ -63,10 +64,7 @@ export function preloadRouteComponents(router) {
         else setTimeout(resolve, 100)
       })
       if (document.hidden || router.currentRoute.value.name === name) continue
-      const component = router.getRoutes().find(record => record.name === name)?.components?.default
-      if (typeof component === 'function') {
-        try { await component() } catch { /* Navigation can retry a failed preload. */ }
-      }
+      await preloadRouteComponent(router, {name})
     }
   })()
   routePreloads.set(router, preload)

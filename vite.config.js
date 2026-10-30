@@ -21,10 +21,15 @@ export default defineConfig(({ mode }) => {
 				output: {
 					manualChunks(id) {
 						if (id.includes('node_modules')) {
-							if (/[\\/](gsap|motion)[\\/]/.test(id)) return 'vendor-animation';
-							if (/[\\/](three|pixi\.js|@pixi)[\\/]/.test(id)) return 'vendor-3d';
+							if (/[\\/]gsap[\\/]/.test(id)) return 'vendor-gsap';
+							if (/[\\/]motion[\\/]/.test(id)) return 'vendor-motion';
+							// Each renderer loads only its own graphics engine.
+							if (/[\\/]three[\\/]/.test(id)) return 'vendor-three';
+							if (/[\\/]pixi\.js[\\/]/.test(id)) return 'vendor-pixi';
+							if (/[\\/]@pixi[\\/]/.test(id)) return 'vendor-pixi-legacy';
 							if (/[\\/](ant-design-vue|@headlessui)[\\/]/.test(id)) return 'vendor-ui';
-							if (/[\\/](axios|chroma-js|colorthief)[\\/]/.test(id)) return 'vendor-utils';
+							if (/[\\/]chroma-js[\\/]/.test(id)) return 'vendor-color';
+							if (/[\\/](axios|colorthief)[\\/]/.test(id)) return 'vendor-utils';
 						}
 					},
 				},

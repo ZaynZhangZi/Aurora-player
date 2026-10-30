@@ -1,5 +1,5 @@
 <template>
-  <div class="player-progress" :class="{ 'is-compact': compact }">
+  <div ref="rootRef" class="player-progress" :class="{ 'is-compact': compact }">
     <span class="progress-time is-current">{{ formatMs(displayTimeMs) }}</span>
     <div class="progress-control" :style="rangeStyle">
       <div class="progress-visual" aria-hidden="true">
@@ -30,6 +30,7 @@
 <script setup>
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {formatMs} from '@/utils/player/playerMedia.js'
+import {useElementActivity} from '@/composables/useElementActivity.js'
 
 const props = defineProps({
   currentTimeMs: {type: Number, default: 0},
@@ -40,6 +41,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['seek'])
+const rootRef = ref(null)
+const active = useElementActivity(rootRef)
 const displayTimeMs = ref(Math.max(0, Number(props.currentTimeMs || 0)))
 const seeking = ref(false)
 let clockFrame = 0
@@ -73,16 +76,14 @@ function syncFromClock() {
 }
 
 function tickClock() {
+  clockFrame = 0
+  if (!props.playing || !active.value) return
   syncFromClock()
-  if (!props.playing) {
-    clockFrame = 0
-    return
-  }
   clockFrame = window.requestAnimationFrame(tickClock)
 }
 
 function startClock() {
-  if (clockFrame || typeof window === 'undefined') return
+  if (clockFrame || !active.value || !props.playing || typeof window === 'undefined') return
   clockFrame = window.requestAnimationFrame(tickClock)
 }
 
@@ -115,9 +116,11 @@ function commitSeek(event) {
   endSeeking()
 }
 
-watch(() => props.playing, (playing) => {
-  if (playing) startClock()
-  else {
+watch([() => props.playing, active], ([playing, visible]) => {
+  if (playing && visible) {
+    syncFromClock()
+    startClock()
+  } else {
     stopClock()
     syncFromClock()
   }

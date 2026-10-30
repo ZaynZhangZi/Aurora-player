@@ -7,6 +7,7 @@
           class="artist-link cursor-pointer transition"
           :class="linkClass"
           role="link"
+          v-detail-prefetch="{type: 'artist', id: artist.id}"
           tabindex="0"
           :aria-label="`打开${artist.name}的歌手主页`"
           @click.stop="openArtist(artist)"

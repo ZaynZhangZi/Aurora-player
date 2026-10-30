@@ -1,16 +1,16 @@
 <template>
-  <header class="aurora-header">
+  <header class="aurora-header" @pointerover="prefetchNavigation" @focusin="prefetchNavigation" @pointerdown="prefetchNavigation">
     <div class="aurora-header-inner">
-      <button class="aurora-brand" type="button" @click="goHome">
+      <button class="aurora-brand" type="button" data-route-prefetch="home" @click="goHome">
         <span class="aurora-brand-mark" aria-hidden="true">A</span>
         <span>AURORA</span>
       </button>
 
       <nav class="aurora-nav" aria-label="主导航">
-        <button type="button" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
-        <button type="button" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
-        <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">音乐库</button>
-        <button type="button" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
+        <button type="button" data-route-prefetch="home" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
+        <button type="button" data-route-prefetch="discover" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
+        <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile }" @click="openProfile">音乐库</button>
+        <button type="button" data-route-prefetch="search" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
       </nav>
 
       <div class="aurora-header-actions">
@@ -40,17 +40,17 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
-                <button type="button" :class="{ 'is-active': isMessages }" @click="openMessages">
+                <button type="button" data-route-prefetch="messages" :class="{ 'is-active': isMessages }" @click="openMessages">
                   <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
                   <span><strong>消息中心</strong><small>通知与私信</small></span>
                   <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else>→</b>
                 </button>
-                <button type="button" :class="{ 'is-active': isMoments }" @click="openMoments">
+                <button type="button" data-route-prefetch="moments" :class="{ 'is-active': isMoments }" @click="openMoments">
                   <svg viewBox="0 0 24 24"><path d="M8 18V6l10-2v12"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>
                   <span><strong>音乐动态</strong><small>关注与分享</small></span>
                   <b>→</b>
                 </button>
-                <button type="button" :class="{ 'is-active': isProfile }" @click="openProfile">
+                <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile }" @click="openProfile">
                   <svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h6M8 15h4"/></svg>
                   <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
                   <b>→</b>
@@ -72,6 +72,7 @@ import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
 import {Cog6ToothIcon} from '@heroicons/vue/24/outline'
 import {openAppSettings} from '@/composables/useAppSettings.js'
+import {preloadRouteComponent} from '@/utils/routePerformance.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,6 +91,14 @@ const isMessages = computed(() => route.name === 'messages')
 const isMoments = computed(() => route.name === 'moments')
 const profileInitial = computed(() => String(userStore.nickname || 'A').trim().slice(0, 1).toUpperCase())
 const totalMessageBadge = computed(() => Number(noticeBadgeCount.value || 0) + Number(privateBadgeCount.value || 0))
+
+function prefetchNavigation(event) {
+  const button = event.target.closest?.('[data-route-prefetch]')
+  const name = button?.dataset.routePrefetch
+  if (!name || name === route.name || !event.currentTarget.contains(button)) return
+  if (name === 'profile' && !userStore.isLoggedIn) return
+  void preloadRouteComponent(router, {name})
+}
 
 function scrollToPageTop(behavior = 'auto') {
   requestAnimationFrame(() => {

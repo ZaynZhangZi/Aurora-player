@@ -1,3 +1,4 @@
+import {createDetailPrefetchDirective} from './directives/detailPrefetch.js';
 import { createPinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { createApp } from "vue";
@@ -22,6 +23,7 @@ if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_PERF_DEBUG === 'true') {
 
 const app = createApp(App);
 app.directive('maintenance', maintenanceDirective);
+app.directive('detail-prefetch', createDetailPrefetchDirective(router));
 app.component('MaintenanceFeature', MaintenanceFeature);
 
 app.config.errorHandler = (error, _instance, info) => {

@@ -169,7 +169,7 @@
           class="player-desktop-timeline"
           :current-time-ms="currentTimeMs"
           :duration-ms="durationMs"
-          :playing="isPlaying"
+          :playing="isPlaying && !amllOpened"
           :clock="getSmoothPlaybackTimeMs"
           @seek="seekToMs"
         />
@@ -384,7 +384,7 @@
           compact
           :current-time-ms="currentTimeMs"
           :duration-ms="durationMs"
-          :playing="isPlaying"
+          :playing="isPlaying && !amllOpened"
           :clock="getSmoothPlaybackTimeMs"
           @seek="seekToMs"
         />
@@ -465,7 +465,7 @@
       </div>
     </Teleport>
 
-    <LyricShareDialog />
+    <LyricShareDialog v-if="lyricShareMounted" />
 
     <Teleport to="body">
       <Transition name="playlist-dialog">
@@ -602,6 +602,7 @@
     </Teleport>
 
     <AppSettingsDialog
+      v-if="settingsMounted"
       :open="settingsOpen"
       :automix-enabled="automixEnabled"
       :play-mode="playerStore.playMode"
@@ -698,8 +699,6 @@ import {reportApi} from "@/api/reportApi/reportApi.js";
 import ArtistLinks from "@/components/artistLinks/artistLinks.vue";
 import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel.vue";
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
-import AppSettingsDialog from "@/components/appSettings/AppSettingsDialog.vue";
-import LyricShareDialog from "@/components/lyricShare/LyricShareDialog.vue";
 import {openLyricShare, lyricShare, closeLyricShare} from "@/composables/useLyricShare.js";
 import { useFeatureMaintenance } from "@/composables/useMaintenanceAccess.js";
 import { requireFeature } from "@/utils/maintenanceAccess.js";
@@ -781,6 +780,14 @@ const memoryManager = new MemoryManager();
 const playerStore = usePlayerStore();
 const {playerAppearance} = usePlayerAppearance();
 const {settingsOpen, closeAppSettings} = useAppSettings();
+// Keep dialogs mounted after their first use so close animations, focus return
+// and deferred settings actions retain their existing lifecycle.
+const AppSettingsDialog = defineAsyncComponent(() => import('@/components/appSettings/AppSettingsDialog.vue'));
+const LyricShareDialog = defineAsyncComponent(() => import('@/components/lyricShare/LyricShareDialog.vue'));
+const settingsMounted = ref(settingsOpen.value);
+const lyricShareMounted = ref(lyricShare.open);
+watch(settingsOpen, open => { if (open) settingsMounted.value = true });
+watch(() => lyricShare.open, open => { if (open) lyricShareMounted.value = true });
 let fullscreenScrollLocked = false;
 const AUTOMIX_DEBUG_VISIBLE = Boolean(
   import.meta.env.DEV && import.meta.env.VITE_AUTOMIX_DEBUG === "true",

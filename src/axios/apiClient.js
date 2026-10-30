@@ -1,3 +1,4 @@
+import {invalidateDetailResource} from '../utils/detailResourceCache.js';
 import axios from 'axios';
 import { assertMaintenanceRequest } from '../utils/maintenanceAccess.js';
 import {useCounterStore} from "@/stores/userStores.js";
@@ -110,6 +111,12 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器，用于对响应数据进行处理
 axiosInstance.interceptors.response.use(
     (response) => {
+        const url = new URL(response.config?.url || '', 'https://api.local');
+        if (/^\/playlist\/(?:subscribe|update|desc\/update|name\/update|tags\/update|cover\/update|tracks)$/.test(url.pathname)
+            || url.pathname === '/song/order/update') {
+            const id = response.config?.params?.id || response.config?.params?.pid || url.searchParams.get('id') || url.searchParams.get('pid');
+            if (id && (response.data?.code === undefined || response.data.code === 200)) invalidateDetailResource('playlist', id);
+        }
         assertMaintenanceRequest(response.config, { notify: false });
         // 可以根据需要对响应数据进行处理
         return response;

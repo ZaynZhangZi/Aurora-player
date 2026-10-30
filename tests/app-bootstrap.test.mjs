@@ -74,6 +74,7 @@ test('idle preloads are deduplicated, sequential, and restricted to common pages
     getRoutes: () => ['home', 'discover', 'search', 'messages', 'artist'].map(name => ({
       name, components: {default: () => { calls.push(name); return name === 'discover' ? discover : Promise.resolve() }},
     })),
+    resolve(location) { return {matched: this.getRoutes().filter(record => record.name === location.name)} },
   }
   const preload = preloadRouteComponents(router)
   assert.equal(preloadRouteComponents(router), preload)

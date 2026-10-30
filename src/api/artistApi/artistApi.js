@@ -1,3 +1,4 @@
+import {loadDetailResource} from '@/utils/detailResourceCache.js';
 /**
  * author: zijun
  * @description: 歌手接口
@@ -14,17 +15,17 @@ async function unwrap(request) {
 export const artistApi = {
   //获取歌手信息
   getArtistInfo: (id, options = {}) => {
-    return apiClient.get(`/artist/detail?id=${id}`, options);
+    return loadDetailResource('artist', id, {url: '/artist/detail'}, signal => apiClient.get('/artist/detail', {...options, params: {...options.params, id}, signal}), options);
   },
 
   //获取歌手热门50首歌曲
-  getArtistHotSongs: (id) => {
-    return apiClient.get(`/artist/top/song?id=${id}`);
+  getArtistHotSongs: (id, options = {}) => {
+    return loadDetailResource('artistSongs', id, {url: '/artist/top/song'}, signal => apiClient.get('/artist/top/song', {params: {id}, signal}), options);
   },
 
   //获取歌手专辑
-  getArtistAlbum: (id, {limit = 12, offset = 0} = {}) => {
-    return apiClient.get('/artist/album', {
+  getArtistAlbum: (id, {limit = 12, offset = 0, signal} = {}) => {
+    return apiClient.get('/artist/album', {signal,
       params: {
         id,
         limit,
@@ -34,8 +35,8 @@ export const artistApi = {
   },
 
   //获取歌手全部歌曲
-  getArtistAllSongs: (id, {limit = 50, offset = 0, order = 'hot'} = {}) => {
-    return apiClient.get('/artist/songs', {
+  getArtistAllSongs: (id, {limit = 50, offset = 0, order = 'hot', signal} = {}) => {
+    return apiClient.get('/artist/songs', {signal,
       params: {
         id,
         limit,
@@ -46,8 +47,8 @@ export const artistApi = {
   },
 
   //获取歌手mv
-  getArtistMv: (id, {limit = 30, offset = 0} = {}) => {
-    return apiClient.get('/artist/mv', {
+  getArtistMv: (id, {limit = 30, offset = 0, signal} = {}) => {
+    return apiClient.get('/artist/mv', {signal,
       maintenanceTargets: ['feature.mv'],
       params: {
         id,
@@ -77,12 +78,8 @@ export const artistApi = {
   },
 
   //获取专辑详情
-  getAlbumDetail: (id) => {
-    return apiClient.get('/album', {
-      params: {
-        id,
-      },
-    });
+  getAlbumDetail: (id, {signal} = {}) => {
+    return loadDetailResource('album', id, {url: '/album'}, requestSignal => apiClient.get('/album', {params: {id}, signal: requestSignal}), {signal});
   },
 
   //全部 mv

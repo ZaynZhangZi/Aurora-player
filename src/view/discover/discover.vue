@@ -19,7 +19,7 @@
             type="button"
             class="spotlight-card"
             :class="{ 'is-main': index === 0 }"
-            @click="openAlbum(album, $event)"
+            v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)"
           >
             <SmartMedia :src="album.picUrl" :alt="`${album.name}专辑封面`" :image-width="960" img-loading="eager" sizes="(min-width: 900px) 50vw, 88vw" data-album-hero-cover :data-album-id="album.id" />
             <span class="spotlight-shade" />
@@ -65,7 +65,7 @@
             <button type="button" @click="switchTab('releases')">查看全部 <span>→</span></button>
           </header>
           <div v-if="featuredAlbums.length" class="featured-album-grid">
-            <button v-for="album in featuredAlbums" :key="`featured-album-${album.id}`" class="featured-album-card" type="button" @click="openAlbum(album, $event)">
+            <button v-for="album in featuredAlbums" :key="`featured-album-${album.id}`" class="featured-album-card" type="button" v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)">
               <span data-album-hero-cover :data-album-id="album.id">
                 <SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="520" sizes="210px" />
                 <i>{{ formatReleaseDate(album.publishTime) }}</i>
@@ -85,7 +85,7 @@
               <button type="button" @click="switchTab('charts')">完整榜单 <span>→</span></button>
             </header>
             <div v-if="featuredCharts.length" class="featured-chart-list">
-              <button v-for="(chart, index) in featuredCharts" :key="`featured-chart-${chart.id}`" type="button" @click="openPlaylist(chart, $event)">
+              <button v-for="(chart, index) in featuredCharts" :key="`featured-chart-${chart.id}`" type="button" v-detail-prefetch="{type: 'playlist', id: chart.id}" @click="openPlaylist(chart, $event)">
                 <span class="featured-chart-art" data-playlist-hero-cover :data-playlist-id="chart.id"><SmartMedia :src="chart.coverImgUrl" :alt="`${chart.name}封面`" :image-width="280" sizes="92px" /></span>
                 <span class="featured-chart-index">0{{ index + 1 }}</span>
                 <span class="featured-chart-copy"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><i>{{ chart.tracks?.slice(0, 2).map(track => track.first).filter(Boolean).join(' · ') || '打开查看热门歌曲' }}</i></span>
@@ -102,7 +102,7 @@
               <button type="button" @click="switchTab('artists')">艺人目录 <span>→</span></button>
             </header>
             <div v-if="featuredArtists.length" class="featured-artist-grid">
-              <button v-for="artist in featuredArtists" :key="`featured-artist-${artist.id}`" type="button" @click="openArtist(artist, $event)">
+              <button v-for="artist in featuredArtists" :key="`featured-artist-${artist.id}`" type="button" v-detail-prefetch="{type: 'artist', id: artist.id}" @click="openArtist(artist, $event)">
                 <span data-artist-hero-cover :data-artist-id="artist.id"><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="320" sizes="130px" /></span>
                 <strong>{{ artist.name }}</strong>
                 <small>{{ artist.alias?.[0] || `${artist.albumSize || 0} 张专辑` }}</small>
@@ -174,7 +174,7 @@
           <div v-if="loading.albums" class="media-card-grid skeleton-grid"><span v-for="index in 10" :key="index" /></div>
           <div v-else-if="errors.albums" class="browse-state"><p>{{ errors.albums }}</p><button type="button" @click="refreshAlbums">重新加载</button></div>
           <div v-else class="media-card-grid release-grid">
-            <button v-for="album in newAlbums.slice(0, 20)" :key="album.id" type="button" class="media-card" @click="openAlbum(album, $event)">
+            <button v-for="album in newAlbums.slice(0, 20)" :key="album.id" type="button" class="media-card" v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)">
               <span data-album-hero-cover :data-album-id="album.id"><SmartMedia :src="album.picUrl" :alt="`${album.name}封面`" :image-width="640" sizes="230px" /><i>{{ formatReleaseDate(album.publishTime) }}</i></span>
               <strong>{{ album.name }}</strong><small><ArtistLinks :artists="album.artists?.length ? album.artists : (album.artist || album.artistName || '')" /></small><em>{{ album.company || '新发行' }}</em>
             </button>
@@ -186,7 +186,7 @@
           <div v-if="loading.charts" class="chart-grid skeleton-grid"><span v-for="index in 8" :key="index" /></div>
           <div v-else-if="errors.charts" class="browse-state"><p>{{ errors.charts }}</p><button type="button" @click="loadCharts">重新加载</button></div>
           <div v-else class="chart-grid">
-            <button v-for="chart in charts.slice(0, 12)" :key="chart.id" type="button" class="chart-card" @click="openPlaylist(chart, $event)">
+            <button v-for="chart in charts.slice(0, 12)" :key="chart.id" type="button" class="chart-card" v-detail-prefetch="{type: 'playlist', id: chart.id}" @click="openPlaylist(chart, $event)">
               <span class="chart-art" data-playlist-hero-cover :data-playlist-id="chart.id"><SmartMedia :src="chart.coverImgUrl" :alt="`${chart.name}封面`" :image-width="500" sizes="170px" /></span>
               <span class="chart-info"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><ol><li v-for="(track, index) in chart.tracks?.slice(0, 3)" :key="`${chart.id}-${index}`"><b>{{ index + 1 }}</b><span>{{ track.first }}</span><i><ArtistLinks :artists="track.artists?.length ? track.artists : (track.ar?.length ? track.ar : (track.second || ''))" /></i></li></ol></span>
             </button>
@@ -203,7 +203,7 @@
           <div v-if="loading.artists" class="artist-directory skeleton-grid"><span v-for="index in 10" :key="index" /></div>
           <div v-else-if="errors.artists" class="browse-state"><p>{{ errors.artists }}</p><button type="button" @click="refreshArtists">重新加载</button></div>
           <div v-else class="artist-directory">
-            <button v-for="artist in artists" :key="artist.id" type="button" @click="openArtist(artist, $event)">
+            <button v-for="artist in artists" :key="artist.id" type="button" v-detail-prefetch="{type: 'artist', id: artist.id}" @click="openArtist(artist, $event)">
               <span data-artist-hero-cover :data-artist-id="artist.id"><SmartMedia :src="artist.picUrl || artist.img1v1Url" :alt="`${artist.name}头像`" :image-width="560" sizes="220px" /></span>
               <strong>{{ artist.name }}</strong><small>{{ artist.alias?.[0] || `${artist.albumSize || 0} 张专辑` }}</small>
             </button>
@@ -262,7 +262,7 @@ import { MAINTENANCE_TARGETS, requireFeature } from '@/utils/maintenanceAccess.j
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'DiscoverPage'})
 
-import {computed, nextTick, onActivated, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'
 import HomeMvModal from '@/components/home/HomeMvModal.vue'
@@ -503,6 +503,7 @@ onUnmounted(() => {
 })
 
 onBeforeUnmount(closeMvPlayer)
+onDeactivated(closeMvPlayer)
 for (const target of MAINTENANCE_TARGETS.filter(target => target.discoverTab)) {
   useFeatureMaintenance(target.key, () => activeTab.value === target.discoverTab, undefined, () => ensureTabData(activeTab.value))
 }

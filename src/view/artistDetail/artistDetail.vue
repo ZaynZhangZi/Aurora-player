@@ -81,7 +81,7 @@
         <section class="artist-overview">
           <article v-if="latestAlbum" class="latest-release">
             <h2>最新发行</h2>
-            <button class="latest-release-card" type="button" @click="openAlbum(latestAlbum, $event)">
+            <button class="latest-release-card" type="button" v-detail-prefetch="{type: 'album', id: latestAlbum.id}" @click="openAlbum(latestAlbum, $event)">
               <div class="latest-release-cover" data-album-hero-cover :data-album-id="latestAlbum.id">
                 <img v-bind="responsiveImageAttrs(latestAlbum.picUrl, {width: 320, sizes: '160px'})" :alt="latestAlbum.name" @error="onBlockImageError" />
               </div>
@@ -133,6 +133,7 @@
           </section>
         </section>
 
+        <div ref="secondaryContentRef" data-artist-secondary class="h-px" aria-hidden="true" />
         <section v-if="pagedAlbums.length" class="artist-library-section">
           <div class="artist-section-heading">
             <div class="artist-heading-link">
@@ -150,7 +151,7 @@
           </div>
 
           <div class="album-grid">
-            <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" @click="openAlbum(album, $event)">
+            <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)">
               <span class="album-card-cover" data-album-hero-cover :data-album-id="album.id">
                 <img v-bind="responsiveImageAttrs(album.picUrl, {width: 480, sizes: '(max-width: 640px) 42vw, (max-width: 1000px) 28vw, 180px'})" :alt="album.name" loading="lazy" @error="onBlockImageError" />
                 <span class="album-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
@@ -246,6 +247,7 @@
 </template>
 
 <script setup>
+import {runWhenVisible} from '@/utils/deferredWork.js'
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 import {computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
@@ -259,7 +261,7 @@ import {usePlayerStore} from '@/stores/playerStore.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'
 import {toBackendMediaUrl} from '@/utils/backendMedia.js'
 import {responsiveImageAttrs, getOptimizedImageUrl} from '@/utils/mediaUrl.js'
-import {setPendingTransition, consumePendingTransition, peekPendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
+import {setPendingTransition, consumePendingTransition, playHeroEnter} from '@/utils/heroTransition.js'
 
 const route = useRoute()
 const { closeDetail, openDetail } = useDetailNavigation()
@@ -282,6 +284,9 @@ const heroPosterFailed = ref(false)
 const heroVideoRef = ref(null)
 let heroPlayTimer = 0
 let artistLoadSequence = 0
+let artistLoadController
+let loadArtistSecondary = () => {}
+const secondaryContentRef = ref(null)
 
 const hotSongs = ref([])
 const allSongs = ref([])
@@ -294,8 +299,6 @@ const songRequestLimit = songPageSize
 const songViewMode = ref('top50')
 const songRequestOffset = ref(0)
 const songAllRequestFailed = ref(false)
-const allSongJumpInput = ref('')
-const allSongJumping = ref(false)
 const albums = ref([])
 const mvs = ref([])
 const albumPageSize = 6
@@ -304,8 +307,6 @@ const albumPage = ref(1)
 const albumOffset = ref(0)
 const albumHasMore = ref(false)
 const albumLoadingMore = ref(false)
-const albumJumpInput = ref('')
-const albumJumping = ref(false)
 const mvPlayerOpen = ref(false)
 const mvPlayerLoading = ref(false)
 const mvPlayerError = ref('')
@@ -354,7 +355,6 @@ const topSongs = computed(() => {
 const topSongPages = computed(() => Math.max(1, Math.ceil(topSongs.value.length / songPageSize)))
 const allSongLoadedPages = computed(() => Math.max(1, Math.ceil(allSongs.value.length / songPageSize)))
 const currentSongPage = computed(() => (songViewMode.value === 'all' ? allSongPage.value : topSongPage.value))
-const currentSongLoadedPages = computed(() => (songViewMode.value === 'all' ? allSongLoadedPages.value : topSongPages.value))
 const canNextSongPage = computed(() => {
   if (songViewMode.value === 'all') {
     return allSongPage.value < allSongLoadedPages.value || songHasMore.value
@@ -1008,10 +1008,8 @@ function closeMvPlayer() {
 function switchSongViewMode(mode) {
   if (!['top50', 'all'].includes(mode)) return
   songViewMode.value = mode
-  if (mode !== 'all') {
-    allSongJumpInput.value = ''
-  }
-  if (mode === 'all' && songAllRequestFailed.value && allSongs.value.length <= topSongs.value.length) {
+  if (mode === 'all') loadArtistSecondary()
+if (mode === 'all' && songAllRequestFailed.value && allSongs.value.length <= topSongs.value.length) {
     loadMoreSongs()
   }
 }
@@ -1025,10 +1023,6 @@ function getSongQueueIndex(index) {
     return (allSongPage.value - 1) * songPageSize + index
   }
   return (topSongPage.value - 1) * songPageSize + index
-}
-
-function getSongDisplayIndex(index) {
-  return getSongQueueIndex(index) + 1
 }
 
 function prevSongPage() {
@@ -1060,33 +1054,6 @@ async function nextSongPage() {
   if (!ok) return
   if (next <= allSongLoadedPages.value) {
     allSongPage.value = next
-  }
-}
-
-async function jumpToAllSongPage() {
-  if (songViewMode.value !== 'all' || allSongJumping.value) return
-
-  const target = Number(allSongJumpInput.value)
-  if (!Number.isFinite(target) || target < 1) {
-    allSongJumpInput.value = ''
-    return
-  }
-
-  allSongJumping.value = true
-  try {
-    if (target <= allSongLoadedPages.value) {
-      allSongPage.value = target
-      return
-    }
-
-    while (allSongLoadedPages.value < target && songHasMore.value) {
-      const ok = await loadMoreSongs()
-      if (!ok) break
-    }
-
-    allSongPage.value = Math.min(target, allSongLoadedPages.value)
-  } finally {
-    allSongJumping.value = false
   }
 }
 
@@ -1155,33 +1122,6 @@ async function nextAlbumPage() {
   if (!ok) return
   if (next <= albumLoadedPages.value) {
     albumPage.value = next
-  }
-}
-
-async function jumpToAlbumPage() {
-  if (albumJumping.value) return
-
-  const target = Number(albumJumpInput.value)
-  if (!Number.isFinite(target) || target < 1) {
-    albumJumpInput.value = ''
-    return
-  }
-
-  albumJumping.value = true
-  try {
-    if (target <= albumLoadedPages.value) {
-      albumPage.value = target
-      return
-    }
-
-    while (albumLoadedPages.value < target && albumHasMore.value) {
-      const ok = await loadMoreAlbums()
-      if (!ok) break
-    }
-
-    albumPage.value = Math.min(target, albumLoadedPages.value)
-  } finally {
-    albumJumping.value = false
   }
 }
 
@@ -1280,7 +1220,11 @@ async function ensureArtistId() {
 async function loadArtistPage() {
   window.clearTimeout(heroPlayTimer)
   const loadSequence = ++artistLoadSequence
-  const isCurrentLoad = () => loadSequence === artistLoadSequence
+  artistLoadController?.abort()
+  loadArtistSecondary = () => {}
+  artistLoadController = new AbortController()
+  const {signal} = artistLoadController
+  const isCurrentLoad = () => loadSequence === artistLoadSequence && !signal.aborted
   loading.value = true
   error.value = ''
   hotSongs.value = []
@@ -1291,15 +1235,11 @@ async function loadArtistPage() {
   allSongPage.value = 1
   songRequestOffset.value = 0
   songAllRequestFailed.value = false
-  allSongJumpInput.value = ''
-  allSongJumping.value = false
   albums.value = []
   albumPage.value = 1
   albumOffset.value = 0
   albumHasMore.value = false
   albumLoadingMore.value = false
-  albumJumpInput.value = ''
-  albumJumping.value = false
   mvs.value = []
   mvPage.value = 1
   mvOffset.value = 0
@@ -1324,47 +1264,59 @@ async function loadArtistPage() {
   }
 
   const currentArtistId = artistId.value
-  const infoRequest = artistApi.getArtistInfo(currentArtistId)
-  const hotSongsRequest = artistApi.getArtistHotSongs(currentArtistId)
+  const infoRequest = artistApi.getArtistInfo(currentArtistId, {signal})
+  const hotSongsRequest = artistApi.getArtistHotSongs(currentArtistId, {signal})
 
-  // 非首屏数据独立请求和落位，避免专辑、MV 或横幅接口拖住整个页面。
-  void artistApi.getArtistAllSongs(currentArtistId, {limit: songRequestLimit, offset: 0})
-    .then((res) => {
-      if (!isCurrentLoad()) return
-      const initialSongs = res?.data?.songs || []
-      allSongs.value = mergeSongs([], initialSongs)
-      songRequestOffset.value = initialSongs.length
-      songHasMore.value = Boolean(res?.data?.more)
-      if (!initialSongs.length && !hotSongs.value.length) {
+  let secondaryStarted = false
+  const loadSecondary = () => {
+    if (!isCurrentLoad() || secondaryStarted) return
+    secondaryStarted = true
+    // 非首屏数据独立请求和落位，避免专辑、MV 或横幅接口拖住整个页面。
+    void artistApi.getArtistAllSongs(currentArtistId, {limit: songRequestLimit, offset: 0, signal})
+      .then((res) => {
+        if (!isCurrentLoad()) return
+        const initialSongs = res?.data?.songs || []
+        allSongs.value = mergeSongs([], initialSongs)
+        songRequestOffset.value = initialSongs.length
+        songHasMore.value = Boolean(res?.data?.more)
+        if (!initialSongs.length && !hotSongs.value.length) {
+          allSongs.value = mergeSongs([], hotSongs.value)
+        }
+      })
+      .catch(() => {
+        if (!isCurrentLoad()) return
+        songAllRequestFailed.value = true
+        songHasMore.value = true
         allSongs.value = mergeSongs([], hotSongs.value)
-      }
-    })
-    .catch(() => {
-      if (!isCurrentLoad()) return
-      songAllRequestFailed.value = true
-      songHasMore.value = true
-      allSongs.value = mergeSongs([], hotSongs.value)
-    })
+      })
 
-  void artistApi.getArtistAlbum(currentArtistId, {limit: albumRequestLimit, offset: 0})
-    .then((res) => {
-      if (!isCurrentLoad()) return
-      const initialAlbums = res?.data?.hotAlbums || []
-      albums.value = initialAlbums
-      albumOffset.value = initialAlbums.length
-      albumHasMore.value = Boolean(res?.data?.more)
-    })
-    .catch(() => {})
+    void artistApi.getArtistAlbum(currentArtistId, {limit: albumRequestLimit, offset: 0, signal})
+      .then((res) => {
+        if (!isCurrentLoad()) return
+        const initialAlbums = res?.data?.hotAlbums || []
+        albums.value = initialAlbums
+        albumOffset.value = initialAlbums.length
+        albumHasMore.value = Boolean(res?.data?.more)
+      })
+      .catch(() => {})
 
-  void artistApi.getArtistMv(currentArtistId, {limit: mvPageSize * 2, offset: 0})
-    .then((res) => {
-      if (!isCurrentLoad()) return
-      const initialMvs = res?.data?.mvs || []
-      mvs.value = initialMvs
-      mvOffset.value = initialMvs.length
-      mvHasMore.value = Boolean(res?.data?.hasMore)
-    })
-    .catch(() => {})
+    void artistApi.getArtistMv(currentArtistId, {limit: mvPageSize * 2, offset: 0, signal})
+      .then((res) => {
+        if (!isCurrentLoad()) return
+        const initialMvs = res?.data?.mvs || []
+        mvs.value = initialMvs
+        mvOffset.value = initialMvs.length
+        mvHasMore.value = Boolean(res?.data?.hasMore)
+      })
+      .catch(() => {})
+
+  }
+  loadArtistSecondary = loadSecondary
+  void Promise.allSettled([infoRequest, hotSongsRequest]).then(() => {
+    if (!isCurrentLoad()) return
+    if (songViewMode.value === 'all') loadSecondary()
+    else runWhenVisible(secondaryContentRef.value, loadSecondary, {signal})
+  })
 
   let coreSettled = 0
   let coreSucceeded = false
@@ -1477,6 +1429,7 @@ onBeforeRouteLeave(() => {
 
 onBeforeUnmount(() => {
   artistLoadSequence += 1
+  artistLoadController?.abort()
   window.clearTimeout(heroPlayTimer)
   closeMvPlayer()
   if (themeRaf) {

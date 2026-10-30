@@ -18,7 +18,7 @@
 			:aria-hidden="overlay ? 'true' : null"
 		>
 			<BackgroundRouteProvider :route="bgRouteState" :record="bgRecord">
-				<keep-alive :include="keepAliveNames">
+				<keep-alive :include="keepAliveNames" :max="3">
 					<component :is="bgComponent" v-if="bgComponent" :key="bgKey" />
 				</keep-alive>
 			</BackgroundRouteProvider>
@@ -109,7 +109,6 @@
 
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
-import { animate } from "motion";
 import { useRoute, useRouter } from "vue-router";
 import { markNavigatingBack } from "@/router/index.js";
 import { useCounterStore } from "@/stores/userStores.js";
@@ -124,6 +123,7 @@ import { peekPendingTransition } from "@/utils/heroTransition.js";
 import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 import { useMaintenanceAccess } from "@/composables/useMaintenanceAccess.js";
 import { isRouteAvailable } from "@/utils/maintenanceAccess.js";
+import {getKeepAliveRouteNames} from '@/utils/routePerformance.js';
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 
@@ -169,9 +169,10 @@ let bgIsDetail = false;
 let prevRouteWasDetail = false;
 
 const keepAliveNames = computed(() => {
-	const meta = bgRouteState.meta || {};
-	if (meta.keepAlive) return [meta.keepAliveName || bgRouteState.name];
-	return [];
+	// Changing include to just the current page evicts the page being left.
+	// Retain all cacheable destinations, and evict any disabled by maintenance.
+	return getKeepAliveRouteNames(router.getRoutes().filter(record =>
+		isRouteAvailable(maintenanceAccess.value.settings, record.name)));
 });
 
 function snapshotBackgroundRoute(target) {
@@ -530,12 +531,12 @@ function stopUserStatusPolling() {
 
 function runRouteEnterMotion() {
   if (!contentRef.value) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const routeMotionTarget = contentRef.value.querySelector("[data-route-motion-root]") || contentRef.value;
-  animate(
-    routeMotionTarget,
-    { opacity: [0, 1], y: [16, -2, 0], scale: [0.992, 1.004, 1] },
-		{ type: "spring", stiffness: 240, damping: 28, mass: 0.68 },
-	);
+  routeMotionTarget.animate?.(
+    [{opacity: 0.85, transform: 'translateY(6px)'}, {opacity: 1, transform: 'translateY(0)'}],
+    {duration: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'},
+  );
 }
 
 onMounted(() => {
