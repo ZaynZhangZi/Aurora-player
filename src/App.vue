@@ -26,6 +26,7 @@
 		<DetailOverlayHost :overlay="overlay" @request-close="closeOverlay" />
 		<globalFooterPlayer />
 		<QrLoginDialog />
+		<PlaybackRelayPanel v-if="userStore.isLoggedIn || playbackRelayState.panelOpen" />
 		<div class="playback-notice-host" aria-live="polite" aria-atomic="true">
 			<Transition name="playback-notice">
 				<aside
@@ -124,13 +125,23 @@ import { PLAYBACK_NOTICE_EVENT } from "@/utils/playbackNotice.js";
 import { useMaintenanceAccess } from "@/composables/useMaintenanceAccess.js";
 import { isRouteAvailable } from "@/utils/maintenanceAccess.js";
 import {getKeepAliveRouteNames} from '@/utils/routePerformance.js';
+import {playbackRelayState} from '@/composables/playbackRelayState.js';
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
+const PlaybackRelayPanel = defineAsyncComponent(() => import('@/components/playbackRelay/PlaybackRelayPanel.vue'));
 
 const route = useRoute();
 const router = useRouter();
 const maintenanceAccess = useMaintenanceAccess();
 const userStore = useCounterStore();
+let stopPlaybackRelay, relayLoadVersion = 0;
+watch(() => [userStore.userId, userStore.getUserCookie], async ([id, cookie]) => {
+	const version = ++relayLoadVersion;
+	if (!id || !cookie) { stopPlaybackRelay?.(); stopPlaybackRelay = null; playbackRelayState.panelOpen = false; return; }
+	const {installPlaybackRelay} = await import('@/composables/usePlaybackRelay.js');
+	if (version === relayLoadVersion) stopPlaybackRelay = installPlaybackRelay();
+}, {immediate: true});
+onBeforeUnmount(() => { relayLoadVersion++; stopPlaybackRelay?.(); });
 const contentRef = ref(null);
 const canGoBack = computed(() => route.path !== "/home");
 

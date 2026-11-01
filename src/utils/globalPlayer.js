@@ -1,3 +1,4 @@
+import {registerPlaybackCancellation,announcePlaybackIntent} from './playbackIntent.js'
 import {ExpiringCache} from './expiringCache.js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {songsApi} from '@/api/songsApi/songsApi.js'
@@ -6,6 +7,7 @@ import {reportApi} from '@/api/reportApi/reportApi.js'
 import {PLAY_MODE, usePlayerStore} from '@/stores/playerStore.js'
 import {MAX_ANALYSIS_LOOKAHEAD} from '@/audio/constants.js'
 import {AUTOMIX_ANALYSIS_VERSION} from '@/audio/analysis/AudioAnalyzer.js'
+import {createAnalysisScheduler} from './analysisScheduler.js'
 import {autoMixEngine} from '@/audio/AutoMixEngine.js'
 import {
   getLastAutomixAnalysis,
@@ -30,6 +32,7 @@ function sourceKey(id, quality) {
 let warmupToken = 0
 let playbackRequestToken = 0
 let queueNavigationToken = 0
+registerPlaybackCancellation(() => {playbackRequestToken++;queueNavigationToken++;usePlayerStore().setPlaybackPendingId(null)})
 
 function hasUsableBrowserMixProfile(song) {
   const profile = song?.mixProfile
@@ -39,16 +42,17 @@ function hasUsableBrowserMixProfile(song) {
     && profile.beat_positions.length >= 8
 }
 
+const scheduleBrowserAnalysis=createAnalysisScheduler()
 function scheduleBrowserAutomixAnalysis(playerStore, song, source, {role = 'next-1'} = {}) {
   if (!playerStore?.automixEnabled || !song?.id || !source?.url || isTrialEntry(source.entry)) return
   if (hasUsableBrowserMixProfile(song)) return
 
   if (!autoMixEngine.enabled) autoMixEngine.enable()
-  autoMixEngine.analyzeTrack(song, source.url, {
+  const key=JSON.stringify([song.id,source.url,source.level,AUTOMIX_ANALYSIS_VERSION])
+  scheduleBrowserAnalysis(key,()=>autoMixEngine.analyzeTrack(song, source.url, {
     quality: source.level || 'exhigh',
     role,
-  })
-    .then((profile) => {
+  }), (profile) => {
       if (!profile) return
       playerStore.setSongMixProfile(song.id, profile)
       if (typeof window !== 'undefined') {
@@ -63,8 +67,7 @@ function scheduleBrowserAutomixAnalysis(playerStore, song, source, {role = 'next
           confidence: profile.confidence?.overall,
         })
       }
-    })
-    .catch((error) => {
+    }, (error) => {
       if (error?.name === 'AbortError') return
       if (typeof console !== 'undefined') {
         console.warn('[AutoMix/Analysis] browser analysis unavailable; crossfade fallback remains active', {
@@ -476,11 +479,13 @@ export async function warmupNextTrack() {
   }
 }
 
-export async function playSongById(songInput, {autoplay = true, maintenanceTargets = []} = {}) {
+export async function playSongById(songInput, {autoplay = true, maintenanceTargets = [], resumeMs = null, signal} = {}) {
+  if(signal?.aborted)return false
   const targets = ['feature.playback', ...maintenanceTargets]
   if (!targets.every(requireFeature)) return false
   const id = Number(songInput?.id || songInput)
   if (!Number.isFinite(id) || id <= 0) return false
+  if(!signal)announcePlaybackIntent()
   let interrupted = false
   const stopMaintenanceWatch = subscribeMaintenance(({settings}) => {
     if (targets.some(key => !isTargetAvailable(settings, key))) interrupted = true
@@ -494,13 +499,13 @@ export async function playSongById(songInput, {autoplay = true, maintenanceTarge
 
   try {
     const source = await resolveSongPlayableSource(id, {quality: playerStore.audioQuality})
-    if (requestToken !== playbackRequestToken) return null
+    if (signal?.aborted || requestToken !== playbackRequestToken) return null
     if (interrupted || targets.some(key => !isTargetAvailable(getMaintenanceSnapshot().settings, key))) return false
     const url = source?.url || ''
 
     if (!url) {
       const accessDetail = await getSongAccessDetail(id)
-      if (requestToken !== playbackRequestToken) return null
+      if (signal?.aborted || requestToken !== playbackRequestToken) return null
       showUnplayableNotice(songInput, source, accessDetail)
       return false
     }
@@ -520,6 +525,7 @@ export async function playSongById(songInput, {autoplay = true, maintenanceTarge
     }
 
     if (playerStore.setTrack(nextTrack, {autoplay, resetTime: true}) === false) return false
+    if(resumeMs !== null) playerStore.setCurrentSongSource(url,source.level,{resumeMs,autoplay})
     if (playerStore.automixEnabled) {
       autoMixEngine.enable()
       autoMixEngine.setQueue(playerStore.playQueue)
@@ -581,8 +587,9 @@ export async function playSongById(songInput, {autoplay = true, maintenanceTarge
 
     return true
   } catch (error) {
+    if(signal?.aborted || requestToken !== playbackRequestToken)return false
     if (interrupted || error?.name === 'MaintenanceBlockedError') return false
-    if (requestToken !== playbackRequestToken) return null
+    if (signal?.aborted || requestToken !== playbackRequestToken) return null
     showPlaybackNotice({
       kind: 'network',
       eyebrow: 'PLAYBACK',
@@ -599,14 +606,16 @@ export async function playSongById(songInput, {autoplay = true, maintenanceTarge
   }
 }
 
-export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {autoplay = true, maintenanceTargets = []} = {}) {
+export async function playSongWithQueue(songInput, queue = [], queueIndex = 0, {autoplay = true, maintenanceTargets = [], resumeMs = null, signal} = {}) {
+  if(signal?.aborted)return false
   if (!['feature.playback', ...maintenanceTargets].every(requireFeature)) return false
   const playerStore = usePlayerStore()
   playerStore.setQueue(queue, {startIndex: queueIndex})
-  const ok = await playSongById(songInput, {autoplay, maintenanceTargets})
-  if (ok === null) return true
+  const ok = await playSongById(songInput, {autoplay, maintenanceTargets, resumeMs, signal})
+  if (ok === null) return !signal?.aborted && !signal
   if (ok) {
-    playerStore.syncQueueIndexBySongId(songInput?.id || songInput)
+    if(String(playerStore.playQueue[queueIndex]?.id)===String(songInput?.id || songInput)) playerStore.setCurrentQueueIndex(queueIndex)
+    else playerStore.syncQueueIndexBySongId(songInput?.id || songInput)
   }
   return ok
 }

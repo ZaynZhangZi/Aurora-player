@@ -1,0 +1,57 @@
+<template>
+  <Teleport to="body">
+    <Transition name="relay-offer">
+      <aside v-if="offer && !state.panelOpen" class="relay-offer" aria-label="另一台设备的播放记录">
+        <div class="relay-art"><img v-if="track?.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else>♪</span></div>
+        <div class="relay-offer-copy"><small>{{ source }} · {{ time(remote.positionMs) }}</small><strong>{{ track?.name }}</strong><span>{{ artists }}</span></div>
+        <button class="relay-primary" :disabled="state.busy" @click="accept">接着听 <span aria-hidden="true">↗</span></button>
+        <button class="relay-dismiss" aria-label="收起接力提醒" @click="dismissPlaybackRelay">×</button>
+      </aside>
+    </Transition>
+    <dialog ref="dialog" class="relay-dialog" aria-labelledby="relay-title" @cancel="close" @close="state.panelOpen=false" @click="backdrop">
+      <section class="relay-panel">
+        <header><div><p class="relay-eyebrow">AURORA CONNECT</p><h2 id="relay-title">音乐，接着流动。</h2><p class="relay-subtitle">换一台设备，从刚才的位置继续。</p></div><button class="relay-close" aria-label="关闭跨设备接力" @click="close">×</button></header>
+        <div class="relay-connection"><span class="relay-dot" :class="{'is-online':state.connected}" /><span>{{ status }}</span><button v-if="user.isLoggedIn && state.enabled" :disabled="state.connecting || state.busy" @click="playbackRelayActions.reconnect">{{ state.connecting ? '连接中…' : '重新连接' }}</button></div>
+        <div v-if="!user.isLoggedIn" class="relay-empty"><span aria-hidden="true">↗</span><h3>让设备听见同一首歌</h3><p>在两台设备上登录同一个网易云账号，即可接力。</p><button class="relay-primary" @click="login">登录网易云音乐</button></div>
+        <div v-else-if="!state.enabled" class="relay-empty"><span aria-hidden="true">♫</span><h3>接力已关闭</h3><p>开启后，播放队列和进度会自动同步到你的账号。</p></div>
+        <article v-else-if="track" class="relay-record">
+          <div class="relay-record-top"><span>{{ state.owned ? '正在此设备播放' : '最近的播放记录' }}</span><span>{{ remote.queue.length }} 首</span></div>
+          <div class="relay-song"><div class="relay-art relay-art-large"><img v-if="track.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else>♪</span></div><div><h3>{{ track.name }}</h3><p>{{ artists }}</p><small>{{ source }}</small></div></div>
+          <div class="relay-progress"><i :style="{width:progress+'%'}" /></div><div class="relay-times"><span>{{ time(remote.positionMs) }}</span><span>{{ time(remote.durationMs) }}</span></div>
+          <button v-if="!state.owned" class="relay-primary relay-resume" :disabled="state.busy || state.connecting" @click="accept">{{ state.busy ? '正在接力…' : '在此设备接着听' }} <span aria-hidden="true">↗</span></button>
+          <p class="relay-hint">{{ state.owned ? '队列和进度会自动同步，随时可以换台设备继续。' : '接力后，在线的原设备会暂停。音量和音质沿用本机设置。' }}</p>
+        </article>
+        <div v-else class="relay-empty"><span aria-hidden="true">♫</span><h3>{{ state.connecting ? '正在寻找你的音乐' : '等待第一首歌' }}</h3><p>在任一设备播放音乐后，队列和进度会出现在这里。</p></div>
+        <p v-if="state.error" class="relay-message is-error" role="status">{{ state.error }}</p><p v-else-if="state.notice" class="relay-message" role="status">{{ state.notice }}</p>
+        <div class="relay-preferences"><label><span><strong>跨设备接力</strong><small>同步当前歌曲、队列和播放进度</small></span><input type="checkbox" role="switch" :checked="state.enabled" @change="setPlaybackRelayPreferences({enabled:$event.target.checked})" /></label><label><span><strong>接着听提醒</strong><small>发现其他设备的记录时，轻声提醒你</small></span><input type="checkbox" role="switch" :checked="state.reminders" :disabled="!state.enabled" @change="setPlaybackRelayPreferences({reminders:$event.target.checked})" /></label></div>
+        <footer>仅与你登录同一账号的设备共享播放记录</footer>
+      </section>
+    </dialog>
+  </Teleport>
+</template>
+
+<script setup>
+import {computed,nextTick,onBeforeUnmount,ref,watch} from 'vue'
+import {useCounterStore} from '@/stores/userStores.js'
+import {playbackRelayState as state,playbackRelayActions,playbackRelayTrack as track,playbackRelayOffer as offer,dismissPlaybackRelay,setPlaybackRelayPreferences} from '@/composables/playbackRelayState.js'
+import {setMaintenanceFeatureActive} from '@/utils/maintenanceAccess.js'
+import {openLoginDialog} from '@/utils/loginDialog.js'
+const user=useCounterStore(),dialog=ref(null),activeToken=Symbol('playback-relay')
+const remote=computed(()=>state.remote)
+const source=computed(()=>remote.value?.sourceDeviceName || '另一台设备')
+const artists=computed(()=>track.value?.artists?.join(' / ') || '未知歌手')
+const progress=computed(()=>Math.min(100,Math.max(0,100*(remote.value?.positionMs || 0)/(remote.value?.durationMs || 1))))
+const status=computed(()=>!user.isLoggedIn?'登录后可使用':!state.enabled?'已关闭':state.connecting?'正在连接设备':state.connected?'设备已连接':state.error?'连接暂时中断':'正在连接设备')
+const time=value=>{const seconds=Math.floor(Math.max(0,Number(value)||0)/1000);return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
+function close(){state.panelOpen=false}
+function backdrop(event){if(event.target===dialog.value){const box=dialog.value.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)close()}}
+function login(){close();openLoginDialog()}
+async function accept(){if(await playbackRelayActions.accept())close();else if(state.error)state.panelOpen=true}
+watch(()=>state.panelOpen,async open=>{setMaintenanceFeatureActive(activeToken,'feature.handoff',open);await nextTick();if(open&&state.panelOpen){if(!dialog.value?.open)dialog.value?.showModal();void playbackRelayActions.refresh()}else dialog.value?.close()},{immediate:true})
+onBeforeUnmount(()=>{setMaintenanceFeatureActive(activeToken,'feature.handoff',false);dialog.value?.close()})
+</script>
+
+<style scoped>
+.relay-dialog{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:0;overflow:auto;color:#28282f;border:1px solid rgba(255,255,255,.8);border-radius:28px;background:#fafafa;box-shadow:0 30px 100px #19162c38}.relay-dialog::backdrop{background:#14112266;backdrop-filter:blur(8px)}.relay-panel{padding:28px}.relay-panel header{display:flex;justify-content:space-between;gap:16px}.relay-eyebrow{margin:0 0 12px;font-size:10px;letter-spacing:.2em;font-weight:750;color:#9673ac}.relay-panel h2{margin:0;font-size:26px;letter-spacing:-1px;font-weight:800}.relay-subtitle{margin:9px 0 0;font-size:13px;color:#8b8793}.relay-close,.relay-dismiss{flex-shrink:0;width:28px;height:28px;border:0;border-radius:50%;background:#efedf1;color:#918997;font-size:22px;cursor:pointer}.relay-close:hover,.relay-dismiss:hover{background:#e6e0eb;color:#53435d}.relay-connection{display:flex;gap:7px;align-items:center;margin:24px 0 18px;color:#938d9a;font-size:11px}.relay-connection button{margin-left:auto;padding:4px 0;border:0;background:none;color:#86659b;cursor:pointer}.relay-dot{width:6px;height:6px;border-radius:50%;background:#c4bdca}.relay-dot.is-online{background:#76b994;box-shadow:0 0 0 3px #76b99418}.relay-record{padding:18px;border:1px solid #e9e3ef;border-radius:21px;background:linear-gradient(140deg,#f2ecf7,#fcfafb 70%,#f7f0ed)}.relay-record-top{display:flex;justify-content:space-between;font-size:10px;color:#91829c}.relay-song{display:flex;gap:15px;align-items:center;margin:19px 0}.relay-song>div:last-child{min-width:0}.relay-song h3,.relay-song p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0}.relay-song h3{font-size:17px}.relay-song p{margin-top:7px;font-size:12px;color:#8f8497}.relay-song small{display:block;margin-top:10px;font-size:10px;color:#a197a9}.relay-art{display:grid;place-items:center;flex-shrink:0;width:42px;height:42px;overflow:hidden;border-radius:11px;background:linear-gradient(135deg,#d4c4e8,#f5d4c7);color:#fff;font-size:24px}.relay-art img{width:100%;height:100%;object-fit:cover}.relay-art-large{width:76px;height:76px;border-radius:16px;box-shadow:0 8px 20px #6b4f831c;font-size:35px}.relay-progress{height:3px;overflow:hidden;border-radius:5px;background:#ded6e5}.relay-progress i{display:block;height:100%;border-radius:inherit;background:#9d77b2}.relay-times{display:flex;justify-content:space-between;margin-top:7px;font-size:10px;color:#a194aa;font-variant-numeric:tabular-nums}.relay-primary{border:0;border-radius:13px;padding:10px 14px;white-space:nowrap;background:#37303f;color:white;font-size:12px;font-weight:650;cursor:pointer;transition:background .2s}.relay-primary:hover{background:#79568f}.relay-primary span{margin-left:8px}.relay-primary:disabled{opacity:.5;cursor:wait}.relay-resume{width:100%;margin-top:20px;padding:13px}.relay-hint{margin:13px 0 0;color:#a396aa;font-size:10px;line-height:1.8;text-align:center}.relay-preferences{display:grid;margin-top:20px}.relay-preferences label{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0;cursor:pointer}.relay-preferences label+label{border-top:1px solid #edeaef}.relay-preferences strong,.relay-preferences small{display:block}.relay-preferences strong{font-size:12px;font-weight:600}.relay-preferences small{font-size:10px;color:#a29aa9;margin-top:5px}.relay-preferences input{appearance:none;flex-shrink:0;width:34px;height:20px;border:0;border-radius:20px;background:#ddd7e3;cursor:pointer;position:relative;transition:background .2s}.relay-preferences input::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 1px 3px #0001;transition:transform .2s}.relay-preferences input:checked{background:#a784ba}.relay-preferences input:checked::after{transform:translateX(14px)}.relay-preferences input:disabled{opacity:.4}.relay-panel footer{margin-top:17px;text-align:center;font-size:10px;color:#b3aabb}.relay-empty{padding:27px 12px;text-align:center;background:#f3f0f5;border-radius:20px}.relay-empty>span{display:block;font-size:32px;color:#b49ac5}.relay-empty h3{font-size:15px;margin:12px 0 7px}.relay-empty p{font-size:11px;color:#a096a8;line-height:1.9}.relay-empty .relay-primary{margin-top:12px}.relay-message{font-size:11px;line-height:1.8;color:#8d719e;margin:14px 2px 0}.relay-message.is-error{color:#bb7580}.relay-offer{position:fixed;right:24px;bottom:calc(108px + env(safe-area-inset-bottom,0px));z-index:160;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:14px 12px 14px 14px;border:1px solid #fff9;border-radius:21px;background:#fcfafdf5;backdrop-filter:blur(20px);box-shadow:0 14px 50px #44324e21;color:#39303f}.relay-offer-copy{display:flex;min-width:0;flex-direction:column;gap:4px;width:165px}.relay-offer-copy small{font-size:9px;color:#ab98b6}.relay-offer-copy strong{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.relay-offer-copy>span{font-size:10px;color:#a296ab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.relay-offer .relay-dismiss{background:transparent;width:22px}.relay-offer-enter-active,.relay-offer-leave-active{transition:opacity .2s,transform .2s}.relay-offer-enter-from,.relay-offer-leave-to{opacity:0;transform:translateY(10px)}button:focus-visible,input:focus-visible{outline:2px solid #9e7cb5;outline-offset:4px}@media(max-width:520px){.relay-panel{padding:23px}.relay-offer{left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));gap:9px}.relay-offer-copy{width:auto;flex:1}.relay-offer .relay-primary{padding:10px;font-size:11px}.relay-panel h2{font-size:24px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.relay-dialog{margin:auto;inset:0}
+</style>

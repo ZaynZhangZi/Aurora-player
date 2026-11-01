@@ -40,6 +40,10 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
+                <button type="button" @click="profileMenuOpen=false; openPlaybackRelay()">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="4" width="12" height="9" rx="2"/><path d="M7 17h4m-2-4v4"/><rect x="15" y="10" width="6" height="10" rx="1.5"/></svg>
+                  <span><strong>跨设备接力</strong><small>换一台设备，接着听</small></span><b>↗</b>
+                </button>
                 <button type="button" data-route-prefetch="messages" :class="{ 'is-active': isMessages }" @click="openMessages">
                   <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
                   <span><strong>消息中心</strong><small>通知与私信</small></span>
@@ -70,6 +74,7 @@ import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
+import {openPlaybackRelay} from '@/composables/playbackRelayState.js'
 import {Cog6ToothIcon} from '@heroicons/vue/24/outline'
 import {openAppSettings} from '@/composables/useAppSettings.js'
 import {preloadRouteComponent} from '@/utils/routePerformance.js'

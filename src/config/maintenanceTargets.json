@@ -132,6 +132,14 @@
     ]
   },
   {
+    "key": "feature.handoff",
+    "label": "跨设备接力",
+    "group": "播放器",
+    "apiPatterns": [
+      "^/api/v1/playback/(?:state|claim|checkpoint|events)$"
+    ]
+  },
+  {
     "key": "feature.lyrics",
     "label": "全屏歌词 / 可视化播放器",
     "group": "播放器",
