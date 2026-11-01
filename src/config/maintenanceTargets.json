@@ -65,6 +65,12 @@
     ]
   },
   {
+    "key": "page.smartPlaylists",
+    "label": "智能歌单页面",
+    "group": "页面",
+    "routeNames": ["smartPlaylists"]
+  },
+  {
     "key": "page.messages",
     "label": "消息中心",
     "group": "页面",
@@ -243,6 +249,12 @@
     "apiPatterns": [
       "^/record/recent/"
     ]
+  },
+  {
+    "key": "feature.smartPlaylists",
+    "label": "智能歌单生成与管理",
+    "group": "账号与个人中心",
+    "apiPatterns": ["^/api/v1/library/smart-playlists(?:/|$)"]
   },
   {
     "key": "feature.favorites",

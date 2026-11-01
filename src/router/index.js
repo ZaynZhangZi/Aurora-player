@@ -122,6 +122,12 @@ const router = createRouter({
       meta: { title: '曲风详情' },
     },
     {
+      path: '/smart-playlists',
+      name: 'smartPlaylists',
+      component: () => import('@/view/smartPlaylists/smartPlaylists.vue'),
+      meta: {title: '智能歌单'},
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('@/view/search/search.vue'),
