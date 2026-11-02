@@ -9,7 +9,7 @@
       <nav class="aurora-nav" aria-label="主导航">
         <button type="button" data-route-prefetch="home" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
         <button type="button" data-route-prefetch="discover" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
-        <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile || isSmartPlaylists }" @click="openProfile">音乐库</button>
+        <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile || isSmartPlaylists || isAudioStudio }" @click="openProfile">音乐库</button>
         <button type="button" data-route-prefetch="search" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
       </nav>
 
@@ -40,6 +40,10 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
+                <button type="button" data-route-prefetch="audioStudio" :class="{'is-active':isAudioStudio}" @click="profileMenuOpen=false; router.push({name:'audioStudio'})">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8 9v6m4-9v12m4-9v6"/></svg>
+                  <span><strong>音频实验室</strong><small>同步音响与空间混音</small></span><b>↗</b>
+                </button>
                 <button type="button" data-route-prefetch="smartPlaylists" :class="{'is-active':isSmartPlaylists}" @click="profileMenuOpen=false; router.push({name:'smartPlaylists'})">
                   <svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/></svg>
                   <span><strong>智能歌单</strong><small>让喜欢的歌自动找到位置</small></span><b>↗</b>
@@ -94,6 +98,7 @@ const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCe
 // 详情悬浮层打开时背景路由保持不变，导航高亮天然正确。
 const isProfile = computed(() => String(route.name || '') === 'profile')
 const isSmartPlaylists = computed(() => String(route.name || '') === 'smartPlaylists')
+const isAudioStudio = computed(() => String(route.name || '') === 'audioStudio')
 const isHome = computed(() => String(route.name || '') === 'home')
 const isDiscover = computed(() => String(route.name || '') === 'discover')
 const isSearch = computed(() => String(route.name || '') === 'search')

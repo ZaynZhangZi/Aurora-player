@@ -1,5 +1,23 @@
 [
   {
+    "key": "page.audioStudio",
+    "label": "音频实验室",
+    "group": "页面",
+    "routeNames": ["audioStudio"]
+  },
+  {
+    "key": "feature.speakerGroup",
+    "label": "多设备同步音响",
+    "group": "音频实验室",
+    "apiPatterns": ["^/api/v1/studio/(?:room|events)(?:/|$)"]
+  },
+  {
+    "key": "feature.spatialMixer",
+    "label": "空间混音台与本地声部分离",
+    "group": "音频实验室",
+    "apiPatterns": ["^/api/v1/audio-models/"]
+  },
+  {
     "key": "page.home",
     "label": "首页",
     "group": "页面",
