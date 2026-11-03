@@ -62,9 +62,10 @@ export function useAudioStudio(){
   function stopVoices(){speaker?.stop();mixer?.pause();state.space.playing=false}
   async function groupAction(name,fn){
     if(state.groupBusy)return false
-    const t=task(groupLife.signal);state.groupBusy=name;state.error=''
+    const t=task(groupLife.signal),spatial=state.tab==='spatial',errors=spatial?state.space:state
+    state.groupBusy=name;errors.error=''
     try{await fn(t);check(t);return true}
-    catch(error){if(current(t)&&error.name!=='AbortError'){state.error=errorMessage(error);if(error.status===409)void refreshRoom()}return false}
+    catch(error){if(current(t)&&error.name!=='AbortError'){errors.error=errorMessage(error);if(!spatial&&error.status===409)void refreshRoom()}return false}
     finally{if(current(t))state.groupBusy=''}
   }
   function applyRoom(snapshot){
@@ -245,9 +246,9 @@ export function useAudioStudio(){
   async function importCurrent(){
     const feature=state.tab==='speakers'?'feature.speakerGroup':'feature.spatialMixer'
     if(!gate(feature))return
+    const spatial=state.tab==='spatial',errors=spatial?state.space:state
     const song=player.currentSong,id=String(song?.id||''),durationMs=Number(player.durationMs||song?.durationMs||song?.duration||0)
-    if(!/^[1-9][0-9]{0,19}$/.test(id)||!durationMs){state.error='请先在播放器中选择一首可完整播放的歌曲';return}
-    const spatial=state.tab==='spatial'
+    if(!/^[1-9][0-9]{0,19}$/.test(id)||!durationMs){errors.error='请先在播放器中选择一首可完整播放的歌曲';return}
     return groupAction('import',async t=>{
       const source=await api.importSong({id,name:song.name||'当前歌曲',durationMs},t.signal);check(t)
       if(spatial){
@@ -383,8 +384,10 @@ export function useAudioStudio(){
   }
   function setTab(tab){
     if(tab===state.tab)return
-    if(tab==='spatial')void leaveRoom()
-    else{mixer?.pause();state.space.playing=false;cancelSeparation()}
+    // Each tab owns its network work. Local mixing must not inherit a pending
+    // speaker session, SSE stream, heartbeat or an error from that connection.
+    stopSpeakers();state.error='';state.sourceError=''
+    if(tab==='speakers'){mixer?.pause();state.space.playing=false;cancelSeparation()}
     state.tab=tab
     if(tab==='speakers'&&user.userId&&available('feature.speakerGroup'))void connect()
   }

@@ -184,3 +184,32 @@ test('binary source downloads refuse oversized bodies rather than allocating an 
     new Response('x',{headers:{'content-length':'33554433'}})})
   await assert.rejects(api.audio('source'),e=>e.status===413)
 })
+
+test('leaving the speaker tab aborts its pending identity exchange without a timeout error',async()=>{
+  const started=deferred();let exchangeSignal
+  const api=createStudioApi({baseUrl:'',getIdentity:()=>({userId:12,cookie:'MUSIC_U=fixture'}),fetchImpl:async(url,options)=>{
+    if(url.endsWith('/session')&&options.method==='POST')return new Promise((resolve,reject)=>{exchangeSignal=options.signal;options.signal.addEventListener('abort',()=>reject(new DOMException('cancelled','AbortError')),{once:true});started.resolve()})
+    return response(null)
+  }})
+  const request=api.room();await started.promise;await api.reset()
+  await assert.rejects(request,{name:'AbortError'});assert.equal(exchangeSignal.aborted,true)
+})
+
+test('identity exchange timeouts describe the account connection rather than local audio processing',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']})
+  const started=deferred()
+  const api=createStudioApi({baseUrl:'',getIdentity:()=>({userId:12,cookie:'MUSIC_U=fixture'}),fetchImpl:async(url,options)=>new Promise((resolve,reject)=>{options.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});started.resolve()})})
+  const request=api.room();await started.promise;t.mock.timers.tick(15000)
+  await assert.rejects(request,error=>error.status===408&&error.message.includes('账号连接超时'))
+})
+
+test('audio upload timeouts identify the network transfer separately from local decoding',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']})
+  const started=deferred()
+  const api=createStudioApi({baseUrl:'',getIdentity:()=>({userId:12,cookie:'MUSIC_U=fixture'}),fetchImpl:async(url,options)=>{
+    if(url.endsWith('/session'))return response({token:'opaque',userId:12})
+    return new Promise((resolve,reject)=>{options.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});started.resolve()})
+  }})
+  const request=api.upload(new Blob(['audio']),'fixture.wav',1000);await started.promise;t.mock.timers.tick(90000)
+  await assert.rejects(request,error=>error.status===408&&error.message.includes('音源上传超时'))
+})

@@ -10,7 +10,7 @@
       <button :class="{'is-active':state.tab==='spatial'}" :aria-pressed="state.tab==='spatial'" @click="setTab('spatial')"><span aria-hidden="true"><AppIcon name="audio-lines" :size="16" /></span><strong>空间混音台</strong><small>用普通耳机，听见声场</small></button>
     </nav>
     <p v-if="state.notice" class="lab-notice" role="status">{{ state.notice }}<button aria-label="关闭提示" @click="state.notice=''"><AppIcon name="x" :size="16" /></button></p>
-    <div v-if="state.error" class="lab-error" role="alert"><span>{{ state.error }}</span><button v-if="state.tab==='speakers'" @click="reconnect()">重新连接</button><button aria-label="关闭错误提示" @click="state.error=''"><AppIcon name="x" :size="16" /></button></div>
+    <div v-if="state.tab==='speakers' && state.error" class="lab-error" role="alert"><span>{{ state.error }}</span><button @click="reconnect()">重新连接</button><button aria-label="关闭错误提示" @click="state.error=''"><AppIcon name="x" :size="16" /></button></div>
 
     <MaintenanceFeature v-if="state.tab==='speakers'" target="feature.speakerGroup">
       <section v-if="!user.isLoggedIn" class="lab-guest"><span aria-hidden="true">◧</span><h2>把身边的设备连接起来</h2><p>登录同一个网易云账号，在每台设备打开音频实验室，即可加入同一播放组。</p><button class="lab-primary" @click="openLoginDialog()">登录并连接设备</button><small>空间混音台也支持直接导入本地音频。</small></section>

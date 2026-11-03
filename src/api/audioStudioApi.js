@@ -31,7 +31,10 @@ export function createStudioApi({baseUrl,getIdentity,fetchImpl=(...args)=>fetch(
       if(value.code!==200)throw new StudioApiError(value.code||502,String(value.message||'操作失败').slice(0,240))
       return value.data??null
     }catch(error){
-      if(timedOut)throw new StudioApiError(408,'操作用时较长，请稍后重试')
+      if(timedOut){
+        const message=path==='/session'?'音乐账号连接超时，请检查网络后重新连接':path==='/clock'?'音响对时超时，请检查网络后重新连接':path==='/sources/import'?'当前歌曲导入超时，请重试，或直接在混音台选择本地文件':mode==='binary'?'同步音源下载超时，请检查网络后重新准备':binary?'同步音源上传超时，请检查网络或选择较小的文件':'同步音响请求超时，请重新连接后重试'
+        throw new StudioApiError(408,message)
+      }
       if(error.name==='AbortError'||error instanceof StudioApiError)throw error
       throw new StudioApiError(0,'音频连接中断，请检查网络后重试')
     }finally{
