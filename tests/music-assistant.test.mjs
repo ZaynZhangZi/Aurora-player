@@ -1,10 +1,29 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
+import {runInNewContext} from 'node:vm'
 import {createMusicAssistantApi} from '../src/api/musicAssistantApi.js'
 
 const token='A'.repeat(43),other='B'.repeat(43)
 const response=(data,status=200)=>new Response(JSON.stringify({code:status,data,message:status===200?'success':'expired'}),{status,headers:{'Content-Type':'application/json'}})
 const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key),values}}
+
+test('assistant resolves production, local and explicit backend addresses through the shared resolver',async()=>{
+ const media=readFileSync(new URL('../src/utils/backendMedia.js',import.meta.url),'utf8').replace(/^import .*$/gm,'').replace(/export function /g,'function ').replaceAll('import.meta.env','environment')
+ const connection=readFileSync(new URL('../src/composables/musicAssistantConnection.js',import.meta.url),'utf8').replace(/^import .*$/gm,'').replace(/export function /g,'function ').replaceAll('import.meta.env','environment').replaceAll('import.meta.hot','false')
+ for(const {environment,hostname,expected} of [
+  {environment:{},hostname:'music.xiaojunjunjun.com',expected:'https://musicadmin.xiaojunjunjun.com'},
+  {environment:{},hostname:'localhost',expected:'/backend-api'},
+  {environment:{VITE_ADMIN_API_BASE_URL:'https://custom.example/'},hostname:'music.xiaojunjunjun.com',expected:'https://custom.example'},
+  {environment:{VITE_MUSIC_ASSISTANT_API_BASE_URL:'https://assistant.example'},hostname:'music.xiaojunjunjun.com',expected:'https://assistant.example'},
+ ]){
+  const calls=[],context={environment,window:{location:{hostname}},createMusicAssistantApi:options=>createMusicAssistantApi({...options,storage:storage(),fetchImpl:async url=>{calls.push(url);return response({musicConfigured:true,modelConfigured:true})}})}
+  runInNewContext(media+'\n'+connection+'\nglobalThis.connect=musicAssistantConnection',context)
+  const api=context.connect({isLoggedIn:false,$subscribe:()=>()=>{}})
+  assert.equal((await api.capabilities()).musicConfigured,true)
+  assert.deepEqual(calls,[expected+'/api/v1/music-assistant/capabilities'])
+ }
+})
 test('assistant exchanges an opaque session and never puts credentials in URLs',async()=>{
  const calls=[],saved=storage()
  const api=createMusicAssistantApi({baseUrl:'https://backend.example',storage:saved,getScope:()=> 'alice',fetchImpl:async(url,options)=>{calls.push({url,options});return url.endsWith('/session')?response({token}):response({id:'job',status:'RUNNING'})}})

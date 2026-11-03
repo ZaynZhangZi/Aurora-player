@@ -27,7 +27,7 @@
           <div class="ma-chat-top"><span><i/>音乐对话</span><button class="ma-text-button" :disabled="state.busy || !state.messages.length" @click="newConversation">新的音乐对话</button></div>
           <div v-if="state.error" class="ma-error" role="alert"><span>{{ state.error }}</span><button aria-label="关闭提示" @click="state.error=''">×</button></div>
           <div v-if="state.notice" class="ma-confirmation" role="status">{{ state.notice }}</div>
-          <div v-if="!state.loading && (!state.capabilities.musicConfigured || !state.capabilities.modelConfigured)" class="ma-notice" role="status">{{ !state.capabilities.musicConfigured?'音乐授权服务尚未配置，请先检查本地后端。':'AI 模型暂未配置，连接音乐账号后请先完成模型设置。' }}</div>
+          <div v-if="!state.loading && (!state.capabilities.musicConfigured || !state.capabilities.modelConfigured)" class="ma-notice" role="status">{{ !state.capabilities.musicConfigured?'音乐授权服务暂未就绪，请稍后再试。':'AI 服务暂未就绪，请稍后再试。' }}</div>
           <div ref="conversationRef" class="ma-transcript" aria-live="polite" aria-relevant="additions text">
             <div v-if="!state.messages.length" class="ma-welcome"><div class="ma-welcome-symbol" aria-hidden="true">✦</div><p class="ma-eyebrow">START WITH A FEELING</p><h2>今天，想用什么声音陪自己？</h2><p>说说心情、场景或喜欢的艺人，<br/>也可以在推荐后继续说「换个方向」。</p><div class="ma-prompts"><button v-for="prompt in prompts" :key="prompt.label" :disabled="state.busy" @click="choosePrompt(prompt.text)"><span>{{ prompt.icon }}</span><div><strong>{{ prompt.label }}</strong><small>{{ prompt.description }}</small></div><b>↗</b></button></div></div>
             <article v-for="message in state.messages" :key="message.id" class="ma-message" :class="'is-'+message.role">

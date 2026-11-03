@@ -19,7 +19,7 @@ export function createMusicAssistantApi({baseUrl,fetchImpl=fetch,getScope=()=>''
         const reader=response.body.getReader(),decoder=new TextDecoder();let bytes=0
         try{while(true){const next=await reader.read();if(next.done)break;bytes+=next.value.byteLength;if(bytes>limit)throw new MusicAssistantError(502,'音乐服务返回内容过大');text+=decoder.decode(next.value,{stream:true})}text+=decoder.decode()}finally{await reader.cancel().catch(()=>{})}
       }else{text=await response.text();if(text.length>limit)throw new MusicAssistantError(502,'音乐服务返回内容过大')}
-      let result;try{result=JSON.parse(text)}catch{throw new MusicAssistantError(response.status||502,'暂时无法连接音乐助手，请检查本地后端是否已启动')}
+      let result;try{result=JSON.parse(text)}catch{throw new MusicAssistantError(response.status||502,'音乐助手暂时无法连接，请稍后重试')}
       if(!response.ok||result.code!==200)throw new MusicAssistantError(response.ok?result.code:response.status,String(result.message||'音乐助手暂时不可用').slice(0,220))
       return result.data??null
     }catch(error){if(error.name==='AbortError'||error instanceof MusicAssistantError)throw error;throw new MusicAssistantError(0,'暂时无法连接音乐助手，请检查网络后重试')}

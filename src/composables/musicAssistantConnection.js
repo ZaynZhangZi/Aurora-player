@@ -1,5 +1,6 @@
 import {createMusicAssistantApi} from '@/api/musicAssistantApi.js'
 import {getMaintenanceSnapshot,isTargetAvailable,requireFeature} from '@/utils/maintenanceAccess.js'
+import {backendBaseUrl} from '@/utils/backendMedia.js'
 
 const connections=new WeakMap()
 const subscriptions=new Set()
@@ -8,7 +9,7 @@ export function musicAssistantConnection(user){
   const getScope=()=>user.isLoggedIn?String(user.userId):'guest'
   let scope=getScope()
   const api=createMusicAssistantApi({
-    baseUrl:import.meta.env.VITE_MUSIC_ASSISTANT_API_BASE_URL||import.meta.env.VITE_ADMIN_API_BASE_URL||'/backend-api',getScope,
+    baseUrl:import.meta.env.VITE_MUSIC_ASSISTANT_API_BASE_URL||backendBaseUrl(),getScope,
     beforeRequest:()=>{
       const settings=getMaintenanceSnapshot().settings
       const key=['page.musicAssistant','feature.musicAssistant','feature.ai'].find(key=>!isTargetAvailable(settings,key))
