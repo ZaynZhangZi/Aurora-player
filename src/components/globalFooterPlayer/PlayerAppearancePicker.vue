@@ -34,7 +34,7 @@
 
 <script setup>
 import {ref} from 'vue'
-import {CheckIcon} from '@heroicons/vue/24/outline'
+import {CheckIcon} from '@/components/icons'
 import {usePlayerAppearance} from '@/composables/usePlayerAppearance.js'
 import {PLAYER_APPEARANCE_OPTIONS} from '@/utils/player/playerAppearance.js'
 import {FOLIA_BACKGROUND_OPTIONS} from '@/utils/player/foliaBackground.js'

@@ -55,7 +55,7 @@
               :disabled="!tracks.length"
               @click="playAllTracks"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <AppIcon name="play" width="20" height="20" />
               全部播放
             </button>
 
@@ -68,8 +68,7 @@
               @click="toggleSubscribePlaylist"
             >
               <Transition name="heart-switch" mode="out-in">
-                <HeartSolidIcon v-if="playlist.subscribed" key="playlist-liked" class="relative z-10 h-6 w-6 text-rose-500" />
-                <HeartOutlineIcon v-else key="playlist-unliked" class="relative z-10 h-6 w-6 text-stone-700" />
+                <AppIcon name="heart" :filled="playlist.subscribed" class="relative z-10 h-6 w-6" :class="playlist.subscribed ? 'text-rose-500' : 'text-stone-700'" />
               </Transition>
             </button>
           </div>
@@ -122,7 +121,7 @@
             <div class="flex min-w-0 flex-1 items-center gap-4">
               <div class="flex w-8 justify-center">
                 <span class="text-sm font-medium tabular-nums text-stone-400 group-hover:hidden">{{ index + 1 }}</span>
-                <svg class="hidden text-stone-900 group-hover:block" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <AppIcon name="play" class="hidden text-stone-900 group-hover:block" width="18" height="18" />
               </div>
 
               <div class="min-w-0 flex-1">
@@ -150,8 +149,7 @@
                 @click.stop="toggleSongLike(track)"
               >
                 <Transition name="heart-switch" mode="out-in">
-                  <HeartSolidIcon v-if="isSongLiked(track.id)" key="song-liked" class="relative z-10 h-5 w-5 text-rose-500 transition-transform hover:scale-110" />
-                  <HeartOutlineIcon v-else key="song-unliked" class="relative z-10 h-5 w-5 text-stone-300 opacity-0 transition-all hover:scale-110 hover:text-stone-600 group-hover:opacity-100" />
+                  <AppIcon name="heart" :filled="isSongLiked(track.id)" class="relative z-10 h-5 w-5 transition-all hover:scale-110" :class="isSongLiked(track.id) ? 'text-rose-500' : 'text-stone-300 opacity-0 hover:text-stone-600 group-hover:opacity-100'" />
                 </Transition>
               </button>
               <span class="w-10 text-right text-sm font-medium tabular-nums text-stone-400">{{ formatDuration(track.dt) }}</span>
@@ -165,12 +163,11 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {loadPlaylistPages} from '@/utils/playlistPages.js'
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { DETAIL_OVERLAY_MODE_KEY } from '@/composables/useDetailNavigation.js'
-import { HeartIcon as HeartOutlineIcon } from '@heroicons/vue/24/outline'
-import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { playListsApi } from '@/api/playListsApi/playListsApi.js'
 import { reportApi } from '@/api/reportApi/reportApi.js'
 import { songsApi } from '@/api/songsApi/songsApi.js'

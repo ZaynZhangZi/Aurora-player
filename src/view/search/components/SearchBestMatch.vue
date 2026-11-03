@@ -45,14 +45,15 @@
         <em v-else>{{ subtitle }}</em>
       </span>
       <span ref="openRef" class="best-match-open" :class="{ 'is-play': type === 'song' }" aria-hidden="true">
-        <svg v-if="type === 'song'" viewBox="0 0 24 24" fill="none"><path d="M8.2 6.85c0-1.03 1.12-1.67 2.02-1.16l8.18 4.65a1.9 1.9 0 0 1 0 3.32l-8.18 4.65c-.9.51-2.02-.13-2.02-1.16V6.85Z" fill="currentColor" /></svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <AppIcon name="play" v-if="type === 'song'" />
+        <AppIcon name="arrow-right" v-else />
       </span>
     </button>
   </section>
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed, onBeforeUnmount, ref, watch} from 'vue'
 import {gsap} from 'gsap'
 import SmartMedia from '@/components/smartMedia/smartMedia.vue'

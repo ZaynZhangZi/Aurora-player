@@ -15,7 +15,7 @@
       </nav>
 
       <div class="aurora-header-actions">
-        <button class="aurora-assistant" type="button" data-route-prefetch="musicAssistant" aria-label="打开 AI 音乐助手" title="AI 音乐助手" @click="router.push({name:'musicAssistant'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3.5 14.8 9l5.7 3-5.7 2.9-2.8 5.6-2.8-5.6L3.5 12l5.7-3L12 3.5Z"/></svg></button>
+        <button class="aurora-assistant" type="button" data-route-prefetch="musicAssistant" aria-label="打开 AI 音乐助手" title="AI 音乐助手" @click="router.push({name:'musicAssistant'})"><AppIcon name="sparkles" /></button>
         <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
         <div ref="profileMenuRef" class="aurora-profile-wrap">
           <button
@@ -28,10 +28,7 @@
           >
             <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="用户头像" />
             <span v-else-if="userStore.isLoggedIn">{{ profileInitial }}</span>
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="8" r="3.25" />
-              <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
-            </svg>
+            <AppIcon name="user" v-else aria-hidden="true" />
           </button>
 
           <Transition name="profile-menu">
@@ -42,33 +39,33 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
-                <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="profileMenuOpen=false;router.push({name:'musicAssistant'})"><svg viewBox="0 0 24 24"><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3 3-6Z"/></svg><span><strong>AI 音乐助手</strong><small>把想听的，说给我</small></span><b>↗</b></button>
+                <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="profileMenuOpen=false;router.push({name:'musicAssistant'})"><AppIcon name="sparkles" /><span><strong>AI 音乐助手</strong><small>把想听的，说给我</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b></button>
                 <button type="button" data-route-prefetch="audioStudio" :class="{'is-active':isAudioStudio}" @click="profileMenuOpen=false; router.push({name:'audioStudio'})">
-                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8 9v6m4-9v12m4-9v6"/></svg>
-                  <span><strong>音频实验室</strong><small>同步音响与空间混音</small></span><b>↗</b>
+                  <AppIcon name="audio-lines" />
+                  <span><strong>音频实验室</strong><small>同步音响与空间混音</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
                 </button>
                 <button type="button" data-route-prefetch="smartPlaylists" :class="{'is-active':isSmartPlaylists}" @click="profileMenuOpen=false; router.push({name:'smartPlaylists'})">
-                  <svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="12" r="2"/></svg>
-                  <span><strong>智能歌单</strong><small>让喜欢的歌自动找到位置</small></span><b>↗</b>
+                  <AppIcon name="sliders-horizontal" />
+                  <span><strong>智能歌单</strong><small>让喜欢的歌自动找到位置</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
                 </button>
                 <button type="button" @click="profileMenuOpen=false; openPlaybackRelay()">
-                  <svg viewBox="0 0 24 24"><rect x="3" y="4" width="12" height="9" rx="2"/><path d="M7 17h4m-2-4v4"/><rect x="15" y="10" width="6" height="10" rx="1.5"/></svg>
-                  <span><strong>跨设备接力</strong><small>换一台设备，接着听</small></span><b>↗</b>
+                  <AppIcon name="monitor-smartphone" />
+                  <span><strong>跨设备接力</strong><small>换一台设备，接着听</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
                 </button>
                 <button type="button" data-route-prefetch="messages" :class="{ 'is-active': isMessages }" @click="openMessages">
-                  <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
+                  <AppIcon name="messages-square" />
                   <span><strong>消息中心</strong><small>通知与私信</small></span>
-                  <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else>→</b>
+                  <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else><AppIcon name="arrow-right" :size="16" /></b>
                 </button>
                 <button type="button" data-route-prefetch="moments" :class="{ 'is-active': isMoments }" @click="openMoments">
-                  <svg viewBox="0 0 24 24"><path d="M8 18V6l10-2v12"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/></svg>
+                  <AppIcon name="music" />
                   <span><strong>音乐动态</strong><small>关注与分享</small></span>
-                  <b>→</b>
+                  <b><AppIcon name="arrow-right" :size="16" /></b>
                 </button>
                 <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile }" @click="openProfile">
-                  <svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h6M8 15h4"/></svg>
+                  <AppIcon name="file-text" />
                   <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
-                  <b>→</b>
+                  <b><AppIcon name="arrow-right" :size="16" /></b>
                 </button>
               </nav>
             </div>
@@ -80,13 +77,14 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
 import {openPlaybackRelay} from '@/composables/playbackRelayState.js'
-import {Cog6ToothIcon} from '@heroicons/vue/24/outline'
+import {Cog6ToothIcon} from '@/components/icons'
 import {openAppSettings} from '@/composables/useAppSettings.js'
 import {preloadRouteComponent} from '@/utils/routePerformance.js'
 

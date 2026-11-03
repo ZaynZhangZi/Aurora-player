@@ -12,7 +12,7 @@
       </header>
 
       <section v-if="!userStore.isLoggedIn" class="moments-auth">
-        <div class="moments-auth-orbit" aria-hidden="true"><span>♪</span></div>
+        <div class="moments-auth-orbit" aria-hidden="true"><span><AppIcon name="music" :size="24" /></span></div>
         <p>YOUR MUSIC CIRCLE</p>
         <h2>登录后进入音乐动态</h2>
         <span>查看关注的人、分享歌曲，也可以参与正在发生的话题。</span>
@@ -32,13 +32,13 @@
               <div v-if="selectedSong" class="selected-song">
                 <img :src="songCover(selectedSong)" alt="" />
                 <div><small>准备分享的歌曲</small><strong>{{ selectedSong.name }}</strong><ArtistLinks :artists="songArtistItems(selectedSong)" /></div>
-                <button type="button" aria-label="移除歌曲" @click="selectedSong = null">×</button>
+                <button type="button" aria-label="移除歌曲" @click="selectedSong = null"><AppIcon name="x" :size="16" /></button>
               </div>
             </Transition>
 
             <div v-if="songSearchOpen" class="song-finder">
               <div class="song-finder-input">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <AppIcon name="search" />
                 <input v-model.trim="songKeyword" type="search" placeholder="搜索要分享的歌曲" @keydown.enter.prevent="searchSongs" />
                 <button type="button" :disabled="songSearching || !songKeyword" @click="searchSongs">{{ songSearching ? '搜索中' : '搜索' }}</button>
               </div>
@@ -55,7 +55,7 @@
             <footer>
               <div>
                 <button type="button" :class="{ 'is-active': songSearchOpen }" @click="songSearchOpen = !songSearchOpen">
-                  <svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+                  <AppIcon name="music" />
                   关联歌曲
                 </button>
                 <span>{{ shareText.length }}/140</span>
@@ -72,7 +72,7 @@
                 <button type="button" :class="{ 'is-active': feedMode === 'following' && !selectedFollow }" @click="showFollowingFeed">关注动态</button>
                 <button type="button" :class="{ 'is-active': feedMode === 'mine' }" @click="showMyFeed">我的分享</button>
               </div>
-              <span v-if="selectedFollow">只看 {{ selectedFollow.nickname }} <button type="button" @click="showFollowingFeed">×</button></span>
+              <span v-if="selectedFollow">只看 {{ selectedFollow.nickname }} <button type="button" @click="showFollowingFeed"><AppIcon name="x" :size="16" /></button></span>
               <button v-else type="button" :disabled="feedLoading" @click="loadEvents({reset: true})">刷新</button>
             </header>
 
@@ -97,10 +97,10 @@
 
                 <button v-if="event.resource" type="button" class="event-resource" @click="openResource(event.resource)">
                   <img v-if="event.resource.cover" :src="event.resource.cover" alt="" loading="lazy" />
-                  <span v-else class="resource-note">♪</span>
+                  <span v-else class="resource-note"><AppIcon name="music" :size="24" /></span>
                   <span><small>{{ event.resource.label }}</small><strong>{{ event.resource.name }}</strong><i v-if="event.resource.artistItems?.length"><ArtistLinks :artists="event.resource.artistItems" /></i><i v-else>{{ event.resource.subtitle }}</i></span>
                   <b v-if="event.resource.kind === 'song'" aria-label="播放歌曲">
-                    <svg viewBox="0 0 24 24"><path d="m9 7 8 5-8 5V7Z"/></svg>
+                    <AppIcon name="play" />
                   </b>
                   <em v-else>打开</em>
                 </button>
@@ -111,10 +111,10 @@
 
                 <footer class="event-actions">
                   <button type="button" :class="{ 'is-active': forwardingEventId === event.id }" @click="toggleForward(event.id)">
-                    <svg viewBox="0 0 24 24"><path d="m9 7-5 5 5 5M4 12h9a6 6 0 0 1 6 6"/></svg>{{ event.shareCount || '转发' }}
+                    <AppIcon name="reply" />{{ event.shareCount || '转发' }}
                   </button>
-                  <button type="button" @click="openComments(event)"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-2 2v-9.5A7.5 7.5 0 0 1 10.5 4H13a7 7 0 0 1 7 7.5Z"/></svg>{{ event.commentCount || '评论' }}</button>
-                  <button type="button" class="event-like" :class="{ 'is-liked': event.liked, 'is-pending': event.likePending }" :disabled="event.likePending || !event.threadId" :aria-pressed="event.liked" @click="toggleEventLike(event)"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>{{ event.likedCount || '喜欢' }}</button>
+                  <button type="button" @click="openComments(event)"><AppIcon name="message-circle" />{{ event.commentCount || '评论' }}</button>
+                  <button type="button" class="event-like" :class="{ 'is-liked': event.liked, 'is-pending': event.likePending }" :disabled="event.likePending || !event.threadId" :aria-pressed="event.liked" @click="toggleEventLike(event)"><AppIcon name="heart" />{{ event.likedCount || '喜欢' }}</button>
                 </footer>
 
                 <Transition name="attachment">
@@ -128,7 +128,7 @@
 
               <button v-if="feedHasMore" class="feed-more" type="button" :disabled="feedLoadingMore" @click="loadEvents({reset: false})">{{ feedLoadingMore ? '正在加载…' : '继续往下看' }}</button>
             </TransitionGroup>
-            <div v-else class="feed-empty"><span>♪</span><h3>这里还很安静</h3><p>{{ feedMode === 'mine' ? '分享一首正在听的歌，留下第一条动态。' : '关注一些喜欢的音乐人，动态会出现在这里。' }}</p></div>
+            <div v-else class="feed-empty"><span><AppIcon name="music" :size="24" /></span><h3>这里还很安静</h3><p>{{ feedMode === 'mine' ? '分享一首正在听的歌，留下第一条动态。' : '关注一些喜欢的音乐人，动态会出现在这里。' }}</p></div>
           </section>
 
           <aside class="moments-sidebar">
@@ -151,7 +151,7 @@
                 <button v-for="(topic, index) in topics.slice(0, 8)" :key="topic.id" type="button" @click="openTopic(topic)">
                   <span>{{ String(index + 1).padStart(2, '0') }}</span>
                   <div><strong># {{ topic.title }}</strong><small>{{ compactCount(topic.count) }} 人参与</small></div>
-                  <i>→</i>
+                  <i><AppIcon name="arrow-right" :size="16" /></i>
                 </button>
               </div>
               <p v-else class="sidebar-state">话题暂时没有更新</p>
@@ -170,7 +170,7 @@
             <header class="comments-drawer-heading">
               <div><p>CONVERSATION</p><h2 id="comments-title">评论</h2><span>{{ commentsTotal ? `${compactCount(commentsTotal)} 条回应` : '听听大家怎么说' }}</span></div>
               <button type="button" aria-label="关闭评论" @click="closeComments">
-                <svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg>
+                <AppIcon name="x" />
               </button>
             </header>
 
@@ -196,7 +196,7 @@
                       <p>{{ comment.content }}</p>
                       <blockquote v-if="comment.reply"><strong>@{{ comment.reply.nickname }}</strong>{{ comment.reply.content }}</blockquote>
                       <footer>
-                        <span v-if="comment.likedCount"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>{{ compactCount(comment.likedCount) }}</span>
+                        <span v-if="comment.likedCount"><AppIcon name="heart" />{{ compactCount(comment.likedCount) }}</span>
                         <button type="button" @click="selectCommentReply(comment)">回复</button>
                       </footer>
                     </div>
@@ -212,7 +212,7 @@
               <Transition name="reply-target">
                 <div v-if="replyTarget" class="reply-target">
                   <span>正在回复 <strong>@{{ replyTarget.user.nickname }}</strong></span>
-                  <button type="button" aria-label="取消回复" @click="cancelCommentReply">×</button>
+                  <button type="button" aria-label="取消回复" @click="cancelCommentReply"><AppIcon name="x" :size="16" /></button>
                 </div>
               </Transition>
               <textarea ref="commentInputRef" v-model="commentContent" rows="2" maxlength="140" :placeholder="replyTarget ? `回复 @${replyTarget.user.nickname}` : '写一条评论…'" @keydown.ctrl.enter.prevent="submitEventComment" @keydown.meta.enter.prevent="submitEventComment" />
@@ -230,7 +230,7 @@
       <div v-if="topicDialogOpen" class="topic-dialog" role="dialog" aria-modal="true" aria-labelledby="topic-dialog-title">
         <button class="topic-backdrop" type="button" aria-label="关闭话题" @click="closeTopic" />
         <section class="topic-sheet">
-          <button class="topic-close" type="button" aria-label="关闭" @click="closeTopic">×</button>
+          <button class="topic-close" type="button" aria-label="关闭" @click="closeTopic"><AppIcon name="x" :size="16" /></button>
           <p>TRENDING CONVERSATION</p>
           <h2 id="topic-dialog-title"># {{ activeTopic?.title }}</h2>
           <span>{{ topicDetailText || activeTopic?.text || '看看大家正在围绕这段声音聊些什么。' }}</span>
@@ -249,6 +249,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'MomentsPage'})

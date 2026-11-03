@@ -12,7 +12,7 @@
         @click="emit('view-all')"
       >
         {{ viewAllLabel }}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <AppIcon name="arrow-right" aria-hidden="true" />
       </button>
     </header>
 
@@ -31,6 +31,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import HomeSongRow from '@/components/home/HomeSongRow.vue'
 
 defineProps({

@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from '../../../../../components/icons/ReactIcon';
 import { AudioBands, Theme } from '../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../utils/fontStacks';
 import { type VisualizerSharedProps } from './definition';

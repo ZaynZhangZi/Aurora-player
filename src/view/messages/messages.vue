@@ -12,7 +12,7 @@
 
       <section v-if="!userStore.isLoggedIn" class="messages-auth">
         <span class="messages-auth-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H10l-4.5 3v-3.3a2.25 2.25 0 0 1-1-1.95v-7.5Z"/><path d="M8 9h8M8 12h5"/></svg>
+          <AppIcon name="messages-square" />
         </span>
         <p>PRIVATE SPACE</p>
         <h2>登录后查看你的消息</h2>
@@ -52,7 +52,7 @@
                   <div><strong>{{ item.title || '系统通知' }}</strong><time>{{ formatTime(item.time) }}</time></div>
                   <small>{{ item.senderName }}</small>
                   <p>{{ item.content }}</p>
-                  <button v-if="safeWebUrl(item.webUrl)" type="button" @click="openNoticeLink(item.webUrl)">查看相关内容 <span>↗</span></button>
+                  <button v-if="safeWebUrl(item.webUrl)" type="button" @click="openNoticeLink(item.webUrl)">查看相关内容 <span><AppIcon name="arrow-up-right" :size="16" /></span></button>
                 </div>
                 <i v-if="item.unreadCount" class="notice-dot" aria-label="未读" />
               </article>
@@ -70,7 +70,7 @@
                 <button type="button" :disabled="privateLoading" @click="fetchPrivateMessages({ reset: true })">刷新</button>
               </div>
               <label class="conversation-filter">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <AppIcon name="search" />
                 <input v-model.trim="privateConversationKeyword" type="search" placeholder="筛选会话" />
               </label>
               <p v-if="privateLoading" class="message-state is-small">正在同步会话…</p>
@@ -119,7 +119,7 @@
                 </div>
               </div>
               <div v-else class="chat-placeholder">
-                <span>✦</span><h3>选择一个会话</h3><p>或在上方搜索用户，开始一段关于音乐的对话。</p>
+                <span><AppIcon name="sparkles" :size="16" /></span><h3>选择一个会话</h3><p>或在上方搜索用户，开始一段关于音乐的对话。</p>
               </div>
 
               <form class="chat-composer" @submit.prevent="submitPrivateMessage">
@@ -136,6 +136,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'MessagesPage'})

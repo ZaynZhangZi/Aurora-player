@@ -42,7 +42,7 @@
 
 <script setup>
 import {computed, nextTick, onBeforeUnmount, ref, watch} from 'vue'
-import {ArrowDownTrayIcon, ArrowRightIcon, CheckIcon, ChevronLeftIcon, DocumentDuplicateIcon, FilmIcon, XMarkIcon} from '@heroicons/vue/24/outline'
+import {ArrowDownTrayIcon, ArrowRightIcon, CheckIcon, ChevronLeftIcon, DocumentDuplicateIcon, FilmIcon, XMarkIcon} from '@/components/icons'
 import LyricSharePreview from './LyricSharePreview.vue'
 import {closeLyricShare, lyricShare as ui} from '@/composables/useLyricShare.js'
 import {DEFAULT_SHARE_OPTIONS, formatShareTime, selectedShareLines, shareFileName} from '@/utils/lyricShare.js'

@@ -49,7 +49,7 @@
 
 <script setup>
 import {nextTick, onBeforeUnmount, ref, watch} from 'vue'
-import {ArrowUpTrayIcon, CheckCircleIcon, CheckIcon, MusicalNoteIcon, QueueListIcon, Squares2X2Icon, XMarkIcon} from '@heroicons/vue/24/outline'
+import {ArrowUpTrayIcon, CheckCircleIcon, CheckIcon, MusicalNoteIcon, QueueListIcon, Squares2X2Icon, XMarkIcon} from '@/components/icons'
 import PlayerAppearancePicker from '@/components/globalFooterPlayer/PlayerAppearancePicker.vue'
 import {AUDIO_QUALITY_OPTIONS, qualityLabel, qualityRank} from '@/utils/player/audioQuality.js'
 import {lockScroll, unlockScroll} from '@/utils/scrollLock.js'

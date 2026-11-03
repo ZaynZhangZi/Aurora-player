@@ -3,19 +3,19 @@
   <main class="smart-page" data-route-motion-root>
     <header class="smart-hero">
       <div><p class="smart-eyebrow">YOUR LIBRARY, ALWAYS GROWING</p><h1>把喜欢，交给规则。</h1><p class="smart-intro">收藏在变，歌单也会跟着你变化。</p></div>
-      <button class="smart-quiet" @click="router.push({name:'profile'})">← 音乐库</button>
+      <button class="smart-quiet" @click="router.push({name:'profile'})"><AppIcon name="arrow-left" :size="16" /> 音乐库</button>
     </header>
     <MaintenanceFeature target="feature.smartPlaylists">
       <section v-if="!user.isLoggedIn || !user.userId" class="smart-guest">
-        <div class="smart-empty-mark" aria-hidden="true">♫</div><h2>让喜欢的音乐，自己找到位置</h2>
+        <div class="smart-empty-mark" aria-hidden="true"><AppIcon name="music" :size="16" /></div><h2>让喜欢的音乐，自己找到位置</h2>
         <p>登录网易云账号，从收藏中创建会自动变化的歌单。</p><button class="smart-primary" @click="openLoginDialog()">登录网易云音乐</button>
       </section>
       <template v-else>
-        <div v-if="state.deleted" class="smart-toast" role="status"><span>已删除「{{ state.deleted.name }}」</span><button :disabled="state.creating" @click="engine.undo()">撤销删除</button><button aria-label="关闭删除提示" @click="state.deleted=null">×</button></div>
+        <div v-if="state.deleted" class="smart-toast" role="status"><span>已删除「{{ state.deleted.name }}」</span><button :disabled="state.creating" @click="engine.undo()">撤销删除</button><button aria-label="关闭删除提示" @click="state.deleted=null"><AppIcon name="x" :size="16" /></button></div>
         <div class="smart-shell">
           <aside class="smart-sidebar">
-            <div class="smart-sidebar-heading"><h2>我的智能歌单 <small>{{ state.lists.length }}/30</small></h2><button aria-label="刷新智能歌单列表" :disabled="state.loading || state.creating || state.deleting" @click="engine.reload()">↻</button></div>
-            <button class="smart-new" :disabled="state.loading || state.creating || state.deleting" @click="engine.create({name:'我的智能歌单',rules:SMART_DEFAULT_RULES})">＋ 创建智能歌单</button>
+            <div class="smart-sidebar-heading"><h2>我的智能歌单 <small>{{ state.lists.length }}/30</small></h2><button aria-label="刷新智能歌单列表" :disabled="state.loading || state.creating || state.deleting" @click="engine.reload()"><AppIcon name="refresh-cw" :size="16" /></button></div>
+            <button class="smart-new" :disabled="state.loading || state.creating || state.deleting" @click="engine.create({name:'我的智能歌单',rules:SMART_DEFAULT_RULES})"><AppIcon name="plus" :size="16" /> 创建智能歌单</button>
             <p v-if="state.loading" class="smart-muted" role="status">正在同步你的歌单…</p>
             <nav v-else class="smart-saved" aria-label="智能歌单列表">
               <button v-for="item in state.lists" :key="item.id" :class="{'is-selected':item.id===state.selectedId}" :aria-pressed="item.id===state.selectedId" :disabled="state.creating || state.deleting" @click="engine.choose(item.id)">
@@ -23,7 +23,7 @@
               </button>
             </nav>
             <div class="smart-template-heading"><span>从模板开始</span><small>点击即可创建</small></div>
-            <div class="smart-templates"><button v-for="template in SMART_TEMPLATES" :key="template.key" :disabled="state.loading || state.creating || state.deleting" @click="engine.create(template)"><span :class="'smart-template-dot is-'+template.key" aria-hidden="true"/><span><strong>{{ template.name }}</strong><small>{{ template.description }}</small></span><b aria-hidden="true">↗</b></button></div>
+            <div class="smart-templates"><button v-for="template in SMART_TEMPLATES" :key="template.key" :disabled="state.loading || state.creating || state.deleting" @click="engine.create(template)"><span :class="'smart-template-dot is-'+template.key" aria-hidden="true"/><span><strong>{{ template.name }}</strong><small>{{ template.description }}</small></span><b aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></b></button></div>
             <p class="smart-sidebar-note">智能歌单保存在你的账号中，可在网页和新版桌面端使用。</p>
           </aside>
           <section class="smart-workspace">
@@ -40,7 +40,7 @@
               </div>
               <div class="smart-detail">
                 <section class="smart-rule-card">
-                  <header><span class="smart-rule-icon" aria-hidden="true">✦</span><div><h2>筛选规则</h2><p>条件更改后自动保存</p></div></header>
+                  <header><span class="smart-rule-icon" aria-hidden="true"><AppIcon name="sparkles" :size="16" /></span><div><h2>筛选规则</h2><p>条件更改后自动保存</p></div></header>
                   <fieldset :disabled="state.loading || state.creating || state.deleting">
                     <legend>收藏与重听</legend>
                     <label class="smart-field"><span>收藏时间</span><select :value="state.rules.likedDays" @change="rule('likedDays',+$event.target.value)"><option v-for="days in [0,7,30,90,365]" :key="days" :value="days">{{ days?'最近'+days+'天':'全部收藏' }}</option></select></label>
@@ -62,15 +62,15 @@
                   <p v-if="validation" class="smart-validation" role="status">{{ validation }}</p>
                 </section>
                 <section class="smart-preview-card" :aria-busy="state.previewBusy">
-                  <header><div><p class="smart-eyebrow">MADE BY YOUR RULES</p><h2>此刻的歌单 <span v-if="state.preview">{{ state.preview.matchedCount }} 首匹配</span></h2></div><button class="smart-refresh" :disabled="state.previewBusy || Boolean(validation)" @click="engine.preview({refresh:true})" aria-label="刷新收藏并重新匹配">↻</button></header>
-                  <div class="smart-preview-actions"><p>{{ state.preview ? '从 '+state.preview.librarySize+' 首收藏中筛选，展示 '+state.preview.tracks.length+' 首' : '从当前网易云收藏中筛选' }}</p><button class="smart-primary" :disabled="state.playing || Boolean(validation) || state.conflict || state.previewBusy || !state.preview?.tracks.length" @click="engine.play()">{{ state.playing?'准备播放…':'▶ 播放全部' }}</button></div>
+                  <header><div><p class="smart-eyebrow">MADE BY YOUR RULES</p><h2>此刻的歌单 <span v-if="state.preview">{{ state.preview.matchedCount }} 首匹配</span></h2></div><button class="smart-refresh" :disabled="state.previewBusy || Boolean(validation)" @click="engine.preview({refresh:true})" aria-label="刷新收藏并重新匹配"><AppIcon name="refresh-cw" :size="16" /></button></header>
+                  <div class="smart-preview-actions"><p>{{ state.preview ? '从 '+state.preview.librarySize+' 首收藏中筛选，展示 '+state.preview.tracks.length+' 首' : '从当前网易云收藏中筛选' }}</p><button class="smart-primary" :disabled="state.playing || Boolean(validation) || state.conflict || state.previewBusy || !state.preview?.tracks.length" @click="engine.play()"><AppIcon :name="state.playing?'loader-circle':'play'" :size="15" />{{ state.playing?'准备播放…':'播放全部' }}</button></div>
                   <p v-if="state.previewError" class="smart-preview-error" role="status">{{ state.previewError }}<button @click="engine.preview()">重试</button></p>
                   <p v-for="warning in state.preview?.warnings || []" :key="warning" class="smart-warning">{{ warning }}</p>
                   <p v-if="previewStale && state.preview" class="smart-muted smart-updating">条件已更新，正在重新筛选…</p>
                   <div v-if="state.previewBusy && !state.preview" class="smart-preview-loading" role="status"><span/><p>正在整理你的收藏与播放记录…</p><i v-for="n in 5" :key="n"/></div>
-                  <div v-else-if="!state.preview?.tracks.length" class="smart-no-results"><span aria-hidden="true">♫</span><h3>{{ state.preview?.librarySize===0?'从第一首喜欢的歌开始':'给好歌多一点相遇的机会' }}</h3><p>{{ state.preview?.librarySize===0?'先去发现页收藏几首歌，再回来刷新。':'试着放宽收藏时间、排除天数或播放次数。' }}</p></div>
+                  <div v-else-if="!state.preview?.tracks.length" class="smart-no-results"><span aria-hidden="true"><AppIcon name="music" :size="16" /></span><h3>{{ state.preview?.librarySize===0?'从第一首喜欢的歌开始':'给好歌多一点相遇的机会' }}</h3><p>{{ state.preview?.librarySize===0?'先去发现页收藏几首歌，再回来刷新。':'试着放宽收藏时间、排除天数或播放次数。' }}</p></div>
                   <ol v-else class="smart-tracks" :class="{'is-stale':previewStale}">
-                    <li v-for="(track,index) in state.preview.tracks" :key="track.id"><button :disabled="state.playing || state.conflict || Boolean(validation)" @click="engine.play(track.id)" :aria-label="'播放 '+track.name"><span class="smart-track-index">{{ String(index+1).padStart(2,'0') }}</span><span class="smart-track-cover"><img v-if="track.cover" :src="track.cover" alt="" loading="lazy" decoding="async" @error="$event.target.style.visibility='hidden'"/><i v-else aria-hidden="true">♪</i></span><span class="smart-track-copy"><strong>{{ track.name }}</strong><small>{{ track.artists.join(' / ') || '未知歌手' }}</small></span><span class="smart-track-count">近{{ state.rules.historyDays }}天 {{ track.playCount }} 次</span><span class="smart-track-duration">{{ time(track.durationMs) }}</span></button></li>
+                    <li v-for="(track,index) in state.preview.tracks" :key="track.id"><button :disabled="state.playing || state.conflict || Boolean(validation)" @click="engine.play(track.id)" :aria-label="'播放 '+track.name"><span class="smart-track-index">{{ String(index+1).padStart(2,'0') }}</span><span class="smart-track-cover"><img v-if="track.cover" :src="track.cover" alt="" loading="lazy" decoding="async" @error="$event.target.style.visibility='hidden'"/><i v-else aria-hidden="true"><AppIcon name="music" :size="20" /></i></span><span class="smart-track-copy"><strong>{{ track.name }}</strong><small>{{ track.artists.join(' / ') || '未知歌手' }}</small></span><span class="smart-track-count">近{{ state.rules.historyDays }}天 {{ track.playCount }} 次</span><span class="smart-track-duration">{{ time(track.durationMs) }}</span></button></li>
                   </ol>
                   <footer>打开或播放时重新匹配 · 收藏变化后可点刷新同步</footer>
                 </section>
@@ -84,6 +84,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed} from 'vue'
 import {useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'

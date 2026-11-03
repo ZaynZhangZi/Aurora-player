@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Hourglass } from 'lucide-react';
+import { Hourglass } from '../../../../../../components/icons/ReactIcon';
 import { DEFAULT_FUME_TUNING, FumeTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha } from '../colorMix';

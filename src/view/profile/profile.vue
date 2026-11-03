@@ -25,9 +25,7 @@
               <span>Lv.{{ level.level || 0 }}</span>
               <button class="profile-logout-trigger" type="button" @click="openLogoutDialog">
                 退出登录
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10M14.5 8.5 18 12l-3.5 3.5M9 12h9" />
-                </svg>
+                <AppIcon name="log-out" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -62,9 +60,9 @@
         <section id="profile-panel-playlist" v-if="activeTab === 'playlist'" key="playlist" class="profile-workspace profile-library" role="tabpanel" aria-labelledby="profile-tab-playlist">
           <div class="profile-section-heading">
             <div><p>MY COLLECTION</p><h2>我的音乐空间</h2><span>创建、收藏与反复聆听，都在这里慢慢沉淀。</span></div>
-            <button class="profile-section-action" type="button" data-route-prefetch="audioStudio" @click="router.push({name:'audioStudio'})">◉ 音频实验室 ↗</button>
-            <button class="profile-section-action" type="button" data-route-prefetch="musicAssistant" @click="router.push({name:'musicAssistant'})">✧ AI 选歌 ↗</button>
-            <button class="profile-section-action" type="button" data-route-prefetch="smartPlaylists" @click="router.push({name:'smartPlaylists'})">✦ 智能歌单 ↗</button>
+            <button class="profile-section-action" type="button" data-route-prefetch="audioStudio" @click="router.push({name:'audioStudio'})"><AppIcon name="audio-lines" :size="16" /> 音频实验室 <AppIcon name="arrow-up-right" :size="16" /></button>
+            <button class="profile-section-action" type="button" data-route-prefetch="musicAssistant" @click="router.push({name:'musicAssistant'})"><AppIcon name="sparkles" :size="16" /> AI 选歌 <AppIcon name="arrow-up-right" :size="16" /></button>
+            <button class="profile-section-action" type="button" data-route-prefetch="smartPlaylists" @click="router.push({name:'smartPlaylists'})"><AppIcon name="sparkles" :size="16" /> 智能歌单 <AppIcon name="arrow-up-right" :size="16" /></button>
             <div class="profile-library-counts" aria-label="歌单数量">
               <span><strong>{{ createdPlaylists.length }}</strong> 创建</span>
               <i />
@@ -98,7 +96,7 @@
                   >
                     <img v-bind="libraryCoverAttrs(item.coverImgUrl)" :alt="`${item.name}封面`" loading="lazy" />
                     <span class="profile-playlist-open" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                      <AppIcon name="play" />
                     </span>
                   </div>
                   <p class="profile-playlist-title">{{ item.name }}</p>
@@ -130,7 +128,7 @@
                   >
                     <img v-bind="libraryCoverAttrs(item.coverImgUrl)" :alt="`${item.name}封面`" loading="lazy" />
                     <span class="profile-playlist-open" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                      <AppIcon name="play" />
                     </span>
                   </div>
                   <p class="profile-playlist-title">{{ item.name }}</p>
@@ -152,14 +150,14 @@
               :disabled="cloudLoading || Boolean(cloudDeletingId)"
               @click="loadCloudSongs(cloudPage)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <AppIcon name="refresh-cw" width="12" height="12" />
               刷新存储
             </button>
           </div>
 
           <div class="profile-upload-deck">
             <div class="profile-upload-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+              <AppIcon name="upload" />
             </div>
             <div class="profile-upload-copy">
               <span>UPLOAD TO YOUR CLOUD</span>
@@ -222,9 +220,9 @@
                     <span class="profile-cloud-index">{{ String(index + 1 + (cloudPage - 1) * cloudLimit).padStart(2, '0') }}</span>
                     <div class="profile-cloud-cover">
                       <img v-if="item.coverUrl" v-bind="responsiveImageAttrs(item.coverUrl, {width: 96, sizes: '48px', widths: [48, 96, 144]})" :alt="`${item.songName}封面`" loading="lazy" />
-                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+                      <AppIcon name="music" v-else aria-hidden="true" />
                       <span aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <AppIcon name="play" />
                       </span>
                     </div>
                     <div class="profile-cloud-song-copy">
@@ -237,7 +235,7 @@
                   <span class="profile-cloud-date">{{ formatDateTime(item.addTime).split(' ')[0] }}</span>
                   <div class="profile-cloud-actions">
                     <button type="button" title="查看详情" :aria-expanded="activeCloudDetailId === item.songId" @click.stop="toggleCloudDetail(item)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+                      <AppIcon name="info" />
                     </button>
                     <button
                       class="is-danger"
@@ -247,7 +245,7 @@
                       :aria-busy="cloudDeletingId === Number(item.songId)"
                       @click.stop="openCloudDeleteDialog(item)"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/></svg>
+                      <AppIcon name="trash-2" />
                     </button>
                   </div>
                 </div>
@@ -274,7 +272,7 @@
                   :disabled="cloudPage <= 1 || cloudLoading || Boolean(cloudDeletingId)"
                   @click="prevCloudPage"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  <AppIcon name="chevron-left" width="14" height="14" />
                 </button>
                 <button
                   type="button"
@@ -282,7 +280,7 @@
                   :disabled="!cloudCanNextPage || cloudLoading || Boolean(cloudDeletingId)"
                   @click="nextCloudPage"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  <AppIcon name="chevron-right" width="14" height="14" />
                 </button>
               </div>
             </div>
@@ -361,7 +359,7 @@
                     </span>
                     <span class="listening-track-copy"><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artistItems" /></small></span>
                     <span class="listening-track-count">{{ item.count }} 次</span>
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    <AppIcon name="play" aria-hidden="true" />
                   </button>
                 </div>
               </section>
@@ -405,10 +403,7 @@
         <button class="profile-logout-backdrop" type="button" aria-label="取消退出" @click="closeLogoutDialog" />
         <section class="profile-logout-panel">
           <span class="profile-logout-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M9 9.25a3.8 3.8 0 0 1 6.1 1.15c1.15 2.55-.65 5.8-3.1 7.1-2.45-1.3-4.25-4.55-3.1-7.1" />
-            </svg>
+            <AppIcon name="heart" />
           </span>
           <p>ACCOUNT SESSION</p>
           <h2 id="profile-logout-title">要退出当前账号吗？</h2>
@@ -436,12 +431,7 @@
         <button class="profile-logout-backdrop" type="button" aria-label="取消删除" @click="closeCloudDeleteDialog" />
         <section class="profile-logout-panel">
           <span class="profile-logout-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M4 7h16" />
-              <path d="M9 7V4h6v3" />
-              <path d="m7 7 1 13h8l1-13" />
-              <path d="M10 11v5M14 11v5" />
-            </svg>
+            <AppIcon name="trash-2" />
           </span>
           <p>REMOVE FROM CLOUD</p>
           <h2 id="profile-cloud-delete-title">删除这首歌曲吗？</h2>
@@ -459,6 +449,7 @@
   </Teleport>
 </template>
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({ name: 'ProfilePage' })

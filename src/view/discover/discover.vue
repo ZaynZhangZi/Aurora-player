@@ -46,23 +46,23 @@
 
         <div class="quick-discovery" aria-label="快速发现">
           <button v-maintenance="'feature.styles'" class="quick-discovery-card is-random" type="button" @click="openRandomStyle">
-            <span>01</span><small>随机漫游</small><strong>随便逛一种曲风</strong><i>→</i>
+            <span>01</span><small>随机漫游</small><strong>随便逛一种曲风</strong><i><AppIcon name="arrow-right" :size="16" /></i>
           </button>
           <button class="quick-discovery-card is-release" type="button" @click="switchTab('releases')">
-            <span>02</span><small>刚刚抵达</small><strong>打开本周新发行</strong><i>→</i>
+            <span>02</span><small>刚刚抵达</small><strong>打开本周新发行</strong><i><AppIcon name="arrow-right" :size="16" /></i>
           </button>
           <button class="quick-discovery-card is-chart" type="button" @click="switchTab('charts')">
-            <span>03</span><small>正在发生</small><strong>看看此刻的热度</strong><i>→</i>
+            <span>03</span><small>正在发生</small><strong>看看此刻的热度</strong><i><AppIcon name="arrow-right" :size="16" /></i>
           </button>
           <button class="quick-discovery-card is-airwave" type="button" @click="openFeaturedAirwaves">
-            <span>04</span><small>听与看</small><strong>切换到影像频道</strong><i>→</i>
+            <span>04</span><small>听与看</small><strong>切换到影像频道</strong><i><AppIcon name="arrow-right" :size="16" /></i>
           </button>
         </div>
 
         <section v-maintenance="'feature.newReleases'" class="featured-block">
           <header class="featured-block-heading">
             <div><small>FRESH RELEASES</small><h3>新鲜上架</h3></div>
-            <button type="button" @click="switchTab('releases')">查看全部 <span>→</span></button>
+            <button type="button" @click="switchTab('releases')">查看全部 <span><AppIcon name="arrow-right" :size="16" /></span></button>
           </header>
           <div v-if="featuredAlbums.length" class="featured-album-grid">
             <button v-for="album in featuredAlbums" :key="`featured-album-${album.id}`" class="featured-album-card" type="button" v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)">
@@ -82,14 +82,14 @@
           <section v-maintenance="'feature.charts'" class="featured-block featured-chart-block">
             <header class="featured-block-heading">
               <div><small>TRENDING NOW</small><h3>正在上升</h3></div>
-              <button type="button" @click="switchTab('charts')">完整榜单 <span>→</span></button>
+              <button type="button" @click="switchTab('charts')">完整榜单 <span><AppIcon name="arrow-right" :size="16" /></span></button>
             </header>
             <div v-if="featuredCharts.length" class="featured-chart-list">
               <button v-for="(chart, index) in featuredCharts" :key="`featured-chart-${chart.id}`" type="button" v-detail-prefetch="{type: 'playlist', id: chart.id}" @click="openPlaylist(chart, $event)">
                 <span class="featured-chart-art" data-playlist-hero-cover :data-playlist-id="chart.id"><SmartMedia :src="chart.coverImgUrl" :alt="`${chart.name}封面`" :image-width="280" sizes="92px" /></span>
                 <span class="featured-chart-index">0{{ index + 1 }}</span>
                 <span class="featured-chart-copy"><small>{{ chart.updateFrequency || '实时更新' }}</small><strong>{{ chart.name }}</strong><i>{{ chart.tracks?.slice(0, 2).map(track => track.first).filter(Boolean).join(' · ') || '打开查看热门歌曲' }}</i></span>
-                <b aria-hidden="true">↗</b>
+                <b aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></b>
               </button>
             </div>
             <div v-else-if="loading.charts" class="featured-skeleton-list"><span v-for="index in 3" :key="index" /></div>
@@ -99,7 +99,7 @@
           <section v-maintenance="'feature.artists'" class="featured-block featured-artist-block">
             <header class="featured-block-heading">
               <div><small>NEW VOICES</small><h3>值得认识的声音</h3></div>
-              <button type="button" @click="switchTab('artists')">艺人目录 <span>→</span></button>
+              <button type="button" @click="switchTab('artists')">艺人目录 <span><AppIcon name="arrow-right" :size="16" /></span></button>
             </header>
             <div v-if="featuredArtists.length" class="featured-artist-grid">
               <button v-for="artist in featuredArtists" :key="`featured-artist-${artist.id}`" type="button" v-detail-prefetch="{type: 'artist', id: artist.id}" @click="openArtist(artist, $event)">
@@ -116,11 +116,11 @@
         <section v-maintenance="'feature.mv'" class="featured-block featured-video-block">
           <header class="featured-block-heading">
             <div><small>WATCH & LISTEN</small><h3>今晚看什么</h3></div>
-            <button type="button" @click="openFeaturedAirwaves">更多影像 <span>→</span></button>
+            <button type="button" @click="openFeaturedAirwaves">更多影像 <span><AppIcon name="arrow-right" :size="16" /></span></button>
           </header>
           <div v-if="featuredMvs.length" class="featured-video-grid">
             <button v-for="item in featuredMvs" :key="`featured-mv-${item.id}`" type="button" @click="openMv(item)">
-              <span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="720" sizes="(min-width: 900px) 25vw, 72vw" /><i aria-hidden="true">▶</i></span>
+              <span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="720" sizes="(min-width: 900px) 25vw, 72vw" /><i aria-hidden="true"><AppIcon name="play" :size="16" /></i></span>
               <strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small>
             </button>
           </div>
@@ -222,7 +222,7 @@
             <div v-if="loading.mv" class="video-grid skeleton-grid"><span v-for="index in 9" :key="index" /></div>
             <div v-else-if="errors.mv" class="browse-state"><p>{{ errors.mv }}</p><button type="button" @click="refreshMv">重新加载</button></div>
             <div v-else class="video-grid">
-              <button v-for="item in mvList" :key="item.id" type="button" @click="openMv(item)"><span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="760" sizes="(min-width: 900px) 31vw, 92vw" /><i>▶</i></span><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small></button>
+              <button v-for="item in mvList" :key="item.id" type="button" @click="openMv(item)"><span><SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="760" sizes="(min-width: 900px) 31vw, 92vw" /><i><AppIcon name="play" :size="16" /></i></span><strong>{{ item.name }}</strong><small><ArtistLinks :artists="item.artists?.length ? item.artists : (item.artist || item.artistName || '')" /></small></button>
             </div>
             <div v-if="activeMvSource === 'all' || activeMvSource === 'exclusive'" class="browse-pagination"><button type="button" :disabled="mvOffset <= 0 || loading.mv" @click="prevMvPage">上一页</button><span>第 {{ Math.floor(mvOffset / mvLimit) + 1 }} 页</span><button type="button" :disabled="!mvHasMore || loading.mv" @click="nextMvPage">下一页</button></div>
           </MaintenanceFeature>
@@ -233,7 +233,7 @@
             <div v-else-if="errors.radio" class="browse-state"><p>{{ errors.radio }}</p><button type="button" @click="refreshRadio">重新加载</button></div>
             <div v-else class="radio-layout">
               <div class="radio-grid"><article v-for="radio in radios" :key="radio.id"><span class="radio-art"><SmartMedia :src="radio.picUrl" :alt="`${radio.name}封面`" :image-width="460" sizes="210px" /></span><div><small>{{ radio.category || '播客电台' }}</small><strong>{{ radio.name }}</strong><span>{{ radio.dj?.nickname || radio.desc || '声音创作者' }}</span></div></article></div>
-              <aside class="program-list"><p>热门节目</p><button v-for="(entry, index) in programs" :key="entry.program?.id || index" type="button" @click="playProgram(entry)"><b>{{ index + 1 }}</b><SmartMedia :src="entry.program?.coverUrl" :alt="`${entry.program?.name || '节目'}封面`" :image-width="140" sizes="52px" /><span><strong>{{ entry.program?.name || '播客节目' }}</strong><small>点击播放</small></span><i>▶</i></button></aside>
+              <aside class="program-list"><p>热门节目</p><button v-for="(entry, index) in programs" :key="entry.program?.id || index" type="button" @click="playProgram(entry)"><b>{{ index + 1 }}</b><SmartMedia :src="entry.program?.coverUrl" :alt="`${entry.program?.name || '节目'}封面`" :image-width="140" sizes="52px" /><span><strong>{{ entry.program?.name || '播客节目' }}</strong><small>点击播放</small></span><i><AppIcon name="play" :size="16" /></i></button></aside>
             </div>
           </MaintenanceFeature>
           </section>
@@ -258,6 +258,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { MAINTENANCE_TARGETS, requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'DiscoverPage'})

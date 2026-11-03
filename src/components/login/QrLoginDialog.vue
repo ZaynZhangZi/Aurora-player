@@ -14,9 +14,7 @@
 
         <section ref="panelRef" class="login-dialog-panel" tabindex="-1">
           <button class="login-dialog-close" type="button" aria-label="关闭" @click="closeDialog">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m7.5 7.5 9 9m0-9-9 9" />
-            </svg>
+            <AppIcon name="x" aria-hidden="true" />
           </button>
 
           <div class="login-dialog-copy login-dialog-identity">
@@ -25,12 +23,9 @@
               <span class="login-dialog-identity-orbit" aria-hidden="true" />
               <div ref="identityAvatarRef" class="login-dialog-identity-face">
                 <img v-if="successAvatarUrl" :key="successAvatarUrl" :src="successAvatarUrl" alt="登录账号头像" />
-                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="8" r="3.25" />
-                  <path d="M5.75 19c.7-3.15 3-5 6.25-5s5.55 1.85 6.25 5" />
-                </svg>
+                <AppIcon name="user" v-else aria-hidden="true" />
               </div>
-              <span v-if="qrState === 'success'" class="login-dialog-identity-check" aria-hidden="true">✓</span>
+              <span v-if="qrState === 'success'" class="login-dialog-identity-check" aria-hidden="true"><AppIcon name="check" :size="14" /></span>
             </div>
 
             <div class="login-dialog-identity-copy">
@@ -60,7 +55,7 @@
                 </div>
 
                 <div v-else-if="qrState === 'confirm'" class="login-dialog-state-layer is-confirm">
-                  <span aria-hidden="true">✓</span>
+                  <span aria-hidden="true"><AppIcon name="check" :size="24" /></span>
                   <strong>等待手机确认</strong>
                   <small>请在网易云音乐中完成授权</small>
                 </div>
@@ -72,13 +67,13 @@
                     :style="getQrDestroyTileStyle(tile)"
                   />
                   <span>
-                    <svg viewBox="0 0 24 24"><path d="m7 12.5 3.2 3.2L17.5 8.5" /></svg>
+                    <AppIcon name="check" />
                   </span>
                 </div>
 
                 <div v-else-if="qrState === 'expired'" class="login-dialog-state-layer is-expired">
                   <span class="login-dialog-expired-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 7.5v5l3 1.75" /></svg>
+                    <AppIcon name="clock" />
                   </span>
                   <strong>二维码已过期</strong>
                   <small>刷新后即可继续</small>
@@ -96,9 +91,7 @@
               </div>
 
               <div v-else class="login-dialog-empty">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4.5 4.5h6v6h-6zm9 0h6v6h-6zm-9 9h6v6h-6zm9 0h2.5v2.5h-2.5zm4 0h2v6h-6v-2" />
-                </svg>
+                <AppIcon name="qr-code" aria-hidden="true" />
                 <button type="button" @click="refreshQr">重新生成</button>
               </div>
             </div>
@@ -126,7 +119,7 @@
               @click="refreshQr"
             >
               刷新二维码
-              <span aria-hidden="true">↗</span>
+              <span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span>
             </button>
           </div>
         </section>
@@ -135,6 +128,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQrLogin } from '@/composables/useQrLogin.js'
 import { useCounterStore } from '@/stores/userStores.js'

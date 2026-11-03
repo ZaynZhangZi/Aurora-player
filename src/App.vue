@@ -39,27 +39,11 @@
 					<div class="playback-notice-mark" aria-hidden="true">
 						<span class="playback-notice-orbit" />
 						<div class="playback-notice-icon">
-							<svg v-if="playbackNotice.kind === 'vip'" viewBox="0 0 24 24">
-								<circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.45" />
-								<circle cx="12" cy="12" r="2.25" fill="currentColor" />
-								<path d="M12 3.75a8.25 8.25 0 0 1 7.78 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" />
-							</svg>
-							<svg v-else-if="playbackNotice.kind === 'trial'" viewBox="0 0 24 24">
-								<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.55" />
-								<path d="M12 7.5v5l3.2 1.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
-							</svg>
-							<svg v-else-if="playbackNotice.kind === 'purchase'" viewBox="0 0 24 24">
-								<path d="M5 8.25h14l-1 11H6l-1-11Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.55" />
-								<path d="M8.5 9V6.75a3.5 3.5 0 0 1 7 0V9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.55" />
-							</svg>
-							<svg v-else-if="playbackNotice.kind === 'network'" viewBox="0 0 24 24">
-								<path d="M4.25 9.5a11.1 11.1 0 0 1 15.5 0M7.4 12.75a6.7 6.7 0 0 1 9.2 0M10.55 16a2.25 2.25 0 0 1 2.9 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" />
-								<path d="m4 4 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.65" />
-							</svg>
-							<svg v-else viewBox="0 0 24 24">
-								<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.55" />
-								<path d="M12 7.75v5.1M12 16.25h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.85" />
-							</svg>
+							<AppIcon name="disc" v-if="playbackNotice.kind === 'vip'" />
+							<AppIcon name="clock" v-else-if="playbackNotice.kind === 'trial'" />
+							<AppIcon name="shopping-bag" v-else-if="playbackNotice.kind === 'purchase'" />
+							<AppIcon name="wifi-off" v-else-if="playbackNotice.kind === 'network'" />
+							<AppIcon name="circle-alert" v-else />
 						</div>
 					</div>
 					<div class="playback-notice-copy">
@@ -71,9 +55,7 @@
 						<p class="playback-notice-message">{{ playbackNotice.message }}</p>
 					</div>
 					<button class="playback-notice-close" type="button" aria-label="关闭播放提示" @click="closePlaybackNotice()">
-						<svg viewBox="0 0 24 24" aria-hidden="true">
-							<path d="m7.5 7.5 9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
-						</svg>
+						<AppIcon name="x" aria-hidden="true" />
 					</button>
 					<span :key="playbackNotice.id" class="playback-notice-timer" aria-hidden="true" />
 				</aside>
@@ -90,10 +72,7 @@
 				<div class="restriction-dialog-backdrop" @click="closeRestrictionDialog" />
 				<div class="restriction-dialog-panel">
 					<div class="restriction-dialog-icon">
-						<svg viewBox="0 0 24 24" aria-hidden="true">
-							<path d="M12 3.75 2.75 20.25h18.5L12 3.75Z" fill="currentColor" opacity="0.14" />
-							<path d="M12 8.25v5.25M12 16.75h.01M2.75 20.25h18.5L12 3.75 2.75 20.25Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" />
-						</svg>
+						<AppIcon name="triangle-alert" aria-hidden="true" />
 					</div>
 					<div class="restriction-dialog-copy">
 						<p id="restriction-dialog-title" class="restriction-dialog-title">{{ restrictionDialog.title }}</p>
@@ -109,6 +88,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { markNavigatingBack } from "@/router/index.js";

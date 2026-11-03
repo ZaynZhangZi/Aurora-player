@@ -6,9 +6,9 @@
     </header>
     <dl>
       <div><dt>Analyzer</dt><dd>{{ debug.analyzerStatus || "idle" }} · {{ debug.analyzerRole || "-" }}</dd></div>
-      <div><dt>BPM</dt><dd>{{ number(debug.current?.bpm, 1) }} → {{ number(debug.next?.bpm, 1) }}</dd></div>
-      <div><dt>Energy</dt><dd>{{ number(debug.current?.energy, 2) }} → {{ number(debug.next?.energy, 2) }}</dd></div>
-      <div><dt>Beat conf.</dt><dd>{{ number(debug.current?.beatConfidence, 2) }} → {{ number(debug.next?.beatConfidence, 2) }}</dd></div>
+      <div><dt>BPM</dt><dd>{{ number(debug.current?.bpm, 1) }} <AppIcon name="arrow-right" :size="16" /> {{ number(debug.next?.bpm, 1) }}</dd></div>
+      <div><dt>Energy</dt><dd>{{ number(debug.current?.energy, 2) }} <AppIcon name="arrow-right" :size="16" /> {{ number(debug.next?.energy, 2) }}</dd></div>
+      <div><dt>Beat conf.</dt><dd>{{ number(debug.current?.beatConfidence, 2) }} <AppIcon name="arrow-right" :size="16" /> {{ number(debug.next?.beatConfidence, 2) }}</dd></div>
       <div><dt>Transition</dt><dd>{{ debug.transitionType || "-" }} / {{ debug.transitionFamily || "-" }}</dd></div>
       <div><dt>Score</dt><dd>{{ number(debug.transitionScore, 3) }}</dd></div>
       <div><dt>Rate</dt><dd>{{ number(debug.playbackRate, 4) }}</dd></div>
@@ -21,6 +21,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 defineProps({
   status: {type: String, default: "IDLE"},
   debug: {type: Object, default: () => ({})},

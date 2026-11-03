@@ -7,12 +7,12 @@
           <div ref="featureContentRef" class="recognition-feature-inner">
             <header class="recognition-header">
               <span class="recognition-brand"><i aria-hidden="true" /> 听歌识曲</span>
-              <button ref="closeButtonRef" class="recognition-close" type="button" aria-label="关闭听歌识曲" @click="emit('close')">×</button>
+              <button ref="closeButtonRef" class="recognition-close" type="button" aria-label="关闭听歌识曲" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
             </header>
 
             <div v-if="visualState === 'result' && primaryMatch" class="recognition-main recognition-main-result">
               <div class="recognition-art" aria-hidden="true">
-                <svg class="recognition-art-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+                <AppIcon name="music" class="recognition-art-placeholder" />
                 <img v-if="displayCover" ref="coverImageRef" class="recognition-art-image" :class="{ 'is-ready': coverReady }" :src="displayCoverUrl" alt="" loading="eager" decoding="async" fetchpriority="high" @load="onCoverLoaded" />
               </div>
               <div class="recognition-copy">
@@ -23,7 +23,7 @@
               <div class="recognition-actions">
                 <button class="recognition-primary-action" type="button" :disabled="playingId === primaryMatch.id" @click="playMatch(primaryMatch, 0)">
                   <span v-if="playingId === primaryMatch.id" class="recognition-spinner" aria-hidden="true" />
-                  <svg v-else viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6.5 4.5a1 1 0 0 1 1.5-.86l8 5.5a1 1 0 0 1 0 1.72l-8 5.5a1 1 0 0 1-1.5-.86v-11Z"/></svg>
+                  <AppIcon name="play" v-else aria-hidden="true" />
                   播放歌曲
                 </button>
                 <button class="recognition-secondary-action" type="button" @click="searchSong(primaryMatch)">搜索歌曲</button>
@@ -33,7 +33,7 @@
                 <button v-for="(song, index) in matches.slice(1)" :key="song.id" type="button" class="recognition-alternative" :disabled="Boolean(playingId)" :aria-label="`播放${song.name}`" @click="playMatch(song, index + 1)">
                   <span class="recognition-alternative-cover"><SmartMedia v-if="song.cover" :src="song.cover" :alt="`${song.name}封面`" :image-width="96" sizes="40px" /></span>
                   <span class="recognition-alternative-copy"><strong>{{ song.name }}</strong><small>{{ artistLabel(song) }}</small></span>
-                  <span aria-hidden="true">▶</span>
+                  <span aria-hidden="true"><AppIcon name="play" :size="16" /></span>
                 </button>
               </div>
             </div>
@@ -41,7 +41,7 @@
             <div v-else-if="visualState === 'active'" class="recognition-main recognition-main-active">
               <div class="recognition-symbol recognition-symbol-listening" aria-hidden="true">
                 <span class="recognition-listening-ring" /><span class="recognition-listening-ring" />
-                <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="12" y="4" width="8" height="16" rx="4"/><path d="M8 15a8 8 0 0 0 16 0M16 23v5m-5 0h10" stroke-linecap="round"/></svg>
+                <AppIcon name="mic" />
               </div>
               <div class="recognition-copy">
                 <h2 id="recognition-title">正在识别</h2>
@@ -51,7 +51,7 @@
 
             <div v-else class="recognition-main recognition-main-empty">
               <div class="recognition-symbol" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M18 33V13l18-4v19"/><circle cx="13" cy="34" r="5"/><circle cx="31" cy="29" r="5"/><path d="M8 14c2-3 5-5 8-6M33 38c3-1 5-3 7-6" stroke-linecap="round"/></svg>
+                <AppIcon name="audio-lines" />
               </div>
               <div class="recognition-copy">
                 <h2 id="recognition-title">{{ stageTitle }}</h2>
@@ -72,6 +72,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import apiClient from '@/axios/apiClient.js'
 import {searchApi} from '@/api/searchApi/searchApi.js'

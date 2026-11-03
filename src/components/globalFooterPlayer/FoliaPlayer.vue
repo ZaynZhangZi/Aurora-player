@@ -10,7 +10,7 @@
 
 <script setup>
 import {computed, nextTick, onBeforeUnmount, ref, watch} from 'vue'
-import {ChevronDownIcon} from '@heroicons/vue/24/outline'
+import {ChevronDownIcon} from '@/components/icons'
 import {toFoliaLines} from '@/utils/player/foliaTimeline.js'
 import {usePlayerAppearance} from '@/composables/usePlayerAppearance.js'
 import {useCappellaAvatars} from '@/composables/useCappellaAvatars.js'

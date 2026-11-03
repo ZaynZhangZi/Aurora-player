@@ -1,11 +1,10 @@
 <template>
   <span v-if="loading" class="playback-spinner" aria-hidden="true" />
-  <PauseIcon v-else-if="playing" class="playback-icon" aria-hidden="true" />
-  <PlayIcon v-else class="playback-icon is-play" aria-hidden="true" />
+  <AppIcon v-else :name="playing ? 'pause' : 'play'" class="playback-icon" :class="{'is-play':!playing}" filled aria-hidden="true" />
 </template>
 
 <script setup>
-import {PauseIcon, PlayIcon} from '@heroicons/vue/24/solid'
+import AppIcon from '@/components/icons/AppIcon.vue'
 defineProps({loading: Boolean, playing: Boolean})
 </script>
 

@@ -30,9 +30,7 @@
             aria-label="关闭详情"
             @click="handleClose"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m7.5 7.5 9 9m0-9-9 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
-            </svg>
+            <AppIcon name="x" aria-hidden="true" />
           </button>
 
           <div class="detail-overlay-scroll">
@@ -49,6 +47,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 /**
  * DetailOverlayHost — 全局唯一的实体详情悬浮层宿主。
  *

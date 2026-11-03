@@ -3,14 +3,14 @@
   <main class="audio-lab" data-route-motion-root>
     <header class="lab-heading">
       <div><p class="lab-eyebrow">AURORA / AUDIO STUDIO</p><h1>{{ state.tab==='speakers'?'让声音，走出一台设备。':'把一首歌，重新摆进空间。' }}</h1><p>连接身边的音响，或者重新摆放一首歌里的每个声音。</p></div>
-      <button class="lab-quiet" @click="router.push({name:'profile'})">← 音乐库</button>
+      <button class="lab-quiet" @click="router.push({name:'profile'})"><AppIcon name="arrow-left" :size="16" /> 音乐库</button>
     </header>
     <nav class="lab-tabs" aria-label="音频实验室">
       <button :class="{'is-active':state.tab==='speakers'}" :aria-pressed="state.tab==='speakers'" @click="setTab('speakers')"><span aria-hidden="true">◧</span><strong>多设备同步音响</strong><small>让多台设备，一起发声</small></button>
-      <button :class="{'is-active':state.tab==='spatial'}" :aria-pressed="state.tab==='spatial'" @click="setTab('spatial')"><span aria-hidden="true">◉</span><strong>空间混音台</strong><small>用普通耳机，听见声场</small></button>
+      <button :class="{'is-active':state.tab==='spatial'}" :aria-pressed="state.tab==='spatial'" @click="setTab('spatial')"><span aria-hidden="true"><AppIcon name="audio-lines" :size="16" /></span><strong>空间混音台</strong><small>用普通耳机，听见声场</small></button>
     </nav>
-    <p v-if="state.notice" class="lab-notice" role="status">{{ state.notice }}<button aria-label="关闭提示" @click="state.notice=''">×</button></p>
-    <div v-if="state.error" class="lab-error" role="alert"><span>{{ state.error }}</span><button v-if="state.tab==='speakers'" @click="reconnect()">重新连接</button><button aria-label="关闭错误提示" @click="state.error=''">×</button></div>
+    <p v-if="state.notice" class="lab-notice" role="status">{{ state.notice }}<button aria-label="关闭提示" @click="state.notice=''"><AppIcon name="x" :size="16" /></button></p>
+    <div v-if="state.error" class="lab-error" role="alert"><span>{{ state.error }}</span><button v-if="state.tab==='speakers'" @click="reconnect()">重新连接</button><button aria-label="关闭错误提示" @click="state.error=''"><AppIcon name="x" :size="16" /></button></div>
 
     <MaintenanceFeature v-if="state.tab==='speakers'" target="feature.speakerGroup">
       <section v-if="!user.isLoggedIn" class="lab-guest"><span aria-hidden="true">◧</span><h2>把身边的设备连接起来</h2><p>登录同一个网易云账号，在每台设备打开音频实验室，即可加入同一播放组。</p><button class="lab-primary" @click="openLoginDialog()">登录并连接设备</button><small>空间混音台也支持直接导入本地音频。</small></section>
@@ -51,7 +51,7 @@
           </template>
         </section>
         <aside class="lab-card lab-library">
-          <header class="lab-card-heading"><div><p class="lab-eyebrow">SHARED SOURCE</p><h2>同一份声音</h2></div><span aria-hidden="true">↗</span></header>
+          <header class="lab-card-heading"><div><p class="lab-eyebrow">SHARED SOURCE</p><h2>同一份声音</h2></div><span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span></header>
           <p class="lab-muted">所有设备下载同一份音频，避免音质、版本或试听时长不一致。</p>
           <div class="lab-source-buttons">
             <button class="lab-secondary" :disabled="Boolean(state.groupBusy)" @click="importCurrent()">{{ state.groupBusy==='import'?'正在导入…':'使用播放器当前歌曲' }}</button>
@@ -59,7 +59,7 @@
             <button class="lab-quiet" :disabled="Boolean(state.groupBusy)" @click="calibration()">生成校准节拍</button>
           </div>
           <p class="lab-footnote">同步音源会临时上传，仅同账号设备可读取。最大32MB、10分钟；两小时未使用后清理。</p>
-          <ul class="lab-sources"><li v-for="source in state.sources" :key="source.id" :class="{'is-current':source.id===state.room?.source?.id}"><div><strong>{{ source.name }}</strong><small>{{ time(source.durationMs/1000) }} · {{ (source.bytes/1048576).toFixed(1) }} MiB</small></div><button class="lab-link" :disabled="!isHost || Boolean(state.groupBusy) || source.id===state.room?.source?.id" @click="selectSource(source.id)">{{ source.id===state.room?.source?.id?'使用中':'选择' }}</button><button class="lab-source-remove" aria-label="删除临时音源" :disabled="Boolean(state.groupBusy) || source.id===state.room?.source?.id" @click="removeSource(source.id)">×</button></li></ul>
+          <ul class="lab-sources"><li v-for="source in state.sources" :key="source.id" :class="{'is-current':source.id===state.room?.source?.id}"><div><strong>{{ source.name }}</strong><small>{{ time(source.durationMs/1000) }} · {{ (source.bytes/1048576).toFixed(1) }} MiB</small></div><button class="lab-link" :disabled="!isHost || Boolean(state.groupBusy) || source.id===state.room?.source?.id" @click="selectSource(source.id)">{{ source.id===state.room?.source?.id?'使用中':'选择' }}</button><button class="lab-source-remove" aria-label="删除临时音源" :disabled="Boolean(state.groupBusy) || source.id===state.room?.source?.id" @click="removeSource(source.id)"><AppIcon name="x" :size="16" /></button></li></ul>
           <p v-if="!state.sources.length" class="lab-footnote">还没有临时音源。从当前歌曲或本地文件开始。</p>
         </aside>
       </div>
@@ -70,7 +70,7 @@
         <aside class="lab-card lab-spatial-source">
           <header class="lab-card-heading"><div><p class="lab-eyebrow">ON YOUR DEVICE</p><h2>拆开一首歌</h2></div><span aria-hidden="true">✳</span></header>
           <p class="lab-muted">将人声、鼓、贝斯和其他乐器分开，再摆到你想听见的位置。</p>
-          <label class="lab-file lab-file-large">＋ 选择歌曲<input type="file" accept="audio/*,.wav,.mp3,.flac,.m4a" @change="setSpatialInput($event.target.files[0]);$event.target.value=''" /><small>本地文件在本机处理</small></label>
+          <label class="lab-file lab-file-large"><AppIcon name="plus" :size="16" /> 选择歌曲<input type="file" accept="audio/*,.wav,.mp3,.flac,.m4a" @change="setSpatialInput($event.target.files[0]);$event.target.value=''" /><small>本地文件在本机处理</small></label>
           <button v-if="user.isLoggedIn" class="lab-quiet lab-wide" :disabled="state.space.busy || Boolean(state.groupBusy)" @click="importCurrent()">从播放器当前歌曲导入</button>
           <p v-if="state.space.name" class="lab-file-name">{{ state.space.name }}</p>
           <template v-if="state.space.inputDuration">
@@ -85,17 +85,17 @@
           <button class="lab-link lab-cache-clear" @click="clearCache">清除本机模型缓存</button>
         </aside>
         <section class="lab-card lab-stage-card">
-          <header class="lab-card-heading"><div><p class="lab-eyebrow">PLACE THE SOUND</p><h2>你的听音位置</h2></div><span class="lab-headphone">◡ 建议佩戴耳机</span></header>
+          <header class="lab-card-heading"><div><p class="lab-eyebrow">PLACE THE SOUND</p><h2>你的听音位置</h2></div><span class="lab-headphone"><AppIcon name="headphones" :size="14" /> 建议佩戴耳机</span></header>
           <p class="lab-muted">拖动四个声部，改变前后、左右和距离；选中后也可用方向键调整。</p>
           <div ref="stage" class="lab-stage" aria-label="声部空间布局" @pointermove="move" @pointerup="end" @pointercancel="end">
             <div class="lab-stage-ring ring-one"/><div class="lab-stage-ring ring-two"/><div class="lab-stage-ring ring-three"/><span class="lab-stage-front">前方</span><span class="lab-stage-back">后方</span><span class="lab-stage-left">左</span><span class="lab-stage-right">右</span>
-            <div class="lab-listener" aria-label="听音者位于中央，面向前方"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 25v-5a12 12 0 0 1 24 0v5M12 24v10h5V24h-5Zm24 0v10h-5V24h5Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m24 3-4 6h8l-4-6Z" fill="currentColor"/></svg><small>你</small></div>
-            <button v-for="stem in state.space.settings" :key="stem.id" class="lab-sound-node" :class="{'is-selected':selected===stem.id,'is-muted':stem.mute}" :style="{left:((stem.x+3)/6*100)+'%',top:((stem.z+3)/6*100)+'%','--stem-color':stem.color}" :aria-label="stem.name+'，左右位置'+stem.x.toFixed(1)+'，前后位置'+stem.z.toFixed(1)" @pointerdown="begin($event,stem.id)" @keydown="keyboard($event,stem)" @click="selected=stem.id"><span>{{ stem.id==='vocals'?'♪':stem.id==='drums'?'◌':stem.id==='bass'?'≋':'✦' }}</span><strong>{{ stem.name }}</strong></button>
+            <div class="lab-listener" aria-label="听音者位于中央，面向前方"><AppIcon name="headphones" aria-hidden="true" /><small>你</small></div>
+            <button v-for="stem in state.space.settings" :key="stem.id" class="lab-sound-node" :class="{'is-selected':selected===stem.id,'is-muted':stem.mute}" :style="{left:((stem.x+3)/6*100)+'%',top:((stem.z+3)/6*100)+'%','--stem-color':stem.color}" :aria-label="stem.name+'，左右位置'+stem.x.toFixed(1)+'，前后位置'+stem.z.toFixed(1)" @pointerdown="begin($event,stem.id)" @keydown="keyboard($event,stem)" @click="selected=stem.id"><span><AppIcon :name="stem.id==='vocals'?'mic':stem.id==='drums'?'drum':stem.id==='bass'?'audio-lines':'sparkles'" :size="20" /></span><strong>{{ stem.name }}</strong></button>
           </div>
           <div class="lab-spatial-controls"><button class="lab-primary" :disabled="!state.space.ready || state.space.busy" @click="toggleSpatial()">{{ state.space.playing?'暂停混音':'播放混音' }}</button><span>{{ time(state.space.position) }} / {{ time(state.space.duration) }}</span><label><span>混音音量</span><input type="range" min="0" max="1" step=".01" :value="state.space.volume" @input="spatialVolume(Number($event.target.value))"/></label></div>
           <input class="lab-spatial-seek" aria-label="混音进度" type="range" min="0" :max="state.space.duration||1" step=".01" :value="state.space.position" :disabled="!state.space.ready" @change="seekSpatial(Number($event.target.value))"/>
           <p v-if="!state.space.ready" class="lab-stage-empty">导入歌曲并完成分离，或直接导入四个声部，即可播放。</p>
-          <div class="lab-stem-strips"><article v-for="stem in state.space.settings" :key="stem.id" :class="{'is-selected':selected===stem.id}" @click="selected=stem.id"><header><span :style="{background:stem.color}"/><strong>{{ stem.name }}</strong><small>{{ Math.round(stem.volume*100) }}%</small></header><input type="range" min="0" max="1.5" step=".01" :aria-label="stem.name+'音量'" :value="stem.volume" @input="updateStem(stem.id,{volume:Number($event.target.value)})"/><div><button :aria-pressed="stem.mute" :class="{'is-active':stem.mute}" @click.stop="updateStem(stem.id,{mute:!stem.mute})">静音</button><button :aria-pressed="stem.solo" :class="{'is-active':stem.solo}" @click.stop="updateStem(stem.id,{solo:!stem.solo})">独听</button><button :disabled="!state.space.ready" @click.stop="downloadStem(stem.id)" :aria-label="'导出'+stem.name+'声部'">↓</button></div></article></div>
+          <div class="lab-stem-strips"><article v-for="stem in state.space.settings" :key="stem.id" :class="{'is-selected':selected===stem.id}" @click="selected=stem.id"><header><span :style="{background:stem.color}"/><strong>{{ stem.name }}</strong><small>{{ Math.round(stem.volume*100) }}%</small></header><input type="range" min="0" max="1.5" step=".01" :aria-label="stem.name+'音量'" :value="stem.volume" @input="updateStem(stem.id,{volume:Number($event.target.value)})"/><div><button :aria-pressed="stem.mute" :class="{'is-active':stem.mute}" @click.stop="updateStem(stem.id,{mute:!stem.mute})">静音</button><button :aria-pressed="stem.solo" :class="{'is-active':stem.solo}" @click.stop="updateStem(stem.id,{solo:!stem.solo})">独听</button><button :disabled="!state.space.ready" @click.stop="downloadStem(stem.id)" :aria-label="'导出'+stem.name+'声部'"><AppIcon name="arrow-down" :size="16" /></button></div></article></div>
           <footer class="lab-stage-footer"><label><span>{{ selectedStem.name }}高度</span><input type="range" min="-2" max="2" step=".1" :value="selectedStem.y" @input="updateStem(selected,{y:Number($event.target.value)})"/></label><small>布局自动保存在此设备</small><button class="lab-link" @click="resetLayout()">重置布局</button></footer>
         </section>
       </div>
@@ -104,6 +104,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed,ref} from 'vue'
 import {useRouter} from 'vue-router'
 import AppHeader from '@/components/appHeader/AppHeader.vue'

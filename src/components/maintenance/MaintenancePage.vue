@@ -12,22 +12,23 @@
         <h1 id="maintenance-title" ref="titleRef" tabindex="-1">{{ recovering ? '一切就绪，欢迎回来' : settings.title }}</h1>
         <p class="maintenance-message">{{ recovering ? '正在回到你的音乐空间，请稍候。' : settings.message }}</p>
         <div v-if="settings.estimatedReturn && !recovering" class="maintenance-estimate"><span>预计恢复</span><strong>{{ settings.estimatedReturn }}</strong></div>
-        <p class="maintenance-return-hint"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 7.5a5.5 5.5 0 1 1-.6 6M2.5 5.5v4h4" /></svg>维护完成以后自动退出维护页面</p>
+        <p class="maintenance-return-hint"><AppIcon name="rotate-ccw" aria-hidden="true" />维护完成以后自动退出维护页面</p>
       </div>
       <div class="maintenance-artwork" aria-hidden="true">
         <div class="artwork-halo" /><div class="artwork-orbit" />
         <div class="artwork-caption"><span>THE MUSIC WILL RETURN</span><i />AURORA / 01</div>
-        <div class="artwork-record"><div class="record-label"><svg viewBox="0 0 24 24"><path d="M9 7v10M15 7v10" /></svg></div></div>
+        <div class="artwork-record"><div class="record-label"><AppIcon name="pause" /></div></div>
         <div class="artwork-sleeve"><div class="sleeve-heading"><span>AURORA</span><span>SIDE A</span></div><div class="sleeve-orbits"><i /><i /><i /><i /></div><div class="sleeve-type">好音乐<br />值得等待<span>A MOMENT OF QUIET.</span></div><div class="sleeve-bottom"><span>PAUSE / PLAY</span><div><i v-for="n in 15" :key="n" :style="{ height: (8 + n * 7 % 18) + 'px' }" /></div></div></div>
         <div class="artwork-note"><span class="note-mark">Ⅱ</span><span>{{ recovering ? '下一首，即将开始' : '暂歇片刻，很快再见' }}<small>YOUR NEXT TRACK IS ON ITS WAY</small></span></div>
       </div>
     </main>
-    <button v-if="canReturn && !recovering" class="maintenance-back" type="button" @click="$emit('return')">返回可用页面 <span aria-hidden="true">↗</span></button>
+    <button v-if="canReturn && !recovering" class="maintenance-back" type="button" @click="$emit('return')">返回可用页面 <span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span></button>
     <p v-if="!settings.customHtml.trim()" class="maintenance-signoff">短暂的停留，是为了更好的下一次相遇。<span>AURORA PLAYER</span></p>
   </section>
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 const props = defineProps({ settings: { type: Object, required: true }, recovering: Boolean,
   scopeLabel: { type: String, default: '' }, canReturn: Boolean });

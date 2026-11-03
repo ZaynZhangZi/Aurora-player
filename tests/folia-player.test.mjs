@@ -7,7 +7,7 @@ import {normalizePlayerAppearance, PLAYER_APPEARANCE_OPTIONS} from '../src/utils
 import {foliaAudioBands} from '../src/utils/player/foliaAudio.js'
 import {foliaBackgroundConfig, normalizeFoliaBackground} from '../src/utils/player/foliaBackground.js'
 
-test('all eight requested renderers and their native helpers match the pinned upstream bytes', async () => {
+test('all eight native renderers retain pinned upstream bytes apart from documented UI icon imports', async () => {
   const vendor = new URL('../src/vendor/folia/', import.meta.url)
   const manifest = JSON.parse(await readFile(new URL('upstream.json', vendor)))
   assert.equal(manifest.commit, 'd79fa951dfa631fa9b4b7ebb0b4f58bd3e2c1fa8')
@@ -15,7 +15,15 @@ test('all eight requested renderers and their native helpers match the pinned up
   let verified = 0
   for (const [path, expected] of Object.entries(manifest.files)) {
     if (adapted.has(path)) continue
-    const actual = createHash('sha256').update(await readFile(new URL(path, vendor))).digest('hex')
+    let bytes = await readFile(new URL(path, vendor))
+    if (['src/components/visualizer/VisualizerShell.tsx','src/components/visualizer/fume/VisualizerFume.tsx','src/components/floating-player/TrackTitleNavigator.tsx'].includes(path)) {
+      const source = bytes.toString('utf8')
+      assert.match(source, /from '(?:\.\.\/)+components\/icons\/ReactIcon'/, path)
+      // Only the documented module import is adapted. Every other upstream byte
+      // still participates in the original pinned checksum.
+      bytes = Buffer.from(source.replace(/from '(?:\.\.\/)+components\/icons\/ReactIcon'/, "from 'lucide-react'"))
+    }
+    const actual = createHash('sha256').update(bytes).digest('hex')
     assert.equal(actual, expected, path)
     verified++
   }

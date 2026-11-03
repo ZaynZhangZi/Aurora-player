@@ -16,10 +16,7 @@
       <div class="search-toolbar">
         <div class="search-toolbar-primary">
           <form class="search-box" role="search" @submit.prevent="submitSearch">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" stroke-linecap="round" />
-            </svg>
+            <AppIcon name="search" aria-hidden="true" />
             <input
               ref="searchInputRef"
               v-model="searchInput"
@@ -31,13 +28,13 @@
               @compositionstart="isComposing = true"
               @compositionend="finishComposition"
             >
-            <button v-if="searchInput" class="search-clear" type="button" aria-label="清空搜索" @click="clearSearch">×</button>
+            <button v-if="searchInput" class="search-clear" type="button" aria-label="清空搜索" @click="clearSearch"><AppIcon name="x" :size="16" /></button>
             <button class="search-submit" type="submit" aria-label="搜索">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              <AppIcon name="arrow-right" aria-hidden="true" />
             </button>
           </form>
           <button v-maintenance="'feature.recognition'" ref="recognitionButtonRef" class="recognition-launch" type="button" aria-label="听歌识曲" title="听歌识曲" @click="recognitionOpen = true">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="10.5" y="3.5" width="7" height="14" rx="3.5"/><path d="M7 13.5a7 7 0 0 0 14 0M14 20.5v4m-4 0h8" stroke-linecap="round"/></svg>
+            <AppIcon name="mic" aria-hidden="true" />
           </button>
         </div>
 
@@ -56,7 +53,7 @@
           <div class="chip-row">
             <span v-for="item in history" :key="item" class="chip">
               <button type="button" class="chip-main" @click="useSuggestion(item)">{{ item }}</button>
-              <button type="button" class="chip-del" :aria-label="`删除搜索记录 ${item}`" @click="removeHistory(item)">×</button>
+              <button type="button" class="chip-del" :aria-label="`删除搜索记录 ${item}`" @click="removeHistory(item)"><AppIcon name="x" :size="16" /></button>
             </span>
           </div>
         </section>
@@ -77,7 +74,7 @@
             >
               <span>{{ String(index + 1).padStart(2, '0') }}</span>
               <strong>{{ item }}</strong>
-              <i aria-hidden="true">↗</i>
+              <i aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></i>
             </button>
           </div>
         </section>
@@ -192,9 +189,9 @@
             />
 
             <div v-if="displayTab === activeTab && totalPages > 1" class="pagination">
-              <button type="button" :disabled="page <= 0 || busy" @click="changePage(page - 1)">← 上一页</button>
+              <button type="button" :disabled="page <= 0 || busy" @click="changePage(page - 1)"><AppIcon name="arrow-left" :size="16" /> 上一页</button>
               <span>第 {{ page + 1 }} / {{ totalPages }} 页</span>
-              <button type="button" :disabled="page + 1 >= totalPages || busy" @click="changePage(page + 1)">下一页 →</button>
+              <button type="button" :disabled="page + 1 >= totalPages || busy" @click="changePage(page + 1)">下一页 <AppIcon name="arrow-right" :size="16" /></button>
             </div>
           </section>
             </div>
@@ -208,6 +205,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { MAINTENANCE_TARGETS, requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'SearchPage'})

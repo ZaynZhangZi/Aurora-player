@@ -2,26 +2,26 @@
   <Teleport to="body">
     <Transition name="relay-offer">
       <aside v-if="offer && !state.panelOpen" class="relay-offer" aria-label="另一台设备的播放记录">
-        <div class="relay-art"><img v-if="track?.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else>♪</span></div>
+        <div class="relay-art"><img v-if="track?.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else><AppIcon name="music" :size="24" /></span></div>
         <div class="relay-offer-copy"><small>{{ source }} · {{ time(remote.positionMs) }}</small><strong>{{ track?.name }}</strong><span>{{ artists }}</span></div>
-        <button class="relay-primary" :disabled="state.busy" @click="accept">接着听 <span aria-hidden="true">↗</span></button>
-        <button class="relay-dismiss" aria-label="收起接力提醒" @click="dismissPlaybackRelay">×</button>
+        <button class="relay-primary" :disabled="state.busy" @click="accept">接着听 <span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span></button>
+        <button class="relay-dismiss" aria-label="收起接力提醒" @click="dismissPlaybackRelay"><AppIcon name="x" :size="16" /></button>
       </aside>
     </Transition>
     <dialog ref="dialog" class="relay-dialog" aria-labelledby="relay-title" @cancel="close" @close="state.panelOpen=false" @click="backdrop">
       <section class="relay-panel">
-        <header><div><p class="relay-eyebrow">AURORA CONNECT</p><h2 id="relay-title">音乐，接着流动。</h2><p class="relay-subtitle">换一台设备，从刚才的位置继续。</p></div><button class="relay-close" aria-label="关闭跨设备接力" @click="close">×</button></header>
+        <header><div><p class="relay-eyebrow">AURORA CONNECT</p><h2 id="relay-title">音乐，接着流动。</h2><p class="relay-subtitle">换一台设备，从刚才的位置继续。</p></div><button class="relay-close" aria-label="关闭跨设备接力" @click="close"><AppIcon name="x" :size="16" /></button></header>
         <div class="relay-connection"><span class="relay-dot" :class="{'is-online':state.connected}" /><span>{{ status }}</span><button v-if="user.isLoggedIn && state.enabled" :disabled="state.connecting || state.busy" @click="playbackRelayActions.reconnect">{{ state.connecting ? '连接中…' : '重新连接' }}</button></div>
-        <div v-if="!user.isLoggedIn" class="relay-empty"><span aria-hidden="true">↗</span><h3>让设备听见同一首歌</h3><p>在两台设备上登录同一个网易云账号，即可接力。</p><button class="relay-primary" @click="login">登录网易云音乐</button></div>
-        <div v-else-if="!state.enabled" class="relay-empty"><span aria-hidden="true">♫</span><h3>接力已关闭</h3><p>开启后，播放队列和进度会自动同步到你的账号。</p></div>
+        <div v-if="!user.isLoggedIn" class="relay-empty"><span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span><h3>让设备听见同一首歌</h3><p>在两台设备上登录同一个网易云账号，即可接力。</p><button class="relay-primary" @click="login">登录网易云音乐</button></div>
+        <div v-else-if="!state.enabled" class="relay-empty"><span aria-hidden="true"><AppIcon name="music" :size="16" /></span><h3>接力已关闭</h3><p>开启后，播放队列和进度会自动同步到你的账号。</p></div>
         <article v-else-if="track" class="relay-record">
           <div class="relay-record-top"><span>{{ state.owned ? '正在此设备播放' : '最近的播放记录' }}</span><span>{{ remote.queue.length }} 首</span></div>
-          <div class="relay-song"><div class="relay-art relay-art-large"><img v-if="track.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else>♪</span></div><div><h3>{{ track.name }}</h3><p>{{ artists }}</p><small>{{ source }}</small></div></div>
+          <div class="relay-song"><div class="relay-art relay-art-large"><img v-if="track.cover" :src="track.cover" alt="" referrerpolicy="no-referrer" /><span v-else><AppIcon name="music" :size="24" /></span></div><div><h3>{{ track.name }}</h3><p>{{ artists }}</p><small>{{ source }}</small></div></div>
           <div class="relay-progress"><i :style="{width:progress+'%'}" /></div><div class="relay-times"><span>{{ time(remote.positionMs) }}</span><span>{{ time(remote.durationMs) }}</span></div>
-          <button v-if="!state.owned" class="relay-primary relay-resume" :disabled="state.busy || state.connecting" @click="accept">{{ state.busy ? '正在接力…' : '在此设备接着听' }} <span aria-hidden="true">↗</span></button>
+          <button v-if="!state.owned" class="relay-primary relay-resume" :disabled="state.busy || state.connecting" @click="accept">{{ state.busy ? '正在接力…' : '在此设备接着听' }} <span aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></span></button>
           <p class="relay-hint">{{ state.owned ? '队列和进度会自动同步，随时可以换台设备继续。' : '接力后，在线的原设备会暂停。音量和音质沿用本机设置。' }}</p>
         </article>
-        <div v-else class="relay-empty"><span aria-hidden="true">♫</span><h3>{{ state.connecting ? '正在寻找你的音乐' : '等待第一首歌' }}</h3><p>在任一设备播放音乐后，队列和进度会出现在这里。</p></div>
+        <div v-else class="relay-empty"><span aria-hidden="true"><AppIcon name="music" :size="16" /></span><h3>{{ state.connecting ? '正在寻找你的音乐' : '等待第一首歌' }}</h3><p>在任一设备播放音乐后，队列和进度会出现在这里。</p></div>
         <p v-if="state.error" class="relay-message is-error" role="status">{{ state.error }}</p><p v-else-if="state.notice" class="relay-message" role="status">{{ state.notice }}</p>
         <div class="relay-preferences"><label><span><strong>跨设备接力</strong><small>同步当前歌曲、队列和播放进度</small></span><input type="checkbox" role="switch" :checked="state.enabled" @change="setPlaybackRelayPreferences({enabled:$event.target.checked})" /></label><label><span><strong>接着听提醒</strong><small>发现其他设备的记录时，轻声提醒你</small></span><input type="checkbox" role="switch" :checked="state.reminders" :disabled="!state.enabled" @change="setPlaybackRelayPreferences({reminders:$event.target.checked})" /></label></div>
         <footer>仅与你登录同一账号的设备共享播放记录</footer>
@@ -31,6 +31,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed,nextTick,onBeforeUnmount,ref,watch} from 'vue'
 import {useCounterStore} from '@/stores/userStores.js'
 import {playbackRelayState as state,playbackRelayActions,playbackRelayTrack as track,playbackRelayOffer as offer,dismissPlaybackRelay,setPlaybackRelayPreferences} from '@/composables/playbackRelayState.js'

@@ -141,7 +141,7 @@
                     <p>{{ comment.content }}</p>
                     <footer>
                       <span v-if="comment.location">{{ comment.location }}</span>
-                      <span v-if="comment.likedCount">♡ {{ compactNumber(comment.likedCount) }}</span>
+                      <span v-if="comment.likedCount"><AppIcon name="heart" :size="16" /> {{ compactNumber(comment.likedCount) }}</span>
                     </footer>
                   </div>
                 </article>
@@ -198,14 +198,15 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {
   ChatBubbleLeftEllipsisIcon,
   MusicalNoteIcon,
   SignalIcon,
   SparklesIcon,
   XMarkIcon,
-} from '@heroicons/vue/24/outline'
-import {PlayIcon} from '@heroicons/vue/24/solid'
+} from '@/components/icons'
+import {PlayIcon} from '@/components/icons/solid'
 import {computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch} from 'vue'
 import {songsApi} from '@/api/songsApi/songsApi.js'
 import {playSongWithQueue} from '@/utils/globalPlayer.js'

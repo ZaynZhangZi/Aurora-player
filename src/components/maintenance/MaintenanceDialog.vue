@@ -3,10 +3,10 @@
     <section ref="dialogRef" class="maintenance-dialog" role="alertdialog" aria-modal="true"
       :aria-labelledby="`${id}-title`" :aria-describedby="`${id}-message`" tabindex="-1">
       <button class="maintenance-dialog-close" type="button" aria-label="关闭维护提示" @click="$emit('close')">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+        <AppIcon name="x" aria-hidden="true" />
       </button>
       <div class="maintenance-dialog-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M10.4 4.1 2.9 17.4a1.8 1.8 0 0 0 1.6 2.7h15a1.8 1.8 0 0 0 1.6-2.7L13.6 4.1a1.8 1.8 0 0 0-3.2 0Z" /><path d="M12 9v4m0 3h.01" /></svg>
+        <AppIcon name="triangle-alert" />
       </div>
       <h2 :id="`${id}-title`" class="maintenance-dialog-title">{{ settings.title || `${scopeLabel}暂时不可用` }}</h2>
       <p :id="`${id}-message`" class="maintenance-dialog-message">{{ settings.message || '该功能正在维护，请稍后再试。' }}</p>
@@ -21,6 +21,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue';
 import { lockScroll, unlockScroll } from '../../utils/scrollLock.js';
 defineProps({ settings: { type: Object, required: true }, scopeLabel: { type: String, default: '' }, offline: Boolean, checking: Boolean });

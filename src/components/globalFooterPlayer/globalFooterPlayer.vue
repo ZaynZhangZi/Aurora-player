@@ -151,8 +151,7 @@
             :aria-label="isPlaying ? '暂停播放' : '开始播放'"
             @click="togglePlay"
           >
-            <PauseIcon v-if="isPlaying" class="h-[19px] w-[19px]"/>
-            <PlayIcon v-else class="player-play-icon h-[19px] w-[19px]"/>
+            <AppIcon :name="isPlaying ? 'pause' : 'play'" class="h-[19px] w-[19px]" :class="{'player-play-icon':!isPlaying}" filled />
           </button>
           <button
             class="player-soft-btn player-transport-btn grid h-9 w-9 place-items-center rounded-full disabled:opacity-40"
@@ -181,8 +180,7 @@
             :aria-label="volume > 0 ? '静音' : '恢复音量'"
             @click="toggleVolumeMute"
           >
-            <SpeakerWaveIcon v-if="volume > 0" class="h-4 w-4"/>
-            <SpeakerXMarkIcon v-else class="h-4 w-4"/>
+            <AppIcon :name="volume > 0 ? 'volume-2' : 'volume-x'" class="h-4 w-4" />
           </button>
           <input
             class="player-range player-volume-range w-24 cursor-pointer appearance-none rounded-full"
@@ -334,8 +332,7 @@
                 :aria-label="isPlaying ? '暂停播放' : '开始播放'"
                 @click="togglePlay"
               >
-                <PauseIcon v-if="isPlaying" class="h-4 w-4"/>
-                <PlayIcon v-else class="h-4 w-4"/>
+                <AppIcon :name="isPlaying ? 'pause' : 'play'" class="h-4 w-4" filled />
               </button>
               <button
                 class="player-soft-btn hidden h-8 w-8 place-items-center rounded-full disabled:opacity-40 sm:grid"
@@ -671,18 +668,15 @@
 </template>
 
 <script setup>
+import AppIcon from '@/components/icons/AppIcon.vue'
 import {
   TrashIcon,
   XMarkIcon,
-} from "@heroicons/vue/24/outline";
+} from '@/components/icons';
 import {
   BackwardIcon,
   ForwardIcon,
-  PauseIcon,
-  PlayIcon,
-  SpeakerWaveIcon,
-  SpeakerXMarkIcon,
-} from "@heroicons/vue/24/solid";
+} from '@/components/icons/solid';
 import {
   computed,
   defineAsyncComponent,

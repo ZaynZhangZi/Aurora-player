@@ -26,7 +26,7 @@
             <span v-for="index in 3" :key="index" class="exhigh-ripple" :style="{'--index': index}" />
             <span class="exhigh-spokes"><i v-for="index in 16" :key="index" :style="{'--index': index}" /></span>
             <span class="exhigh-core">
-              <svg viewBox="0 0 80 80" fill="none"><path d="M12 43V37m9 14V29m9 28V23m10 36V21m10 36V23m9 28V29m9 14V37" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+              <AppIcon name="audio-lines" />
             </span>
           </div>
 
@@ -58,6 +58,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {computed} from 'vue'
 import {qualityLabel, qualityRank} from '@/utils/player/audioQuality.js'
 

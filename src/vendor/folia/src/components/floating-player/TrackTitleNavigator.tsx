@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from '../../../../../components/icons/ReactIcon';
 import { useTrackTitlePreview, type TrackNavSide } from '../../hooks/useTrackTitlePreview';
 // src/components/floating-player/TrackTitleNavigator.tsx
 

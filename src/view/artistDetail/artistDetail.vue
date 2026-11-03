@@ -11,7 +11,7 @@
         aria-label="返回上一页"
         @click="goBack"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9"/></svg>
+        <AppIcon name="chevron-left" aria-hidden="true" />
       </button>
 
       <template v-if="hasHeroVideo">
@@ -57,13 +57,13 @@
 
         <div v-if="!loading" class="artist-hero-actions">
           <button class="artist-round-action artist-round-action--quiet" type="button" aria-label="查看艺人简介" @click="scrollToAbout">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10.8v6.1m0-10.1h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/></svg>
+            <AppIcon name="info" aria-hidden="true" />
           </button>
           <button class="artist-round-action artist-round-action--play" type="button" aria-label="播放艺人热门歌曲" :disabled="!topSongs.length" @click="playArtist">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg>
+            <AppIcon name="play" aria-hidden="true" />
           </button>
           <button class="artist-round-action artist-round-action--quiet" type="button" aria-label="收藏艺人" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.8 2.45 4.96 5.48.8-3.97 3.86.94 5.46L12 16.3l-4.9 2.58.94-5.46L4.07 9.56l5.48-.8Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.45"/></svg>
+            <AppIcon name="star" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -97,14 +97,14 @@
             <div class="artist-section-heading artist-section-heading--ranking">
               <button class="artist-heading-link" type="button" @click="switchSongViewMode(songViewMode === 'top50' ? 'all' : 'top50')">
                 <h2>歌曲排行</h2>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                <AppIcon name="chevron-right" aria-hidden="true" />
               </button>
               <div class="section-paging">
                 <button type="button" aria-label="上一页歌曲" :disabled="currentSongPage <= 1" @click="prevSongPage">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                  <AppIcon name="chevron-left" aria-hidden="true" />
                 </button>
                 <button type="button" aria-label="下一页歌曲" :disabled="!canNextSongPage" @click="nextSongPage">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                  <AppIcon name="chevron-right" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -120,7 +120,7 @@
                 >
                   <span class="ranking-song-cover">
                     <img v-bind="responsiveImageAttrs(getSongCover(song), {width: 120, sizes: '60px', widths: [60, 120, 180]})" :alt="song.name" loading="lazy" @error="onBlockImageError" />
-                    <span class="ranking-song-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+                    <span class="ranking-song-play"><AppIcon name="play" aria-hidden="true" /></span>
                   </span>
                   <span class="ranking-song-copy">
                     <strong>{{ song.name }}</strong>
@@ -138,14 +138,14 @@
           <div class="artist-section-heading">
             <div class="artist-heading-link">
               <h2>专辑</h2>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              <AppIcon name="chevron-right" aria-hidden="true" />
             </div>
             <div class="section-paging">
               <button type="button" aria-label="上一页专辑" :disabled="albumPage <= 1" @click="prevAlbumPage">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                <AppIcon name="chevron-left" aria-hidden="true" />
               </button>
               <button type="button" aria-label="下一页专辑" :disabled="!canNextAlbumPage" @click="nextAlbumPage">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                <AppIcon name="chevron-right" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -154,7 +154,7 @@
             <button v-for="album in pagedAlbums" :key="album.id" class="album-card" type="button" v-detail-prefetch="{type: 'album', id: album.id}" @click="openAlbum(album, $event)">
               <span class="album-card-cover" data-album-hero-cover :data-album-id="album.id">
                 <img v-bind="responsiveImageAttrs(album.picUrl, {width: 480, sizes: '(max-width: 640px) 42vw, (max-width: 1000px) 28vw, 180px'})" :alt="album.name" loading="lazy" @error="onBlockImageError" />
-                <span class="album-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+                <span class="album-card-play"><AppIcon name="play" aria-hidden="true" /></span>
               </span>
               <strong>{{ album.name }}</strong>
               <span>{{ formatYear(album.publishTime) }}</span>
@@ -168,14 +168,14 @@
           <div class="artist-section-heading">
             <div class="artist-heading-link">
               <h2>音乐视频</h2>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              <AppIcon name="chevron-right" aria-hidden="true" />
             </div>
             <div class="section-paging">
               <button type="button" aria-label="上一页视频" :disabled="mvPage <= 1" @click="prevMvPage">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                <AppIcon name="chevron-left" aria-hidden="true" />
               </button>
               <button type="button" aria-label="下一页视频" :disabled="!mvHasMore && mvPage >= mvLoadedPages" @click="nextMvPage">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                <AppIcon name="chevron-right" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -183,7 +183,7 @@
             <button v-for="mv in pagedMvs" :key="mv.id" class="mv-card" type="button" @click="openMv(mv)">
               <span class="mv-card-cover">
                 <img v-bind="responsiveImageAttrs(getMvCover(mv), {width: 640, sizes: '(max-width: 640px) 80vw, 300px', aspectRatio: 16 / 9})" :alt="mv.name" loading="lazy" @error="onBlockImageError" />
-                <span class="mv-card-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7 8 5-8 5Z" fill="currentColor"/></svg></span>
+                <span class="mv-card-play"><AppIcon name="play" aria-hidden="true" /></span>
               </span>
               <strong>{{ mv.name }}</strong>
               <span>音乐视频</span>
@@ -247,6 +247,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import {runWhenVisible} from '@/utils/deferredWork.js'
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'

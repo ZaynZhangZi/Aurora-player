@@ -11,7 +11,7 @@
             </div>
             <div class="notes-header-actions">
               <span>v{{ latestTag }}</span>
-              <button type="button" aria-label="关闭更新日志" @click="emit('close')">×</button>
+              <button type="button" aria-label="关闭更新日志" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
             </div>
           </header>
 
@@ -54,6 +54,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 defineProps({
   open: Boolean,
   notes: {

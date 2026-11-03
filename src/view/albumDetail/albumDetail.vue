@@ -57,7 +57,7 @@
               :disabled="!songs.length"
               @click="playAll"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <AppIcon name="play" width="20" height="20" />
               全部播放
             </button>
             <p v-if="playHint" class="text-sm font-medium text-amber-700">{{ playHint }}</p>
@@ -89,7 +89,7 @@
             >
               <div class="flex w-8 justify-center">
                 <span class="text-sm font-medium text-stone-500 group-hover:hidden">{{ index + 1 }}</span>
-                <svg class="hidden text-stone-900 group-hover:block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <AppIcon name="play" class="hidden text-stone-900 group-hover:block" width="16" height="16" />
               </div>
 
               <div class="flex min-w-0 flex-1 flex-col">
@@ -132,7 +132,7 @@
           <div class="flex items-center justify-between border-b border-stone-100 px-6 py-4 md:px-8 md:py-5">
             <h3 class="text-lg font-bold text-stone-900">关于这张专辑</h3>
             <button @click="showModal = false" class="rounded-full p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-800">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              <AppIcon name="x" width="20" height="20" />
             </button>
           </div>
 
@@ -148,6 +148,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useRoute } from 'vue-router'

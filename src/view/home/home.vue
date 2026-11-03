@@ -135,10 +135,10 @@
             @click="startScene(scene)"
           >
             <span class="personal-scene-index">0{{ index + 1 }}</span>
-            <span class="personal-scene-icon" aria-hidden="true">{{ scene.icon }}</span>
+            <span class="personal-scene-icon" aria-hidden="true"><AppIcon :name="scene.icon" :size="22" /></span>
             <span class="personal-scene-copy"><strong>{{ scene.title }}</strong><small>{{ scene.subtitle }}</small></span>
             <i v-if="loading.scene === scene.id" class="personal-spinner" />
-            <i v-else aria-hidden="true">↗</i>
+            <i v-else aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></i>
           </button>
         </div>
       </section>
@@ -173,7 +173,7 @@
             <span>{{ userStore.isLoggedIn ? '根据近期偏好整理，点击任意曲风去发现更多。' : '登录后这里会变成你的个人曲风地图。' }}</span>
             <div v-maintenance="'feature.styles'" class="personal-taste-list">
               <button v-for="(tag, index) in tasteTags" :key="tag.id" type="button" @click="openStyle(tag)">
-                <span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ tag.name }}</strong><small>{{ tag.enName || 'EXPLORE' }}</small><i>→</i>
+                <span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ tag.name }}</strong><small>{{ tag.enName || 'EXPLORE' }}</small><i><AppIcon name="arrow-right" :size="16" /></i>
               </button>
             </div>
             <button v-if="!userStore.isLoggedIn" class="personal-login-link" type="button" @click="openLoginDialog">登录开启个性推荐</button>
@@ -186,7 +186,7 @@
       <section v-maintenance="'feature.playlistRecommendations'" class="personal-section personal-playlists">
         <div class="personal-section-heading">
           <div><p>MADE FOR YOUR DAY</p><h2>{{ userStore.isLoggedIn ? '为你留下的歌单' : '值得收藏的歌单' }}</h2></div>
-          <button type="button" @click="openDiscover">去发现页浏览全部 →</button>
+          <button type="button" @click="openDiscover">去发现页浏览全部 <AppIcon name="arrow-right" :size="16" /></button>
         </div>
         <div v-if="loading.dailyPlaylists && !dailyPlaylists.length" class="personal-playlist-skeleton" aria-label="正在加载推荐歌单"><span v-for="index in 4" :key="index" /></div>
         <div v-else-if="dailyPlaylists.length" class="personal-playlist-grid">
@@ -205,7 +205,7 @@
           <button v-for="item in recentCollections" :key="`${item.type}-${item.id}`" type="button" @click="openRecentCollection(item)">
             <SmartMedia :src="item.cover" :alt="`${item.name}封面`" :image-width="220" sizes="92px" />
             <span><small>{{ item.type === 'album' ? 'ALBUM' : 'PLAYLIST' }}</small><strong>{{ item.name }}</strong><i>{{ item.meta }}</i></span>
-            <b aria-hidden="true">↗</b>
+            <b aria-hidden="true"><AppIcon name="arrow-up-right" :size="16" /></b>
           </button>
         </div>
       </section>
@@ -222,6 +222,7 @@
 </template>
 
 <script setup>
+import AppIcon from "@/components/icons/AppIcon.vue"
 import { isTargetAvailable, requireFeature } from '@/utils/maintenanceAccess.js'
 import {useMaintenanceAccess} from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'HomePage'})
@@ -318,11 +319,11 @@ const fallbackTasteTags = [
 ]
 
 const scenes = [
-  {id: 'familiar', title: '熟悉感', subtitle: '从喜欢过的声音继续', icon: '◌', mode: 'FAMILIAR'},
-  {id: 'explore', title: '去探索', subtitle: '让陌生歌曲多一点', icon: '✦', mode: 'EXPLORE'},
-  {id: 'focus', title: '专注', subtitle: '留一条安静的背景线', icon: '◎', mode: 'SCENE_RCMD', submode: 'FOCUS'},
-  {id: 'exercise', title: '运动', subtitle: '把节奏交给下一公里', icon: '↗', mode: 'SCENE_RCMD', submode: 'EXERCISE'},
-  {id: 'night', title: '深夜', subtitle: '适合慢慢听完的情绪', icon: '☾', mode: 'SCENE_RCMD', submode: 'NIGHT_EMO'},
+  {id: 'familiar', title: '熟悉感', subtitle: '从喜欢过的声音继续', icon: 'disc-3', mode: 'FAMILIAR'},
+  {id: 'explore', title: '去探索', subtitle: '让陌生歌曲多一点', icon: 'sparkles', mode: 'EXPLORE'},
+  {id: 'focus', title: '专注', subtitle: '留一条安静的背景线', icon: 'circle-dot', mode: 'SCENE_RCMD', submode: 'FOCUS'},
+  {id: 'exercise', title: '运动', subtitle: '把节奏交给下一公里', icon: 'arrow-up-right', mode: 'SCENE_RCMD', submode: 'EXERCISE'},
+  {id: 'night', title: '深夜', subtitle: '适合慢慢听完的情绪', icon: 'moon', mode: 'SCENE_RCMD', submode: 'NIGHT_EMO'},
 ]
 
 const tasteTags = computed(() => stylePreferences.value.slice(0, 4).length ? stylePreferences.value.slice(0, 4) : fallbackTasteTags)
