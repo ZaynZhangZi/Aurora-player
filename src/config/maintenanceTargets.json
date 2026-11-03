@@ -1,5 +1,17 @@
 [
   {
+    "key": "page.musicAssistant",
+    "label": "AI 音乐助手页面",
+    "group": "页面",
+    "routeNames": ["musicAssistant"]
+  },
+  {
+    "key": "feature.musicAssistant",
+    "label": "AI 音乐对话与推荐",
+    "group": "音乐助手",
+    "apiPatterns": ["^/api/v1/music-assistant(?:/|$)"]
+  },
+  {
     "key": "page.audioStudio",
     "label": "音频实验室",
     "group": "页面",

@@ -134,6 +134,12 @@ const router = createRouter({
       meta: {title: '智能歌单'},
     },
     {
+      path: '/music-assistant',
+      name: 'musicAssistant',
+      component: () => import('@/view/musicAssistant/musicAssistant.vue'),
+      meta: {title: 'AI 音乐助手'},
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('@/view/search/search.vue'),

@@ -1,5 +1,5 @@
 <template>
-  <header class="aurora-header" @pointerover="prefetchNavigation" @focusin="prefetchNavigation" @pointerdown="prefetchNavigation">
+  <header ref="headerRef" class="aurora-header" :class="{ 'is-overlay': overlay, 'is-over-hero': overHero }" @pointerover="prefetchNavigation" @focusin="prefetchNavigation" @pointerdown="prefetchNavigation">
     <div class="aurora-header-inner">
       <button class="aurora-brand" type="button" data-route-prefetch="home" @click="goHome">
         <span class="aurora-brand-mark" aria-hidden="true">A</span>
@@ -11,9 +11,11 @@
         <button type="button" data-route-prefetch="discover" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
         <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile || isSmartPlaylists || isAudioStudio }" @click="openProfile">音乐库</button>
         <button type="button" data-route-prefetch="search" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
+        <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="router.push({name:'musicAssistant'})">AI 选歌</button>
       </nav>
 
       <div class="aurora-header-actions">
+        <button class="aurora-assistant" type="button" data-route-prefetch="musicAssistant" aria-label="打开 AI 音乐助手" title="AI 音乐助手" @click="router.push({name:'musicAssistant'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3.5 14.8 9l5.7 3-5.7 2.9-2.8 5.6-2.8-5.6L3.5 12l5.7-3L12 3.5Z"/></svg></button>
         <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
         <div ref="profileMenuRef" class="aurora-profile-wrap">
           <button
@@ -40,6 +42,7 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
+                <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="profileMenuOpen=false;router.push({name:'musicAssistant'})"><svg viewBox="0 0 24 24"><path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3 3-6Z"/></svg><span><strong>AI 音乐助手</strong><small>把想听的，说给我</small></span><b>↗</b></button>
                 <button type="button" data-route-prefetch="audioStudio" :class="{'is-active':isAudioStudio}" @click="profileMenuOpen=false; router.push({name:'audioStudio'})">
                   <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8 9v6m4-9v12m4-9v6"/></svg>
                   <span><strong>音频实验室</strong><small>同步音响与空间混音</small></span><b>↗</b>
@@ -77,7 +80,7 @@
 </template>
 
 <script setup>
-import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
 import {useMessageCenter} from '@/composables/useMessageCenter.js'
@@ -87,6 +90,9 @@ import {Cog6ToothIcon} from '@heroicons/vue/24/outline'
 import {openAppSettings} from '@/composables/useAppSettings.js'
 import {preloadRouteComponent} from '@/utils/routePerformance.js'
 
+const props = defineProps({overlay: {type: Boolean, default: false}})
+const headerRef = ref(null)
+const overHero = ref(false)
 const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
@@ -99,6 +105,7 @@ const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCe
 const isProfile = computed(() => String(route.name || '') === 'profile')
 const isSmartPlaylists = computed(() => String(route.name || '') === 'smartPlaylists')
 const isAudioStudio = computed(() => String(route.name || '') === 'audioStudio')
+const isMusicAssistant = computed(() => String(route.name || '') === 'musicAssistant')
 const isHome = computed(() => String(route.name || '') === 'home')
 const isDiscover = computed(() => String(route.name || '') === 'discover')
 const isSearch = computed(() => String(route.name || '') === 'search')
@@ -221,16 +228,52 @@ function refreshHeaderMessages() {
   if (userStore.isLoggedIn) void refreshMessageBadges()
 }
 
+let heroObserver, heroBackdropBound = false
+function observeHero() {
+  heroObserver?.disconnect()
+  heroObserver = null
+  overHero.value = false
+  const header = headerRef.value
+  const hero = header?.parentElement?.querySelector('.home-banner-card')
+  if (!props.overlay || !hero) return
+  const center = header.getBoundingClientRect().height / 2
+  const bounds = hero.getBoundingClientRect()
+  overHero.value = bounds.top <= center && bounds.bottom > center
+  const observer = new IntersectionObserver(([entry]) => {
+    if (heroObserver === observer) overHero.value = entry.isIntersecting
+  }, {rootMargin: `-${center}px 0px -${Math.max(0, window.innerHeight - center - 1)}px 0px`})
+  heroObserver = observer
+  observer.observe(hero)
+}
+function bindHeroBackdrop() {
+  if (heroBackdropBound) return
+  heroBackdropBound = true
+  window.addEventListener('resize', observeHero, {passive: true})
+  observeHero()
+}
+function unbindHeroBackdrop() {
+  heroObserver?.disconnect()
+  heroObserver = null
+  window.removeEventListener('resize', observeHero)
+  heroBackdropBound = false
+  overHero.value = false
+}
+watch(() => props.overlay, () => nextTick(observeHero))
+
 onMounted(() => {
   bindShortcut()
+  bindHeroBackdrop()
   refreshHeaderMessages()
 })
 onActivated(() => {
   bindShortcut()
+  bindHeroBackdrop()
   refreshHeaderMessages()
 })
 onDeactivated(unbindShortcut)
 onBeforeUnmount(unbindShortcut)
+onDeactivated(unbindHeroBackdrop)
+onBeforeUnmount(unbindHeroBackdrop)
 
 watch(() => [userStore.isLoggedIn, userStore.userId], ([loggedIn]) => {
   profileMenuOpen.value = false
@@ -244,33 +287,47 @@ watch(() => route.fullPath, () => {
 
 <style scoped>
 .aurora-header {
+  --header-height: 68px;
+  --header-fade-height: 32px;
   position: sticky;
   top: 0;
   z-index: 80;
-  border-bottom: 1px solid rgba(24, 24, 27, 0.065);
-  background: rgba(247, 247, 248, 0.92);
+  background: transparent;
+}
+
+/* Fade only the backdrop so navigation and the profile menu stay crisp. */
+.aurora-header::before {
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--header-fade-height));
+  z-index: -1;
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
   backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - var(--header-fade-height)), rgba(0, 0, 0, 0.65) calc(100% - var(--header-fade-height) * 0.45), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - var(--header-fade-height)), rgba(0, 0, 0, 0.65) calc(100% - var(--header-fade-height) * 0.45), transparent 100%);
+  pointer-events: none;
+  content: '';
 }
 
 .aurora-header-inner {
   box-sizing: border-box;
   display: grid;
   width: min(100%, 1376px);
-  min-height: 76px;
+  min-height: var(--header-height);
   align-items: center;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 28px;
   margin: 0 auto;
-  padding: 10px 28px;
+  padding: 8px 28px;
 }
 
 .aurora-brand { grid-column: 1; }
 .aurora-nav { grid-column: 2; }
 .aurora-header-actions { grid-column: 3; display: flex; align-items: center; gap: 16px; }
-.aurora-settings { display: flex; min-height: 40px; min-width: 40px; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; border: 0; border-radius: 12px; color: #73737d; background: transparent; font: inherit; font-size: 12px; cursor: pointer; transition: background 150ms, color 150ms; }
-.aurora-settings:hover { color: #3c3c45; background: #eaeaf0; }
-.aurora-settings:focus-visible { outline: 2px solid #ee8493; outline-offset: 3px; }
-.aurora-settings svg { width: 20px; height: 20px; }
+.aurora-settings,.aurora-assistant { display: flex; min-height: 40px; min-width: 40px; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; border: 0; border-radius: 12px; color: #73737d; background: transparent; font: inherit; font-size: 12px; cursor: pointer; transition: background 150ms, color 150ms; }
+.aurora-settings:hover,.aurora-assistant:hover { color: #3c3c45; background: #eaeaf0; }
+.aurora-settings:focus-visible,.aurora-assistant:focus-visible { outline: 2px solid #ee8493; outline-offset: 3px; }
+.aurora-settings svg,.aurora-assistant svg { width: 20px; height: 20px; }
+.aurora-assistant { display: none; }
 
 .aurora-brand,
 .aurora-nav button,
@@ -319,6 +376,14 @@ watch(() => route.fullPath, () => {
 .aurora-profile svg { width: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
 .aurora-profile.is-guest { color: #69666b; border-color: rgba(255, 255, 255, 0.92); background: #e8e6e4; box-shadow: 0 8px 20px rgba(24, 24, 27, 0.08); }
 .aurora-profile.is-guest:hover { color: #fff; background: linear-gradient(135deg, #ef7180, #ef9a68); }
+.aurora-header.is-over-hero .aurora-brand,
+.aurora-header.is-over-hero .aurora-nav button:hover,
+.aurora-header.is-over-hero .aurora-nav button.is-active { color: #fff; }
+.aurora-header.is-over-hero .aurora-nav button,
+.aurora-header.is-over-hero .aurora-settings,
+.aurora-header.is-over-hero .aurora-assistant { color: rgba(255, 255, 255, 0.8); }
+.aurora-header.is-over-hero .aurora-settings:hover,.aurora-header.is-over-hero .aurora-assistant:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.aurora-header.is-over-hero .aurora-profile.is-guest { color: #fff; border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.12); }
 .aurora-profile-menu { position: absolute; top: calc(100% + 14px); right: -4px; z-index: 120; width: 286px; overflow: hidden; padding: 8px; border: 1px solid rgba(24, 24, 27, .08); border-radius: 22px; background: rgba(255, 255, 255, .97); box-shadow: 0 24px 64px rgba(24, 24, 27, .16); backdrop-filter: blur(24px); }
 .aurora-profile-menu > header { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 10px 13px; border-bottom: 1px solid #ececef; }
 .aurora-profile-menu > header > img,
@@ -343,12 +408,18 @@ watch(() => route.fullPath, () => {
 .profile-menu-enter-active, .profile-menu-leave-active { transition: opacity 150ms ease, transform 180ms ease; transform-origin: top right; }
 .profile-menu-enter-from, .profile-menu-leave-to { opacity: 0; transform: translateY(-5px) scale(.97); }
 
+@media (min-width: 821px) {
+  .aurora-header.is-overlay { margin-bottom: calc(-1 * var(--header-height)); }
+}
+
 @media (max-width: 1080px) {
   .aurora-nav { display: none; }
+  .aurora-assistant { display: flex; }
 }
 
 @media (max-width: 820px) {
-  .aurora-header-inner { min-height: 68px; gap: 12px; padding: 8px 18px; }
+  .aurora-header { --header-height: 60px; --header-fade-height: 22px; }
+  .aurora-header-inner { gap: 12px; padding: 8px 18px; }
 }
 
 @media (max-width: 560px) {

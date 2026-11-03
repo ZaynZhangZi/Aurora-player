@@ -63,6 +63,7 @@
           <div class="profile-section-heading">
             <div><p>MY COLLECTION</p><h2>我的音乐空间</h2><span>创建、收藏与反复聆听，都在这里慢慢沉淀。</span></div>
             <button class="profile-section-action" type="button" data-route-prefetch="audioStudio" @click="router.push({name:'audioStudio'})">◉ 音频实验室 ↗</button>
+            <button class="profile-section-action" type="button" data-route-prefetch="musicAssistant" @click="router.push({name:'musicAssistant'})">✧ AI 选歌 ↗</button>
             <button class="profile-section-action" type="button" data-route-prefetch="smartPlaylists" @click="router.push({name:'smartPlaylists'})">✦ 智能歌单 ↗</button>
             <div class="profile-library-counts" aria-label="歌单数量">
               <span><strong>{{ createdPlaylists.length }}</strong> 创建</span>

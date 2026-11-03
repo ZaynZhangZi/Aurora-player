@@ -1,6 +1,6 @@
 <template>
   <div class="personal-home" @maintenance-restored="reloadAfterMaintenance">
-    <AppHeader />
+    <AppHeader :overlay="homeBannerAvailable" />
 
     <main class="personal-main" data-route-motion-root>
       <section id="home-top" class="home-lobby">
@@ -222,7 +222,8 @@
 </template>
 
 <script setup>
-import { requireFeature } from '@/utils/maintenanceAccess.js'
+import { isTargetAvailable, requireFeature } from '@/utils/maintenanceAccess.js'
+import {useMaintenanceAccess} from '@/composables/useMaintenanceAccess.js'
 defineOptions({name: 'HomePage'})
 
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
@@ -252,6 +253,8 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const maintenance = useMaintenanceAccess()
+const homeBannerAvailable = computed(() => isTargetAvailable(maintenance.value.settings, 'feature.homeBanners'))
 const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 const playerStore = usePlayerStore()
