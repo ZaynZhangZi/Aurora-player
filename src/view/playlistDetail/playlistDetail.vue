@@ -119,9 +119,11 @@
             @keydown="handleTrackKeydown($event, index)"
           >
             <div class="flex min-w-0 flex-1 items-center gap-4">
-              <div class="flex w-8 justify-center">
-                <span class="text-sm font-medium tabular-nums text-stone-400 group-hover:hidden">{{ index + 1 }}</span>
-                <AppIcon name="play" class="hidden text-stone-900 group-hover:block" width="18" height="18" />
+              <div class="relative grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors group-hover:bg-stone-900/5 group-focus-visible:bg-stone-900/5" aria-hidden="true">
+                <span class="text-[13px] font-medium tabular-nums text-stone-400 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0">{{ index + 1 }}</span>
+                <span class="pointer-events-none absolute inset-0 grid place-items-center text-stone-800 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <AppIcon name="play" :size="14" filled />
+                </span>
               </div>
 
               <div class="min-w-0 flex-1">
