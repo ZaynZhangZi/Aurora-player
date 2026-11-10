@@ -1,9 +1,27 @@
 import { fileURLToPath, URL } from "node:url";
 import process from "node:process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig, loadEnv } from "vite";
 import vueDevTools from "vite-plugin-vue-devtools";
+
+export function startupScreenVersion(scriptPath = new URL("./public/aurora-loading.js", import.meta.url)) {
+	return {
+		name: "aurora-startup-screen-version",
+		transformIndexHtml: {
+			order: "post",
+			handler(html) {
+				const version = createHash("sha256").update(readFileSync(scriptPath)).digest("hex").slice(0, 12);
+				return html.replace(
+					/(<script\b[^>]*\bsrc=["'])\/aurora-loading\.js(?:\?[^"']*)?(["'])/,
+					(_match, prefix, quote) => `${prefix}/aurora-loading.js?v=${version}${quote}`,
+				);
+			},
+		},
+	};
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,7 +31,7 @@ export default defineConfig(({ mode }) => {
 	const enableVueDevTools = mode === "development" && env.VITE_ENABLE_VUE_DEVTOOLS === "true";
 
 	return {
-		plugins: [vue(), tailwindcss(), ...(enableVueDevTools ? [vueDevTools()] : [])],
+		plugins: [vue(), tailwindcss(), startupScreenVersion(), ...(enableVueDevTools ? [vueDevTools()] : [])],
 		build: {
 			esbuild: mode === "production" ? { drop: ["console", "debugger"] } : {},
 			// 性能优化：代码分割
