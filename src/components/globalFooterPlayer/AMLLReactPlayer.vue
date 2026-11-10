@@ -21,6 +21,7 @@
 
 <script setup>
 import {createElement as createReactElement} from 'react'
+import {flushSync} from 'react-dom'
 import {createRoot} from 'react-dom/client'
 import {Provider, createStore} from 'jotai'
 import {
@@ -286,7 +287,8 @@ onMounted(() => {
     emit('update:hideLyricView', reactStore.get(hideLyricViewAtom))
   })
   reactRoot = createRoot(reactMountRef.value)
-  reactRoot.render(
+  // Commit the React tree before the Vue startup task reports readiness.
+  flushSync(() => reactRoot.render(
     createReactElement(
       Provider,
       {store: reactStore},
@@ -296,7 +298,7 @@ onMounted(() => {
         style: {width: '100%', height: '100%', backgroundColor: '#222'},
       }),
     ),
-  )
+  ))
 })
 
 onBeforeUnmount(() => {

@@ -128,7 +128,10 @@ export function usePlayerLyricLoader(options) {
     })
   }
 
-  return {
-    loadCurrentSongLyric,
+  function cancelLyricLoad() {
+    lyricLoadToken++
+    lyricController?.abort()
   }
+
+  return {loadCurrentSongLyric, cancelLyricLoad}
 }

@@ -3,6 +3,7 @@
 	<AppSplashScreen
 		v-if="showSplash"
 		:min-duration="280"
+		:player-ready="playerReady"
 		@complete="onSplashComplete"
 	/>
 
@@ -24,7 +25,7 @@
 			</BackgroundRouteProvider>
 		</div>
 		<DetailOverlayHost :overlay="overlay" @request-close="closeOverlay" />
-		<globalFooterPlayer />
+		<GlobalFooterPlayer @startup-ready="resolvePlayerReady" />
 		<QrLoginDialog />
 		<PlaybackRelayPanel v-if="userStore.isLoggedIn || playbackRelayState.panelOpen" />
 		<div class="playback-notice-host" aria-live="polite" aria-atomic="true">
@@ -256,35 +257,12 @@ watch(
 	{ immediate: true },
 );
 
-const SPLASH_SESSION_KEY = "aurora-splash-seen";
+const showSplash = ref(Boolean(document.getElementById("aurora-boot")));
+let resolvePlayerReady;
+const playerReady = new Promise(resolve => { resolvePlayerReady = resolve; });
 
-function shouldShowSplash() {
-	try {
-		return window.sessionStorage.getItem(SPLASH_SESSION_KEY) !== "1";
-	} catch (error) {
-		void error;
-		return true;
-	}
-}
-
-// 每个会话只展示一次短开屏；页面主体会在遮罩后正常渲染。
-const showSplash = ref(shouldShowSplash());
-
-// 开屏动画完成回调
 function onSplashComplete({restoreFocus = false} = {}) {
 	showSplash.value = false;
-	try {
-		window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
-	} catch (error) {
-		void error;
-	}
-	try {
-		window.localStorage.setItem("aurora-welcomed", "1");
-	} catch (error) {
-		void error;
-	}
-	// The loader already fades into the rendered page; another enter animation
-	// would briefly hide it again. Restore focus only after an interaction.
 	if (restoreFocus) {
 		void nextTick(() => {
 			const target = document.querySelector('[data-route-motion-root] input:not([disabled]), [data-route-motion-root] button:not([disabled])') || document.querySelector('.aurora-brand');
@@ -292,15 +270,6 @@ function onSplashComplete({restoreFocus = false} = {}) {
 		});
 	}
 }
-
-// The early loading screen also covers the bundle download on repeat visits.
-onMounted(() => {
-	if (!showSplash.value) {
-		const screen = document.getElementById("aurora-boot");
-		if (typeof screen?.finish === "function") void screen.finish({immediate: true});
-		else screen?.remove();
-	}
-});
 
 const restrictionDialog = ref({
 	open: false,

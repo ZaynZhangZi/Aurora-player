@@ -60,9 +60,6 @@
         <section id="profile-panel-playlist" v-if="activeTab === 'playlist'" key="playlist" class="profile-workspace profile-library" role="tabpanel" aria-labelledby="profile-tab-playlist">
           <div class="profile-section-heading">
             <div><p>MY COLLECTION</p><h2>我的音乐空间</h2><span>创建、收藏与反复聆听，都在这里慢慢沉淀。</span></div>
-            <button class="profile-section-action" type="button" data-route-prefetch="audioStudio" @click="router.push({name:'audioStudio'})"><AppIcon name="audio-lines" :size="16" /> 音频实验室 <AppIcon name="arrow-up-right" :size="16" /></button>
-            <button class="profile-section-action" type="button" data-route-prefetch="musicAssistant" @click="router.push({name:'musicAssistant'})"><AppIcon name="sparkles" :size="16" /> AI 选歌 <AppIcon name="arrow-up-right" :size="16" /></button>
-            <button class="profile-section-action" type="button" data-route-prefetch="smartPlaylists" @click="router.push({name:'smartPlaylists'})"><AppIcon name="sparkles" :size="16" /> 智能歌单 <AppIcon name="arrow-up-right" :size="16" /></button>
             <div class="profile-library-counts" aria-label="歌单数量">
               <span><strong>{{ createdPlaylists.length }}</strong> 创建</span>
               <i />

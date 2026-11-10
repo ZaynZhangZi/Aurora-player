@@ -23,6 +23,22 @@ const loaders = {
   pendolo: () => import('@/vendor/folia/src/components/visualizer/pendolo/VisualizerPendolo.tsx'),
 }
 const modules = new Map()
+
+export function preloadFoliaMode(appearance) {
+  const mode = FOLIA_MODE_MAP[appearance] || 'classic'
+  if (!modules.has(mode)) {
+    const request = Promise.all([
+      loaders[mode](),
+      mode === 'cappella' ? import('@/vendor/folia/src/components/visualizer/cappella/avatarImages.ts') : null,
+    ]).catch(error => {
+      modules.delete(mode)
+      throw error
+    })
+    modules.set(mode, request)
+  }
+  return modules.get(mode)
+}
+
 const themes = Object.fromEntries(Object.keys(loaders).map(mode => [mode, foliaPreviewTheme(mode)]))
 const cappellaPreview = {...DEFAULT_CAPPELLA_TUNING, avatarSource: 'custom'}
 const pendoloPreview = {...DEFAULT_PENDOLO_TUNING, showCoverOnWatchFace: true, showGearDecor: 'full'}
@@ -120,21 +136,16 @@ export function createFoliaRenderer(container, initialOptions) {
     sample()
     if (shouldTick()) frame = requestAnimationFrame(tick)
   }
-  async function changeMode(mode) {
+  async function changeMode(mode, appearance) {
     requestedMode = mode
     const turn = ++generation
     try {
-      if (!modules.has(mode)) modules.set(mode, loaders[mode]())
-      const module = await modules.get(mode)
-      if (mode === 'cappella') {
-        const avatars = await import('@/vendor/folia/src/components/visualizer/cappella/avatarImages.ts')
-        pickCappellaAvatar = avatars.pickStableBuiltinAvatarImage
-      }
+      const [module, avatars] = await preloadFoliaMode(appearance)
       if (disposed || turn !== generation) return
+      pickCappellaAvatar = avatars?.pickStableBuiltinAvatarImage
       Renderer = module.default; renderedMode = mode
       sample(); render(); options.onReady?.()
     } catch (error) {
-      modules.delete(mode)
       if (!disposed && turn === generation) options.onError?.(error)
     }
   }
@@ -145,7 +156,7 @@ export function createFoliaRenderer(container, initialOptions) {
     }
     options = {...next, lines: nativeLines}
     const mode = FOLIA_MODE_MAP[options.mode] || 'classic'
-    if (requestedMode !== mode) void changeMode(mode)
+    if (requestedMode !== mode) void changeMode(mode, options.mode)
     syncLoop(); render()
   }
   const visibility = () => {syncLoop(); render()}

@@ -70,7 +70,6 @@ function dismissBootScreen() {
   const boot = document.getElementById('aurora-boot');
   if (typeof boot?.finish === 'function') void boot.finish({ immediate: true });
   else boot?.remove();
-  try { sessionStorage.setItem('aurora-splash-seen', '1'); } catch { /* Storage may be disabled. */ }
 }
 
 const poller = createMaintenancePoller({

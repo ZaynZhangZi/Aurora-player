@@ -565,7 +565,7 @@ watch([resumeCover, () => resumeSong.value?.name || ''], async ([cover, name]) =
 button { cursor: pointer; font: inherit; }
 .personal-main { box-sizing: border-box; width: min(100%, 1680px); margin: 0 auto; padding: 0 28px 150px; }
 .home-lobby { display: block; scroll-margin-top: 90px; }
-.home-banner-card { position: relative; left: 50%; width: 100vw; height: clamp(440px, 76svh, 780px); overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
+.home-banner-card { position: relative; left: 50%; width: 100vw; height: clamp(440px, 80svh, 820px); overflow: hidden; margin-left: -50vw; border: 0; border-radius: 0; background: #242731; isolation: isolate; }
 .home-banner-media,
 .home-banner-fallback,
 .home-banner-poster,
@@ -738,7 +738,7 @@ button { cursor: pointer; font: inherit; }
 
 @media (max-width: 820px) {
   .personal-main { padding: 24px 18px 130px; }
-  .home-banner-card { left: auto; width: 100%; height: clamp(380px, 70svh, 600px); min-height: 380px; margin-left: 0; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 30px; box-shadow: 0 26px 70px rgba(43, 32, 32, 0.15); }
+  .home-banner-card { left: auto; width: 100%; height: clamp(380px, 73svh, 620px); min-height: 380px; margin-left: 0; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 30px; box-shadow: 0 26px 70px rgba(43, 32, 32, 0.15); }
   .home-banner-shade { background: linear-gradient(90deg, rgba(14, 15, 19, 0.78) 0%, rgba(14, 15, 19, 0.45) 52%, rgba(14, 15, 19, 0.12) 100%), linear-gradient(0deg, rgba(14, 15, 19, 0.58), transparent 64%); }
   .home-banner-content { inset: 0; width: min(100%, 760px); padding: clamp(30px, 6vw, 50px); transform: none; }
   .lofi-resume { grid-template-columns: 1fr; gap: 24px; }
@@ -750,7 +750,7 @@ button { cursor: pointer; font: inherit; }
 
 @media (max-width: 560px) {
   .personal-main { padding: 13px 13px 115px; }
-  .home-banner-card { height: clamp(360px, 65svh, 510px); min-height: 360px; border-radius: 26px; }
+  .home-banner-card { height: clamp(360px, 68svh, 530px); min-height: 360px; border-radius: 26px; }
   .home-banner-content { padding: 25px; }
   .home-banner-card h1 { font-size: 42px; }
   .personal-now-card { min-height: 0; padding: 23px 18px 20px; border-radius: 26px; }

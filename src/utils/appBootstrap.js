@@ -71,15 +71,17 @@ export function preloadRouteComponents(router) {
   return preload
 }
 
-export async function runAppBootstrap({router, onProgress, signal} = {}) {
+export async function runAppBootstrap({router, playerReady, onProgress, signal} = {}) {
+  // A slow lyrics provider or a failed theme download must not hold the page.
+  const player = waitFor(playerReady, 3500, signal)
   await waitForShell(onProgress, signal)
   if (signal?.aborted) return
   onProgress?.(70, '准备页面内容')
   await router?.isReady?.().catch(() => {})
   if (signal?.aborted) return
-  onProgress?.(85, '正在准备页面')
+  onProgress?.(85, '正在准备播放器')
   // Optional webfonts must not leave the application behind its splash screen.
-  await waitFor(document.fonts?.ready, 1200, signal)
+  await Promise.all([player, waitFor(document.fonts?.ready, 1200, signal)])
   if (signal?.aborted) return
   let frame = 0
   const painted = new Promise(resolve => {
@@ -87,5 +89,5 @@ export async function runAppBootstrap({router, onProgress, signal} = {}) {
   })
   await waitFor(painted, 100, signal)
   cancelAnimationFrame(frame)
-  if (!signal?.aborted) onProgress?.(100, '完成')
+  if (!signal?.aborted) onProgress?.(100, '已就绪')
 }

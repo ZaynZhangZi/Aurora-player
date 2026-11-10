@@ -53,6 +53,32 @@ test('aborting the splash releases resource observers without reporting completi
   assert.equal(progress.includes(100), false)
 })
 
+test('splash waits for player readiness after the route is ready', async () => {
+  browser()
+  let finishPlayer
+  const playerReady = new Promise(resolve => { finishPlayer = resolve })
+  const progress = []
+  const bootstrap = runAppBootstrap({playerReady, onProgress: value => progress.push(value)})
+  await flush()
+  assert.equal(progress.at(-1), 85)
+  finishPlayer()
+  await bootstrap
+  assert.equal(progress.at(-1), 100)
+})
+
+test('a stalled player does not keep the site behind the splash', async context => {
+  browser()
+  replace('requestAnimationFrame', callback => setImmediate(callback))
+  replace('cancelAnimationFrame', clearImmediate)
+  context.mock.timers.enable({apis: ['setTimeout']})
+  const progress = []
+  const bootstrap = runAppBootstrap({playerReady: new Promise(() => {}), onProgress: value => progress.push(value)})
+  await flush()
+  context.mock.timers.tick(3500)
+  await bootstrap
+  assert.equal(progress.at(-1), 100)
+})
+
 test('data saver and 2G connections skip speculative downloads', async () => {
   browser()
   const router = {getRoutes: () => { throw new Error('Unexpected preload') }}

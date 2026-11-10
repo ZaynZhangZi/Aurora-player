@@ -390,7 +390,7 @@
 
     <Teleport to="body">
       <div
-        v-if="amllMounted"
+        v-if="amllMounted || fullPlayer?.appearance === 'amll'"
         ref="amllHostRef"
         data-player-amll-host
         tabindex="-1"
@@ -399,14 +399,9 @@
         aria-label="全屏播放器"
         @keydown="handleFullscreenKeydown"
       >
-        <div v-if="amllOpened && activeFullPlayerStatus !== 'ready'" class="full-player-loading">
-          <div v-if="activeFullPlayerStatus !== 'error'" class="full-player-loading-wave" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-          <p role="status">{{ activeFullPlayerStatus === 'error' ? '歌词播放器加载失败' : '正在准备歌词…' }}</p>
-          <button v-if="activeFullPlayerStatus === 'error'" type="button" @click="retryFullPlayer">重新加载</button>
-          <button type="button" @click="onAmllOpenedChange(false)">返回播放</button>
-        </div>
-        <AMLLReactPlayer
-          v-if="playerAppearance === 'amll'"
+        <component
+          v-if="fullPlayer?.appearance === 'amll'"
+          :is="fullPlayer.component"
           :opened="amllOpened"
           @update:opened="onAmllOpenedChange"
           v-model:current-time="amllCurrentTimeMs"
@@ -419,7 +414,7 @@
           :cover-is-video="amllCoverIsVideo"
           :lyric-lines="amllLyricLines"
           :duration="durationMs"
-          :playing="isPlaying"
+          :playing="isPlaying && amllOpened"
           :low-freq-volume="amllLowFreqVolume"
           :play-mode="playerStore.playMode"
           :share-available="canShareLyrics"
@@ -432,10 +427,11 @@
           @toggle-shuffle="toggleShuffleMode"
           @cycle-repeat="cyclePlayMode"
         />
-        <FoliaPlayer
-          v-else
+        <component
+          v-else-if="fullPlayer && amllMounted"
+          :is="fullPlayer.component"
           :opened="amllOpened"
-          :mode="playerAppearance"
+          :mode="fullPlayer.appearance"
           :music-name="songName"
           :music-artists="artistList"
           :cover="coverUrl"
@@ -685,6 +681,7 @@ import {
   onMounted,
   reactive,
   ref,
+  shallowRef,
   watch,
 } from "vue";
 import {useRouter} from "vue-router";
@@ -695,7 +692,7 @@ import AutoMixDebugPanel from "@/components/globalFooterPlayer/AutoMixDebugPanel
 import AudioQualityUpgradeOverlay from "@/components/globalFooterPlayer/AudioQualityUpgradeOverlay.vue";
 import {openLyricShare, lyricShare, closeLyricShare} from "@/composables/useLyricShare.js";
 import { useFeatureMaintenance } from "@/composables/useMaintenanceAccess.js";
-import { requireFeature } from "@/utils/maintenanceAccess.js";
+import { getMaintenanceSnapshot, isTargetAvailable, requireFeature } from "@/utils/maintenanceAccess.js";
 import {normalizeShareLines} from "@/utils/lyricShare.js";
 import PlayerProgress from "@/components/globalFooterPlayer/PlayerProgress.vue";
 import {AudioEngine} from "@/audio/AudioEngine.js";
@@ -746,33 +743,43 @@ import {dissolveElement} from "@/utils/particleDissolve.js";
 import {rafThrottle, MemoryManager} from "@/utils/performanceOptimizer.js";
 import {responsiveImageAttrs} from "@/utils/mediaUrl.js";
 
-const fullPlayerStatus = reactive({amll: 'idle', folia: 'idle'});
-const fullPlayerRetries = {};
-function lazyFullPlayer(key, load) {
-  return defineAsyncComponent({
-    loader: async () => {
-      fullPlayerStatus[key] = 'loading';
-      const component = await load();
-      fullPlayerStatus[key] = 'ready';
-      return component;
-    },
-    onError: (_error, retry) => {
-      fullPlayerStatus[key] = 'error';
-      fullPlayerRetries[key] = retry;
-    },
-  });
-}
-const AMLLReactPlayer = lazyFullPlayer('amll', () => import('./AMLLReactPlayer.vue'));
-const FoliaPlayer = lazyFullPlayer('folia', () => import('./FoliaPlayer.vue'));
-const activeFullPlayerStatus = computed(() => fullPlayerStatus[playerAppearance.value === 'amll' ? 'amll' : 'folia']);
-function retryFullPlayer() {
-  fullPlayerRetries[playerAppearance.value === 'amll' ? 'amll' : 'folia']?.();
-}
-
 const memoryManager = new MemoryManager();
 
+const emit = defineEmits(['startup-ready']);
 const playerStore = usePlayerStore();
 const {playerAppearance} = usePlayerAppearance();
+const fullPlayer = shallowRef(null);
+let preparingPlayer;
+const lyricsAvailable = () => isTargetAvailable(getMaintenanceSnapshot().settings, 'feature.lyrics');
+
+async function loadFullPlayer(appearance) {
+  if (appearance === 'amll') return (await import('./AMLLReactPlayer.vue')).default;
+  const [view] = await Promise.all([
+    import('./FoliaPlayer.vue'),
+    import('./folia/createFoliaRenderer.js').then(({preloadFoliaMode}) => preloadFoliaMode(appearance)),
+  ]);
+  return view.default;
+}
+
+function prepareFullPlayer() {
+  const appearance = playerAppearance.value;
+  if (!lyricsAvailable()) return Promise.resolve(false);
+  if (preparingPlayer?.appearance === appearance) return preparingPlayer.ready;
+  if (fullPlayer.value?.appearance === appearance) return Promise.resolve(true);
+
+  const preparation = {appearance, ready: null};
+  preparingPlayer = preparation;
+  preparation.ready = loadFullPlayer(appearance).then(async (component) => {
+    if (preparingPlayer !== preparation || playerAppearance.value !== appearance || !lyricsAvailable()) return false;
+    fullPlayer.value = {appearance, component};
+    await nextTick();
+    return true;
+  }).catch(() => false).finally(() => {
+    if (preparingPlayer === preparation) preparingPlayer = null;
+  });
+  return preparation.ready;
+}
+
 const {settingsOpen, closeAppSettings} = useAppSettings();
 // Keep dialogs mounted after their first use so close animations, focus return
 // and deferred settings actions retain their existing lifecycle.
@@ -918,19 +925,6 @@ const {
   setTimer: (cb, ms) => window.setTimeout(cb, ms),
 });
 
-watch(activeFullPlayerStatus, (status) => {
-  if (status !== 'ready') return;
-  void nextTick(() => {
-    const host = amllHostRef.value;
-    if (!amllOpened.value || !host) return;
-    // The loading controls disappear when the async player mounts. Preserve
-    // focus inside the dialog so Escape and its focus trap keep working.
-    if (document.activeElement === document.body || host.contains(document.activeElement)) {
-      host.focus({preventScroll: true});
-    }
-  });
-}, {flush: 'post'});
-
 function getVisibleMiniCover() {
   for (const cover of [desktopCoverRef.value, mobileCoverRef.value]) {
     const rect = cover?.getBoundingClientRect();
@@ -958,10 +952,15 @@ const {
   getMiniCover: getVisibleMiniCover,
 });
 
-function openLyricPage() {
-  if (!requireFeature('feature.lyrics')) return;
-  // Mount first, then reveal the React player with its wrapper transition.
-  // Opening no longer waits for the legacy Vue cover-transition selectors.
+async function openLyricPage() {
+  if (!hasSong.value || !requireFeature('feature.lyrics')) return;
+  const appearance = playerAppearance.value;
+  const ready = await prepareFullPlayer();
+  if (!hasSong.value || amllOpened.value || appearance !== playerAppearance.value || !lyricsAvailable()) return;
+  if (!ready) {
+    showPlaybackNotice({kind: 'network', title: '暂时无法打开歌词页', message: '请检查网络后再点一次封面。'});
+    return;
+  }
   const focusedElement = document.activeElement;
   if (
     playerShellRef.value?.contains(focusedElement) &&
@@ -1231,7 +1230,8 @@ const {
   resolveThemeFromCover,
   pickThemeFromCover,
 } = usePlayerThemeFromCover();
-const {loadCurrentSongLyric} = usePlayerLyricLoader({
+let lyricPreparation;
+const {loadCurrentSongLyric, cancelLyricLoad} = usePlayerLyricLoader({
   getSongName: () => songName.value,
   getFirstArtistName: () => normalizedArtistList.value?.[0]?.name || "",
   getCurrentSong: () => playerStore.currentSong,
@@ -2652,7 +2652,9 @@ watch(
     resetPlayRecordCache();
     setupMediaSessionHandlers({force: isIOSDevice.value});
     loadDynamicCover(songId);
-    loadCurrentSongLyric(songId);
+    amllLyricLines.value = [];
+    amllLyricSongId.value = "";
+    lyricPreparation = loadCurrentSongLyric(songId).catch(() => {});
     amllAlbum.value = "";
     amllHideLyricView.value = false;
     amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
@@ -2727,6 +2729,7 @@ watch(
 watch(playerAppearance, async () => {
   amllCurrentTimeMsRef.value = Math.max(0, currentTimeMs.value + AMLL_LYRIC_LEAD_MS);
   ensureAmllClock();
+  if (!await prepareFullPlayer()) return;
   if (!amllOpened.value || settingsOpen.value) return;
   await nextTick();
   amllHostRef.value?.querySelector(".folia-play-button, [data-player-close], button:not(:disabled)")?.focus({preventScroll: true});
@@ -2764,7 +2767,7 @@ watch(
 watch(
   lyricTranslateEnabled,
   () => {
-    loadCurrentSongLyric(playerStore.currentSong?.id);
+    lyricPreparation = loadCurrentSongLyric(playerStore.currentSong?.id).catch(() => {});
   },
 );
 
@@ -2789,6 +2792,14 @@ watch([currentTimeMs, durationMs], () => {
 });
 
 onMounted(() => {
+  void prepareFullPlayer().then(async () => {
+    let request;
+    do {
+      request = lyricPreparation;
+      await request;
+    } while (request !== lyricPreparation);
+    emit('startup-ready');
+  });
   window.addEventListener("pagehide", playerStore.persistPlaybackPosition);
   if (playerStore.automixEnabled) {
     autoMixEngine.enable();
@@ -2896,6 +2907,8 @@ onBeforeUnmount(() => {
   stopCrossfade();
   disposeRhythmAnalyzer();
   automixAudioGraph.dispose();
+  preparingPlayer = null;
+  cancelLyricLoad();
   disposeFullscreenTransition();
   disposeLyricOverlay();
   stopAmllClock();
@@ -2953,35 +2966,6 @@ useFeatureMaintenance('feature.audioQuality', () => qualitySwitching.value, canc
 </script>
 
 <style scoped>
-.full-player-loading-wave { display: flex; height: 38px; align-items: center; gap: 5px; color: #d58f9a; }
-.full-player-loading-wave i { display: block; width: 4px; height: 18px; border-radius: 4px; background: currentColor; animation: full-player-loading-wave 1.1s ease-in-out infinite; }
-.full-player-loading-wave i:nth-child(2), .full-player-loading-wave i:nth-child(4) { height: 28px; animation-delay: -.3s; }
-.full-player-loading-wave i:nth-child(3) { height: 38px; animation-delay: -.6s; }
-@keyframes full-player-loading-wave { 0%, 100% { transform: scaleY(.45); opacity: .6; } 50% { transform: scaleY(1); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .full-player-loading-wave i { animation: none; } }
-.full-player-loading {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  color: #333;
-  background: #f6f5f3;
-}
-.full-player-loading button {
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 12px;
-  background: #e9e7e4;
-  cursor: pointer;
-}
-.full-player-loading button:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 3px;
-}
 .player-root {
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
