@@ -48,6 +48,17 @@ export const userApi={
         return apiClient.get('/user/account')
     },
 
+    getMembership(userId, cookie, {signal} = {}) {
+        return apiClient.post('/vip/info/v2', {cookie, noCookie: true}, {
+            signal,
+            params: {uid: userId},
+            timeout: 5000,
+            cacheBust: true,
+            skipAuthCookie: true,
+            maintenanceTargets: ['feature.login'],
+        })
+    },
+
     //获取用户详情
     getUserDetail(uid){
         return apiClient.get(`/user/detail?uid=${uid}`)

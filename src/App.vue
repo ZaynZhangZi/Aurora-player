@@ -107,6 +107,7 @@ import { useMaintenanceAccess } from "@/composables/useMaintenanceAccess.js";
 import { isRouteAvailable } from "@/utils/maintenanceAccess.js";
 import {getKeepAliveRouteNames} from '@/utils/routePerformance.js';
 import {playbackRelayState} from '@/composables/playbackRelayState.js';
+import {resolveMembershipTier} from '@/utils/membershipTier.js';
 
 const GlobalFooterPlayer = defineAsyncComponent(() => import("@/components/globalFooterPlayer/globalFooterPlayer.vue"));
 const PlaybackRelayPanel = defineAsyncComponent(() => import('@/components/playbackRelay/PlaybackRelayPanel.vue'));
@@ -115,6 +116,19 @@ const route = useRoute();
 const router = useRouter();
 const maintenanceAccess = useMaintenanceAccess();
 const userStore = useCounterStore();
+watch([() => userStore.userId, () => userStore.getUserCookie], async ([id, cookie], _previous, onCleanup) => {
+	userStore.membershipTier = null;
+	if (!id || !cookie) return;
+	const controller = new AbortController();
+	onCleanup(() => controller.abort());
+	try {
+		const {data} = await userApi.getMembership(id, cookie, {signal: controller.signal});
+		if (controller.signal.aborted || userStore.userId !== id || userStore.getUserCookie !== cookie) return;
+		userStore.membershipTier = resolveMembershipTier(data, id);
+	} catch {
+		// Membership details are optional and should not interrupt sign-in.
+	}
+}, {immediate: true});
 let stopPlaybackRelay, relayLoadVersion = 0;
 watch(() => [userStore.userId, userStore.getUserCookie], async ([id, cookie]) => {
 	const version = ++relayLoadVersion;

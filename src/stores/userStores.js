@@ -102,6 +102,7 @@ export const useCounterStore = defineStore('userinfo', {
     userCookie: normalizeCookieString(safeReadLocalStorage('usermasgcookie', '')), // 服务端返回的 cookie 字符串
     userMessage: null,              // 兼容你之前的命名（原 userMassage）
     profile: readLegacyProfile(),   // { userId, nickname, avatarUrl }
+    membershipTier: null,
   }),
 
   getters: {
@@ -174,6 +175,7 @@ export const useCounterStore = defineStore('userinfo', {
       this.userCookie = ''
       this.userMessage = null
       this.profile = null
+      this.membershipTier = null
       localStorage.removeItem('usermasg')
       localStorage.removeItem('usermasgId')
       localStorage.removeItem('usermasgcookie')

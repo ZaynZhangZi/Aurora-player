@@ -18,6 +18,7 @@
         <button class="aurora-assistant" type="button" data-route-prefetch="musicAssistant" aria-label="打开 AI 音乐助手" title="AI 音乐助手" @click="router.push({name:'musicAssistant'})"><AppIcon name="sparkles" /></button>
         <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
         <div ref="profileMenuRef" class="aurora-profile-wrap">
+          <MembershipBadge v-if="userStore.isLoggedIn" :tier="userStore.membershipTier" />
           <button
             class="aurora-profile"
             :class="{ 'is-guest': !userStore.isLoggedIn, 'has-unread': totalMessageBadge > 0 }"
@@ -78,6 +79,7 @@
 
 <script setup>
 import AppIcon from "@/components/icons/AppIcon.vue"
+import MembershipBadge from '@/components/membership/MembershipBadge.vue'
 import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
@@ -367,7 +369,7 @@ watch(() => route.fullPath, () => {
 .aurora-nav button.is-active { color: #27272a; }
 .aurora-nav button.is-active::after { opacity: 1; transform: scaleX(1); }
 
-.aurora-profile-wrap { position: relative; }
+.aurora-profile-wrap { position: relative; display: flex; align-items: center; gap: 8px; }
 .aurora-profile { position: relative; display: grid; width: 40px; aspect-ratio: 1; overflow: visible; place-items: center; color: #fff; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%; background: linear-gradient(135deg, #71717a, #27272a); box-shadow: 0 8px 22px rgba(24, 24, 27, 0.14); font-size: 13px; font-weight: 850; }
 .aurora-profile.has-unread::after { position: absolute; top: -2px; right: -1px; width: 8px; height: 8px; border: 2px solid #f7f7f8; border-radius: 50%; background: #ef5267; content: ''; }
 .aurora-profile img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }

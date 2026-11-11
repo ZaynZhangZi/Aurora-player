@@ -16,8 +16,11 @@
             <span v-else>{{ profileInitial }}</span>
           </div>
           <div class="profile-identity-copy">
-            <p class="profile-eyebrow">PERSONAL LIBRARY · {{ certificationText }}</p>
-            <h1>{{ profile.nickname || '我的主页' }}</h1>
+            <p class="profile-eyebrow">PERSONAL LIBRARY<span v-if="certificationText"> · {{ certificationText }}</span></p>
+            <h1 class="profile-name">
+              <span>{{ profile.nickname || '我的主页' }}</span>
+              <MembershipBadge v-if="userStore.isLoggedIn" :tier="userStore.membershipTier" class="profile-membership" />
+            </h1>
             <p class="profile-signature">{{ profile.signature || profile.description || '把喜欢的音乐，慢慢收藏成自己的样子。' }}</p>
             <div class="profile-meta">
               <span>UID {{ profile.userId || '-' }}</span>
@@ -447,6 +450,7 @@
 </template>
 <script setup>
 import AppIcon from "@/components/icons/AppIcon.vue"
+import MembershipBadge from '@/components/membership/MembershipBadge.vue'
 import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({ name: 'ProfilePage' })
@@ -742,7 +746,7 @@ const CITY_NAME_MAP = {
 
 const certificationText = computed(() => {
   const isArtist = profile.value.userType === 4 || profile.value.authStatus === 1
-  return isArtist ? '网易云音乐人认证' : '普通用户'
+  return isArtist ? '网易云音乐人认证' : ''
 })
 
 function resolveRegionName(regionCode, type = 'province') {
@@ -2069,6 +2073,9 @@ useFeatureMaintenance('feature.listeningProfile', () => activeTab.value === 'lis
 }
 .profile-avatar-shell img { width: 100%; height: 100%; object-fit: cover; }
 .profile-identity-copy { min-width: 0; }
+.profile-name { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.profile-name > span:first-child { min-width: 0; max-width: 100%; }
+.profile-membership { --membership-badge-size: clamp(24px, 2.4vw, 30px); }
 .profile-eyebrow { margin: 0 0 12px; color: rgb(var(--profile-highlight-rgb)); font-size: 9px; font-weight: 900; letter-spacing: 0.2em; }
 .profile-identity-copy h1 { margin: 0; font-size: clamp(42px, 5.2vw, 72px); font-weight: 920; letter-spacing: -0.06em; line-height: 0.96; }
 .profile-signature { max-width: 580px; margin: 20px 0 0; color: rgba(var(--profile-hero-ink-rgb), 0.68); font-size: 13px; font-weight: 560; line-height: 1.75; }
