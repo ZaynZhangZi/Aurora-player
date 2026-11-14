@@ -10,6 +10,7 @@
           <nav class="settings-tabs" role="tablist" aria-label="设置分类" @keydown="onTabKeydown">
             <button id="settings-tab-appearance" type="button" role="tab" :aria-selected="section === 'appearance'" aria-controls="settings-appearance" :tabindex="section === 'appearance' ? 0 : -1" @click="section = 'appearance'"><Squares2X2Icon /><span>外观</span></button>
             <button id="settings-tab-playback" type="button" role="tab" :aria-selected="section === 'playback'" aria-controls="settings-playback" :tabindex="section === 'playback' ? 0 : -1" @click="section = 'playback'"><MusicalNoteIcon /><span>播放</span></button>
+            <button id="settings-tab-install" type="button" role="tab" :aria-selected="section === 'install'" aria-controls="settings-install" :tabindex="section === 'install' ? 0 : -1" @click="section = 'install'"><AppIcon name="download" /><span>安装应用</span></button>
           </nav>
           <div class="settings-content">
             <section v-show="section === 'appearance'" id="settings-appearance" role="tabpanel" aria-labelledby="settings-tab-appearance" tabindex="0">
@@ -39,6 +40,23 @@
                 <div class="settings-track-actions"><button type="button" :disabled="!hasSong" @click="emit('playlist')"><QueueListIcon />播放列表 <small>{{ queueLength }} 首</small></button><button type="button" :disabled="!shareAvailable" @click="emit('share')"><ArrowUpTrayIcon />分享歌词</button></div>
               </div>
             </section>
+            <section v-show="section === 'install'" id="settings-install" role="tabpanel" aria-labelledby="settings-tab-install" tabindex="0">
+              <div class="settings-install-card">
+                <img src="/pwa/icon-192.png" width="48" height="48" alt="" />
+                <div class="settings-section-heading">
+                  <h3>安装 Aurora Player</h3>
+                  <p>从桌面或主屏幕打开，在独立窗口听歌。</p>
+                </div>
+              </div>
+              <div class="settings-install-actions">
+                <button v-if="canInstall || installing" type="button" class="settings-install-button" :disabled="installing" @click="installApp">
+                  <AppIcon name="download" :size="16" />{{ installing ? '等待确认…' : '安装应用' }}
+                </button>
+                <p v-else-if="installed" class="settings-install-state" role="status"><CheckCircleIcon />已安装</p>
+                <p v-else class="settings-install-guide">{{ installGuide }}</p>
+              </div>
+              <p v-if="installFailed && !installed" class="settings-hint" role="status">浏览器未能打开安装窗口，请按上方步骤安装。</p>
+            </section>
           </div>
         </div>
         <footer class="settings-footer"><CheckCircleIcon /><span>偏好会自动保存</span></footer>
@@ -49,10 +67,12 @@
 
 <script setup>
 import {nextTick, onBeforeUnmount, ref, watch} from 'vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 import {ArrowUpTrayIcon, CheckCircleIcon, CheckIcon, MusicalNoteIcon, QueueListIcon, Squares2X2Icon, XMarkIcon} from '@/components/icons'
 import PlayerAppearancePicker from '@/components/globalFooterPlayer/PlayerAppearancePicker.vue'
 import {AUDIO_QUALITY_OPTIONS, qualityLabel, qualityRank} from '@/utils/player/audioQuality.js'
 import {lockScroll, unlockScroll} from '@/utils/scrollLock.js'
+import {usePwaInstall} from '@/composables/usePwaInstall.js'
 
 const props = defineProps({open: Boolean, automixEnabled: Boolean, playMode: {type: String, default: 'sequence'},
   selectedQuality: {type: String, default: 'exhigh'}, currentQuality: {type: String, default: 'standard'},
@@ -62,7 +82,37 @@ const emit = defineEmits(['close', 'after-close', 'toggle-automix', 'play-mode',
 const dialogRef = ref(null)
 const visible = ref(false)
 const section = ref('appearance')
+const sections = ['appearance', 'playback', 'install']
+const {canInstall, installed, installing, requestInstall} = usePwaInstall()
+const installFailed = ref(false)
+const installGuide = getInstallGuide()
 let backdropPressed = false, scrollLocked = false, returnFocus = null, closeTimer = 0, turn = 0
+
+function getInstallGuide() {
+  const agent = navigator.userAgent
+  if (!window.isSecureContext) return '请通过 HTTPS 打开本站，再安装应用。'
+  if (/iPhone|iPad|iPod/i.test(agent) || (/Macintosh/i.test(agent) && navigator.maxTouchPoints > 1)) {
+    return '在 Safari 点「分享」→「添加到主屏幕」。若看到「作为网页 App 打开」，请将其开启。'
+  }
+  if (/Android/i.test(agent)) return '打开浏览器菜单，选择「安装应用」或「添加到主屏幕」。'
+  if (/Macintosh.*Safari/i.test(agent) && !/Chrome|Chromium|Edg|OPR/i.test(agent)) {
+    return '在 Safari 菜单栏选择「文件」→「添加到程序坞」。'
+  }
+  return '在 Chrome 或 Edge 的地址栏或浏览器菜单里，选择「安装 Aurora Player」。'
+}
+
+async function installApp() {
+  installFailed.value = false
+  try {
+    await requestInstall()
+  } catch {
+    installFailed.value = true
+  }
+  await nextTick()
+  if (props.open && section.value === 'install' && !canInstall.value) {
+    dialogRef.value?.querySelector('#settings-install')?.focus({preventScroll: true})
+  }
+}
 
 function finishClose(notify = true) {
   const wasOpen = dialogRef.value?.open || scrollLocked
@@ -100,7 +150,11 @@ function onDialogKeydown(event) {
 function onTabKeydown(event) {
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  section.value = event.key === 'Home' ? 'appearance' : event.key === 'End' ? 'playback' : section.value === 'appearance' ? 'playback' : 'appearance'
+  const step = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1
+  const index = sections.indexOf(section.value)
+  if (event.key === 'Home') section.value = sections[0]
+  else if (event.key === 'End') section.value = sections.at(-1)
+  else section.value = sections[(index + step + sections.length) % sections.length]
   nextTick(() => dialogRef.value?.querySelector('[role="tab"][aria-selected="true"]')?.focus())
 }
 watch(() => props.open, async opened => {
@@ -166,6 +220,16 @@ onBeforeUnmount(() => {turn++; clearTimeout(closeTimer); finishClose(false)})
 .settings-track-actions button { display: flex; min-height: 40px; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid #e5e5eb; border-radius: 10px; color: #62626c; background: #fff; font: inherit; font-size: 12px; cursor: pointer; }
 .settings-track-actions svg { width: 17px; }
 .settings-track-actions small { color: #a0a0aa; font-size: 10px; }
+.settings-install-card { display: flex; align-items: center; gap: 14px; }
+.settings-install-card img { flex: none; border-radius: 12px; }
+.settings-install-card .settings-section-heading { margin: 0; }
+.settings-install-actions { margin-top: 20px; }
+.settings-install-button, .settings-install-state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.settings-install-button { min-height: 44px; padding: 0 14px; border: 0; border-radius: 10px; color: #fff; background: #9a4053; cursor: pointer; }
+.settings-install-button:hover:not(:disabled) { background: #813446; }
+.settings-install-state { margin: 0; color: #3f6a5b; }
+.settings-install-state svg { width: 17px; height: 17px; }
+.settings-install-guide { margin: 0; padding: 12px 14px; border-radius: 10px; color: #50505c; background: #f0f0f4; font-size: 13px; line-height: 1.65; }
 .settings-footer { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 13px 28px; border-top: 1px solid #ececef; color: #a0a0aa; background: #fff; font-size: 10px; }
 .settings-footer svg { width: 14px; }
 button:disabled { opacity: .45; cursor: default; }
@@ -178,7 +242,7 @@ button:focus-visible, select:focus-visible, [role="tabpanel"]:focus-visible, inp
   .settings-header p { font-size: 11px; }
   .settings-body { flex-direction: column; }
   .settings-tabs { width: auto; flex-direction: row; padding: 10px 16px; border-right: 0; border-bottom: 1px solid #eaeaf0; }
-  .settings-tabs button { flex: 1; justify-content: center; }
+  .settings-tabs button { flex: 1; justify-content: center; gap: 5px; padding-inline: 6px; white-space: nowrap; }
   .settings-content { padding: 22px 18px; }
   .settings-footer { padding: 12px 20px; }
 }

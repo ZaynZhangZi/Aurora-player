@@ -7,6 +7,7 @@ import App from "./MaintenanceGate.vue";
 import router, { showRouteError } from "./router";
 import { installBehaviorTracker } from "./utils/behaviorTracker.js";
 import { preloadRouteComponents } from "./utils/appBootstrap.js";
+import { initPwaInstall } from "./composables/usePwaInstall.js";
 import { maintenanceDirective } from "./directives/maintenance.js";
 import MaintenanceFeature from "./components/maintenance/MaintenanceFeature.vue";
 
@@ -21,6 +22,7 @@ if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_PERF_DEBUG === 'true') {
   });
 }
 
+initPwaInstall();
 const app = createApp(App);
 app.directive('maintenance', maintenanceDirective);
 app.directive('detail-prefetch', createDetailPrefetchDirective(router));
