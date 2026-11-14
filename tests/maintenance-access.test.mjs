@@ -9,7 +9,7 @@ import { MAINTENANCE_TARGETS, routeMaintenanceKey, isTargetAvailable, resolveMai
 const settings = targets => parseMaintenanceStatus({ ...DEFAULT_MAINTENANCE, targets });
 beforeEach(() => { updateMaintenanceSettings(settings({})); dismissTargetMaintenance(); });
 
-test('every business route and its aliases share a registered page switch; both applications use the same catalog', () => {
+test('every web route has a page switch and the admin also manages desktop audio controls', () => {
   const source = readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8');
   const names = [...source.matchAll(/name:\s*'([^']+)',\s*component:/g)].map(match => match[1])
     .filter(name => !['routeError', 'notFound', 'maintenance'].includes(name));
@@ -19,7 +19,12 @@ test('every business route and its aliases share a registered page switch; both 
   assert.equal(routeMaintenanceKey('routeError'), '');
   assert.equal(new Set(MAINTENANCE_TARGETS.map(target => target.key)).size, MAINTENANCE_TARGETS.length);
   const adminCatalog = new URL('../../../backend/backend-fornt/AuroraPlayeradmin-panel/src/config/maintenanceTargets.json', import.meta.url);
-  if (existsSync(adminCatalog)) assert.deepEqual(JSON.parse(readFileSync(adminCatalog, 'utf8')), MAINTENANCE_TARGETS);
+  if (existsSync(adminCatalog)) {
+    const desktopAudioKeys = ['page.audioStudio', 'feature.speakerGroup', 'feature.spatialMixer'];
+    const adminTargets = JSON.parse(readFileSync(adminCatalog, 'utf8'));
+    assert.deepEqual(adminTargets.filter(target => desktopAudioKeys.includes(target.key)).map(target => target.key), desktopAudioKeys);
+    assert.deepEqual(adminTargets.filter(target => !desktopAudioKeys.includes(target.key)), MAINTENANCE_TARGETS);
+  }
 });
 
 test('page and site maintenance use a route while features use dismissible dialogs', () => {

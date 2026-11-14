@@ -65,8 +65,7 @@ export default defineConfig(({ mode }) => {
 			entries: ['index.html'],
 			include: ['vue', 'vue-router', 'pinia', 'react', 'react-dom/client', 'framer-motion',
 				'lucide-react', 'react-i18next', 'i18next', '@react-three/fiber', 'three',
-				'@chenglou/pretext', '@chenglou/pretext/rich-inline', '@applemusic-like-lyrics/ttml', '@xmldom/xmldom', '@paper-design/shaders-react',
-				'onnxruntime-web/wasm', 'fft.js'],
+				'@chenglou/pretext', '@chenglou/pretext/rich-inline', '@applemusic-like-lyrics/ttml', '@xmldom/xmldom', '@paper-design/shaders-react'],
 			exclude: ['vite-plugin-vue-devtools'],
 		},
 		server: {

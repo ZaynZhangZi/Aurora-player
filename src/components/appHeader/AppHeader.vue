@@ -9,13 +9,11 @@
       <nav class="aurora-nav" aria-label="主导航">
         <button type="button" data-route-prefetch="home" :class="{ 'is-active': isHome }" @click="goHome">首页</button>
         <button type="button" data-route-prefetch="discover" :class="{ 'is-active': isDiscover }" @click="openDiscover">发现</button>
-        <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile || isSmartPlaylists || isAudioStudio }" @click="openProfile">音乐库</button>
+        <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile || isSmartPlaylists }" @click="openProfile">音乐库</button>
         <button type="button" data-route-prefetch="search" :class="{ 'is-active': isSearch }" @click="openSearch">搜索</button>
-        <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="router.push({name:'musicAssistant'})">AI 选歌</button>
       </nav>
 
       <div class="aurora-header-actions">
-        <button class="aurora-assistant" type="button" data-route-prefetch="musicAssistant" aria-label="打开 AI 音乐助手" title="AI 音乐助手" @click="router.push({name:'musicAssistant'})"><AppIcon name="sparkles" /></button>
         <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
         <div ref="profileMenuRef" class="aurora-profile-wrap">
           <MembershipBadge v-if="userStore.isLoggedIn" :tier="userStore.membershipTier" />
@@ -40,11 +38,6 @@
                 <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
               </header>
               <nav aria-label="个人功能">
-                <button type="button" data-route-prefetch="musicAssistant" :class="{'is-active':isMusicAssistant}" @click="profileMenuOpen=false;router.push({name:'musicAssistant'})"><AppIcon name="sparkles" /><span><strong>AI 音乐助手</strong><small>把想听的，说给我</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b></button>
-                <button type="button" data-route-prefetch="audioStudio" :class="{'is-active':isAudioStudio}" @click="profileMenuOpen=false; router.push({name:'audioStudio'})">
-                  <AppIcon name="audio-lines" />
-                  <span><strong>音频实验室</strong><small>同步音响与空间混音</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
-                </button>
                 <button type="button" data-route-prefetch="smartPlaylists" :class="{'is-active':isSmartPlaylists}" @click="profileMenuOpen=false; router.push({name:'smartPlaylists'})">
                   <AppIcon name="sliders-horizontal" />
                   <span><strong>智能歌单</strong><small>让喜欢的歌自动找到位置</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
@@ -104,8 +97,6 @@ const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCe
 // 详情悬浮层打开时背景路由保持不变，导航高亮天然正确。
 const isProfile = computed(() => String(route.name || '') === 'profile')
 const isSmartPlaylists = computed(() => String(route.name || '') === 'smartPlaylists')
-const isAudioStudio = computed(() => String(route.name || '') === 'audioStudio')
-const isMusicAssistant = computed(() => String(route.name || '') === 'musicAssistant')
 const isHome = computed(() => String(route.name || '') === 'home')
 const isDiscover = computed(() => String(route.name || '') === 'discover')
 const isSearch = computed(() => String(route.name || '') === 'search')
@@ -323,11 +314,10 @@ watch(() => route.fullPath, () => {
 .aurora-brand { grid-column: 1; }
 .aurora-nav { grid-column: 2; }
 .aurora-header-actions { grid-column: 3; display: flex; align-items: center; gap: 16px; }
-.aurora-settings,.aurora-assistant { display: flex; min-height: 40px; min-width: 40px; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; border: 0; border-radius: 12px; color: #73737d; background: transparent; font: inherit; font-size: 12px; cursor: pointer; transition: background 150ms, color 150ms; }
-.aurora-settings:hover,.aurora-assistant:hover { color: #3c3c45; background: #eaeaf0; }
-.aurora-settings:focus-visible,.aurora-assistant:focus-visible { outline: 2px solid #ee8493; outline-offset: 3px; }
-.aurora-settings svg,.aurora-assistant svg { width: 20px; height: 20px; }
-.aurora-assistant { display: none; }
+.aurora-settings { display: flex; min-height: 40px; min-width: 40px; align-items: center; justify-content: center; gap: 7px; padding: 8px 10px; border: 0; border-radius: 12px; color: #73737d; background: transparent; font: inherit; font-size: 12px; cursor: pointer; transition: background 150ms, color 150ms; }
+.aurora-settings:hover { color: #3c3c45; background: #eaeaf0; }
+.aurora-settings:focus-visible { outline: 2px solid #ee8493; outline-offset: 3px; }
+.aurora-settings svg { width: 20px; height: 20px; }
 
 .aurora-brand,
 .aurora-nav button,
@@ -380,9 +370,8 @@ watch(() => route.fullPath, () => {
 .aurora-header.is-over-hero .aurora-nav button:hover,
 .aurora-header.is-over-hero .aurora-nav button.is-active { color: #fff; }
 .aurora-header.is-over-hero .aurora-nav button,
-.aurora-header.is-over-hero .aurora-settings,
-.aurora-header.is-over-hero .aurora-assistant { color: rgba(255, 255, 255, 0.8); }
-.aurora-header.is-over-hero .aurora-settings:hover,.aurora-header.is-over-hero .aurora-assistant:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.aurora-header.is-over-hero .aurora-settings { color: rgba(255, 255, 255, 0.8); }
+.aurora-header.is-over-hero .aurora-settings:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .aurora-header.is-over-hero .aurora-profile.is-guest { color: #fff; border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.12); }
 .aurora-profile-menu { position: absolute; top: calc(100% + 14px); right: -4px; z-index: 120; width: 286px; overflow: hidden; padding: 8px; border: 1px solid rgba(24, 24, 27, .08); border-radius: 22px; background: rgba(255, 255, 255, .97); box-shadow: 0 24px 64px rgba(24, 24, 27, .16); backdrop-filter: blur(24px); }
 .aurora-profile-menu > header { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 10px 13px; border-bottom: 1px solid #ececef; }
@@ -414,7 +403,6 @@ watch(() => route.fullPath, () => {
 
 @media (max-width: 1080px) {
   .aurora-nav { display: none; }
-  .aurora-assistant { display: flex; }
 }
 
 @media (max-width: 820px) {

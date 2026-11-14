@@ -104,6 +104,8 @@ const router = createRouter({
     { path: '/home/playlistDetail', redirect: legacyDetailRedirect('playlist') },
     // 旧「个人中心内嵌歌单详情」：优先打开歌单详情，无 id 时回到个人中心
     { path: '/home/profile/playlistDetail', redirect: legacyDetailRedirect('playlist', 'profile') },
+    { path: '/audio-studio', redirect: { name: 'home', query: {}, hash: '' } },
+    { path: '/music-assistant', redirect: { name: 'home', query: {}, hash: '' } },
 
     {
       path: '/discover',
@@ -122,22 +124,10 @@ const router = createRouter({
       meta: { title: '曲风详情' },
     },
     {
-      path: '/audio-studio',
-      name: 'audioStudio',
-      component: () => import('@/view/audioStudio/audioStudio.vue'),
-      meta: {title:'音频实验室'},
-    },
-    {
       path: '/smart-playlists',
       name: 'smartPlaylists',
       component: () => import('@/view/smartPlaylists/smartPlaylists.vue'),
       meta: {title: '智能歌单'},
-    },
-    {
-      path: '/music-assistant',
-      name: 'musicAssistant',
-      component: () => import('@/view/musicAssistant/musicAssistant.vue'),
-      meta: {title: 'AI 音乐助手'},
     },
     {
       path: '/search',
