@@ -364,10 +364,16 @@ function animateCover(
   );
 }
 
-async function waitForAnimations(animations) {
-  await Promise.all(
-    animations.map((animation) => animation.finished.catch(() => {})),
-  );
+async function waitForAnimations(animations, duration) {
+  let timer;
+  try {
+    await Promise.race([
+      Promise.all(animations.map((animation) => animation.finished.catch(() => {}))),
+      new Promise((resolve) => { timer = window.setTimeout(resolve, duration + 200); }),
+    ]);
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 export function usePlayerFullscreenTransition({
@@ -382,17 +388,16 @@ export function usePlayerFullscreenTransition({
 }) {
   const transitioning = ref(false);
   let activeRun = null;
-  let pendingWrapperLock = null;
   let disposed = false;
 
-  function cleanupRun(run, {restoreWrapper = true} = {}) {
+  function cleanupRun(run) {
     if (!run || run.cleaned) return;
     run.cleaned = true;
     run.removeViewportListeners?.();
     run.animations.forEach((animation) => animation.cancel());
     run.restoreTargetCover?.();
     run.restoreMiniShell?.();
-    if (restoreWrapper) run.restoreWrapper?.();
+    run.restoreWrapper?.();
     if (run.stage?.parentNode) run.stage.parentNode.removeChild(run.stage);
     if (activeRun === run) activeRun = null;
     transitioning.value = false;
@@ -423,51 +428,15 @@ export function usePlayerFullscreenTransition({
     };
   }
 
-  function clearPendingWrapperTimer() {
-    if (!pendingWrapperLock?.timer) return;
-    window.clearTimeout(pendingWrapperLock.timer);
-    pendingWrapperLock.timer = 0;
-  }
-
-  function releasePendingWrapperLock() {
-    if (!pendingWrapperLock) return;
-    clearPendingWrapperTimer();
-    pendingWrapperLock.restore?.();
-    pendingWrapperLock = null;
-  }
-
-  function claimWrapperRestore(wrapper) {
-    if (pendingWrapperLock?.wrapper !== wrapper) {
-      return preserveInlineStyles(wrapper, [
-        "transition",
-        "transform",
-        "opacity",
-        "pointer-events",
-        "border-radius",
-        "will-change",
-      ]);
-    }
-
-    clearPendingWrapperTimer();
-    const restore = pendingWrapperLock.restore;
-    pendingWrapperLock = null;
-    return restore;
-  }
-
-  function holdWrapperHiddenUntilUnmounted(wrapper, restore) {
-    releasePendingWrapperLock();
-    pendingWrapperLock = {wrapper, restore, timer: 0};
-
-    const releaseWhenDetached = () => {
-      if (!pendingWrapperLock || pendingWrapperLock.wrapper !== wrapper) return;
-      if (!wrapper.isConnected) {
-        releasePendingWrapperLock();
-        return;
-      }
-      pendingWrapperLock.timer = window.setTimeout(releaseWhenDetached, 80);
-    };
-
-    pendingWrapperLock.timer = window.setTimeout(releaseWhenDetached, 80);
+  function preserveWrapperStyles(wrapper) {
+    return preserveInlineStyles(wrapper, [
+      "transition",
+      "transform",
+      "opacity",
+      "pointer-events",
+      "border-radius",
+      "will-change",
+    ]);
   }
 
   function canAnimate(shell, cover) {
@@ -519,7 +488,7 @@ export function usePlayerFullscreenTransition({
         animations: [],
         cleaned: false,
         stage: null,
-        restoreWrapper: claimWrapperRestore(wrapper),
+        restoreWrapper: preserveWrapperStyles(wrapper),
         restoreMiniShell: preserveInlineStyles(miniShell, [
           "opacity",
           "pointer-events",
@@ -638,7 +607,7 @@ export function usePlayerFullscreenTransition({
         focusElement(wrapper.querySelector(".amll-prebuilt button"));
       });
 
-      await waitForAnimations(run.animations);
+      await waitForAnimations(run.animations, duration);
       if (disposed) {
         cleanupRun(run);
         return false;
@@ -692,7 +661,7 @@ export function usePlayerFullscreenTransition({
         animations: [],
         cleaned: false,
         stage: null,
-        restoreWrapper: claimWrapperRestore(wrapper),
+        restoreWrapper: preserveWrapperStyles(wrapper),
         restoreMiniShell: preserveInlineStyles(miniShell, [
           "opacity",
           "pointer-events",
@@ -784,43 +753,22 @@ export function usePlayerFullscreenTransition({
           COLLAPSE_EASING,
         ),
       );
-      watchViewportDuringRun(run, () => {
-        const restoreWrapper = run.restoreWrapper;
-        Object.assign(wrapper.style, {
-          transition: "none",
-          transform: "translateY(0)",
-          opacity: "0",
-          pointerEvents: "none",
-          borderRadius: "0",
-        });
+      const finishClose = () => {
         blurFocusWithin(wrapper);
         commitOverlayOpened(false);
-        cleanupRun(run, {restoreWrapper: false});
-        holdWrapperHiddenUntilUnmounted(wrapper, restoreWrapper);
+        cleanupRun(run);
         void nextTick(() => focusElement(miniCover));
-      });
+      };
+      watchViewportDuringRun(run, finishClose);
 
-      await waitForAnimations(run.animations);
+      await waitForAnimations(run.animations, closeDuration);
       if (disposed) {
         cleanupRun(run);
         return false;
       }
       if (run.cleaned) return true;
 
-      wrapper.style.opacity = "0";
-      blurFocusWithin(wrapper);
-      commitOverlayOpened(false);
-      const restoreWrapper = run.restoreWrapper;
-      Object.assign(wrapper.style, {
-        transition: "none",
-        transform: "translateY(0)",
-        opacity: "0",
-        pointerEvents: "none",
-        borderRadius: "0",
-      });
-      cleanupRun(run, {restoreWrapper: false});
-      holdWrapperHiddenUntilUnmounted(wrapper, restoreWrapper);
-      void nextTick(() => focusElement(miniCover));
+      finishClose();
       return true;
     } catch {
       cleanupRun(run);
@@ -837,7 +785,6 @@ export function usePlayerFullscreenTransition({
   function disposeFullscreenTransition() {
     disposed = true;
     cleanupRun(activeRun);
-    releasePendingWrapperLock();
   }
 
   return {

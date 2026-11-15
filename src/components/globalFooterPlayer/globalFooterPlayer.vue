@@ -418,6 +418,7 @@
           :low-freq-volume="amllLowFreqVolume"
           :play-mode="playerStore.playMode"
           :share-available="canShareLyrics"
+          @renderer-error="onLyricRendererError"
           @play-or-pause="togglePlay"
           @prev="playPrevSong"
           @next="playNextSong"
@@ -750,6 +751,8 @@ const playerStore = usePlayerStore();
 const {playerAppearance} = usePlayerAppearance();
 const fullPlayer = shallowRef(null);
 let preparingPlayer;
+let openingLyricPage = false;
+const PLAYER_LOAD_TIMEOUT_MS = 8000;
 const lyricsAvailable = () => isTargetAvailable(getMaintenanceSnapshot().settings, 'feature.lyrics');
 
 async function loadFullPlayer(appearance) {
@@ -769,12 +772,17 @@ function prepareFullPlayer() {
 
   const preparation = {appearance, ready: null};
   preparingPlayer = preparation;
-  preparation.ready = loadFullPlayer(appearance).then(async (component) => {
-    if (preparingPlayer !== preparation || playerAppearance.value !== appearance || !lyricsAvailable()) return false;
+  let loadTimer;
+  preparation.ready = Promise.race([
+    loadFullPlayer(appearance),
+    new Promise(resolve => { loadTimer = window.setTimeout(resolve, PLAYER_LOAD_TIMEOUT_MS); }),
+  ]).then(async (component) => {
+    if (!component || preparingPlayer !== preparation || playerAppearance.value !== appearance || !lyricsAvailable()) return false;
     fullPlayer.value = {appearance, component};
     await nextTick();
-    return true;
+    return fullPlayer.value?.component === component;
   }).catch(() => false).finally(() => {
+    window.clearTimeout(loadTimer);
     if (preparingPlayer === preparation) preparingPlayer = null;
   });
   return preparation.ready;
@@ -914,13 +922,10 @@ const {
   amllOpened,
   amllMounted,
   prepareLyricPage,
-  openLyricPage: openLyricOverlay,
   onAmllOpenedChange: commitAmllOpenedChange,
   disposeLyricOverlay,
 } = usePlayerLyricOverlay({
   hasSong: () => hasSong.value,
-  nextTick,
-  requestFrame: (cb) => requestAnimationFrame(cb),
   clearTimer: (id) => window.clearTimeout(id),
   setTimer: (cb, ms) => window.setTimeout(cb, ms),
 });
@@ -953,35 +958,41 @@ const {
 });
 
 async function openLyricPage() {
-  if (!hasSong.value || !requireFeature('feature.lyrics')) return;
-  const appearance = playerAppearance.value;
-  const ready = await prepareFullPlayer();
-  if (!hasSong.value || amllOpened.value || appearance !== playerAppearance.value || !lyricsAvailable()) return;
-  if (!ready) {
-    showPlaybackNotice({kind: 'network', title: '暂时无法打开歌词页', message: '请检查网络后再点一次封面。'});
-    return;
+  if (openingLyricPage || amllOpened.value || !hasSong.value || !requireFeature('feature.lyrics')) return;
+  openingLyricPage = true;
+  try {
+    const appearance = playerAppearance.value;
+    const ready = await prepareFullPlayer();
+    if (!hasSong.value || appearance !== playerAppearance.value || !lyricsAvailable()) return;
+    if (!ready) {
+      showLyricPageError();
+      return;
+    }
+    if (!prepareLyricPage()) return;
+    const focusedElement = document.activeElement;
+    if (playerShellRef.value?.contains(focusedElement)) focusedElement.blur?.();
+    commitAmllOpenedChange(true);
+    await nextTick();
+    if (!amllOpened.value) return;
+    const host = amllHostRef.value;
+    const control = host?.querySelector("[data-player-close], .amll-prebuilt button, [data-folia-surface]") || host;
+    control?.focus({preventScroll: true});
+  } finally {
+    openingLyricPage = false;
   }
-  const focusedElement = document.activeElement;
-  if (
-    playerShellRef.value?.contains(focusedElement) &&
-    typeof focusedElement?.blur === "function"
-  ) {
-    focusedElement.blur();
-  }
-  openLyricOverlay();
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      if (!amllOpened.value) return;
-      const fullscreenControl = amllHostRef.value?.querySelector(
-        "[data-player-close], .amll-prebuilt button, [data-folia-surface]",
-      ) || amllHostRef.value;
-      try {
-        fullscreenControl?.focus({preventScroll: true});
-      } catch {
-        fullscreenControl?.focus();
-      }
-    });
-  });
+}
+
+function showLyricPageError() {
+  showPlaybackNotice({kind: 'network', title: '暂时无法打开歌词页', message: '请稍后再点一次封面。'});
+}
+
+function onLyricRendererError() {
+  if (fullPlayer.value?.appearance !== 'amll') return;
+  fullPlayer.value = null;
+  if (!amllOpened.value) return;
+  commitAmllOpenedChange(false);
+  showLyricPageError();
+  void nextTick(() => getVisibleMiniCover()?.focus({preventScroll: true}));
 }
 
 function onAmllOpenedChange(nextOpened) {
@@ -1010,6 +1021,13 @@ function handleFullscreenKeydown(event) {
   if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
     event.preventDefault();
     (event.shiftKey ? last : first).focus({preventScroll: true});
+  }
+}
+
+function handleUnfocusedLyricEscape(event) {
+  if (event.key === 'Escape' && document.activeElement === document.body
+    && !settingsOpen.value && !playlistPanelOpen.value && !lyricShare.open) {
+    handleFullscreenKeydown(event);
   }
 }
 
@@ -2792,6 +2810,7 @@ watch([currentTimeMs, durationMs], () => {
 });
 
 onMounted(() => {
+  document.addEventListener('keydown', handleUnfocusedLyricEscape);
   void prepareFullPlayer().then(async () => {
     let request;
     do {
@@ -2889,6 +2908,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleUnfocusedLyricEscape);
   disposeFoliaAnalyser();
   if (fullscreenScrollLocked) {
     unlockScroll();

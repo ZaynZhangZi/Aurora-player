@@ -26,10 +26,6 @@
               <span>UID {{ profile.userId || '-' }}</span>
               <span>{{ locationText }}</span>
               <span>Lv.{{ level.level || 0 }}</span>
-              <button class="profile-logout-trigger" type="button" @click="openLogoutDialog">
-                退出登录
-                <AppIcon name="log-out" aria-hidden="true" />
-              </button>
             </div>
           </div>
         </div>
@@ -393,34 +389,6 @@
   <Teleport to="body">
     <Transition name="profile-logout-dialog">
       <div
-        v-if="logoutDialogOpen"
-        class="profile-logout-layer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="profile-logout-title"
-        @keydown.esc="closeLogoutDialog"
-      >
-        <button class="profile-logout-backdrop" type="button" aria-label="取消退出" @click="closeLogoutDialog" />
-        <section class="profile-logout-panel">
-          <span class="profile-logout-mark" aria-hidden="true">
-            <AppIcon name="heart" />
-          </span>
-          <p>ACCOUNT SESSION</p>
-          <h2 id="profile-logout-title">要退出当前账号吗？</h2>
-          <span class="profile-logout-description">退出后将停止同步个人歌单与聆听记录，本地收藏不会因此被删除。</span>
-          <span v-if="logoutError" class="profile-logout-error">{{ logoutError }}</span>
-          <div class="profile-logout-actions">
-            <button type="button" :disabled="logoutPending" @click="closeLogoutDialog">继续使用</button>
-            <button class="is-confirm" type="button" :disabled="logoutPending" @click="confirmLogout">
-              {{ logoutPending ? '正在退出...' : '确认退出' }}
-            </button>
-          </div>
-        </section>
-      </div>
-    </Transition>
-
-    <Transition name="profile-logout-dialog">
-      <div
         v-if="cloudDeleteTarget"
         class="profile-logout-layer profile-cloud-delete-layer"
         role="dialog"
@@ -455,7 +423,7 @@ import { requireFeature } from '@/utils/maintenanceAccess.js'
 import { useFeatureMaintenance } from '@/composables/useMaintenanceAccess.js'
 defineOptions({ name: 'ProfilePage' })
 import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
+import {useRoute} from 'vue-router'
 import chroma from 'chroma-js'
 import {useCounterStore} from '@/stores/userStores.js'
 import {userApi} from '@/api/userApi/userApi.js'
@@ -474,7 +442,6 @@ const libraryCoverAttrs = value => responsiveImageAttrs(value, {
 })
 
 const route = useRoute()
-const router = useRouter()
 const {openDetail} = useDetailNavigation()
 const userStore = useCounterStore()
 
@@ -482,9 +449,6 @@ const loading = ref(true)
 const error = ref('')
 const activeTab = ref('playlist')
 const avatarLoadFailed = ref(false)
-const logoutDialogOpen = ref(false)
-const logoutPending = ref(false)
-const logoutError = ref('')
 
 const profile = ref({
   userId: userStore.userId,
@@ -559,34 +523,6 @@ function resolveHeroCanvasDpr(width, height) {
   const deviceDpr = Math.min(window.devicePixelRatio || 1, 1.5)
   const budgetDpr = Math.sqrt(HERO_CANVAS_MAX_PIXELS / Math.max(1, width * height))
   return Math.min(deviceDpr, Math.max(0.75, budgetDpr))
-}
-
-function openLogoutDialog() {
-  logoutError.value = ''
-  logoutDialogOpen.value = true
-}
-
-function closeLogoutDialog() {
-  if (logoutPending.value) return
-  logoutDialogOpen.value = false
-  logoutError.value = ''
-}
-
-async function confirmLogout() {
-  if (logoutPending.value) return
-  logoutPending.value = true
-  logoutError.value = ''
-
-  try {
-    await userApi.logout()
-  } catch {
-    // 远程会话失效时仍清理本地登录态，保证用户可以正常退出。
-  }
-
-  userStore.logout()
-  logoutPending.value = false
-  logoutDialogOpen.value = false
-  await router.replace({name: 'home'})
 }
 
 const liquidBlobs = [
@@ -2081,9 +2017,6 @@ useFeatureMaintenance('feature.listeningProfile', () => activeTab.value === 'lis
 .profile-signature { max-width: 580px; margin: 20px 0 0; color: rgba(var(--profile-hero-ink-rgb), 0.68); font-size: 13px; font-weight: 560; line-height: 1.75; }
 .profile-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .profile-meta span { padding: 7px 11px; color: rgba(var(--profile-hero-ink-rgb), 0.72); border: 1px solid rgba(var(--profile-hero-ink-rgb), 0.13); border-radius: 999px; background: rgba(var(--profile-hero-ink-rgb), 0.055); font-size: 10px; font-weight: 720; backdrop-filter: blur(10px); }
-.profile-logout-trigger { display: inline-flex; min-height: 30px; align-items: center; gap: 7px; padding: 0 12px; cursor: pointer; color: rgba(var(--profile-hero-ink-rgb), 0.62); border: 1px solid rgba(var(--profile-hero-ink-rgb), 0.13); border-radius: 999px; background: rgba(255, 255, 255, 0.18); font: inherit; font-size: 10px; font-weight: 740; backdrop-filter: blur(10px); transition: color 180ms ease, background 180ms ease, transform 180ms ease; }
-.profile-logout-trigger:hover { color: #a74e59; background: rgba(255, 255, 255, 0.48); transform: translateY(-1px); }
-.profile-logout-trigger svg { width: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
 .profile-logout-layer { position: fixed; inset: 0; z-index: 1640; display: grid; place-items: center; padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
 .profile-logout-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; border: 0; background: rgba(28, 27, 30, 0.32); backdrop-filter: blur(14px) saturate(0.9); }

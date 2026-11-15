@@ -141,6 +141,44 @@ async function openFullscreen() {
   await evaluate("document.querySelector('.player-cover-button').click()")
   await until("document.querySelector('.amll-wrapper.is-opened')")
 }
+
+async function verifyRetainedLyricsReopen() {
+  await openFullscreen()
+  await until("document.querySelector('.amll-wrapper.is-opened .amll-prebuilt')")
+  await delay(600)
+  await evaluate("window.retainedLyricWrapper = document.querySelector('.amll-wrapper.is-opened')")
+  await closeFullscreen()
+  assert.ok(await evaluate("window.retainedLyricWrapper.isConnected"), 'Default renderer should stay preloaded')
+  assert.ok(await evaluate("document.body.style.overflow !== 'hidden' && !document.querySelector('.player-shell[inert]')"))
+  await openFullscreen()
+  await until("getComputedStyle(window.retainedLyricWrapper).opacity === '1' && getComputedStyle(window.retainedLyricWrapper).pointerEvents === 'auto'")
+
+  await evaluate(`(() => {
+    const animate = Element.prototype.animate;
+    window.restoreLyricAnimation = () => { Element.prototype.animate = animate };
+    window.stalledLyricAnimations = 0;
+    Element.prototype.animate = function (...args) {
+      const animation = animate.apply(this, args);
+      if (this === window.retainedLyricWrapper) {
+        animation.pause();
+        window.stalledLyricAnimations++;
+      }
+      return animation;
+    };
+    document.activeElement.blur();
+  })()`)
+  try {
+    await closeFullscreen()
+    assert.ok(await evaluate("window.stalledLyricAnimations > 0"), 'Missing animation timeout coverage')
+  } finally {
+    await evaluate("window.restoreLyricAnimation();delete window.restoreLyricAnimation;delete window.stalledLyricAnimations")
+  }
+  assert.ok(await evaluate("document.body.style.overflow !== 'hidden' && !document.querySelector('.player-fullscreen-transition-stage')"))
+  await openFullscreen()
+  await until("getComputedStyle(window.retainedLyricWrapper).pointerEvents === 'auto'")
+  await closeFullscreen()
+  await evaluate("delete window.retainedLyricWrapper")
+}
 async function chooseMode(mode) {
   await openSettings()
   const panel=await evaluate("(()=>{const rect=document.querySelector('.settings-shell').getBoundingClientRect();return {count:document.querySelectorAll('.app-settings-dialog .appearance-option').length,left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom,width:innerWidth,height:innerHeight}})()")
@@ -238,6 +276,7 @@ try {
   `})
   await send('Page.navigate', {url: `${base}/home`})
   await until(`document.querySelector('.player-cover-button') && document.querySelector('audio')?.readyState >= 1`)
+  await verifyRetainedLyricsReopen()
   await screenshot('header-home-desktop')
   await verifySettingsDismissal()
   await openSettings()

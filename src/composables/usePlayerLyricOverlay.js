@@ -4,8 +4,6 @@ const DEFAULT_UNMOUNT_DELAY = 560;
 
 export function usePlayerLyricOverlay({
   hasSong,
-  nextTick,
-  requestFrame,
   clearTimer,
   setTimer,
   unmountDelay = DEFAULT_UNMOUNT_DELAY,
@@ -25,19 +23,6 @@ export function usePlayerLyricOverlay({
     clearUnmountTimer();
     amllMounted.value = true;
     return true;
-  }
-
-  function openLyricPage() {
-    if (!prepareLyricPage()) return;
-    if (!amllOpened.value) {
-      nextTick(() => {
-        requestFrame(() => {
-          amllOpened.value = true;
-        });
-      });
-      return;
-    }
-    amllOpened.value = true;
   }
 
   function onAmllOpenedChange(nextOpened) {
@@ -64,7 +49,6 @@ export function usePlayerLyricOverlay({
     amllOpened,
     amllMounted,
     prepareLyricPage,
-    openLyricPage,
     onAmllOpenedChange,
     disposeLyricOverlay,
   };

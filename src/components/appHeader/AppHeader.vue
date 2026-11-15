@@ -15,13 +15,15 @@
 
       <div class="aurora-header-actions">
         <button class="aurora-settings" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-controls="app-settings" @click="openSettings"><Cog6ToothIcon /><span>设置</span></button>
-        <div ref="profileMenuRef" class="aurora-profile-wrap">
+        <div ref="profileMenuRef" class="aurora-profile-wrap" @focusout="handleProfileMenuFocusOut" @keydown.esc="handleProfileMenuEscape">
           <MembershipBadge v-if="userStore.isLoggedIn" :tier="userStore.membershipTier" />
           <button
+            ref="profileTriggerRef"
             class="aurora-profile"
             :class="{ 'is-guest': !userStore.isLoggedIn, 'has-unread': totalMessageBadge > 0 }"
             type="button"
             :aria-expanded="userStore.isLoggedIn ? profileMenuOpen : undefined"
+            :aria-controls="profileMenuOpen ? profileMenuId : undefined"
             :aria-label="userStore.isLoggedIn ? '打开个人菜单' : '登录网易云音乐'"
             @click="handleProfileClick"
           >
@@ -31,57 +33,83 @@
           </button>
 
           <Transition name="profile-menu">
-            <div v-if="userStore.isLoggedIn && profileMenuOpen" class="aurora-profile-menu">
-              <header>
+            <div v-if="userStore.isLoggedIn && profileMenuOpen" :id="profileMenuId" class="aurora-profile-menu">
+              <div class="profile-menu-identity">
                 <img v-if="userStore.avatarUrl" :src="userStore.avatarUrl" alt="" />
-                <span v-else>{{ profileInitial }}</span>
-                <div><small>SIGNED IN</small><strong>{{ userStore.nickname || '我的音乐空间' }}</strong></div>
-              </header>
-              <nav aria-label="个人功能">
-                <button type="button" data-route-prefetch="smartPlaylists" :class="{'is-active':isSmartPlaylists}" @click="profileMenuOpen=false; router.push({name:'smartPlaylists'})">
-                  <AppIcon name="sliders-horizontal" />
-                  <span><strong>智能歌单</strong><small>让喜欢的歌自动找到位置</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
+                <span v-else class="profile-menu-initial" aria-hidden="true">{{ profileInitial }}</span>
+                <div><strong>{{ userStore.nickname || '我的账号' }}</strong><span>网易云音乐账号</span></div>
+              </div>
+              <nav class="profile-menu-links" aria-label="个人功能">
+                <button class="profile-menu-row" type="button" data-route-prefetch="profile" :aria-current="isProfile ? 'page' : undefined" @click="openProfile">
+                  <AppIcon name="list-music" aria-hidden="true" />
+                  <span>我的音乐库</span>
+                  <AppIcon class="profile-menu-arrow" name="chevron-right" aria-hidden="true" />
                 </button>
-                <button type="button" @click="profileMenuOpen=false; openPlaybackRelay()">
-                  <AppIcon name="monitor-smartphone" />
-                  <span><strong>跨设备接力</strong><small>换一台设备，接着听</small></span><b><AppIcon name="arrow-up-right" :size="16" /></b>
+                <button class="profile-menu-row" type="button" data-route-prefetch="smartPlaylists" :aria-current="isSmartPlaylists ? 'page' : undefined" @click="openSmartPlaylists">
+                  <AppIcon name="sliders-horizontal" aria-hidden="true" />
+                  <span>智能歌单</span>
+                  <AppIcon class="profile-menu-arrow" name="chevron-right" aria-hidden="true" />
                 </button>
-                <button type="button" data-route-prefetch="messages" :class="{ 'is-active': isMessages }" @click="openMessages">
-                  <AppIcon name="messages-square" />
-                  <span><strong>消息中心</strong><small>通知与私信</small></span>
-                  <i v-if="totalMessageBadge">{{ badgeText(totalMessageBadge) }}</i><b v-else><AppIcon name="arrow-right" :size="16" /></b>
+                <button class="profile-menu-row" type="button" @click="openRelay">
+                  <AppIcon name="monitor-smartphone" aria-hidden="true" />
+                  <span>跨设备接力</span>
+                  <AppIcon class="profile-menu-arrow" name="chevron-right" aria-hidden="true" />
                 </button>
-                <button type="button" data-route-prefetch="moments" :class="{ 'is-active': isMoments }" @click="openMoments">
-                  <AppIcon name="music" />
-                  <span><strong>音乐动态</strong><small>关注与分享</small></span>
-                  <b><AppIcon name="arrow-right" :size="16" /></b>
+                <button class="profile-menu-row" type="button" data-route-prefetch="messages" :aria-current="isMessages ? 'page' : undefined" @click="openMessages">
+                  <AppIcon name="messages-square" aria-hidden="true" />
+                  <span>消息中心</span>
+                  <span v-if="totalMessageBadge" class="profile-menu-badge" :aria-label="`${totalMessageBadge} 条未读消息`">{{ badgeText(totalMessageBadge) }}</span>
+                  <AppIcon v-else class="profile-menu-arrow" name="chevron-right" aria-hidden="true" />
                 </button>
-                <button type="button" data-route-prefetch="profile" :class="{ 'is-active': isProfile }" @click="openProfile">
-                  <AppIcon name="file-text" />
-                  <span><strong>我的音乐库</strong><small>歌单、云盘与画像</small></span>
-                  <b><AppIcon name="arrow-right" :size="16" /></b>
+                <button class="profile-menu-row" type="button" data-route-prefetch="moments" :aria-current="isMoments ? 'page' : undefined" @click="openMoments">
+                  <AppIcon name="music" aria-hidden="true" />
+                  <span>音乐动态</span>
+                  <AppIcon class="profile-menu-arrow" name="chevron-right" aria-hidden="true" />
                 </button>
               </nav>
+              <div class="profile-menu-session">
+                <button class="profile-menu-row profile-menu-logout" type="button" :disabled="logoutPending" @click="openLogoutDialog">
+                  <AppIcon name="log-out" aria-hidden="true" />
+                  <span>退出登录</span>
+                </button>
+              </div>
             </div>
           </Transition>
         </div>
       </div>
     </div>
+    <dialog ref="logoutDialogRef" class="account-logout-dialog" :aria-labelledby="logoutTitleId" :aria-describedby="`${logoutTitleId}-description`" :aria-busy="logoutPending" @cancel.prevent="cancelLogout" @click.self="cancelLogout">
+      <div class="account-logout-content">
+        <span class="account-logout-icon" aria-hidden="true"><AppIcon name="log-out" /></span>
+        <div>
+          <h2 :id="logoutTitleId">退出当前账号？</h2>
+          <p :id="`${logoutTitleId}-description`">退出后将停止同步歌单与聆听记录。<br />本地收藏会保留。</p>
+        </div>
+      </div>
+      <div class="account-logout-actions">
+        <button type="button" autofocus :disabled="logoutPending" @click="cancelLogout">取消</button>
+        <button class="account-logout-confirm" type="button" :disabled="logoutPending" @click="confirmLogout">
+          {{ logoutPending ? '正在退出…' : '确认退出' }}
+        </button>
+      </div>
+    </dialog>
   </header>
 </template>
 
 <script setup>
 import AppIcon from "@/components/icons/AppIcon.vue"
 import MembershipBadge from '@/components/membership/MembershipBadge.vue'
-import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue'
+import {computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, useId, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useCounterStore} from '@/stores/userStores.js'
+import {userApi} from '@/api/userApi/userApi.js'
 import {useMessageCenter} from '@/composables/useMessageCenter.js'
 import {openLoginDialog} from '@/utils/loginDialog.js'
 import {openPlaybackRelay} from '@/composables/playbackRelayState.js'
 import {Cog6ToothIcon} from '@/components/icons'
 import {openAppSettings} from '@/composables/useAppSettings.js'
 import {preloadRouteComponent} from '@/utils/routePerformance.js'
+import {lockScroll, unlockScroll} from '@/utils/scrollLock.js'
 
 const props = defineProps({overlay: {type: Boolean, default: false}})
 const headerRef = ref(null)
@@ -90,7 +118,12 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useCounterStore()
 const profileMenuRef = ref(null)
+const profileTriggerRef = ref(null)
 const profileMenuOpen = ref(false)
+const profileMenuId = `profile-menu-${useId()}`
+const logoutTitleId = `account-logout-${useId()}`
+const logoutDialogRef = ref(null)
+const logoutPending = ref(false)
 const {noticeBadgeCount, privateBadgeCount, refreshMessageBadges} = useMessageCenter(userStore)
 
 // 背景冻结：AppHeader 始终位于主页子树内，route.name 即当前主页名；
@@ -150,11 +183,22 @@ function handleProfileClick() {
     return
   }
   profileMenuOpen.value = !profileMenuOpen.value
+  if (profileMenuOpen.value) profileTriggerRef.value?.focus({preventScroll: true})
 }
 
 function openSettings() {
   profileMenuOpen.value = false
   openAppSettings()
+}
+
+function openSmartPlaylists() {
+  profileMenuOpen.value = false
+  if (!isSmartPlaylists.value) router.push({name: 'smartPlaylists'})
+}
+
+function openRelay() {
+  profileMenuOpen.value = false
+  openPlaybackRelay()
 }
 
 function openMessages() {
@@ -178,7 +222,53 @@ function handleProfileMenuPointerDown(event) {
 }
 
 function handleProfileMenuEscape(event) {
-  if (event.key === 'Escape') profileMenuOpen.value = false
+  if (!profileMenuOpen.value || event.defaultPrevented) return
+  event.preventDefault()
+  event.stopPropagation()
+  profileMenuOpen.value = false
+  profileTriggerRef.value?.focus({preventScroll: true})
+}
+
+function handleProfileMenuFocusOut(event) {
+  if (!profileMenuRef.value?.contains(event.relatedTarget)) profileMenuOpen.value = false
+}
+
+function openLogoutDialog() {
+  const dialog = logoutDialogRef.value
+  if (!userStore.isLoggedIn || logoutPending.value || !dialog || dialog.open) return
+  profileMenuOpen.value = false
+  dialog.showModal()
+  lockScroll()
+}
+
+function closeLogoutDialog() {
+  if (!logoutDialogRef.value?.open) return
+  logoutDialogRef.value.close()
+  unlockScroll()
+}
+
+function cancelLogout() {
+  if (logoutPending.value) return
+  closeLogoutDialog()
+  profileTriggerRef.value?.focus({preventScroll: true})
+}
+
+async function confirmLogout() {
+  if (logoutPending.value || !userStore.isLoggedIn) return
+  const {userId, getUserCookie} = userStore
+  logoutPending.value = true
+  try {
+    await userApi.logout()
+  } catch {
+    // Local sign-out stays available if the remote session is unavailable.
+  } finally {
+    logoutPending.value = false
+  }
+  if (userStore.userId !== userId || userStore.getUserCookie !== getUserCookie) return
+  closeLogoutDialog()
+  userStore.logout()
+  profileTriggerRef.value?.focus({preventScroll: true})
+  await router.replace({name: 'home'})
 }
 
 async function openSearch() {
@@ -202,7 +292,6 @@ let shortcutBound = false
 function bindShortcut() {
   if (shortcutBound) return
   window.addEventListener('keydown', handleSearchShortcut)
-  window.addEventListener('keydown', handleProfileMenuEscape)
   window.addEventListener('pointerdown', handleProfileMenuPointerDown)
   shortcutBound = true
 }
@@ -210,7 +299,6 @@ function bindShortcut() {
 function unbindShortcut() {
   if (!shortcutBound) return
   window.removeEventListener('keydown', handleSearchShortcut)
-  window.removeEventListener('keydown', handleProfileMenuEscape)
   window.removeEventListener('pointerdown', handleProfileMenuPointerDown)
   shortcutBound = false
 }
@@ -265,14 +353,21 @@ onDeactivated(unbindShortcut)
 onBeforeUnmount(unbindShortcut)
 onDeactivated(unbindHeroBackdrop)
 onBeforeUnmount(unbindHeroBackdrop)
-
-watch(() => [userStore.isLoggedIn, userStore.userId], ([loggedIn]) => {
+onDeactivated(() => {
   profileMenuOpen.value = false
-  if (loggedIn) refreshHeaderMessages()
+  closeLogoutDialog()
+})
+onBeforeUnmount(closeLogoutDialog)
+
+watch(() => [userStore.getUserCookie, userStore.userId], ([cookie]) => {
+  profileMenuOpen.value = false
+  closeLogoutDialog()
+  if (cookie) refreshHeaderMessages()
 })
 
 watch(() => route.fullPath, () => {
   profileMenuOpen.value = false
+  closeLogoutDialog()
 })
 </script>
 
@@ -373,29 +468,178 @@ watch(() => route.fullPath, () => {
 .aurora-header.is-over-hero .aurora-settings { color: rgba(255, 255, 255, 0.8); }
 .aurora-header.is-over-hero .aurora-settings:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .aurora-header.is-over-hero .aurora-profile.is-guest { color: #fff; border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.12); }
-.aurora-profile-menu { position: absolute; top: calc(100% + 14px); right: -4px; z-index: 120; width: 286px; overflow: hidden; padding: 8px; border: 1px solid rgba(24, 24, 27, .08); border-radius: 22px; background: rgba(255, 255, 255, .97); box-shadow: 0 24px 64px rgba(24, 24, 27, .16); backdrop-filter: blur(24px); }
-.aurora-profile-menu > header { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 10px 13px; border-bottom: 1px solid #ececef; }
-.aurora-profile-menu > header > img,
-.aurora-profile-menu > header > span { display: grid; width: 38px; height: 38px; overflow: hidden; place-items: center; color: #fff; border-radius: 50%; background: #313134; object-fit: cover; font-size: 11px; font-weight: 820; }
-.aurora-profile-menu header div { min-width: 0; }
-.aurora-profile-menu header small,
-.aurora-profile-menu header strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.aurora-profile-menu header small { color: #e35c6c; font-size: 7px; font-weight: 850; letter-spacing: .14em; }
-.aurora-profile-menu header strong { margin-top: 4px; color: #333337; font-size: 11px; }
-.aurora-profile-menu nav { display: grid; gap: 2px; padding-top: 6px; }
-.aurora-profile-menu nav button { display: grid; width: 100%; grid-template-columns: 31px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; text-align: left; border: 0; border-radius: 13px; background: transparent; }
-.aurora-profile-menu nav button:hover,
-.aurora-profile-menu nav button.is-active { background: #f2f2f3; }
-.aurora-profile-menu nav svg { width: 20px; fill: none; stroke: #6f6f76; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.55; }
-.aurora-profile-menu nav span { min-width: 0; }
-.aurora-profile-menu nav strong,
-.aurora-profile-menu nav small { display: block; }
-.aurora-profile-menu nav strong { color: #39393d; font-size: 10px; }
-.aurora-profile-menu nav small { margin-top: 3px; color: #9999a0; font-size: 8px; }
-.aurora-profile-menu nav b { color: #aaaab0; font-size: 10px; font-weight: 500; }
-.aurora-profile-menu nav i { display: grid; min-width: 19px; height: 19px; place-items: center; padding: 0 3px; color: #fff; border-radius: 10px; background: #ee5668; font-size: 8px; font-style: normal; }
-.profile-menu-enter-active, .profile-menu-leave-active { transition: opacity 150ms ease, transform 180ms ease; transform-origin: top right; }
-.profile-menu-enter-from, .profile-menu-leave-to { opacity: 0; transform: translateY(-5px) scale(.97); }
+.aurora-profile:focus-visible,
+.profile-menu-row:focus-visible,
+.account-logout-actions button:focus-visible { outline: 2px solid #b54e6b; outline-offset: 2px; }
+.aurora-profile-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 120;
+  width: min(328px, calc(100vw - 36px));
+  max-height: calc(100dvh - var(--header-height) - var(--global-player-space, 92px) - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  border: 1px solid #e9e3e9;
+  border-radius: 24px;
+  background: #fefdfd;
+  box-shadow: 0 22px 40px -16px rgb(45 29 48 / .27), 0 4px 12px rgb(45 29 48 / .06);
+}
+.profile-menu-identity {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px 12px;
+  border: 1px solid #efe5ee;
+  border-radius: 15px;
+  background: linear-gradient(125deg, #f9f2f6, #f7f4f9);
+}
+.profile-menu-identity img,
+.profile-menu-initial {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #594759;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e8dce8, 0 3px 8px rgb(64 42 66 / .1);
+  object-fit: cover;
+  font-size: 18px;
+  font-weight: 700;
+}
+.profile-menu-identity strong {
+  display: block;
+  overflow: hidden;
+  color: #29242d;
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-menu-identity div > span { display: block; margin-top: 3px; color: #6a606e; font-size: 13px; line-height: 1.4; }
+.profile-menu-links { display: grid; gap: 2px; margin-block: 8px; }
+.profile-menu-row {
+  display: grid;
+  width: 100%;
+  min-height: 46px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 10px;
+  color: #302b34;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.profile-menu-row:hover { background: #f5f2f5; }
+.profile-menu-row[aria-current='page'] { color: #8a3955; background: #f8edf2; box-shadow: inset 0 0 0 1px #f0e1e9; }
+.profile-menu-row > svg { color: #74677a; }
+.profile-menu-row .profile-menu-arrow { width: 16px; height: 16px; color: #8a7d90; transition: transform 140ms ease; }
+.profile-menu-row:hover .profile-menu-arrow { transform: translateX(2px); }
+.profile-menu-badge {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #9f2947;
+  background: #fbe5eb;
+  font-size: 12px;
+  text-align: center;
+}
+.profile-menu-session { position: relative; padding-top: 8px; }
+.profile-menu-session::before { position: absolute; inset: 0 10px auto; height: 1px; background: #eee7ed; content: ''; }
+.profile-menu-logout,
+.profile-menu-logout > svg { color: #a5344c; }
+.profile-menu-logout:hover { background: #fdf0f3; }
+.profile-menu-logout:disabled, .account-logout-actions button:disabled { cursor: wait; opacity: .65; }
+.profile-menu-enter-active, .profile-menu-leave-active { transition: opacity 150ms ease, transform 180ms cubic-bezier(.22, 1, .36, 1); transform-origin: top right; }
+.profile-menu-enter-from, .profile-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(.985); }
+.profile-menu-leave-active { pointer-events: none; }
+
+.account-logout-dialog {
+  width: min(408px, calc(100vw - 36px));
+  max-height: calc(100dvh - 36px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #eae5e8;
+  border-radius: 24px;
+  color: #29242d;
+  background: #fff;
+  box-shadow: 0 26px 70px -12px rgb(39 29 48 / .33), 0 4px 16px rgb(39 29 48 / .07);
+}
+.account-logout-dialog[open] { animation: account-logout-in 180ms cubic-bezier(.22, 1, .36, 1) both; }
+.account-logout-dialog::backdrop { background: rgb(32 23 36 / .32); backdrop-filter: blur(4px); }
+.account-logout-content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: clamp(18px, 5vw, 26px);
+}
+.account-logout-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid #f4dce4;
+  border-radius: 14px;
+  color: #a5344c;
+  background: linear-gradient(145deg, #fff4f7, #fae6ed);
+}
+.account-logout-content h2 { margin: 0 0 7px; font-size: 19px; font-weight: 750; line-height: 1.3; }
+.account-logout-content p { margin: 0; color: #665d6b; font-size: 14px; line-height: 1.7; }
+.account-logout-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px clamp(18px, 5vw, 26px) 16px;
+  border-top: 1px solid #f0eaf0;
+  background: #faf7fa;
+}
+.account-logout-actions button {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #e7dfe8;
+  border-radius: 11px;
+  color: #38323c;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.account-logout-actions button:hover:not(:disabled) { background: #f2ecf3; }
+.account-logout-actions .account-logout-confirm {
+  border-color: #a33551;
+  color: #fff;
+  background: linear-gradient(145deg, #ad3a58, #9c304a);
+  box-shadow: 0 2px 4px rgb(113 28 52 / .14);
+}
+.account-logout-actions .account-logout-confirm:hover:not(:disabled) { background: #902a43; }
+
+@keyframes account-logout-in {
+  from { opacity: 0; transform: translateY(6px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu-enter-active, .profile-menu-leave-active, .profile-menu-row, .profile-menu-row .profile-menu-arrow { transition: none; }
+  .profile-menu-row:hover .profile-menu-arrow { transform: none; }
+  .account-logout-dialog[open] { animation: none; }
+}
 
 @media (min-width: 821px) {
   .aurora-header.is-overlay { margin-bottom: calc(-1 * var(--header-height)); }

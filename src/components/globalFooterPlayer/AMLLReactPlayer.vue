@@ -91,6 +91,7 @@ const emit = defineEmits([
   'toggle-shuffle',
   'cycle-repeat',
   'audio-quality-click',
+  'renderer-error',
   'share-line',
 ])
 
@@ -281,24 +282,28 @@ watch(
 watch(() => props.playMode, syncMode, {immediate: true})
 
 onMounted(() => {
-  configureCallbacks()
-  reactStore.set(musicQualityTagAtom, null)
-  stopHideLyricsWatch = reactStore.sub(hideLyricViewAtom, () => {
-    emit('update:hideLyricView', reactStore.get(hideLyricViewAtom))
-  })
-  reactRoot = createRoot(reactMountRef.value)
-  // Commit the React tree before the Vue startup task reports readiness.
-  flushSync(() => reactRoot.render(
-    createReactElement(
-      Provider,
-      {store: reactStore},
-      createReactElement(PrebuiltLyricPlayer, {
-        id: 'amll-player-fullscreen',
-        className: 'amll-prebuilt',
-        style: {width: '100%', height: '100%', backgroundColor: '#222'},
-      }),
-    ),
-  ))
+  try {
+    configureCallbacks()
+    reactStore.set(musicQualityTagAtom, null)
+    stopHideLyricsWatch = reactStore.sub(hideLyricViewAtom, () => {
+      emit('update:hideLyricView', reactStore.get(hideLyricViewAtom))
+    })
+    reactRoot = createRoot(reactMountRef.value, {onUncaughtError: () => emit('renderer-error')})
+    // Commit the React tree before the Vue startup task reports readiness.
+    flushSync(() => reactRoot.render(
+      createReactElement(
+        Provider,
+        {store: reactStore},
+        createReactElement(PrebuiltLyricPlayer, {
+          id: 'amll-player-fullscreen',
+          className: 'amll-prebuilt',
+          style: {width: '100%', height: '100%', backgroundColor: '#222'},
+        }),
+      ),
+    ))
+  } catch {
+    emit('renderer-error')
+  }
 })
 
 onBeforeUnmount(() => {
@@ -328,12 +333,14 @@ onBeforeUnmount(() => {
   transform: translateY(100%);
   border-radius: 1em 1em 0 0;
   overflow: hidden;
+  visibility: hidden;
   background-color: #222;
   color: #fff;
   z-index: 3000;
 }
 
 .amll-wrapper.is-opened {
+  visibility: visible;
   pointer-events: auto;
   transition:
     border-radius 250ms 250ms ease,

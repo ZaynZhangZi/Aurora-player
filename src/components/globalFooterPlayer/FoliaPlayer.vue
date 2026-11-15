@@ -80,8 +80,8 @@ onBeforeUnmount(() => {turn++; hideExitButton(); renderer?.dispose()})
 </script>
 
 <style scoped>
-.folia-player { position: fixed; inset: 0; z-index: 1300; overflow: hidden; background: #0f172a; opacity: 0; transition: opacity .3s ease; }
-.folia-player.is-opened { opacity: 1; }
+.folia-player { position: fixed; inset: 0; z-index: 1300; overflow: hidden; background: #0f172a; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .3s ease; }
+.folia-player.is-opened { opacity: 1; visibility: visible; pointer-events: auto; }
 .folia-exit { position: absolute; top: max(24px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); z-index: 80; display: flex; min-height: 44px; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid rgb(255 255 255 / .24); border-radius: 999px; color: #fff; background: rgb(15 23 42 / .72); box-shadow: 0 4px 20px rgb(0 0 0 / .2); backdrop-filter: blur(12px); font: 600 14px/1.5 system-ui, sans-serif; cursor: pointer; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity 180ms ease, transform 180ms ease, background 150ms ease; }
 .folia-exit svg { width: 20px; height: 20px; flex-shrink: 0; }
 .has-pointer-activity .folia-exit, .folia-exit:focus-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
